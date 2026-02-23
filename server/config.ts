@@ -1,3 +1,5 @@
+import path from 'path';
+
 function requireEnv(key: string): string {
   const value = process.env[key];
   if (!value) {
@@ -11,8 +13,8 @@ export const config = {
   scenarioModel: process.env.SCENARIO_MODEL || 'gemini-2.5-flash',
   imageModel: process.env.IMAGE_MODEL || 'gemini-2.5-flash-preview-image-generation',
   imageConcurrency: parseInt(process.env.IMAGE_CONCURRENCY || '3', 10),
-  port: parseInt(process.env.SERVER_PORT || '3001', 10),
-  dataDir: new URL('../data/stories', import.meta.url).pathname,
+  port: parseInt(process.env.PORT || process.env.SERVER_PORT || '3001', 10),
+  dataDir: process.env.DATA_DIR || path.join(process.cwd(), 'data', 'stories'),
   maxPromptLength: 500,
   maxRetries: 3,
 } as const;

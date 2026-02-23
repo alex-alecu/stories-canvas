@@ -3,7 +3,7 @@ import path from 'path';
 import { generateJSON } from './gemini.js';
 import type { Scenario } from '../../shared/types.js';
 
-const STORY_MD_PATH = new URL('../../STORY.md', import.meta.url).pathname;
+const STORY_MD_PATH = path.join(process.cwd(), 'STORY.md');
 
 const scenarioSchema = {
   type: 'OBJECT',
