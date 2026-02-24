@@ -6,6 +6,7 @@ import * as sbStorage from '../services/supabaseStorage.js';
 import { generateScenario } from '../services/scenario.js';
 import { generateAllCharacterSheets } from '../services/characterSheet.js';
 import { generateAllSceneImages } from '../services/sceneGenerator.js';
+import { optionalAuth } from '../middleware/auth.js';
 import type { GenerationProgress, CreateStoryRequest, StoryStatus, StoryMeta, Scenario } from '../../shared/types.js';
 
 const router = Router();
@@ -106,6 +107,36 @@ async function sendProgressUpdate(storyId: string, data: Partial<GenerationProgr
 
 // ---------- Routes ----------
 
+// GET /api/stories/mine - List stories for authenticated user
+router.get('/mine', optionalAuth, async (req: Request, res: Response) => {
+  try {
+    if (!req.authUser) {
+      res.status(401).json({ error: 'Authentication required' });
+      return;
+    }
+
+    if (config.useSupabase) {
+      const stories = await sbStorage.listStoriesByUser(req.authUser.id);
+      const summaries = stories.map(s => ({
+        id: s.id,
+        prompt: s.prompt,
+        status: s.status,
+        createdAt: s.createdAt,
+        title: s.scenario?.title,
+        coverImage: getCoverImageUrl(s),
+        totalPages: s.scenario?.pages?.length ?? 0,
+        completedPages: s.scenario?.pages?.filter(p => p.status === 'completed').length ?? 0,
+      }));
+      res.json(summaries);
+    } else {
+      res.json([]);
+    }
+  } catch (error) {
+    console.error('Failed to list user stories:', error);
+    res.status(500).json({ error: 'Failed to list user stories' });
+  }
+});
+
 // GET /api/stories - List stories
 router.get('/', async (_req: Request, res: Response) => {
   try {
@@ -127,9 +158,15 @@ router.get('/', async (_req: Request, res: Response) => {
   }
 });
 
-// POST /api/stories - Create a new story
-router.post('/', async (req: Request, res: Response) => {
+// POST /api/stories - Create a new story (requires auth when Supabase is configured)
+router.post('/', optionalAuth, async (req: Request, res: Response) => {
   try {
+    // Require authentication when Supabase is configured
+    if (config.useSupabase && !req.authUser) {
+      res.status(401).json({ error: 'Authentication required' });
+      return;
+    }
+
     const { prompt } = req.body as CreateStoryRequest;
 
     if (!prompt || typeof prompt !== 'string') {
@@ -149,10 +186,11 @@ router.post('/', async (req: Request, res: Response) => {
     }
 
     const storyId = crypto.randomUUID();
+    const userId = req.authUser?.id;
 
     // Create the story in DB IMMEDIATELY so it's available for SSE and refresh
     if (config.useSupabase) {
-      await sbStorage.createStory(storyId, trimmedPrompt, 'generating_scenario');
+      await sbStorage.createStory(storyId, trimmedPrompt, 'generating_scenario', userId);
     }
 
     // Return immediately, generation happens in background
@@ -411,9 +449,24 @@ router.get('/:id/status', async (req: Request, res: Response) => {
   });
 });
 
-// DELETE /api/stories/:id - Delete a story
-router.delete('/:id', async (req: Request, res: Response) => {
+// DELETE /api/stories/:id - Delete a story (requires auth when Supabase is configured)
+router.delete('/:id', optionalAuth, async (req: Request, res: Response) => {
   try {
+    // Require authentication when Supabase is configured
+    if (config.useSupabase && !req.authUser) {
+      res.status(401).json({ error: 'Authentication required' });
+      return;
+    }
+
+    // Verify ownership if authenticated
+    if (config.useSupabase && req.authUser) {
+      const story = await getStory(req.params.id as string);
+      if (story && story.userId && story.userId !== req.authUser.id) {
+        res.status(403).json({ error: 'Forbidden: you can only delete your own stories' });
+        return;
+      }
+    }
+
     const deleted = await removeStory(req.params.id as string);
     if (!deleted) {
       res.status(404).json({ error: 'Story not found' });

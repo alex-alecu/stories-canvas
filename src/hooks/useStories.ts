@@ -1,9 +1,27 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { StorySummary, StoryMeta, CreateStoryResponse } from '../types';
+import { supabase } from '../lib/supabase';
+
+async function getAuthHeaders(): Promise<Record<string, string>> {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (session?.access_token) {
+    return { Authorization: `Bearer ${session.access_token}` };
+  }
+  return {};
+}
 
 async function fetchStories(): Promise<StorySummary[]> {
   const res = await fetch('/api/stories');
   if (!res.ok) throw new Error('Failed to fetch stories');
+  return res.json();
+}
+
+async function fetchUserStories(): Promise<StorySummary[]> {
+  const authHeaders = await getAuthHeaders();
+  const res = await fetch('/api/stories/mine', {
+    headers: authHeaders,
+  });
+  if (!res.ok) throw new Error('Failed to fetch user stories');
   return res.json();
 }
 
@@ -14,9 +32,10 @@ async function fetchStory(id: string): Promise<StoryMeta> {
 }
 
 async function createStory(prompt: string): Promise<CreateStoryResponse> {
+  const authHeaders = await getAuthHeaders();
   const res = await fetch('/api/stories', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...authHeaders },
     body: JSON.stringify({ prompt }),
   });
   if (!res.ok) {
@@ -27,7 +46,8 @@ async function createStory(prompt: string): Promise<CreateStoryResponse> {
 }
 
 async function removeStory(id: string): Promise<void> {
-  const res = await fetch(`/api/stories/${id}`, { method: 'DELETE' });
+  const authHeaders = await getAuthHeaders();
+  const res = await fetch(`/api/stories/${id}`, { method: 'DELETE', headers: authHeaders });
   if (!res.ok) throw new Error('Failed to delete story');
 }
 
@@ -36,6 +56,14 @@ export function useStories() {
     queryKey: ['stories'],
     queryFn: fetchStories,
     refetchInterval: 10_000, // Poll for updates on generating stories
+  });
+}
+
+export function useUserStories(enabled = true) {
+  return useQuery({
+    queryKey: ['stories', 'mine'],
+    queryFn: fetchUserStories,
+    enabled,
   });
 }
 

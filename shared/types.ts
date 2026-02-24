@@ -34,6 +34,7 @@ export interface StoryMeta {
   createdAt: string;
   scenario?: Scenario;
   coverImage?: string;
+  userId?: string;
 }
 
 export interface StoryDetail extends StoryMeta {

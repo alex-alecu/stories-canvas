@@ -6,12 +6,13 @@ const BUCKET = 'story-images';
 
 // ---------- Story CRUD ----------
 
-export async function createStory(id: string, prompt: string, status: StoryStatus): Promise<void> {
+export async function createStory(id: string, prompt: string, status: StoryStatus, userId?: string): Promise<void> {
   const supabase = getSupabase();
   const { error } = await supabase.from('stories').insert({
     id,
     prompt,
     status,
+    user_id: userId ?? null,
     current_phase: 'Se generează scenariul poveștii...',
     progress_message: 'Se creează povestea ta...',
   });
@@ -97,6 +98,7 @@ interface StoryRow {
   failed_pages: number[];
   current_phase: string | null;
   progress_message: string | null;
+  user_id: string | null;
 }
 
 function rowToStoryMeta(row: StoryRow): StoryMeta {
@@ -107,6 +109,7 @@ function rowToStoryMeta(row: StoryRow): StoryMeta {
     createdAt: row.created_at,
     scenario: row.scenario ?? undefined,
     coverImage: row.cover_image_url ?? undefined,
+    userId: row.user_id ?? undefined,
   };
 }
 
@@ -132,6 +135,18 @@ export async function listStories(limit = 27): Promise<StoryMeta[]> {
     .order('created_at', { ascending: false })
     .limit(limit);
   if (error) throw new Error(`Failed to list stories: ${error.message}`);
+  return (data as StoryRow[]).map(rowToStoryMeta);
+}
+
+export async function listStoriesByUser(userId: string, limit = 50): Promise<StoryMeta[]> {
+  const supabase = getSupabase();
+  const { data, error } = await supabase
+    .from('stories')
+    .select('*')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+    .limit(limit);
+  if (error) throw new Error(`Failed to list user stories: ${error.message}`);
   return (data as StoryRow[]).map(rowToStoryMeta);
 }
 
