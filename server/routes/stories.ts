@@ -1,15 +1,72 @@
 import { Router, type Request, type Response } from 'express';
 import crypto from 'crypto';
 import { config } from '../config.js';
-import { saveScenario, updateStoryStatus, getStory, listStories, deleteStory, getImagePath } from '../utils/storage.js';
+import * as fsStorage from '../utils/storage.js';
+import * as sbStorage from '../services/supabaseStorage.js';
 import { generateScenario } from '../services/scenario.js';
 import { generateAllCharacterSheets } from '../services/characterSheet.js';
 import { generateAllSceneImages } from '../services/sceneGenerator.js';
-import type { GenerationProgress, CreateStoryRequest, StoryStatus } from '../../shared/types.js';
+import type { GenerationProgress, CreateStoryRequest, StoryStatus, StoryMeta, Scenario } from '../../shared/types.js';
 
 const router = Router();
 
-// SSE connections map: storyId -> Set of Response objects
+// ---------- Storage adapter (delegates to Supabase or filesystem) ----------
+
+async function saveScenario(storyId: string, scenario: Scenario, status: StoryStatus, prompt: string): Promise<void> {
+  if (config.useSupabase) {
+    await sbStorage.updateStoryScenario(storyId, scenario, status, prompt);
+  } else {
+    await fsStorage.saveScenario(storyId, scenario, status, prompt);
+  }
+}
+
+async function updateStoryStatus(storyId: string, status: StoryStatus): Promise<void> {
+  if (config.useSupabase) {
+    await sbStorage.updateStoryStatus(storyId, status);
+  } else {
+    await fsStorage.updateStoryStatus(storyId, status);
+  }
+}
+
+async function getStory(storyId: string): Promise<StoryMeta | null> {
+  if (config.useSupabase) {
+    return sbStorage.getStory(storyId);
+  }
+  return fsStorage.getStory(storyId);
+}
+
+async function listAllStories(): Promise<StoryMeta[]> {
+  if (config.useSupabase) {
+    return sbStorage.listStories();
+  }
+  return fsStorage.listStories();
+}
+
+async function removeStory(storyId: string): Promise<boolean> {
+  if (config.useSupabase) {
+    return sbStorage.deleteStory(storyId);
+  }
+  return fsStorage.deleteStory(storyId);
+}
+
+// ---------- Image URL helpers ----------
+
+function getPageImageUrl(storyId: string, pageNumber: number): string {
+  const filename = `page-${String(pageNumber).padStart(2, '0')}.png`;
+  if (config.useSupabase) {
+    return sbStorage.getImageUrl(storyId, filename);
+  }
+  return `/api/stories/${storyId}/images/${filename}`;
+}
+
+function getCoverImageUrl(story: StoryMeta): string | undefined {
+  if (!story.scenario?.pages?.[0]) return undefined;
+  if (story.scenario.pages[0].status !== 'completed') return undefined;
+  return getPageImageUrl(story.id, story.scenario.pages[0].pageNumber);
+}
+
+// ---------- SSE connections ----------
+
 const sseConnections = new Map<string, Set<Response>>();
 
 function sendSSE(storyId: string, data: Partial<GenerationProgress>): void {
@@ -25,18 +82,41 @@ function sendSSE(storyId: string, data: Partial<GenerationProgress>): void {
   }
 }
 
+// ---------- Persist progress to DB alongside SSE ----------
+
+async function sendProgressUpdate(storyId: string, data: Partial<GenerationProgress>): Promise<void> {
+  // Always send via SSE for real-time
+  sendSSE(storyId, data);
+
+  // Also persist to Supabase so progress survives refresh
+  if (config.useSupabase) {
+    try {
+      await sbStorage.updateStoryProgress(storyId, {
+        status: data.status,
+        completed_pages: data.completedPages,
+        failed_pages: data.failedPages,
+        current_phase: data.currentPhase,
+        progress_message: data.message,
+      });
+    } catch (error) {
+      console.error(`Failed to persist progress for ${storyId}:`, error);
+    }
+  }
+}
+
+// ---------- Routes ----------
+
 // GET /api/stories - List stories
 router.get('/', async (_req: Request, res: Response) => {
   try {
-    const stories = await listStories();
-    // Strip scenario data for listing (only send metadata + cover)
+    const stories = await listAllStories();
     const summaries = stories.map(s => ({
       id: s.id,
       prompt: s.prompt,
       status: s.status,
       createdAt: s.createdAt,
       title: s.scenario?.title,
-      coverImage: s.scenario?.pages?.[0]?.status === 'completed' ? `/api/stories/${s.id}/images/page-01.png` : undefined,
+      coverImage: getCoverImageUrl(s),
       totalPages: s.scenario?.pages?.length ?? 0,
       completedPages: s.scenario?.pages?.filter(p => p.status === 'completed').length ?? 0,
     }));
@@ -70,6 +150,11 @@ router.post('/', async (req: Request, res: Response) => {
 
     const storyId = crypto.randomUUID();
 
+    // Create the story in DB IMMEDIATELY so it's available for SSE and refresh
+    if (config.useSupabase) {
+      await sbStorage.createStory(storyId, trimmedPrompt, 'generating_scenario');
+    }
+
     // Return immediately, generation happens in background
     res.status(201).json({ id: storyId, status: 'generating_scenario' as StoryStatus });
 
@@ -86,7 +171,7 @@ router.post('/', async (req: Request, res: Response) => {
 async function runGenerationPipeline(storyId: string, prompt: string): Promise<void> {
   try {
     // Phase 1: Generate scenario
-    sendSSE(storyId, {
+    await sendProgressUpdate(storyId, {
       storyId,
       status: 'generating_scenario',
       currentPhase: 'Se generează scenariul poveștii...',
@@ -99,7 +184,7 @@ async function runGenerationPipeline(storyId: string, prompt: string): Promise<v
     const scenario = await generateScenario(prompt);
     await saveScenario(storyId, scenario, 'generating_characters', prompt);
 
-    sendSSE(storyId, {
+    await sendProgressUpdate(storyId, {
       storyId,
       status: 'generating_characters',
       currentPhase: 'Se generează fișele personajelor...',
@@ -113,7 +198,7 @@ async function runGenerationPipeline(storyId: string, prompt: string): Promise<v
     const characterSheets = await generateAllCharacterSheets(storyId, scenario.characters);
     await updateStoryStatus(storyId, 'generating_images');
 
-    sendSSE(storyId, {
+    await sendProgressUpdate(storyId, {
       storyId,
       status: 'generating_images',
       currentPhase: 'Se generează ilustrațiile paginilor...',
@@ -141,7 +226,8 @@ async function runGenerationPipeline(storyId: string, prompt: string): Promise<v
           if (match) failedPages.push(parseInt(match[1]));
         }
 
-        sendSSE(storyId, {
+        // Fire-and-forget the async persist, but always sync-send SSE
+        sendProgressUpdate(storyId, {
           storyId,
           status: 'generating_images',
           currentPhase: 'Se generează ilustrațiile paginilor...',
@@ -152,6 +238,23 @@ async function runGenerationPipeline(storyId: string, prompt: string): Promise<v
         });
       },
     );
+
+    // Update cover image URL
+    if (config.useSupabase) {
+      const coverUrl = getPageImageUrl(storyId, 1);
+      try {
+        await sbStorage.updateStoryProgress(storyId, {
+          status: 'completed',
+          completed_pages: completedPages,
+          failed_pages: failedPages,
+        });
+        // Update cover_image_url directly
+        const { getSupabase } = await import('../services/supabase.js');
+        await getSupabase().from('stories').update({ cover_image_url: coverUrl }).eq('id', storyId);
+      } catch (err) {
+        console.error(`Failed to update cover image for ${storyId}:`, err);
+      }
+    }
 
     // Complete
     await updateStoryStatus(storyId, 'completed');
@@ -192,6 +295,21 @@ async function runGenerationPipeline(storyId: string, prompt: string): Promise<v
   }
 }
 
+// GET /api/stories/active/generations - Get stories still being generated (for reconnection)
+router.get('/active/generations', async (_req: Request, res: Response) => {
+  try {
+    if (config.useSupabase) {
+      const active = await sbStorage.getActiveGenerations();
+      res.json(active.map(s => s.id));
+    } else {
+      res.json([]);
+    }
+  } catch (error) {
+    console.error('Failed to get active generations:', error);
+    res.status(500).json({ error: 'Failed to get active generations' });
+  }
+});
+
 // GET /api/stories/:id - Get story details
 router.get('/:id', async (req: Request, res: Response) => {
   try {
@@ -200,6 +318,16 @@ router.get('/:id', async (req: Request, res: Response) => {
       res.status(404).json({ error: 'Story not found' });
       return;
     }
+
+    // Enrich pages with image URLs
+    if (story.scenario?.pages) {
+      for (const page of story.scenario.pages) {
+        if (page.status === 'completed') {
+          page.imageUrl = getPageImageUrl(story.id, page.pageNumber);
+        }
+      }
+    }
+
     res.json(story);
   } catch (error) {
     console.error('Failed to get story:', error);
@@ -218,7 +346,7 @@ router.get('/:id/status', async (req: Request, res: Response) => {
     'X-Accel-Buffering': 'no',
   });
 
-  // Send initial status
+  // Send initial status from DB (works on refresh with Supabase)
   const story = await getStory(storyId);
   if (story) {
     const completedPages = story.scenario?.pages?.filter(p => p.status === 'completed').length ?? 0;
@@ -237,11 +365,22 @@ router.get('/:id/status', async (req: Request, res: Response) => {
       message: story.status === 'completed' ? 'Povestea a fost generată cu succes!' : 'Reconectat la progresul generării...',
     })}\n\n`);
 
-    // If already completed, close after sending status
+    // If already completed or failed, close after sending status
     if (story.status === 'completed' || story.status === 'failed') {
       res.end();
       return;
     }
+  } else {
+    // Story not yet in DB (race condition) - send initial generating status
+    res.write(`data: ${JSON.stringify({
+      storyId,
+      status: 'generating_scenario',
+      currentPhase: 'Se generează scenariul poveștii...',
+      completedPages: 0,
+      totalPages: 0,
+      failedPages: [],
+      message: 'Se creează povestea ta...',
+    })}\n\n`);
   }
 
   // Register SSE connection
@@ -275,7 +414,7 @@ router.get('/:id/status', async (req: Request, res: Response) => {
 // DELETE /api/stories/:id - Delete a story
 router.delete('/:id', async (req: Request, res: Response) => {
   try {
-    const deleted = await deleteStory(req.params.id as string);
+    const deleted = await removeStory(req.params.id as string);
     if (!deleted) {
       res.status(404).json({ error: 'Story not found' });
       return;
@@ -287,7 +426,7 @@ router.delete('/:id', async (req: Request, res: Response) => {
   }
 });
 
-// GET /api/stories/:id/images/:filename - Serve story images
+// GET /api/stories/:id/images/:filename - Serve story images (filesystem fallback)
 router.get('/:id/images/:filename', async (req: Request, res: Response) => {
   try {
     const id = req.params.id as string;
@@ -299,7 +438,14 @@ router.get('/:id/images/:filename', async (req: Request, res: Response) => {
       return;
     }
 
-    const imagePath = await getImagePath(id, filename);
+    // If Supabase is configured, redirect to Supabase Storage URL
+    if (config.useSupabase) {
+      const url = sbStorage.getImageUrl(id, filename);
+      res.redirect(url);
+      return;
+    }
+
+    const imagePath = await fsStorage.getImagePath(id, filename);
     if (!imagePath) {
       res.status(404).json({ error: 'Image not found' });
       return;

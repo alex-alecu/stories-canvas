@@ -42,7 +42,7 @@ export default function StoryViewer({ storyId, scenario }: StoryViewerProps) {
             <div className="relative w-full h-full">
               {page.status === 'completed' ? (
                 <img
-                  src={`/api/stories/${storyId}/images/page-${String(page.pageNumber).padStart(2, '0')}.png`}
+                  src={page.imageUrl || `/api/stories/${storyId}/images/page-${String(page.pageNumber).padStart(2, '0')}.png`}
                   alt={`Page ${page.pageNumber}`}
                   className="w-full h-full object-cover"
                 />

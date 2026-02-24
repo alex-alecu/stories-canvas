@@ -26,7 +26,10 @@ export default function GenerationProgress({ progress }: GenerationProgressProps
     { key: 'generating_images', label: 'Se ilustrează paginile' },
   ];
 
-  const currentPhaseIndex = phases.findIndex(p => p.key === progress?.status);
+  // When progress is null (waiting for SSE to connect), default to first phase
+  const currentPhaseIndex = progress
+    ? phases.findIndex(p => p.key === progress.status)
+    : 0;
   const progressPercent = progress?.totalPages
     ? Math.round((progress.completedPages / progress.totalPages) * 100)
     : 0;
@@ -42,8 +45,8 @@ export default function GenerationProgress({ progress }: GenerationProgressProps
           <PhaseIndicator
             key={phase.key}
             phase={phase.label}
-            isActive={i === currentPhaseIndex}
-            isDone={i < currentPhaseIndex || progress?.status === 'completed'}
+            isActive={progress ? i === currentPhaseIndex : i === 0}
+            isDone={progress ? (i < currentPhaseIndex || progress.status === 'completed') : false}
           />
         ))}
       </div>

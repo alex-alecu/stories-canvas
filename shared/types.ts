@@ -17,6 +17,7 @@ export interface Page {
   imagePrompt: string;
   characters: string[];
   status: PageStatus;
+  imageUrl?: string;
 }
 
 export interface Scenario {

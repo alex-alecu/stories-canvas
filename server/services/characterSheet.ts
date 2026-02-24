@@ -1,5 +1,7 @@
 import { generateImage } from './gemini.js';
 import { saveImage } from '../utils/storage.js';
+import { uploadImage } from './supabaseStorage.js';
+import { config } from '../config.js';
 import type { Character } from '../../shared/types.js';
 
 export function getCharacterSheetFilename(name: string): string {
@@ -21,7 +23,12 @@ Label at the bottom: "${character.name.toUpperCase()} CHARACTER SHEET"`;
   console.log(`Generating character sheet for ${character.name}...`);
   const base64 = await generateImage(prompt);
   const filename = getCharacterSheetFilename(character.name);
-  await saveImage(storyId, filename, base64);
+
+  if (config.useSupabase) {
+    await uploadImage(storyId, filename, base64);
+  } else {
+    await saveImage(storyId, filename, base64);
+  }
   console.log(`Character sheet saved: ${filename}`);
 
   return { name: character.name, filename, base64 };

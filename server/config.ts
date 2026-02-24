@@ -8,6 +8,13 @@ function requireEnv(key: string): string {
   return value;
 }
 
+function optionalEnv(key: string): string | undefined {
+  return process.env[key] || undefined;
+}
+
+const supabaseUrl = optionalEnv('SUPABASE_URL');
+const supabaseServiceKey = optionalEnv('SUPABASE_SERVICE_KEY');
+
 export const config = {
   geminiApiKey: requireEnv('GEMINI_API_KEY'),
   scenarioModel: process.env.SCENARIO_MODEL || 'gemini-2.5-flash',
@@ -17,4 +24,10 @@ export const config = {
   dataDir: process.env.DATA_DIR || path.join(process.cwd(), 'data', 'stories'),
   maxPromptLength: 500,
   maxRetries: 3,
+
+  // Supabase configuration
+  supabaseUrl,
+  supabaseAnonKey: optionalEnv('SUPABASE_ANON_KEY'),
+  supabaseServiceKey,
+  useSupabase: !!(supabaseUrl && supabaseServiceKey),
 } as const;

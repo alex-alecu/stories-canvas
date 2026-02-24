@@ -1,8 +1,26 @@
 import pRetry, { AbortError } from 'p-retry';
 import { generateImage } from './gemini.js';
-import { saveImage, updatePageStatus } from '../utils/storage.js';
+import { saveImage, updatePageStatus as fsUpdatePageStatus } from '../utils/storage.js';
+import { uploadImage, updatePageStatus as sbUpdatePageStatus } from './supabaseStorage.js';
+import { config } from '../config.js';
 import { imageGenerationLimiter } from '../utils/rateLimiter.js';
 import type { Page, Character, GenerationProgress } from '../../shared/types.js';
+
+async function saveSceneImage(storyId: string, filename: string, base64: string): Promise<void> {
+  if (config.useSupabase) {
+    await uploadImage(storyId, filename, base64);
+  } else {
+    await saveImage(storyId, filename, base64);
+  }
+}
+
+async function updatePageStatusBoth(storyId: string, pageNumber: number, status: 'pending' | 'generating' | 'completed' | 'failed'): Promise<void> {
+  if (config.useSupabase) {
+    await sbUpdatePageStatus(storyId, pageNumber, status);
+  } else {
+    await fsUpdatePageStatus(storyId, pageNumber, status);
+  }
+}
 
 function buildScenePrompt(
   page: Page,
@@ -54,7 +72,7 @@ export async function generateSceneImage(
 ): Promise<void> {
   const pageFilename = `page-${String(page.pageNumber).padStart(2, '0')}.png`;
 
-  await updatePageStatus(storyId, page.pageNumber, 'generating');
+  await updatePageStatusBoth(storyId, page.pageNumber, 'generating');
   onProgress?.({ message: `Se generează imaginea pentru pagina ${page.pageNumber}...` });
 
   const referenceImages: Array<{ data: string; mimeType: string }> = [];
@@ -106,12 +124,13 @@ export async function generateSceneImage(
       },
     );
 
-    await saveImage(storyId, pageFilename, base64);
-    await updatePageStatus(storyId, page.pageNumber, 'completed');
+    await saveSceneImage(storyId, pageFilename, base64);
+    await updatePageStatusBoth(storyId, page.pageNumber, 'completed');
+
     onProgress?.({ message: `Pagina ${page.pageNumber} completed` });
   } catch (error) {
     console.error(`Failed to generate page ${page.pageNumber}:`, error);
-    await updatePageStatus(storyId, page.pageNumber, 'failed');
+    await updatePageStatusBoth(storyId, page.pageNumber, 'failed');
     onProgress?.({ message: `Pagina ${page.pageNumber} failed` });
   }
 }

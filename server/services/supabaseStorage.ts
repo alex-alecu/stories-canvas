@@ -1,0 +1,185 @@
+import { getSupabase } from './supabase.js';
+import { config } from '../config.js';
+import type { StoryMeta, StoryStatus, Scenario, PageStatus } from '../../shared/types.js';
+
+const BUCKET = 'story-images';
+
+// ---------- Story CRUD ----------
+
+export async function createStory(id: string, prompt: string, status: StoryStatus): Promise<void> {
+  const supabase = getSupabase();
+  const { error } = await supabase.from('stories').insert({
+    id,
+    prompt,
+    status,
+    current_phase: 'Se generează scenariul poveștii...',
+    progress_message: 'Se creează povestea ta...',
+  });
+  if (error) throw new Error(`Failed to create story: ${error.message}`);
+}
+
+export async function updateStoryStatus(id: string, status: StoryStatus): Promise<void> {
+  const supabase = getSupabase();
+  const { error } = await supabase.from('stories').update({ status }).eq('id', id);
+  if (error) throw new Error(`Failed to update story status: ${error.message}`);
+}
+
+export interface StoryProgressUpdate {
+  completed_pages?: number;
+  failed_pages?: number[];
+  current_phase?: string;
+  progress_message?: string;
+  status?: StoryStatus;
+}
+
+export async function updateStoryProgress(id: string, progress: StoryProgressUpdate): Promise<void> {
+  const supabase = getSupabase();
+  const { error } = await supabase.from('stories').update(progress).eq('id', id);
+  if (error) throw new Error(`Failed to update story progress: ${error.message}`);
+}
+
+export async function updateStoryScenario(
+  id: string,
+  scenario: Scenario,
+  status: StoryStatus,
+  prompt: string,
+): Promise<void> {
+  const supabase = getSupabase();
+  const { error } = await supabase
+    .from('stories')
+    .update({
+      scenario,
+      title: scenario.title,
+      target_age: scenario.targetAge,
+      total_pages: scenario.pages.length,
+      status,
+      prompt,
+    })
+    .eq('id', id);
+  if (error) throw new Error(`Failed to update story scenario: ${error.message}`);
+}
+
+export async function updatePageStatus(id: string, pageNumber: number, status: PageStatus): Promise<void> {
+  const supabase = getSupabase();
+  // Read current scenario, update the page status, write back
+  const { data, error: fetchError } = await supabase
+    .from('stories')
+    .select('scenario')
+    .eq('id', id)
+    .single();
+  if (fetchError) throw new Error(`Failed to fetch story for page update: ${fetchError.message}`);
+
+  const scenario = data.scenario as Scenario | null;
+  if (scenario) {
+    const page = scenario.pages.find(p => p.pageNumber === pageNumber);
+    if (page) {
+      page.status = status;
+    }
+    const { error: updateError } = await supabase
+      .from('stories')
+      .update({ scenario })
+      .eq('id', id);
+    if (updateError) throw new Error(`Failed to update page status: ${updateError.message}`);
+  }
+}
+
+interface StoryRow {
+  id: string;
+  prompt: string;
+  status: StoryStatus;
+  created_at: string;
+  title: string | null;
+  target_age: number | null;
+  scenario: Scenario | null;
+  cover_image_url: string | null;
+  total_pages: number;
+  completed_pages: number;
+  failed_pages: number[];
+  current_phase: string | null;
+  progress_message: string | null;
+}
+
+function rowToStoryMeta(row: StoryRow): StoryMeta {
+  return {
+    id: row.id,
+    prompt: row.prompt,
+    status: row.status as StoryStatus,
+    createdAt: row.created_at,
+    scenario: row.scenario ?? undefined,
+    coverImage: row.cover_image_url ?? undefined,
+  };
+}
+
+export async function getStory(id: string): Promise<StoryMeta | null> {
+  const supabase = getSupabase();
+  const { data, error } = await supabase
+    .from('stories')
+    .select('*')
+    .eq('id', id)
+    .single();
+  if (error) {
+    if (error.code === 'PGRST116') return null; // not found
+    throw new Error(`Failed to get story: ${error.message}`);
+  }
+  return rowToStoryMeta(data as StoryRow);
+}
+
+export async function listStories(limit = 27): Promise<StoryMeta[]> {
+  const supabase = getSupabase();
+  const { data, error } = await supabase
+    .from('stories')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(limit);
+  if (error) throw new Error(`Failed to list stories: ${error.message}`);
+  return (data as StoryRow[]).map(rowToStoryMeta);
+}
+
+export async function deleteStory(id: string): Promise<boolean> {
+  const supabase = getSupabase();
+
+  // Delete images from storage
+  const { data: files } = await supabase.storage.from(BUCKET).list(id);
+  if (files && files.length > 0) {
+    const paths = files.map(f => `${id}/${f.name}`);
+    await supabase.storage.from(BUCKET).remove(paths);
+  }
+
+  // Delete from DB
+  const { error } = await supabase.from('stories').delete().eq('id', id);
+  if (error) throw new Error(`Failed to delete story: ${error.message}`);
+  return true;
+}
+
+export async function getActiveGenerations(): Promise<StoryMeta[]> {
+  const supabase = getSupabase();
+  const { data, error } = await supabase
+    .from('stories')
+    .select('*')
+    .not('status', 'in', '("completed","failed")')
+    .order('created_at', { ascending: false });
+  if (error) throw new Error(`Failed to get active generations: ${error.message}`);
+  return (data as StoryRow[]).map(rowToStoryMeta);
+}
+
+// ---------- Image Storage ----------
+
+export async function uploadImage(storyId: string, filename: string, base64Data: string): Promise<string> {
+  const supabase = getSupabase();
+  const buffer = Buffer.from(base64Data, 'base64');
+  const storagePath = `${storyId}/${filename}`;
+
+  const { error } = await supabase.storage
+    .from(BUCKET)
+    .upload(storagePath, buffer, {
+      contentType: 'image/png',
+      upsert: true,
+    });
+  if (error) throw new Error(`Failed to upload image: ${error.message}`);
+
+  return getImageUrl(storyId, filename);
+}
+
+export function getImageUrl(storyId: string, filename: string): string {
+  return `${config.supabaseUrl}/storage/v1/object/public/${BUCKET}/${storyId}/${filename}`;
+}
