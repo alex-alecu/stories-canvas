@@ -1,8 +1,11 @@
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useLanguage } from '../i18n/LanguageContext';
+import LanguageSelector from './LanguageSelector';
 
 export default function Header() {
   const { user, loading, signOut } = useAuth();
+  const { t } = useLanguage();
 
   return (
     <header className="w-full border-b border-primary-100 bg-white/70 backdrop-blur-sm">
@@ -11,15 +14,16 @@ export default function Header() {
           to="/"
           className="text-lg font-extrabold bg-gradient-to-r from-primary-600 to-primary-500 bg-clip-text text-transparent hover:opacity-80 transition-opacity"
         >
-          Povești Magice
+          {t.appTitle}
         </Link>
 
         <nav className="flex items-center gap-3">
+          <LanguageSelector />
           <Link
             to="/explore"
             className="text-sm font-bold text-primary-600 hover:text-primary-700 transition-colors"
           >
-            Explorează
+            {t.explore}
           </Link>
           {loading ? (
             <div className="w-8 h-8 rounded-full bg-gray-100 animate-pulse" />
@@ -32,7 +36,7 @@ export default function Header() {
                 {user.user_metadata?.avatar_url ? (
                   <img
                     src={user.user_metadata.avatar_url}
-                    alt={user.user_metadata?.full_name || 'Profil'}
+                    alt={user.user_metadata?.full_name || t.profile}
                     className="w-8 h-8 rounded-full border-2 border-primary-200"
                     referrerPolicy="no-referrer"
                   />
@@ -42,14 +46,14 @@ export default function Header() {
                   </div>
                 )}
                 <span className="text-sm font-medium text-gray-700 hidden sm:inline">
-                  {user.user_metadata?.full_name || user.email || 'Profil'}
+                  {user.user_metadata?.full_name || user.email || t.profile}
                 </span>
               </Link>
               <button
                 onClick={signOut}
                 className="text-sm text-gray-500 hover:text-gray-700 font-medium transition-colors ml-2"
               >
-                Deconectare
+                {t.logout}
               </button>
             </>
           ) : (
@@ -57,7 +61,7 @@ export default function Header() {
               to="/login"
               className="text-sm font-bold text-primary-600 hover:text-primary-700 transition-colors"
             >
-              Conectare
+              {t.login}
             </Link>
           )}
         </nav>

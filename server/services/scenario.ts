@@ -3,7 +3,12 @@ import path from 'path';
 import { generateJSON } from './gemini.js';
 import type { Scenario } from '../../shared/types.js';
 
-const STORY_MD_PATH = path.join(process.cwd(), 'STORY.md');
+const STORY_PROMPTS_DIR = path.join(process.cwd(), 'story-prompts');
+const FALLBACK_STORY_MD = path.join(process.cwd(), 'STORY.md');
+
+const VALID_LANGUAGES = new Set([
+  'ro', 'de', 'es', 'en', 'fr', 'it', 'pt', 'nl', 'hu', 'pl', 'cs', 'sk', 'sv', 'no', 'da', 'fi', 'ja', 'zh', 'ko',
+]);
 
 const scenarioSchema = {
   type: 'OBJECT',
@@ -48,8 +53,24 @@ const scenarioSchema = {
   required: ['title', 'targetAge', 'characters', 'pages'],
 };
 
-export async function generateScenario(userPrompt: string): Promise<Scenario> {
-  const systemInstruction = await fs.readFile(STORY_MD_PATH, 'utf-8');
+async function getStoryPrompt(language: string): Promise<string> {
+  // Try language-specific prompt first
+  if (VALID_LANGUAGES.has(language)) {
+    const langPath = path.join(STORY_PROMPTS_DIR, `${language}.md`);
+    try {
+      return await fs.readFile(langPath, 'utf-8');
+    } catch {
+      // Fall through to fallback
+    }
+  }
+
+  // Fallback to original STORY.md
+  return fs.readFile(FALLBACK_STORY_MD, 'utf-8');
+}
+
+export async function generateScenario(userPrompt: string, language?: string): Promise<Scenario> {
+  const lang = language && VALID_LANGUAGES.has(language) ? language : 'ro';
+  const systemInstruction = await getStoryPrompt(lang);
 
   const scenario = await generateJSON<Scenario>(
     userPrompt,

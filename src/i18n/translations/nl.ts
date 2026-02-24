@@ -1,0 +1,82 @@
+import type { Translations } from '../types';
+
+const nl: Translations = {
+  appTitle: 'Magische Verhalen',
+  appSubtitle: 'Maak magische geïllustreerde verhalen met behulp van AI',
+
+  explore: 'Ontdekken',
+  login: 'Inloggen',
+  logout: 'Uitloggen',
+  profile: 'Profiel',
+  backHome: 'Terug naar home',
+
+  storyInputPlaceholder: "Beschrijf je verhaal... bijvoorbeeld, 'Een dapper konijntje dat een magische tuin ontdekt in de wolken'",
+  storyInputGuestPlaceholder: 'Je moet inloggen om verhalen te maken',
+  createStory: 'Verhaal Maken',
+  creating: 'Bezig met maken...',
+
+  creatingYourStory: 'Je verhaal wordt gemaakt',
+  generationFailed: 'Generatie mislukt',
+  writingStory: 'Het verhaal wordt geschreven',
+  drawingCharacters: 'De personages worden getekend',
+  illustratingPages: "De pagina's worden geïllustreerd",
+  pages: "Pagina's",
+  pagesFailedCount: "pagina('s) konden niet worden gegenereerd",
+
+  generatingStory: 'Verhaal wordt gegenereerd...',
+  writingStoryStatus: 'Verhaal wordt geschreven...',
+  drawingCharactersStatus: 'Personages worden getekend...',
+  illustratingStatus: 'Wordt geïllustreerd...',
+  failed: 'Mislukt',
+  creatingMagic: 'Magie wordt gemaakt...',
+  publicLabel: 'Openbaar',
+  privateLabel: 'Privé',
+  makePublic: 'Openbaar maken',
+  makePrivate: 'Privé maken',
+  deleteStory: 'Verhaal verwijderen',
+
+  noStoriesYet: 'Nog geen verhalen',
+  createFirstStory: 'Maak je eerste verhaal hierboven!',
+
+  storyNotFound: 'Verhaal niet gevonden',
+  storyNotFoundDescription: 'Dit verhaal is verwijderd of bestaat niet.',
+  storyDataUnavailable: 'Verhaalgegevens niet beschikbaar',
+  reconnectedProgress: 'Opnieuw verbonden met generatievoortgang...',
+  storyGeneratedSuccess: 'Verhaal succesvol gegenereerd!',
+  done: 'Klaar!',
+  inProgress: 'Bezig...',
+  imageCouldNotGenerate: 'Afbeelding kon niet worden gegenereerd',
+  imageNotAvailable: 'Afbeelding niet beschikbaar',
+
+  loginTitle: 'Inloggen',
+  loginSubtitle: 'Log in om je verhalen te maken en beheren',
+  continueWithGoogle: 'Doorgaan met Google',
+  continueWithApple: 'Doorgaan met Apple',
+
+  myStories: 'Mijn Verhalen',
+  noStoriesYetProfile: 'Je hebt nog geen verhalen',
+  createFirstStoryMagic: 'Maak je eerste magische verhaal!',
+  createAStory: 'Een verhaal maken',
+  user: 'Gebruiker',
+
+  exploreStories: 'Verhalen Ontdekken',
+  discoverCommunityStories: 'Ontdek verhalen gemaakt door de community',
+  searchStories: 'Verhalen zoeken...',
+  noPublicStoriesFound: 'Geen openbare verhalen gevonden',
+  tryDifferentSearch: 'Probeer een andere zoekterm',
+  noPublicStoriesYet: 'Nog geen openbare verhalen',
+
+  somethingWentWrong: 'Er is iets misgegaan',
+  unexpectedError: 'Er is een onverwachte fout opgetreden',
+  home: 'Home',
+
+  confirmDeleteStory: 'Weet je zeker dat je dit verhaal wilt verwijderen?',
+  couldNotDeleteStory: 'Kon het verhaal niet verwijderen',
+  couldNotChangeVisibility: 'Kon de zichtbaarheid niet wijzigen',
+  couldNotCreateStory: 'Kon het verhaal niet maken. Probeer het opnieuw.',
+
+  language: 'Taal',
+  languageName: 'Nederlands',
+};
+
+export default nl;

@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
 import StoryGrid from '../components/StoryGrid';
 import { usePublicStories } from '../hooks/useStories';
+import { useLanguage } from '../i18n/LanguageContext';
 
 export default function Explore() {
   const [inputValue, setInputValue] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
+  const { t } = useLanguage();
 
   // Debounce search input
   useEffect(() => {
@@ -22,10 +24,10 @@ export default function Explore() {
         {/* Page header */}
         <div className="text-center mb-8">
           <h1 className="text-3xl md:text-4xl font-extrabold bg-gradient-to-r from-primary-600 to-primary-500 bg-clip-text text-transparent mb-2">
-            Explorează Povești
+            {t.exploreStories}
           </h1>
           <p className="text-gray-500 text-lg">
-            Descoperă povești create de comunitate
+            {t.discoverCommunityStories}
           </p>
         </div>
 
@@ -48,7 +50,7 @@ export default function Explore() {
               type="text"
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
-              placeholder="Caută povești..."
+              placeholder={t.searchStories}
               className="w-full pl-12 pr-4 py-3.5 rounded-2xl border border-primary-200 bg-white/80 backdrop-blur-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-transparent transition-all shadow-sm"
             />
             {inputValue && (
@@ -69,8 +71,8 @@ export default function Explore() {
         <StoryGrid
           stories={stories}
           isLoading={isLoading}
-          emptyMessage="Nicio poveste publică găsită"
-          emptySubMessage={debouncedSearch ? 'Încearcă un alt termen de căutare' : 'Nicio poveste publică încă'}
+          emptyMessage={t.noPublicStoriesFound}
+          emptySubMessage={debouncedSearch ? t.tryDifferentSearch : t.noPublicStoriesYet}
         />
       </div>
     </div>

@@ -1,5 +1,6 @@
 import StoryCard from './StoryCard';
 import type { StorySummary } from '../types';
+import { useLanguage } from '../i18n/LanguageContext';
 
 interface StoryGridProps {
   stories: StorySummary[];
@@ -11,6 +12,8 @@ interface StoryGridProps {
 }
 
 export default function StoryGrid({ stories, isLoading, onDelete, onTogglePublic, emptyMessage, emptySubMessage }: StoryGridProps) {
+  const { t } = useLanguage();
+
   if (isLoading && stories.length === 0) {
     return (
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -27,8 +30,8 @@ export default function StoryGrid({ stories, isLoading, onDelete, onTogglePublic
     return (
       <div className="text-center py-16">
         <div className="text-6xl mb-4 opacity-50">~</div>
-        <h2 className="text-xl font-bold text-gray-400 mb-2">{emptyMessage || 'Nicio poveste încă'}</h2>
-        <p className="text-gray-400">{emptySubMessage || 'Creează prima ta poveste mai sus!'}</p>
+        <h2 className="text-xl font-bold text-gray-400 mb-2">{emptyMessage || t.noStoriesYet}</h2>
+        <p className="text-gray-400">{emptySubMessage || t.createFirstStory}</p>
       </div>
     );
   }

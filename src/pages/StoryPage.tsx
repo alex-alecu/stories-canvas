@@ -3,12 +3,14 @@ import { useStory } from '../hooks/useStories';
 import { useStoryGeneration } from '../hooks/useStoryGeneration';
 import StoryViewer from '../components/StoryViewer';
 import GenerationProgress from '../components/GenerationProgress';
+import { useLanguage } from '../i18n/LanguageContext';
 
 export default function StoryPage() {
   const { id } = useParams<{ id: string }>();
   const { data: story, isLoading, error } = useStory(id);
   const isGenerating = story?.status !== 'completed' && story?.status !== 'failed';
   const { progress } = useStoryGeneration(isGenerating ? id ?? null : null);
+  const { t } = useLanguage();
 
   if (isLoading) {
     return (
@@ -22,13 +24,13 @@ export default function StoryPage() {
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
         <div className="bg-white rounded-2xl shadow-lg p-8 max-w-md w-full text-center">
-          <h1 className="text-2xl font-bold text-gray-800 mb-2">Povestea nu a fost găsită</h1>
-          <p className="text-gray-500 mb-6">Această poveste a fost ștearsă sau nu există.</p>
+          <h1 className="text-2xl font-bold text-gray-800 mb-2">{t.storyNotFound}</h1>
+          <p className="text-gray-500 mb-6">{t.storyNotFoundDescription}</p>
           <Link
             to="/"
             className="inline-block bg-primary-500 hover:bg-primary-600 text-white font-bold py-3 px-6 rounded-xl transition-colors"
           >
-            Înapoi acasă
+            {t.backHome}
           </Link>
         </div>
       </div>
@@ -43,7 +45,7 @@ export default function StoryPage() {
           <GenerationProgress progress={progress} />
           <div className="text-center mt-4">
             <Link to="/" className="text-primary-500 hover:text-primary-600 font-medium text-sm">
-              ← Înapoi acasă
+              &larr; {t.backHome}
             </Link>
           </div>
         </div>
@@ -59,12 +61,12 @@ export default function StoryPage() {
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-lg p-8 max-w-md w-full text-center">
-        <h1 className="text-2xl font-bold text-gray-800 mb-2">Datele poveștii nu sunt disponibile</h1>
+        <h1 className="text-2xl font-bold text-gray-800 mb-2">{t.storyDataUnavailable}</h1>
         <Link
           to="/"
           className="inline-block bg-primary-500 hover:bg-primary-600 text-white font-bold py-3 px-6 rounded-xl transition-colors mt-4"
         >
-          Înapoi acasă
+          {t.backHome}
         </Link>
       </div>
     </div>

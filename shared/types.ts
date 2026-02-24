@@ -54,6 +54,7 @@ export interface GenerationProgress {
 
 export interface CreateStoryRequest {
   prompt: string;
+  language?: string;
 }
 
 export interface CreateStoryResponse {

@@ -209,7 +209,7 @@ router.post('/', optionalAuth, async (req: Request, res: Response) => {
       return;
     }
 
-    const { prompt } = req.body as CreateStoryRequest;
+    const { prompt, language } = req.body as CreateStoryRequest;
 
     if (!prompt || typeof prompt !== 'string') {
       res.status(400).json({ error: 'Prompt is required' });
@@ -227,19 +227,20 @@ router.post('/', optionalAuth, async (req: Request, res: Response) => {
       return;
     }
 
+    const storyLanguage = typeof language === 'string' ? language : 'ro';
     const storyId = crypto.randomUUID();
     const userId = req.authUser?.id;
 
     // Create the story in DB IMMEDIATELY so it's available for SSE and refresh
     if (config.useSupabase) {
-      await sbStorage.createStory(storyId, trimmedPrompt, 'generating_scenario', userId);
+      await sbStorage.createStory(storyId, trimmedPrompt, 'generating_scenario', userId, storyLanguage);
     }
 
     // Return immediately, generation happens in background
     res.status(201).json({ id: storyId, status: 'generating_scenario' as StoryStatus });
 
     // Background generation pipeline
-    runGenerationPipeline(storyId, trimmedPrompt, userId).catch(error => {
+    runGenerationPipeline(storyId, trimmedPrompt, userId, storyLanguage).catch(error => {
       console.error(`Generation pipeline failed for ${storyId}:`, error);
     });
   } catch (error) {
@@ -248,30 +249,30 @@ router.post('/', optionalAuth, async (req: Request, res: Response) => {
   }
 });
 
-async function runGenerationPipeline(storyId: string, prompt: string, userId?: string): Promise<void> {
+async function runGenerationPipeline(storyId: string, prompt: string, userId?: string, language?: string): Promise<void> {
   try {
     // Phase 1: Generate scenario
     await sendProgressUpdate(storyId, {
       storyId,
       status: 'generating_scenario',
-      currentPhase: 'Se generează scenariul poveștii...',
+      currentPhase: 'Generating story scenario...',
       completedPages: 0,
       totalPages: 0,
       failedPages: [],
-      message: 'Se creează povestea ta...',
+      message: 'Creating your story...',
     });
 
-    const scenario = await generateScenario(prompt);
+    const scenario = await generateScenario(prompt, language);
     await saveScenario(storyId, scenario, 'generating_characters', prompt);
 
     await sendProgressUpdate(storyId, {
       storyId,
       status: 'generating_characters',
-      currentPhase: 'Se generează fișele personajelor...',
+      currentPhase: 'Generating character sheets...',
       completedPages: 0,
       totalPages: scenario.pages.length,
       failedPages: [],
-      message: `Povestea „${scenario.title}" a fost creată cu ${scenario.pages.length} pagini. Se generează fișele personajelor...`,
+      message: `Story "${scenario.title}" created with ${scenario.pages.length} pages. Generating character sheets...`,
     });
 
     // Phase 2: Generate character sheets (sequential)
@@ -281,11 +282,11 @@ async function runGenerationPipeline(storyId: string, prompt: string, userId?: s
     await sendProgressUpdate(storyId, {
       storyId,
       status: 'generating_images',
-      currentPhase: 'Se generează ilustrațiile paginilor...',
+      currentPhase: 'Generating page illustrations...',
       completedPages: 0,
       totalPages: scenario.pages.length,
       failedPages: [],
-      message: `Fișele personajelor sunt gata. Se generează ${scenario.pages.length} ilustrații...`,
+      message: `Character sheets ready. Generating ${scenario.pages.length} illustrations...`,
     });
 
     // Phase 3: Generate scene images (parallel with rate limiting)
@@ -302,7 +303,7 @@ async function runGenerationPipeline(storyId: string, prompt: string, userId?: s
         if (progress.message?.includes('completed')) {
           completedPages++;
         } else if (progress.message?.includes('failed')) {
-          const match = progress.message.match(/Pagina (\d+)/);
+          const match = progress.message.match(/(?:Pagina|Page)\s+(\d+)/i);
           if (match) failedPages.push(parseInt(match[1]));
         }
 
@@ -310,7 +311,7 @@ async function runGenerationPipeline(storyId: string, prompt: string, userId?: s
         sendProgressUpdate(storyId, {
           storyId,
           status: 'generating_images',
-          currentPhase: 'Se generează ilustrațiile paginilor...',
+          currentPhase: 'Generating page illustrations...',
           completedPages,
           totalPages: scenario.pages.length,
           failedPages,
@@ -342,11 +343,11 @@ async function runGenerationPipeline(storyId: string, prompt: string, userId?: s
     sendSSE(storyId, {
       storyId,
       status: 'completed',
-      currentPhase: 'Gata!',
+      currentPhase: 'Done!',
       completedPages,
       totalPages: scenario.pages.length,
       failedPages,
-      message: 'Povestea a fost generată cu succes!',
+      message: 'Story generated successfully!',
     });
   } catch (error) {
     console.error(`Pipeline failed for ${storyId}:`, error);
@@ -356,11 +357,11 @@ async function runGenerationPipeline(storyId: string, prompt: string, userId?: s
     sendSSE(storyId, {
       storyId,
       status: 'failed',
-      currentPhase: 'Eșuat',
+      currentPhase: 'Failed',
       completedPages: 0,
       totalPages: 0,
       failedPages: [],
-      message: error instanceof Error ? error.message : 'Generarea a eșuat',
+      message: error instanceof Error ? error.message : 'Generation failed',
     });
   } finally {
     // Close SSE connections after a short delay
@@ -449,11 +450,11 @@ router.get('/:id/status', async (req: Request, res: Response) => {
     res.write(`data: ${JSON.stringify({
       storyId,
       status: story.status,
-      currentPhase: story.status === 'completed' ? 'Gata!' : 'În progres...',
+      currentPhase: story.status === 'completed' ? 'Done!' : 'In progress...',
       completedPages,
       totalPages,
       failedPages,
-      message: story.status === 'completed' ? 'Povestea a fost generată cu succes!' : 'Reconectat la progresul generării...',
+      message: story.status === 'completed' ? 'Story generated successfully!' : 'Reconnected to generation progress...',
     })}\n\n`);
 
     // If already completed or failed, close after sending status
@@ -466,11 +467,11 @@ router.get('/:id/status', async (req: Request, res: Response) => {
     res.write(`data: ${JSON.stringify({
       storyId,
       status: 'generating_scenario',
-      currentPhase: 'Se generează scenariul poveștii...',
+      currentPhase: 'Generating story scenario...',
       completedPages: 0,
       totalPages: 0,
       failedPages: [],
-      message: 'Se creează povestea ta...',
+      message: 'Creating your story...',
     })}\n\n`);
   }
 

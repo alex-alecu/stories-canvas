@@ -1,0 +1,82 @@
+import type { Translations } from '../types';
+
+const hu: Translations = {
+  appTitle: 'Varázslatos Mesék',
+  appSubtitle: 'Készíts varázslatos illusztrált meséket az AI segítségével',
+
+  explore: 'Felfedezés',
+  login: 'Bejelentkezés',
+  logout: 'Kijelentkezés',
+  profile: 'Profil',
+  backHome: 'Vissza a főoldalra',
+
+  storyInputPlaceholder: "Írd le a mesédet... például, 'Egy bátor kisnyúl, aki felfedez egy varázslatos kertet a felhők között'",
+  storyInputGuestPlaceholder: 'Be kell jelentkezned a mesék létrehozásához',
+  createStory: 'Mese Készítése',
+  creating: 'Készítés...',
+
+  creatingYourStory: 'A meséd készül',
+  generationFailed: 'A generálás sikertelen',
+  writingStory: 'A mese írása',
+  drawingCharacters: 'A szereplők rajzolása',
+  illustratingPages: 'Az oldalak illusztrálása',
+  pages: 'Oldalak',
+  pagesFailedCount: 'oldal(ak) nem sikerült legenerálni',
+
+  generatingStory: 'Mese generálása...',
+  writingStoryStatus: 'Mese írása...',
+  drawingCharactersStatus: 'Szereplők rajzolása...',
+  illustratingStatus: 'Illusztrálás...',
+  failed: 'Sikertelen',
+  creatingMagic: 'Varázslat készítése...',
+  publicLabel: 'Nyilvános',
+  privateLabel: 'Privát',
+  makePublic: 'Nyilvánossá tétel',
+  makePrivate: 'Priváttá tétel',
+  deleteStory: 'Mese törlése',
+
+  noStoriesYet: 'Még nincsenek mesék',
+  createFirstStory: 'Készítsd el az első mesédet fent!',
+
+  storyNotFound: 'Mese nem található',
+  storyNotFoundDescription: 'Ez a mese törölve lett vagy nem létezik.',
+  storyDataUnavailable: 'A mese adatai nem elérhetőek',
+  reconnectedProgress: 'Újracsatlakozva a generálási folyamathoz...',
+  storyGeneratedSuccess: 'A mese sikeresen elkészült!',
+  done: 'Kész!',
+  inProgress: 'Folyamatban...',
+  imageCouldNotGenerate: 'A kép nem generálható',
+  imageNotAvailable: 'Kép nem elérhető',
+
+  loginTitle: 'Bejelentkezés',
+  loginSubtitle: 'Jelentkezz be a meséid létrehozásához és kezeléséhez',
+  continueWithGoogle: 'Folytatás Google-lel',
+  continueWithApple: 'Folytatás Apple-lel',
+
+  myStories: 'Meséim',
+  noStoriesYetProfile: 'Még nincsenek meséid',
+  createFirstStoryMagic: 'Készítsd el az első varázslatos mesédet!',
+  createAStory: 'Mese készítése',
+  user: 'Felhasználó',
+
+  exploreStories: 'Mesék Felfedezése',
+  discoverCommunityStories: 'Fedezd fel a közösség által készített meséket',
+  searchStories: 'Mesék keresése...',
+  noPublicStoriesFound: 'Nem találhatók nyilvános mesék',
+  tryDifferentSearch: 'Próbálj egy másik keresési kifejezést',
+  noPublicStoriesYet: 'Még nincsenek nyilvános mesék',
+
+  somethingWentWrong: 'Valami hiba történt',
+  unexpectedError: 'Váratlan hiba történt',
+  home: 'Főoldal',
+
+  confirmDeleteStory: 'Biztosan törölni szeretnéd ezt a mesét?',
+  couldNotDeleteStory: 'Nem sikerült törölni a mesét',
+  couldNotChangeVisibility: 'Nem sikerült módosítani a láthatóságot',
+  couldNotCreateStory: 'Nem sikerült létrehozni a mesét. Kérjük, próbáld újra.',
+
+  language: 'Nyelv',
+  languageName: 'Magyar',
+};
+
+export default hu;

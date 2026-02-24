@@ -5,6 +5,7 @@ import StoryGrid from '../components/StoryGrid';
 import GenerationProgress from '../components/GenerationProgress';
 import { useStories, useCreateStory } from '../hooks/useStories';
 import { useStoryGeneration } from '../hooks/useStoryGeneration';
+import { useLanguage } from '../i18n/LanguageContext';
 
 const GENERATING_STORY_KEY = 'stories-canvas:generatingStoryId';
 
@@ -32,6 +33,7 @@ export default function Home() {
   const createStory = useCreateStory();
   const { progress } = useStoryGeneration(generatingStoryId);
   const navigate = useNavigate();
+  const { t, language } = useLanguage();
 
   // Sync generatingStoryId to localStorage
   useEffect(() => {
@@ -40,12 +42,12 @@ export default function Home() {
 
   const handleCreateStory = useCallback(async (prompt: string) => {
     try {
-      const result = await createStory.mutateAsync(prompt);
+      const result = await createStory.mutateAsync({ prompt, language });
       setGeneratingStoryId(result.id);
     } catch (error) {
       console.error('Failed to create story:', error);
     }
-  }, [createStory]);
+  }, [createStory, language]);
 
   // Navigate to story when generation completes, clear localStorage
   useEffect(() => {
@@ -70,7 +72,7 @@ export default function Home() {
 
         {createStory.isError && (
           <div className="max-w-2xl mx-auto mb-8 bg-red-50 border border-red-200 rounded-xl p-4 text-red-600 text-center">
-            {createStory.error?.message || 'Nu s-a putut crea povestea. Te rugăm să încerci din nou.'}
+            {createStory.error?.message || t.couldNotCreateStory}
           </div>
         )}
 

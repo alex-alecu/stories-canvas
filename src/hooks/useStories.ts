@@ -37,12 +37,12 @@ async function fetchStory(id: string): Promise<StoryMeta> {
   return res.json();
 }
 
-async function createStory(prompt: string): Promise<CreateStoryResponse> {
+async function createStory(params: { prompt: string; language?: string }): Promise<CreateStoryResponse> {
   const authHeaders = await getAuthHeaders();
   const res = await fetch('/api/stories', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...authHeaders },
-    body: JSON.stringify({ prompt }),
+    body: JSON.stringify({ prompt: params.prompt, language: params.language }),
   });
   if (!res.ok) {
     const error = await res.json().catch(() => ({ error: 'Failed to create story' }));

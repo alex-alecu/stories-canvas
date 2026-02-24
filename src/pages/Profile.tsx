@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import StoryGrid from '../components/StoryGrid';
 import { useUserStories, useDeleteStory, useToggleVisibility } from '../hooks/useStories';
+import { useLanguage } from '../i18n/LanguageContext';
 
 export default function Profile() {
   const { user, loading, signOut } = useAuth();
@@ -10,6 +11,7 @@ export default function Profile() {
   const { data: stories = [], isLoading: storiesLoading } = useUserStories(!!user);
   const deleteStory = useDeleteStory();
   const toggleVisibility = useToggleVisibility();
+  const { t } = useLanguage();
 
   useEffect(() => {
     if (!loading && !user) {
@@ -27,7 +29,7 @@ export default function Profile() {
 
   if (!user) return null;
 
-  const displayName = user.user_metadata?.full_name || user.user_metadata?.name || user.email || 'Utilizator';
+  const displayName = user.user_metadata?.full_name || user.user_metadata?.name || user.email || t.user;
   const avatarUrl = user.user_metadata?.avatar_url || user.user_metadata?.picture;
   const email = user.email;
 
@@ -37,11 +39,11 @@ export default function Profile() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!window.confirm('Ești sigur că vrei să ștergi această poveste?')) return;
+    if (!window.confirm(t.confirmDeleteStory)) return;
     try {
       await deleteStory.mutateAsync(id);
     } catch {
-      alert('Nu s-a putut șterge povestea');
+      alert(t.couldNotDeleteStory);
     }
   };
 
@@ -49,7 +51,7 @@ export default function Profile() {
     try {
       await toggleVisibility.mutateAsync({ id, isPublic });
     } catch {
-      alert('Nu s-a putut schimba vizibilitatea poveștii');
+      alert(t.couldNotChangeVisibility);
     }
   };
 
@@ -79,26 +81,26 @@ export default function Profile() {
               onClick={handleSignOut}
               className="bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-2.5 px-6 rounded-xl transition-colors text-sm"
             >
-              Deconectare
+              {t.logout}
             </button>
           </div>
         </div>
 
         {/* User's stories */}
         <div className="mb-6">
-          <h2 className="text-xl font-bold text-gray-700 mb-4">Poveștile mele</h2>
+          <h2 className="text-xl font-bold text-gray-700 mb-4">{t.myStories}</h2>
         </div>
 
         {stories.length === 0 && !storiesLoading ? (
           <div className="text-center py-16">
             <div className="text-6xl mb-4 opacity-50">~</div>
-            <h3 className="text-xl font-bold text-gray-400 mb-2">Nu ai nicio poveste încă</h3>
-            <p className="text-gray-400 mb-6">Creează prima ta poveste magică!</p>
+            <h3 className="text-xl font-bold text-gray-400 mb-2">{t.noStoriesYetProfile}</h3>
+            <p className="text-gray-400 mb-6">{t.createFirstStoryMagic}</p>
             <Link
               to="/"
               className="inline-block bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 text-white font-bold py-3 px-8 rounded-xl transition-all transform hover:scale-[1.02]"
             >
-              Creează o poveste
+              {t.createAStory}
             </Link>
           </div>
         ) : (

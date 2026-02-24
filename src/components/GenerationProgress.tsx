@@ -1,4 +1,5 @@
 import type { GenerationProgress as ProgressType } from '../types';
+import { useLanguage } from '../i18n/LanguageContext';
 
 interface GenerationProgressProps {
   progress: ProgressType | null;
@@ -12,7 +13,7 @@ function PhaseIndicator({ phase, isActive, isDone }: { phase: string; isActive: 
         isActive ? 'border-primary-500 text-primary-600 animate-pulse' :
         'border-gray-200 text-gray-300'
       }`}>
-        {isDone ? '✓' : isActive ? '...' : '○'}
+        {isDone ? '\u2713' : isActive ? '...' : '\u25CB'}
       </div>
       <span>{phase}</span>
     </div>
@@ -20,10 +21,12 @@ function PhaseIndicator({ phase, isActive, isDone }: { phase: string; isActive: 
 }
 
 export default function GenerationProgress({ progress }: GenerationProgressProps) {
+  const { t } = useLanguage();
+
   const phases = [
-    { key: 'generating_scenario', label: 'Se scrie povestea' },
-    { key: 'generating_characters', label: 'Se desenează personajele' },
-    { key: 'generating_images', label: 'Se ilustrează paginile' },
+    { key: 'generating_scenario', label: t.writingStory },
+    { key: 'generating_characters', label: t.drawingCharacters },
+    { key: 'generating_images', label: t.illustratingPages },
   ];
 
   // When progress is null (waiting for SSE to connect), default to first phase
@@ -37,7 +40,7 @@ export default function GenerationProgress({ progress }: GenerationProgressProps
   return (
     <div className="bg-white rounded-2xl shadow-lg p-6 max-w-md w-full mx-auto">
       <h2 className="text-lg font-bold text-gray-800 mb-4">
-        {progress?.status === 'failed' ? 'Generarea a eșuat' : 'Se creează povestea ta'}
+        {progress?.status === 'failed' ? t.generationFailed : t.creatingYourStory}
       </h2>
 
       <div className="space-y-3 mb-6">
@@ -54,7 +57,7 @@ export default function GenerationProgress({ progress }: GenerationProgressProps
       {progress?.status === 'generating_images' && progress.totalPages > 0 && (
         <div className="mb-4">
           <div className="flex justify-between text-sm text-gray-500 mb-1">
-            <span>Pagini</span>
+            <span>{t.pages}</span>
             <span>{progress.completedPages}/{progress.totalPages}</span>
           </div>
           <div className="w-full bg-gray-100 rounded-full h-3 overflow-hidden">
@@ -65,7 +68,7 @@ export default function GenerationProgress({ progress }: GenerationProgressProps
           </div>
           {progress.failedPages.length > 0 && (
             <p className="text-red-400 text-xs mt-1">
-              {progress.failedPages.length} pagină/pagini nu s-au generat
+              {progress.failedPages.length} {t.pagesFailedCount}
             </p>
           )}
         </div>
@@ -80,7 +83,7 @@ export default function GenerationProgress({ progress }: GenerationProgressProps
           onClick={() => window.location.href = '/'}
           className="mt-4 w-full bg-primary-500 hover:bg-primary-600 text-white font-bold py-2 px-4 rounded-xl transition-colors"
         >
-          Înapoi acasă
+          {t.backHome}
         </button>
       )}
     </div>

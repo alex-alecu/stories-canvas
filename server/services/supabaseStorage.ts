@@ -6,15 +6,16 @@ const BUCKET = 'story-images';
 
 // ---------- Story CRUD ----------
 
-export async function createStory(id: string, prompt: string, status: StoryStatus, userId?: string): Promise<void> {
+export async function createStory(id: string, prompt: string, status: StoryStatus, userId?: string, language?: string): Promise<void> {
   const supabase = getSupabase();
   const { error } = await supabase.from('stories').insert({
     id,
     prompt,
     status,
     user_id: userId ?? null,
-    current_phase: 'Se generează scenariul poveștii...',
-    progress_message: 'Se creează povestea ta...',
+    language: language ?? 'ro',
+    current_phase: 'Generating story scenario...',
+    progress_message: 'Creating your story...',
   });
   if (error) throw new Error(`Failed to create story: ${error.message}`);
 }

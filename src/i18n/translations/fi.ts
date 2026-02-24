@@ -1,0 +1,82 @@
+import type { Translations } from '../types';
+
+const fi: Translations = {
+  appTitle: 'Taikasatuja',
+  appSubtitle: 'Luo taikuudellisia kuvitettuja satuja tekoälyn avulla',
+
+  explore: 'Tutustu',
+  login: 'Kirjaudu sisään',
+  logout: 'Kirjaudu ulos',
+  profile: 'Profiili',
+  backHome: 'Takaisin etusivulle',
+
+  storyInputPlaceholder: "Kuvaile satusi... esimerkiksi, 'Rohkea pikku pupu, joka löytää taikapuutarhan pilvien yläpuolelta'",
+  storyInputGuestPlaceholder: 'Sinun täytyy kirjautua sisään luodaksesi satuja',
+  createStory: 'Luo Satu',
+  creating: 'Luodaan...',
+
+  creatingYourStory: 'Luodaan satuasi',
+  generationFailed: 'Generointi epäonnistui',
+  writingStory: 'Kirjoitetaan satua',
+  drawingCharacters: 'Piirretään hahmoja',
+  illustratingPages: 'Kuvitetaan sivuja',
+  pages: 'Sivut',
+  pagesFailedCount: 'sivua ei voitu generoida',
+
+  generatingStory: 'Generoidaan satua...',
+  writingStoryStatus: 'Kirjoitetaan satua...',
+  drawingCharactersStatus: 'Piirretään hahmoja...',
+  illustratingStatus: 'Kuvitetaan...',
+  failed: 'Epäonnistui',
+  creatingMagic: 'Luodaan taikuutta...',
+  publicLabel: 'Julkinen',
+  privateLabel: 'Yksityinen',
+  makePublic: 'Tee julkiseksi',
+  makePrivate: 'Tee yksityiseksi',
+  deleteStory: 'Poista satu',
+
+  noStoriesYet: 'Ei satuja vielä',
+  createFirstStory: 'Luo ensimmäinen satusi yllä!',
+
+  storyNotFound: 'Satua ei löytynyt',
+  storyNotFoundDescription: 'Tämä satu on poistettu tai sitä ei ole olemassa.',
+  storyDataUnavailable: 'Sadun tiedot eivät ole saatavilla',
+  reconnectedProgress: 'Yhdistetty uudelleen generoinnin edistymiseen...',
+  storyGeneratedSuccess: 'Satu generoitu onnistuneesti!',
+  done: 'Valmis!',
+  inProgress: 'Käynnissä...',
+  imageCouldNotGenerate: 'Kuvaa ei voitu generoida',
+  imageNotAvailable: 'Kuva ei saatavilla',
+
+  loginTitle: 'Kirjaudu sisään',
+  loginSubtitle: 'Kirjaudu sisään luodaksesi ja hallitaksesi satujasi',
+  continueWithGoogle: 'Jatka Googlella',
+  continueWithApple: 'Jatka Applella',
+
+  myStories: 'Omat Sadut',
+  noStoriesYetProfile: 'Sinulla ei ole vielä satuja',
+  createFirstStoryMagic: 'Luo ensimmäinen taikasatusi!',
+  createAStory: 'Luo satu',
+  user: 'Käyttäjä',
+
+  exploreStories: 'Tutustu Satuihin',
+  discoverCommunityStories: 'Löydä yhteisön luomia satuja',
+  searchStories: 'Etsi satuja...',
+  noPublicStoriesFound: 'Julkisia satuja ei löytynyt',
+  tryDifferentSearch: 'Kokeile eri hakusanaa',
+  noPublicStoriesYet: 'Ei julkisia satuja vielä',
+
+  somethingWentWrong: 'Jokin meni pieleen',
+  unexpectedError: 'Odottamaton virhe tapahtui',
+  home: 'Etusivu',
+
+  confirmDeleteStory: 'Haluatko varmasti poistaa tämän sadun?',
+  couldNotDeleteStory: 'Satua ei voitu poistaa',
+  couldNotChangeVisibility: 'Sadun näkyvyyttä ei voitu muuttaa',
+  couldNotCreateStory: 'Satua ei voitu luoda. Yritä uudelleen.',
+
+  language: 'Kieli',
+  languageName: 'Suomi',
+};
+
+export default fi;

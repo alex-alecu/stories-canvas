@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useLanguage } from '../i18n/LanguageContext';
 
 interface StoryInputProps {
   onSubmit: (prompt: string) => void;
@@ -11,6 +12,7 @@ export default function StoryInput({ onSubmit, isLoading }: StoryInputProps) {
   const [prompt, setPrompt] = useState('');
   const maxLength = 500;
   const { user, loading } = useAuth();
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -37,10 +39,10 @@ export default function StoryInput({ onSubmit, isLoading }: StoryInputProps) {
     <div className="w-full max-w-2xl mx-auto">
       <div className="text-center mb-8">
         <h1 className="text-4xl md:text-5xl font-extrabold bg-gradient-to-r from-primary-600 via-primary-500 to-warm-500 bg-clip-text text-transparent mb-3">
-          Povești Magice
+          {t.appTitle}
         </h1>
         <p className="text-gray-500 text-lg">
-          Creează povești ilustrate magice cu ajutorul AI
+          {t.appSubtitle}
         </p>
       </div>
 
@@ -51,15 +53,15 @@ export default function StoryInput({ onSubmit, isLoading }: StoryInputProps) {
             <div
               onClick={handleGuestClick}
               className="absolute inset-0 z-10 cursor-pointer"
-              title="Trebuie să te conectezi pentru a crea povești"
+              title={t.storyInputGuestPlaceholder}
             />
           )}
           <textarea
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
             placeholder={!loading && !user
-              ? "Trebuie să te conectezi pentru a crea povești"
-              : "Descrie povestea ta... de exemplu, 'Un iepuraș curajos care descoperă o grădină magică în nori'"
+              ? t.storyInputGuestPlaceholder
+              : t.storyInputPlaceholder
             }
             maxLength={maxLength}
             rows={3}
@@ -82,10 +84,10 @@ export default function StoryInput({ onSubmit, isLoading }: StoryInputProps) {
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                   </svg>
-                  Se creează...
+                  {t.creating}
                 </span>
               ) : (
-                'Creează Poveste'
+                t.createStory
               )}
             </button>
           </div>

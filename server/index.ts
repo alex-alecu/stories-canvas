@@ -3,6 +3,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { config } from './config.js';
 import storiesRouter from './routes/stories.js';
+import userRouter from './routes/user.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -12,6 +13,7 @@ app.use(express.json());
 
 // API routes
 app.use('/api/stories', storiesRouter);
+app.use('/api/user', userRouter);
 
 // Health check
 app.get('/api/health', (_req, res) => {

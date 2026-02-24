@@ -1,0 +1,82 @@
+import type { Translations } from '../types';
+
+const pt: Translations = {
+  appTitle: 'Histórias Mágicas',
+  appSubtitle: 'Crie histórias ilustradas mágicas com a ajuda da IA',
+
+  explore: 'Explorar',
+  login: 'Entrar',
+  logout: 'Sair',
+  profile: 'Perfil',
+  backHome: 'Voltar ao início',
+
+  storyInputPlaceholder: "Descreva sua história... por exemplo, 'Um coelhinho corajoso que descobre um jardim mágico nas nuvens'",
+  storyInputGuestPlaceholder: 'Você precisa entrar para criar histórias',
+  createStory: 'Criar História',
+  creating: 'Criando...',
+
+  creatingYourStory: 'Criando sua história',
+  generationFailed: 'A geração falhou',
+  writingStory: 'Escrevendo a história',
+  drawingCharacters: 'Desenhando os personagens',
+  illustratingPages: 'Ilustrando as páginas',
+  pages: 'Páginas',
+  pagesFailedCount: 'página(s) não foram gerada(s)',
+
+  generatingStory: 'Gerando a história...',
+  writingStoryStatus: 'Escrevendo a história...',
+  drawingCharactersStatus: 'Desenhando os personagens...',
+  illustratingStatus: 'Ilustrando...',
+  failed: 'Falhou',
+  creatingMagic: 'Criando magia...',
+  publicLabel: 'Pública',
+  privateLabel: 'Privada',
+  makePublic: 'Tornar pública',
+  makePrivate: 'Tornar privada',
+  deleteStory: 'Excluir história',
+
+  noStoriesYet: 'Nenhuma história ainda',
+  createFirstStory: 'Crie sua primeira história acima!',
+
+  storyNotFound: 'História não encontrada',
+  storyNotFoundDescription: 'Esta história foi excluída ou não existe.',
+  storyDataUnavailable: 'Os dados da história não estão disponíveis',
+  reconnectedProgress: 'Reconectado ao progresso da geração...',
+  storyGeneratedSuccess: 'História gerada com sucesso!',
+  done: 'Pronto!',
+  inProgress: 'Em andamento...',
+  imageCouldNotGenerate: 'A imagem não pôde ser gerada',
+  imageNotAvailable: 'Imagem não disponível',
+
+  loginTitle: 'Entrar',
+  loginSubtitle: 'Entre para criar e gerenciar suas histórias',
+  continueWithGoogle: 'Continuar com Google',
+  continueWithApple: 'Continuar com Apple',
+
+  myStories: 'Minhas Histórias',
+  noStoriesYetProfile: 'Você ainda não tem histórias',
+  createFirstStoryMagic: 'Crie sua primeira história mágica!',
+  createAStory: 'Criar uma história',
+  user: 'Usuário',
+
+  exploreStories: 'Explorar Histórias',
+  discoverCommunityStories: 'Descubra histórias criadas pela comunidade',
+  searchStories: 'Buscar histórias...',
+  noPublicStoriesFound: 'Nenhuma história pública encontrada',
+  tryDifferentSearch: 'Tente outro termo de busca',
+  noPublicStoriesYet: 'Nenhuma história pública ainda',
+
+  somethingWentWrong: 'Algo deu errado',
+  unexpectedError: 'Ocorreu um erro inesperado',
+  home: 'Início',
+
+  confirmDeleteStory: 'Tem certeza de que deseja excluir esta história?',
+  couldNotDeleteStory: 'Não foi possível excluir a história',
+  couldNotChangeVisibility: 'Não foi possível alterar a visibilidade da história',
+  couldNotCreateStory: 'Não foi possível criar a história. Por favor, tente novamente.',
+
+  language: 'Idioma',
+  languageName: 'Português',
+};
+
+export default pt;
