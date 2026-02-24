@@ -99,6 +99,7 @@ interface StoryRow {
   current_phase: string | null;
   progress_message: string | null;
   user_id: string | null;
+  is_public: boolean;
 }
 
 function rowToStoryMeta(row: StoryRow): StoryMeta {
@@ -110,6 +111,7 @@ function rowToStoryMeta(row: StoryRow): StoryMeta {
     scenario: row.scenario ?? undefined,
     coverImage: row.cover_image_url ?? undefined,
     userId: row.user_id ?? undefined,
+    isPublic: row.is_public ?? false,
   };
 }
 
@@ -150,14 +152,23 @@ export async function listStoriesByUser(userId: string, limit = 50): Promise<Sto
   return (data as StoryRow[]).map(rowToStoryMeta);
 }
 
-export async function deleteStory(id: string): Promise<boolean> {
+export async function deleteStory(id: string, userId?: string): Promise<boolean> {
   const supabase = getSupabase();
 
-  // Delete images from storage
-  const { data: files } = await supabase.storage.from(BUCKET).list(id);
-  if (files && files.length > 0) {
-    const paths = files.map(f => `${id}/${f.name}`);
-    await supabase.storage.from(BUCKET).remove(paths);
+  // Delete images from storage - try user-scoped path first, then legacy path
+  if (userId) {
+    const storagePath = `${userId}/${id}`;
+    const { data: files } = await supabase.storage.from(BUCKET).list(storagePath);
+    if (files && files.length > 0) {
+      const paths = files.map(f => `${storagePath}/${f.name}`);
+      await supabase.storage.from(BUCKET).remove(paths);
+    }
+  }
+  // Also clean up legacy path (images stored without userId prefix)
+  const { data: legacyFiles } = await supabase.storage.from(BUCKET).list(id);
+  if (legacyFiles && legacyFiles.length > 0) {
+    const legacyPaths = legacyFiles.map(f => `${id}/${f.name}`);
+    await supabase.storage.from(BUCKET).remove(legacyPaths);
   }
 
   // Delete from DB
@@ -179,10 +190,10 @@ export async function getActiveGenerations(): Promise<StoryMeta[]> {
 
 // ---------- Image Storage ----------
 
-export async function uploadImage(storyId: string, filename: string, base64Data: string): Promise<string> {
+export async function uploadImage(userId: string | undefined, storyId: string, filename: string, base64Data: string): Promise<string> {
   const supabase = getSupabase();
   const buffer = Buffer.from(base64Data, 'base64');
-  const storagePath = `${storyId}/${filename}`;
+  const storagePath = userId ? `${userId}/${storyId}/${filename}` : `${storyId}/${filename}`;
 
   const { error } = await supabase.storage
     .from(BUCKET)
@@ -192,9 +203,12 @@ export async function uploadImage(storyId: string, filename: string, base64Data:
     });
   if (error) throw new Error(`Failed to upload image: ${error.message}`);
 
-  return getImageUrl(storyId, filename);
+  return getImageUrl(userId, storyId, filename);
 }
 
-export function getImageUrl(storyId: string, filename: string): string {
+export function getImageUrl(userId: string | undefined, storyId: string, filename: string): string {
+  if (userId) {
+    return `${config.supabaseUrl}/storage/v1/object/public/${BUCKET}/${userId}/${storyId}/${filename}`;
+  }
   return `${config.supabaseUrl}/storage/v1/object/public/${BUCKET}/${storyId}/${filename}`;
 }

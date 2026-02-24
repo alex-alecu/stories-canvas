@@ -35,6 +35,7 @@ export interface StoryMeta {
   scenario?: Scenario;
   coverImage?: string;
   userId?: string;
+  isPublic?: boolean;
 }
 
 export interface StoryDetail extends StoryMeta {

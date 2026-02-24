@@ -43,19 +43,19 @@ async function listAllStories(): Promise<StoryMeta[]> {
   return fsStorage.listStories();
 }
 
-async function removeStory(storyId: string): Promise<boolean> {
+async function removeStory(storyId: string, userId?: string): Promise<boolean> {
   if (config.useSupabase) {
-    return sbStorage.deleteStory(storyId);
+    return sbStorage.deleteStory(storyId, userId);
   }
   return fsStorage.deleteStory(storyId);
 }
 
 // ---------- Image URL helpers ----------
 
-function getPageImageUrl(storyId: string, pageNumber: number): string {
+function getPageImageUrl(storyId: string, pageNumber: number, userId?: string): string {
   const filename = `page-${String(pageNumber).padStart(2, '0')}.png`;
   if (config.useSupabase) {
-    return sbStorage.getImageUrl(storyId, filename);
+    return sbStorage.getImageUrl(userId, storyId, filename);
   }
   return `/api/stories/${storyId}/images/${filename}`;
 }
@@ -63,7 +63,7 @@ function getPageImageUrl(storyId: string, pageNumber: number): string {
 function getCoverImageUrl(story: StoryMeta): string | undefined {
   if (!story.scenario?.pages?.[0]) return undefined;
   if (story.scenario.pages[0].status !== 'completed') return undefined;
-  return getPageImageUrl(story.id, story.scenario.pages[0].pageNumber);
+  return getPageImageUrl(story.id, story.scenario.pages[0].pageNumber, story.userId);
 }
 
 // ---------- SSE connections ----------
@@ -137,10 +137,22 @@ router.get('/mine', optionalAuth, async (req: Request, res: Response) => {
   }
 });
 
-// GET /api/stories - List stories
-router.get('/', async (_req: Request, res: Response) => {
+// GET /api/stories - List stories (private by default: only user's own stories when authenticated)
+router.get('/', optionalAuth, async (req: Request, res: Response) => {
   try {
-    const stories = await listAllStories();
+    let stories: StoryMeta[];
+
+    if (config.useSupabase && req.authUser) {
+      // Authenticated with Supabase: only return user's own stories
+      stories = await sbStorage.listStoriesByUser(req.authUser.id);
+    } else if (config.useSupabase && !req.authUser) {
+      // Supabase enabled but not authenticated: return empty list (private by default)
+      stories = [];
+    } else {
+      // Filesystem mode (no Supabase): return all stories (backward compatible)
+      stories = await listAllStories();
+    }
+
     const summaries = stories.map(s => ({
       id: s.id,
       prompt: s.prompt,
@@ -197,7 +209,7 @@ router.post('/', optionalAuth, async (req: Request, res: Response) => {
     res.status(201).json({ id: storyId, status: 'generating_scenario' as StoryStatus });
 
     // Background generation pipeline
-    runGenerationPipeline(storyId, trimmedPrompt).catch(error => {
+    runGenerationPipeline(storyId, trimmedPrompt, userId).catch(error => {
       console.error(`Generation pipeline failed for ${storyId}:`, error);
     });
   } catch (error) {
@@ -206,7 +218,7 @@ router.post('/', optionalAuth, async (req: Request, res: Response) => {
   }
 });
 
-async function runGenerationPipeline(storyId: string, prompt: string): Promise<void> {
+async function runGenerationPipeline(storyId: string, prompt: string, userId?: string): Promise<void> {
   try {
     // Phase 1: Generate scenario
     await sendProgressUpdate(storyId, {
@@ -233,7 +245,7 @@ async function runGenerationPipeline(storyId: string, prompt: string): Promise<v
     });
 
     // Phase 2: Generate character sheets (sequential)
-    const characterSheets = await generateAllCharacterSheets(storyId, scenario.characters);
+    const characterSheets = await generateAllCharacterSheets(storyId, scenario.characters, userId);
     await updateStoryStatus(storyId, 'generating_images');
 
     await sendProgressUpdate(storyId, {
@@ -275,11 +287,12 @@ async function runGenerationPipeline(storyId: string, prompt: string): Promise<v
           message: progress.message || '',
         });
       },
+      userId,
     );
 
     // Update cover image URL
     if (config.useSupabase) {
-      const coverUrl = getPageImageUrl(storyId, 1);
+      const coverUrl = getPageImageUrl(storyId, 1, userId);
       try {
         await sbStorage.updateStoryProgress(storyId, {
           status: 'completed',
@@ -348,8 +361,8 @@ router.get('/active/generations', async (_req: Request, res: Response) => {
   }
 });
 
-// GET /api/stories/:id - Get story details
-router.get('/:id', async (req: Request, res: Response) => {
+// GET /api/stories/:id - Get story details (ownership check for private stories)
+router.get('/:id', optionalAuth, async (req: Request, res: Response) => {
   try {
     const story = await getStory(req.params.id as string);
     if (!story) {
@@ -357,11 +370,21 @@ router.get('/:id', async (req: Request, res: Response) => {
       return;
     }
 
+    // Ownership check when Supabase is enabled
+    if (config.useSupabase && story.userId) {
+      // Story has an owner - check if current user is the owner or if story is public
+      if (!story.isPublic && (!req.authUser || req.authUser.id !== story.userId)) {
+        // Return 404 to avoid leaking existence
+        res.status(404).json({ error: 'Story not found' });
+        return;
+      }
+    }
+
     // Enrich pages with image URLs
     if (story.scenario?.pages) {
       for (const page of story.scenario.pages) {
         if (page.status === 'completed') {
-          page.imageUrl = getPageImageUrl(story.id, page.pageNumber);
+          page.imageUrl = getPageImageUrl(story.id, page.pageNumber, story.userId);
         }
       }
     }
@@ -467,7 +490,7 @@ router.delete('/:id', optionalAuth, async (req: Request, res: Response) => {
       }
     }
 
-    const deleted = await removeStory(req.params.id as string);
+    const deleted = await removeStory(req.params.id as string, req.authUser?.id);
     if (!deleted) {
       res.status(404).json({ error: 'Story not found' });
       return;
@@ -493,7 +516,9 @@ router.get('/:id/images/:filename', async (req: Request, res: Response) => {
 
     // If Supabase is configured, redirect to Supabase Storage URL
     if (config.useSupabase) {
-      const url = sbStorage.getImageUrl(id, filename);
+      // Look up story to get userId for the correct storage path
+      const story = await getStory(id);
+      const url = sbStorage.getImageUrl(story?.userId, id, filename);
       res.redirect(url);
       return;
     }

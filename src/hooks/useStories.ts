@@ -11,7 +11,10 @@ async function getAuthHeaders(): Promise<Record<string, string>> {
 }
 
 async function fetchStories(): Promise<StorySummary[]> {
-  const res = await fetch('/api/stories');
+  const authHeaders = await getAuthHeaders();
+  const res = await fetch('/api/stories', {
+    headers: authHeaders,
+  });
   if (!res.ok) throw new Error('Failed to fetch stories');
   return res.json();
 }
@@ -26,7 +29,10 @@ async function fetchUserStories(): Promise<StorySummary[]> {
 }
 
 async function fetchStory(id: string): Promise<StoryMeta> {
-  const res = await fetch(`/api/stories/${id}`);
+  const authHeaders = await getAuthHeaders();
+  const res = await fetch(`/api/stories/${id}`, {
+    headers: authHeaders,
+  });
   if (!res.ok) throw new Error('Failed to fetch story');
   return res.json();
 }

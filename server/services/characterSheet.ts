@@ -12,6 +12,7 @@ export function getCharacterSheetFilename(name: string): string {
 export async function generateCharacterSheet(
   storyId: string,
   character: Character,
+  userId?: string,
 ): Promise<{ name: string; filename: string; base64: string }> {
   const prompt = `Character reference sheet for "${character.name}". 
 Left side: front view. Right side: back view. 
@@ -25,7 +26,7 @@ Label at the bottom: "${character.name.toUpperCase()} CHARACTER SHEET"`;
   const filename = getCharacterSheetFilename(character.name);
 
   if (config.useSupabase) {
-    await uploadImage(storyId, filename, base64);
+    await uploadImage(userId, storyId, filename, base64);
   } else {
     await saveImage(storyId, filename, base64);
   }
@@ -37,12 +38,13 @@ Label at the bottom: "${character.name.toUpperCase()} CHARACTER SHEET"`;
 export async function generateAllCharacterSheets(
   storyId: string,
   characters: Character[],
+  userId?: string,
 ): Promise<Map<string, string>> {
   const characterSheets = new Map<string, string>();
 
   for (const character of characters) {
     try {
-      const result = await generateCharacterSheet(storyId, character);
+      const result = await generateCharacterSheet(storyId, character, userId);
       characterSheets.set(result.name, result.base64);
     } catch (error) {
       console.error(`Failed to generate character sheet for ${character.name}:`, error);

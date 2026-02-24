@@ -6,9 +6,9 @@ import { config } from '../config.js';
 import { imageGenerationLimiter } from '../utils/rateLimiter.js';
 import type { Page, Character, GenerationProgress } from '../../shared/types.js';
 
-async function saveSceneImage(storyId: string, filename: string, base64: string): Promise<void> {
+async function saveSceneImage(storyId: string, filename: string, base64: string, userId?: string): Promise<void> {
   if (config.useSupabase) {
-    await uploadImage(storyId, filename, base64);
+    await uploadImage(userId, storyId, filename, base64);
   } else {
     await saveImage(storyId, filename, base64);
   }
@@ -69,6 +69,7 @@ export async function generateSceneImage(
   characters: Character[],
   characterSheets: Map<string, string>,
   onProgress?: (progress: Partial<GenerationProgress>) => void,
+  userId?: string,
 ): Promise<void> {
   const pageFilename = `page-${String(page.pageNumber).padStart(2, '0')}.png`;
 
@@ -124,7 +125,7 @@ export async function generateSceneImage(
       },
     );
 
-    await saveSceneImage(storyId, pageFilename, base64);
+    await saveSceneImage(storyId, pageFilename, base64, userId);
     await updatePageStatusBoth(storyId, page.pageNumber, 'completed');
 
     onProgress?.({ message: `Pagina ${page.pageNumber} completed` });
@@ -141,10 +142,11 @@ export async function generateAllSceneImages(
   characters: Character[],
   characterSheets: Map<string, string>,
   onProgress?: (progress: Partial<GenerationProgress>) => void,
+  userId?: string,
 ): Promise<void> {
   const promises = pages.map(page =>
     imageGenerationLimiter(() =>
-      generateSceneImage(storyId, page, characters, characterSheets, onProgress),
+      generateSceneImage(storyId, page, characters, characterSheets, onProgress, userId),
     ),
   );
 
