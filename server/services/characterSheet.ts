@@ -14,11 +14,16 @@ export async function generateCharacterSheet(
   character: Character,
   userId?: string,
 ): Promise<{ name: string; filename: string; base64: string }> {
-  const prompt = `Character reference sheet for "${character.name}". 
-Left side: front view. Right side: back view. 
-${character.appearance}. ${character.clothing}. 
-Disney/Pixar 3D animation style with warm, round, and friendly character designs. 
-Pure white background. Clean, professional character sheet layout.
+  const prompt = `Professional character reference sheet for "${character.name}".
+Layout: Front view (left), 3/4 view (center), Back view (right).
+Below: Close-up face showing key facial features and expressions.
+Color palette swatches at the bottom showing exact colors used for skin/fur, clothing, eyes, and accessories.
+
+${character.appearance}. ${character.clothing}.
+
+Disney/Pixar 3D animation style with warm, round, and friendly character designs.
+Pure white background. Clean, professional character model sheet layout.
+CRITICAL: Show the EXACT same character in all views - same colors, same proportions, same clothing.
 Label at the bottom: "${character.name.toUpperCase()} CHARACTER SHEET"`;
 
   console.log(`Generating character sheet for ${character.name}...`);

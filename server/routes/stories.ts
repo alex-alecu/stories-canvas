@@ -289,7 +289,7 @@ async function runGenerationPipeline(storyId: string, prompt: string, userId?: s
       message: `Character sheets ready. Generating ${scenario.pages.length} illustrations...`,
     });
 
-    // Phase 3: Generate scene images (parallel with rate limiting)
+    // Phase 3: Generate scene images (sequential with reference chaining for visual consistency)
     let completedPages = 0;
     const failedPages: number[] = [];
 
