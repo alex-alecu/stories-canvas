@@ -4,9 +4,10 @@ import type { StorySummary } from '../types';
 interface StoryGridProps {
   stories: StorySummary[];
   isLoading: boolean;
+  onDelete?: (id: string) => void;
 }
 
-export default function StoryGrid({ stories, isLoading }: StoryGridProps) {
+export default function StoryGrid({ stories, isLoading, onDelete }: StoryGridProps) {
   if (isLoading && stories.length === 0) {
     return (
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -32,7 +33,7 @@ export default function StoryGrid({ stories, isLoading }: StoryGridProps) {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
       {stories.map(story => (
-        <StoryCard key={story.id} story={story} />
+        <StoryCard key={story.id} story={story} onDelete={onDelete} />
       ))}
     </div>
   );

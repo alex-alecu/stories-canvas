@@ -97,6 +97,7 @@ export function useDeleteStory() {
     mutationFn: removeStory,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['stories'] });
+      queryClient.invalidateQueries({ queryKey: ['stories', 'mine'] });
     },
   });
 }

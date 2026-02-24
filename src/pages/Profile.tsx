@@ -2,12 +2,13 @@ import { useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import StoryGrid from '../components/StoryGrid';
-import { useUserStories } from '../hooks/useStories';
+import { useUserStories, useDeleteStory } from '../hooks/useStories';
 
 export default function Profile() {
   const { user, loading, signOut } = useAuth();
   const navigate = useNavigate();
   const { data: stories = [], isLoading: storiesLoading } = useUserStories(!!user);
+  const deleteStory = useDeleteStory();
 
   useEffect(() => {
     if (!loading && !user) {
@@ -32,6 +33,15 @@ export default function Profile() {
   const handleSignOut = async () => {
     await signOut();
     navigate('/', { replace: true });
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!window.confirm('Ești sigur că vrei să ștergi această poveste?')) return;
+    try {
+      await deleteStory.mutateAsync(id);
+    } catch {
+      alert('Nu s-a putut șterge povestea');
+    }
   };
 
   return (
@@ -83,7 +93,7 @@ export default function Profile() {
             </Link>
           </div>
         ) : (
-          <StoryGrid stories={stories} isLoading={storiesLoading} />
+          <StoryGrid stories={stories} isLoading={storiesLoading} onDelete={handleDelete} />
         )}
       </div>
     </div>

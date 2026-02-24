@@ -3,6 +3,7 @@ import type { StorySummary } from '../types';
 
 interface StoryCardProps {
   story: StorySummary;
+  onDelete?: (id: string) => void;
 }
 
 function StatusBadge({ status, completedPages, totalPages }: { status: string; completedPages: number; totalPages: number }) {
@@ -31,7 +32,7 @@ function StatusBadge({ status, completedPages, totalPages }: { status: string; c
   );
 }
 
-export default function StoryCard({ story }: StoryCardProps) {
+export default function StoryCard({ story, onDelete }: StoryCardProps) {
   return (
     <Link
       to={`/story/${story.id}`}
@@ -58,6 +59,22 @@ export default function StoryCard({ story }: StoryCardProps) {
               )}
             </div>
           </div>
+        )}
+        {onDelete && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onDelete(story.id);
+            }}
+            className="absolute top-3 left-3 w-8 h-8 rounded-full bg-red-500/60 hover:bg-red-500/80 text-white flex items-center justify-center backdrop-blur-sm transition-colors z-10"
+            aria-label="Șterge povestea"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+            </svg>
+          </button>
         )}
         <StatusBadge status={story.status} completedPages={story.completedPages} totalPages={story.totalPages} />
         <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent p-4 pt-12">
