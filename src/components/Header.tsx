@@ -15,6 +15,12 @@ export default function Header() {
         </Link>
 
         <nav className="flex items-center gap-3">
+          <Link
+            to="/explore"
+            className="text-sm font-bold text-primary-600 hover:text-primary-700 transition-colors"
+          >
+            Explorează
+          </Link>
           {loading ? (
             <div className="w-8 h-8 rounded-full bg-gray-100 animate-pulse" />
           ) : user ? (

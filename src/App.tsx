@@ -4,6 +4,7 @@ import StoryPage from './pages/StoryPage';
 import Login from './pages/Login';
 import AuthCallback from './pages/AuthCallback';
 import Profile from './pages/Profile';
+import Explore from './pages/Explore';
 import Header from './components/Header';
 import ErrorBoundary from './components/ErrorBoundary';
 
@@ -13,6 +14,7 @@ export default function App() {
       <Header />
       <Routes>
         <Route path="/" element={<Home />} />
+        <Route path="/explore" element={<Explore />} />
         <Route path="/story/:id" element={<StoryPage />} />
         <Route path="/login" element={<Login />} />
         <Route path="/auth/callback" element={<AuthCallback />} />

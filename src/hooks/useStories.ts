@@ -57,6 +57,26 @@ async function removeStory(id: string): Promise<void> {
   if (!res.ok) throw new Error('Failed to delete story');
 }
 
+async function fetchPublicStories(search?: string): Promise<StorySummary[]> {
+  const params = new URLSearchParams();
+  if (search) params.set('search', search);
+  const url = `/api/stories/public${params.toString() ? `?${params}` : ''}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('Failed to fetch public stories');
+  return res.json();
+}
+
+async function toggleStoryVisibility(id: string, isPublic: boolean): Promise<{ id: string; isPublic: boolean }> {
+  const authHeaders = await getAuthHeaders();
+  const res = await fetch(`/api/stories/${id}/visibility`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...authHeaders },
+    body: JSON.stringify({ isPublic }),
+  });
+  if (!res.ok) throw new Error('Failed to toggle story visibility');
+  return res.json();
+}
+
 export function useStories() {
   return useQuery({
     queryKey: ['stories'],
@@ -98,6 +118,26 @@ export function useDeleteStory() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['stories'] });
       queryClient.invalidateQueries({ queryKey: ['stories', 'mine'] });
+    },
+  });
+}
+
+export function usePublicStories(search?: string) {
+  return useQuery({
+    queryKey: ['stories', 'public', search ?? ''],
+    queryFn: () => fetchPublicStories(search),
+  });
+}
+
+export function useToggleVisibility() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, isPublic }: { id: string; isPublic: boolean }) =>
+      toggleStoryVisibility(id, isPublic),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['stories'] });
+      queryClient.invalidateQueries({ queryKey: ['stories', 'mine'] });
+      queryClient.invalidateQueries({ queryKey: ['stories', 'public'] });
     },
   });
 }

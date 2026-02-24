@@ -2,13 +2,14 @@ import { useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import StoryGrid from '../components/StoryGrid';
-import { useUserStories, useDeleteStory } from '../hooks/useStories';
+import { useUserStories, useDeleteStory, useToggleVisibility } from '../hooks/useStories';
 
 export default function Profile() {
   const { user, loading, signOut } = useAuth();
   const navigate = useNavigate();
   const { data: stories = [], isLoading: storiesLoading } = useUserStories(!!user);
   const deleteStory = useDeleteStory();
+  const toggleVisibility = useToggleVisibility();
 
   useEffect(() => {
     if (!loading && !user) {
@@ -41,6 +42,14 @@ export default function Profile() {
       await deleteStory.mutateAsync(id);
     } catch {
       alert('Nu s-a putut șterge povestea');
+    }
+  };
+
+  const handleTogglePublic = async (id: string, isPublic: boolean) => {
+    try {
+      await toggleVisibility.mutateAsync({ id, isPublic });
+    } catch {
+      alert('Nu s-a putut schimba vizibilitatea poveștii');
     }
   };
 
@@ -93,7 +102,7 @@ export default function Profile() {
             </Link>
           </div>
         ) : (
-          <StoryGrid stories={stories} isLoading={storiesLoading} onDelete={handleDelete} />
+          <StoryGrid stories={stories} isLoading={storiesLoading} onDelete={handleDelete} onTogglePublic={handleTogglePublic} />
         )}
       </div>
     </div>

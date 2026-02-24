@@ -107,6 +107,34 @@ async function sendProgressUpdate(storyId: string, data: Partial<GenerationProgr
 
 // ---------- Routes ----------
 
+// GET /api/stories/public - List public stories (no auth required)
+router.get('/public', async (req: Request, res: Response) => {
+  try {
+    if (!config.useSupabase) {
+      res.json([]);
+      return;
+    }
+
+    const search = typeof req.query.search === 'string' ? req.query.search : undefined;
+    const stories = await sbStorage.listPublicStories(search);
+    const summaries = stories.map(s => ({
+      id: s.id,
+      prompt: s.prompt,
+      status: s.status,
+      createdAt: s.createdAt,
+      title: s.scenario?.title,
+      coverImage: getCoverImageUrl(s),
+      totalPages: s.scenario?.pages?.length ?? 0,
+      completedPages: s.scenario?.pages?.filter(p => p.status === 'completed').length ?? 0,
+      isPublic: s.isPublic,
+    }));
+    res.json(summaries);
+  } catch (error) {
+    console.error('Failed to list public stories:', error);
+    res.status(500).json({ error: 'Failed to list public stories' });
+  }
+});
+
 // GET /api/stories/mine - List stories for authenticated user
 router.get('/mine', optionalAuth, async (req: Request, res: Response) => {
   try {
@@ -126,6 +154,7 @@ router.get('/mine', optionalAuth, async (req: Request, res: Response) => {
         coverImage: getCoverImageUrl(s),
         totalPages: s.scenario?.pages?.length ?? 0,
         completedPages: s.scenario?.pages?.filter(p => p.status === 'completed').length ?? 0,
+        isPublic: s.isPublic,
       }));
       res.json(summaries);
     } else {
@@ -162,6 +191,7 @@ router.get('/', optionalAuth, async (req: Request, res: Response) => {
       coverImage: getCoverImageUrl(s),
       totalPages: s.scenario?.pages?.length ?? 0,
       completedPages: s.scenario?.pages?.filter(p => p.status === 'completed').length ?? 0,
+      isPublic: s.isPublic,
     }));
     res.json(summaries);
   } catch (error) {
@@ -470,6 +500,43 @@ router.get('/:id/status', async (req: Request, res: Response) => {
       }
     }
   });
+});
+
+// PATCH /api/stories/:id/visibility - Toggle story visibility (requires auth + ownership)
+router.patch('/:id/visibility', optionalAuth, async (req: Request, res: Response) => {
+  try {
+    if (config.useSupabase && !req.authUser) {
+      res.status(401).json({ error: 'Authentication required' });
+      return;
+    }
+
+    const story = await getStory(req.params.id as string);
+    if (!story) {
+      res.status(404).json({ error: 'Story not found' });
+      return;
+    }
+
+    // Ownership check
+    if (config.useSupabase && story.userId && story.userId !== req.authUser?.id) {
+      res.status(403).json({ error: 'Forbidden: you can only modify your own stories' });
+      return;
+    }
+
+    const { isPublic } = req.body as { isPublic: boolean };
+    if (typeof isPublic !== 'boolean') {
+      res.status(400).json({ error: 'isPublic must be a boolean' });
+      return;
+    }
+
+    if (config.useSupabase) {
+      await sbStorage.updateStoryVisibility(req.params.id as string, isPublic);
+    }
+
+    res.json({ id: story.id, isPublic });
+  } catch (error) {
+    console.error('Failed to update story visibility:', error);
+    res.status(500).json({ error: 'Failed to update story visibility' });
+  }
 });
 
 // DELETE /api/stories/:id - Delete a story (requires auth when Supabase is configured)

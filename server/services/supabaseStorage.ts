@@ -188,6 +188,37 @@ export async function getActiveGenerations(): Promise<StoryMeta[]> {
   return (data as StoryRow[]).map(rowToStoryMeta);
 }
 
+// ---------- Public Stories ----------
+
+export async function updateStoryVisibility(id: string, isPublic: boolean): Promise<void> {
+  const supabase = getSupabase();
+  const { error } = await supabase
+    .from('stories')
+    .update({ is_public: isPublic })
+    .eq('id', id);
+  if (error) throw new Error(`Failed to update story visibility: ${error.message}`);
+}
+
+export async function listPublicStories(search?: string, limit = 50): Promise<StoryMeta[]> {
+  const supabase = getSupabase();
+  let query = supabase
+    .from('stories')
+    .select('*')
+    .eq('is_public', true)
+    .eq('status', 'completed')
+    .order('created_at', { ascending: false })
+    .limit(limit);
+
+  if (search && search.trim()) {
+    const term = `%${search.trim()}%`;
+    query = query.or(`title.ilike.${term},prompt.ilike.${term}`);
+  }
+
+  const { data, error } = await query;
+  if (error) throw new Error(`Failed to list public stories: ${error.message}`);
+  return (data as StoryRow[]).map(rowToStoryMeta);
+}
+
 // ---------- Image Storage ----------
 
 export async function uploadImage(userId: string | undefined, storyId: string, filename: string, base64Data: string): Promise<string> {

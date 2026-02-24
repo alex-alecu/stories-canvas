@@ -22,4 +22,5 @@ export interface StorySummary {
   coverImage?: string;
   totalPages: number;
   completedPages: number;
+  isPublic?: boolean;
 }

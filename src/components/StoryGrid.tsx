@@ -5,9 +5,12 @@ interface StoryGridProps {
   stories: StorySummary[];
   isLoading: boolean;
   onDelete?: (id: string) => void;
+  onTogglePublic?: (id: string, isPublic: boolean) => void;
+  emptyMessage?: string;
+  emptySubMessage?: string;
 }
 
-export default function StoryGrid({ stories, isLoading, onDelete }: StoryGridProps) {
+export default function StoryGrid({ stories, isLoading, onDelete, onTogglePublic, emptyMessage, emptySubMessage }: StoryGridProps) {
   if (isLoading && stories.length === 0) {
     return (
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -24,8 +27,8 @@ export default function StoryGrid({ stories, isLoading, onDelete }: StoryGridPro
     return (
       <div className="text-center py-16">
         <div className="text-6xl mb-4 opacity-50">~</div>
-        <h2 className="text-xl font-bold text-gray-400 mb-2">Nicio poveste încă</h2>
-        <p className="text-gray-400">Creează prima ta poveste mai sus!</p>
+        <h2 className="text-xl font-bold text-gray-400 mb-2">{emptyMessage || 'Nicio poveste încă'}</h2>
+        <p className="text-gray-400">{emptySubMessage || 'Creează prima ta poveste mai sus!'}</p>
       </div>
     );
   }
@@ -33,7 +36,7 @@ export default function StoryGrid({ stories, isLoading, onDelete }: StoryGridPro
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
       {stories.map(story => (
-        <StoryCard key={story.id} story={story} onDelete={onDelete} />
+        <StoryCard key={story.id} story={story} onDelete={onDelete} onTogglePublic={onTogglePublic} />
       ))}
     </div>
   );
