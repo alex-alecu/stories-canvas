@@ -198,7 +198,7 @@ export async function listPublicStories(search?: string, limit = 50): Promise<St
 
   if (search && search.trim()) {
     const term = `%${search.trim()}%`;
-    query = query.or(`title.ilike.${term},prompt.ilike.${term}`);
+    query = query.or(`title.ilike."${term}",prompt.ilike."${term}"`);
   }
 
   const { data, error } = await query;
