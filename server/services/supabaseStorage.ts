@@ -63,26 +63,12 @@ export async function updateStoryScenario(
 
 export async function updatePageStatus(id: string, pageNumber: number, status: PageStatus): Promise<void> {
   const supabase = getSupabase();
-  // Read current scenario, update the page status, write back
-  const { data, error: fetchError } = await supabase
-    .from('stories')
-    .select('scenario')
-    .eq('id', id)
-    .single();
-  if (fetchError) throw new Error(`Failed to fetch story for page update: ${fetchError.message}`);
-
-  const scenario = data.scenario as Scenario | null;
-  if (scenario) {
-    const page = scenario.pages.find(p => p.pageNumber === pageNumber);
-    if (page) {
-      page.status = status;
-    }
-    const { error: updateError } = await supabase
-      .from('stories')
-      .update({ scenario })
-      .eq('id', id);
-    if (updateError) throw new Error(`Failed to update page status: ${updateError.message}`);
-  }
+  const { error } = await supabase.rpc('update_page_status', {
+    story_id: id,
+    page_number: pageNumber,
+    new_status: status,
+  });
+  if (error) throw new Error(`Failed to update page status: ${error.message}`);
 }
 
 interface StoryRow {
