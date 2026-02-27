@@ -26,4 +26,4 @@ INSERT INTO storage.buckets (id, name, public) VALUES ('story-images', 'story-im
 CREATE POLICY "Public read access" ON storage.objects FOR SELECT USING (bucket_id = 'story-images');
 
 -- Allow service role to insert/update/delete
-CREATE POLICY "Service role full access" ON storage.objects FOR ALL USING (auth.role() = 'service_role');
+CREATE POLICY "Service role full access" ON storage.objects FOR ALL USING ((auth.jwt() ->> 'role') = 'service_role') WITH CHECK ((auth.jwt() ->> 'role') = 'service_role');
