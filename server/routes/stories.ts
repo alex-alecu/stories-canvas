@@ -299,12 +299,11 @@ async function runGenerationPipeline(storyId: string, prompt: string, userId?: s
       scenario.characters,
       characterSheets,
       (progress) => {
-        // Track completion
-        if (progress.message?.includes('completed')) {
+        // Track completion using structured fields
+        if (progress.pageStatus === 'completed') {
           completedPages++;
-        } else if (progress.message?.includes('failed')) {
-          const match = progress.message.match(/(?:Pagina|Page)\s+(\d+)/i);
-          if (match) failedPages.push(parseInt(match[1]));
+        } else if (progress.pageStatus === 'failed' && progress.pageNumber !== undefined) {
+          failedPages.push(progress.pageNumber);
         }
 
         // Fire-and-forget the async persist, but always sync-send SSE

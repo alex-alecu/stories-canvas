@@ -50,6 +50,8 @@ export interface GenerationProgress {
   totalPages: number;
   failedPages: number[];
   message: string;
+  pageNumber?: number;
+  pageStatus?: PageStatus;
 }
 
 export interface CreateStoryRequest {

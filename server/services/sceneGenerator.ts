@@ -108,7 +108,7 @@ export async function generateSceneImage(
   const pageFilename = `page-${String(page.pageNumber).padStart(2, '0')}.png`;
 
   await updatePageStatusBoth(storyId, page.pageNumber, 'generating');
-  onProgress?.({ message: `Se generează imaginea pentru pagina ${page.pageNumber}...` });
+    onProgress?.({ message: `Generating image for page ${page.pageNumber}...`, pageNumber: page.pageNumber, pageStatus: 'generating' });
 
   const referenceImages: Array<{ data: string; mimeType: string }> = [];
 
@@ -178,12 +178,12 @@ export async function generateSceneImage(
     await saveSceneImage(storyId, pageFilename, base64, userId);
     await updatePageStatusBoth(storyId, page.pageNumber, 'completed');
 
-    onProgress?.({ message: `Pagina ${page.pageNumber} completed` });
+    onProgress?.({ message: `Page ${page.pageNumber} completed`, pageNumber: page.pageNumber, pageStatus: 'completed' });
     return base64;
   } catch (error) {
     console.error(`Failed to generate page ${page.pageNumber}:`, error);
     await updatePageStatusBoth(storyId, page.pageNumber, 'failed');
-    onProgress?.({ message: `Pagina ${page.pageNumber} failed` });
+    onProgress?.({ message: `Page ${page.pageNumber} failed`, pageNumber: page.pageNumber, pageStatus: 'failed' });
     return null;
   }
 }
