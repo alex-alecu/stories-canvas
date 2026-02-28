@@ -1,0 +1,106 @@
+import type { Translations } from '../types';
+
+const cs: Translations = {
+  appTitle: 'Kouzelné Příběhy',
+  appSubtitle: 'Vytvářejte kouzelné ilustrované příběhy s pomocí AI',
+
+  explore: 'Objevovat',
+  login: 'Přihlásit se',
+  logout: 'Odhlásit se',
+  profile: 'Profil',
+  backHome: 'Zpět domů',
+
+  storyInputPlaceholder: "Popište svůj příběh... například, 'Statečný králíček, který objeví kouzelnou zahradu v oblacích'",
+  storyInputGuestPlaceholder: 'Pro vytváření příběhů se musíte přihlásit',
+  createStory: 'Vytvořit Příběh',
+  creating: 'Vytváření...',
+
+  creatingYourStory: 'Vytváříme váš příběh',
+  generationFailed: 'Generování selhalo',
+  generationCancelled: 'Generování zrušeno',
+  writingStory: 'Psaní příběhu',
+  drawingCharacters: 'Kreslení postav',
+  illustratingPages: 'Ilustrování stránek',
+  pages: 'Stránky',
+  pagesFailedCount: 'stránka/y se nepodařilo vygenerovat',
+  cancelGeneration: 'Zrušit',
+  cancelConfirmTitle: 'Zrušit generování?',
+  cancelConfirmMessage: 'Jste si jisti? Tím se zastaví generování příběhu a smaže se.',
+  confirmCancel: 'Ano, zrušit',
+  keepGenerating: 'Pokračovat v generování',
+
+  generatingStory: 'Generování příběhu...',
+  writingStoryStatus: 'Psaní příběhu...',
+  drawingCharactersStatus: 'Kreslení postav...',
+  illustratingStatus: 'Ilustrování...',
+  failed: 'Selhalo',
+  creatingMagic: 'Tvoříme kouzlo...',
+  publicLabel: 'Veřejný',
+  privateLabel: 'Soukromý',
+  makePublic: 'Zveřejnit',
+  makePrivate: 'Nastavit jako soukromý',
+  deleteStory: 'Smazat příběh',
+
+  noStoriesYet: 'Zatím žádné příběhy',
+  createFirstStory: 'Vytvořte svůj první příběh výše!',
+
+  storyNotFound: 'Příběh nenalezen',
+  storyNotFoundDescription: 'Tento příběh byl smazán nebo neexistuje.',
+  storyDataUnavailable: 'Data příběhu nejsou dostupná',
+  reconnectedProgress: 'Znovu připojeno k průběhu generování...',
+  storyGeneratedSuccess: 'Příběh úspěšně vygenerován!',
+  done: 'Hotovo!',
+  inProgress: 'Probíhá...',
+  imageCouldNotGenerate: 'Obrázek se nepodařilo vygenerovat',
+  imageNotAvailable: 'Obrázek není dostupný',
+
+  loginTitle: 'Přihlášení',
+  loginSubtitle: 'Přihlaste se pro vytváření a správu svých příběhů',
+  email: 'E-mail',
+  password: 'Heslo',
+  signIn: 'Přihlásit se',
+  signUp: 'Zaregistrovat se',
+  forgotPassword: 'Zapomněli jste heslo?',
+  resetPasswordSent: 'E-mail pro obnovení hesla odeslán. Zkontrolujte svou schránku.',
+  noAccountYet: 'Nemáte účet?',
+  alreadyHaveAccount: 'Již máte účet?',
+  orContinueWith: 'nebo pokračovat s',
+  checkEmailForConfirmation: 'Zkontrolujte e-mail pro potvrzení účtu.',
+  continueWithGoogle: 'Pokračovat s Google',
+  finalizingAuth: 'Dokončování ověřování...',
+
+  myStories: 'Moje Příběhy',
+  noStoriesYetProfile: 'Zatím nemáte žádné příběhy',
+  createFirstStoryMagic: 'Vytvořte svůj první kouzelný příběh!',
+  createAStory: 'Vytvořit příběh',
+  user: 'Uživatel',
+
+  exploreStories: 'Objevujte Příběhy',
+  discoverCommunityStories: 'Objevte příběhy vytvořené komunitou',
+  searchStories: 'Hledat příběhy...',
+  noPublicStoriesFound: 'Nebyly nalezeny žádné veřejné příběhy',
+  tryDifferentSearch: 'Zkuste jiný vyhledávací výraz',
+  noPublicStoriesYet: 'Zatím žádné veřejné příběhy',
+
+  somethingWentWrong: 'Něco se pokazilo',
+  unexpectedError: 'Došlo k neočekávané chybě',
+  home: 'Domů',
+
+  confirmDeleteStory: 'Opravdu chcete smazat tento příběh?',
+  couldNotDeleteStory: 'Příběh se nepodařilo smazat',
+  couldNotChangeVisibility: 'Nepodařilo se změnit viditelnost příběhu',
+  couldNotCreateStory: 'Příběh se nepodařilo vytvořit. Zkuste to prosím znovu.',
+
+  fontSize: 'Velikost písma',
+  fontSizeSmall: 'Malé',
+  fontSizeMedium: 'Střední',
+  fontSizeLarge: 'Velké',
+
+  menu: 'Menu',
+  theme: 'Vzhled',
+
+  language: 'Jazyk',
+  languageName: 'Čeština',
+};
+
+export default cs;

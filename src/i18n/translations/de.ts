@@ -1,0 +1,106 @@
+import type { Translations } from '../types';
+
+const de: Translations = {
+  appTitle: 'Magische Geschichten',
+  appSubtitle: 'Erstelle magische illustrierte Geschichten mit Hilfe von KI',
+
+  explore: 'Entdecken',
+  login: 'Anmelden',
+  logout: 'Abmelden',
+  profile: 'Profil',
+  backHome: 'Zurück zur Startseite',
+
+  storyInputPlaceholder: "Beschreibe deine Geschichte... zum Beispiel, 'Ein mutiges Häschen, das einen magischen Garten in den Wolken entdeckt'",
+  storyInputGuestPlaceholder: 'Du musst dich anmelden, um Geschichten zu erstellen',
+  createStory: 'Geschichte erstellen',
+  creating: 'Wird erstellt...',
+
+  creatingYourStory: 'Deine Geschichte wird erstellt',
+  generationFailed: 'Generierung fehlgeschlagen',
+  generationCancelled: 'Generierung abgebrochen',
+  writingStory: 'Geschichte wird geschrieben',
+  drawingCharacters: 'Charaktere werden gezeichnet',
+  illustratingPages: 'Seiten werden illustriert',
+  pages: 'Seiten',
+  pagesFailedCount: 'Seite(n) konnten nicht generiert werden',
+  cancelGeneration: 'Abbrechen',
+  cancelConfirmTitle: 'Generierung abbrechen?',
+  cancelConfirmMessage: 'Bist du sicher? Dies stoppt die Generierung deiner Geschichte und löscht sie.',
+  confirmCancel: 'Ja, abbrechen',
+  keepGenerating: 'Weiter generieren',
+
+  generatingStory: 'Geschichte wird generiert...',
+  writingStoryStatus: 'Geschichte wird geschrieben...',
+  drawingCharactersStatus: 'Charaktere werden gezeichnet...',
+  illustratingStatus: 'Wird illustriert...',
+  failed: 'Fehlgeschlagen',
+  creatingMagic: 'Magie wird erschaffen...',
+  publicLabel: 'Öffentlich',
+  privateLabel: 'Privat',
+  makePublic: 'Öffentlich machen',
+  makePrivate: 'Privat machen',
+  deleteStory: 'Geschichte löschen',
+
+  noStoriesYet: 'Noch keine Geschichten',
+  createFirstStory: 'Erstelle deine erste Geschichte oben!',
+
+  storyNotFound: 'Geschichte nicht gefunden',
+  storyNotFoundDescription: 'Diese Geschichte wurde gelöscht oder existiert nicht.',
+  storyDataUnavailable: 'Geschichtsdaten nicht verfügbar',
+  reconnectedProgress: 'Wieder mit dem Generierungsfortschritt verbunden...',
+  storyGeneratedSuccess: 'Geschichte erfolgreich generiert!',
+  done: 'Fertig!',
+  inProgress: 'In Bearbeitung...',
+  imageCouldNotGenerate: 'Bild konnte nicht generiert werden',
+  imageNotAvailable: 'Bild nicht verfügbar',
+
+  loginTitle: 'Anmelden',
+  loginSubtitle: 'Melde dich an, um deine Geschichten zu erstellen und zu verwalten',
+  email: 'E-Mail',
+  password: 'Passwort',
+  signIn: 'Anmelden',
+  signUp: 'Registrieren',
+  forgotPassword: 'Passwort vergessen?',
+  resetPasswordSent: 'E-Mail zum Zurücksetzen des Passworts gesendet. Überprüfe deinen Posteingang.',
+  noAccountYet: 'Noch kein Konto?',
+  alreadyHaveAccount: 'Bereits ein Konto?',
+  orContinueWith: 'oder weiter mit',
+  checkEmailForConfirmation: 'Überprüfe deine E-Mail, um dein Konto zu bestätigen.',
+  continueWithGoogle: 'Weiter mit Google',
+  finalizingAuth: 'Authentifizierung wird abgeschlossen...',
+
+  myStories: 'Meine Geschichten',
+  noStoriesYetProfile: 'Du hast noch keine Geschichten',
+  createFirstStoryMagic: 'Erstelle deine erste magische Geschichte!',
+  createAStory: 'Geschichte erstellen',
+  user: 'Benutzer',
+
+  exploreStories: 'Geschichten entdecken',
+  discoverCommunityStories: 'Entdecke Geschichten der Community',
+  searchStories: 'Geschichten suchen...',
+  noPublicStoriesFound: 'Keine öffentlichen Geschichten gefunden',
+  tryDifferentSearch: 'Versuche einen anderen Suchbegriff',
+  noPublicStoriesYet: 'Noch keine öffentlichen Geschichten',
+
+  somethingWentWrong: 'Etwas ist schiefgelaufen',
+  unexpectedError: 'Ein unerwarteter Fehler ist aufgetreten',
+  home: 'Startseite',
+
+  confirmDeleteStory: 'Bist du sicher, dass du diese Geschichte löschen möchtest?',
+  couldNotDeleteStory: 'Geschichte konnte nicht gelöscht werden',
+  couldNotChangeVisibility: 'Sichtbarkeit konnte nicht geändert werden',
+  couldNotCreateStory: 'Geschichte konnte nicht erstellt werden. Bitte versuche es erneut.',
+
+  fontSize: 'Schriftgröße',
+  fontSizeSmall: 'Klein',
+  fontSizeMedium: 'Mittel',
+  fontSizeLarge: 'Groß',
+
+  menu: 'Menü',
+  theme: 'Design',
+
+  language: 'Sprache',
+  languageName: 'Deutsch',
+};
+
+export default de;

@@ -1,35 +1,85 @@
 import pRetry, { AbortError } from 'p-retry';
 import { generateImage } from './gemini.js';
-import { saveImage, updatePageStatus } from '../utils/storage.js';
+import { saveImage, updatePageStatus as fsUpdatePageStatus } from '../utils/storage.js';
+import { uploadImage, updatePageStatus as sbUpdatePageStatus } from './supabaseStorage.js';
+import { config } from '../config.js';
 import { imageGenerationLimiter } from '../utils/rateLimiter.js';
 import type { Page, Character, GenerationProgress } from '../../shared/types.js';
+
+async function saveSceneImage(storyId: string, filename: string, base64: string, userId?: string): Promise<void> {
+  if (config.useSupabase) {
+    await uploadImage(userId, storyId, filename, base64);
+  } else {
+    await saveImage(storyId, filename, base64);
+  }
+}
+
+async function updatePageStatusBoth(storyId: string, pageNumber: number, status: 'pending' | 'generating' | 'completed' | 'failed'): Promise<void> {
+  if (config.useSupabase) {
+    await sbUpdatePageStatus(storyId, pageNumber, status);
+  } else {
+    await fsUpdatePageStatus(storyId, pageNumber, status);
+  }
+}
 
 function buildScenePrompt(
   page: Page,
   characters: Character[],
+  hasFirstScene: boolean,
+  hasPreviousScene: boolean,
 ): string {
   const charDescriptions = page.characters
     .map(name => {
       const char = characters.find(c => c.name === name);
       if (!char) return '';
-      return `${char.name}: ${char.appearance}. ${char.clothing}.`;
+      return `- ${char.name}: ${char.appearance}. ${char.clothing}.`;
     })
     .filter(Boolean)
     .join('\n');
 
-  const imageLabels = page.characters
-    .map((name, i) => `Image ${i + 1}: Character reference sheet for ${name}.`)
+  // Build image labels accounting for reference scene images
+  let imageIndex = 1;
+  const preambleParts: string[] = [];
+
+  if (hasFirstScene && hasPreviousScene) {
+    preambleParts.push(
+      `Image ${imageIndex}: STYLE REFERENCE — This is the first scene of the story. Match its exact art style, rendering quality, color saturation, and lighting approach.`,
+    );
+    imageIndex++;
+    preambleParts.push(
+      `Image ${imageIndex}: CONTINUITY REFERENCE — This is the previous scene. Maintain the exact same character appearances, proportions, and visual style shown here.`,
+    );
+    imageIndex++;
+  } else if (hasPreviousScene) {
+    // Only previous scene (page 2, where first === previous)
+    preambleParts.push(
+      `Image ${imageIndex}: STYLE & CONTINUITY REFERENCE — This is the previous scene. Maintain the exact same visual style, character appearances, proportions, color palette, and lighting quality.`,
+    );
+    imageIndex++;
+  }
+
+  const charImageLabels = page.characters
+    .map((name, i) => `Image ${imageIndex + i}: Character reference sheet for ${name}.`)
     .join(' ');
 
-  return `${imageLabels}
+  const preamble = preambleParts.length > 0
+    ? preambleParts.join('\n') + '\n\n'
+    : '';
 
-Generate a NEW illustration based on the reference sheets above.
+  return `${preamble}${charImageLabels}
+
+IMPORTANT: Generate a new illustration that maintains PERFECT visual consistency with all reference images provided.
 
 Scene: ${page.imagePrompt}
 
 Characters in scene:
 ${charDescriptions}
 
+CONSISTENCY REQUIREMENTS:
+- Characters must look IDENTICAL to the reference sheets: same exact fur/skin colors, eye colors, body proportions, clothing details
+- Maintain the SAME art style across all scenes: same rendering quality, same color saturation, same lighting approach
+- Use the SAME visual language: same line weight, same level of detail, same background style
+${hasPreviousScene ? '- The previous scene is shown for visual continuity. Maintain the same character appearance, art style, and color palette.\n' : ''}
 Style: Disney/Pixar 3D animation style with warm, vibrant colors, round and friendly character designs.
 The characters MUST look EXACTLY like the characters in the reference sheets above.
 4:3 aspect ratio composition. No text or words in the image.`;
@@ -51,23 +101,42 @@ export async function generateSceneImage(
   characters: Character[],
   characterSheets: Map<string, string>,
   onProgress?: (progress: Partial<GenerationProgress>) => void,
-): Promise<void> {
+  userId?: string,
+  previousSceneBase64?: string | null,
+  firstSceneBase64?: string | null,
+): Promise<string | null> {
   const pageFilename = `page-${String(page.pageNumber).padStart(2, '0')}.png`;
 
-  await updatePageStatus(storyId, page.pageNumber, 'generating');
-  onProgress?.({ message: `Se generează imaginea pentru pagina ${page.pageNumber}...` });
+  await updatePageStatusBoth(storyId, page.pageNumber, 'generating');
+    onProgress?.({ message: `Generating image for page ${page.pageNumber}...`, pageNumber: page.pageNumber, pageStatus: 'generating' });
 
   const referenceImages: Array<{ data: string; mimeType: string }> = [];
+
+  // 1. First scene as style reference (only when it differs from previous scene)
+  const hasFirstScene = !!firstSceneBase64 && firstSceneBase64 !== previousSceneBase64;
+  if (hasFirstScene) {
+    referenceImages.push({ data: firstSceneBase64!, mimeType: 'image/png' });
+  }
+
+  // 2. Previous scene as continuity reference
+  const hasPreviousScene = !!previousSceneBase64;
+  if (hasPreviousScene) {
+    referenceImages.push({ data: previousSceneBase64!, mimeType: 'image/png' });
+  }
+
+  // 3. Character reference sheets (limit total to 5 images)
+  const maxCharSheets = 5 - referenceImages.length;
+  let charSheetCount = 0;
   for (const charName of page.characters) {
+    if (charSheetCount >= maxCharSheets) break;
     const sheetBase64 = characterSheets.get(charName);
     if (sheetBase64) {
       referenceImages.push({ data: sheetBase64, mimeType: 'image/png' });
+      charSheetCount++;
     }
-    // Max 3 inline images
-    if (referenceImages.length >= 3) break;
   }
 
-  const prompt = buildScenePrompt(page, characters);
+  const prompt = buildScenePrompt(page, characters, hasFirstScene, hasPreviousScene);
 
   try {
     const base64 = await pRetry(
@@ -106,13 +175,16 @@ export async function generateSceneImage(
       },
     );
 
-    await saveImage(storyId, pageFilename, base64);
-    await updatePageStatus(storyId, page.pageNumber, 'completed');
-    onProgress?.({ message: `Pagina ${page.pageNumber} completed` });
+    await saveSceneImage(storyId, pageFilename, base64, userId);
+    await updatePageStatusBoth(storyId, page.pageNumber, 'completed');
+
+    onProgress?.({ message: `Page ${page.pageNumber} completed`, pageNumber: page.pageNumber, pageStatus: 'completed' });
+    return base64;
   } catch (error) {
     console.error(`Failed to generate page ${page.pageNumber}:`, error);
-    await updatePageStatus(storyId, page.pageNumber, 'failed');
-    onProgress?.({ message: `Pagina ${page.pageNumber} failed` });
+    await updatePageStatusBoth(storyId, page.pageNumber, 'failed');
+    onProgress?.({ message: `Page ${page.pageNumber} failed`, pageNumber: page.pageNumber, pageStatus: 'failed' });
+    return null;
   }
 }
 
@@ -122,12 +194,31 @@ export async function generateAllSceneImages(
   characters: Character[],
   characterSheets: Map<string, string>,
   onProgress?: (progress: Partial<GenerationProgress>) => void,
+  userId?: string,
+  signal?: AbortSignal,
 ): Promise<void> {
-  const promises = pages.map(page =>
-    imageGenerationLimiter(() =>
-      generateSceneImage(storyId, page, characters, characterSheets, onProgress),
-    ),
-  );
+  let previousSceneBase64: string | null = null;
+  let firstSceneBase64: string | null = null;
 
-  await Promise.all(promises);
+  // Generate scenes sequentially so each can reference the previous scene
+  for (const page of pages) {
+    if (signal?.aborted) {
+      throw new Error('Generation cancelled');
+    }
+
+    const result = await imageGenerationLimiter(() =>
+      generateSceneImage(
+        storyId, page, characters, characterSheets,
+        onProgress, userId, previousSceneBase64, firstSceneBase64,
+      ),
+    );
+
+    if (result) {
+      previousSceneBase64 = result;
+      // Store the first successfully generated scene as a style reference
+      if (firstSceneBase64 === null) {
+        firstSceneBase64 = result;
+      }
+    }
+  }
 }

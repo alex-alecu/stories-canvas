@@ -30,8 +30,13 @@ export function useStoryGeneration(storyId: string | null) {
         progressRef.current = data;
         setProgress(data);
 
-        // Invalidate queries when generation completes or fails
-        if (data.status === 'completed' || data.status === 'failed') {
+        // Invalidate story query when an individual page completes (for progressive loading)
+        if (data.pageStatus === 'completed' && storyId) {
+          queryClient.invalidateQueries({ queryKey: ['story', storyId] });
+        }
+
+        // Invalidate queries when generation completes, fails, or is cancelled
+        if (data.status === 'completed' || data.status === 'failed' || data.status === 'cancelled') {
           queryClient.invalidateQueries({ queryKey: ['stories'] });
           queryClient.invalidateQueries({ queryKey: ['story', storyId] });
           // Close connection after final event
@@ -50,7 +55,7 @@ export function useStoryGeneration(storyId: string | null) {
       es.close();
       // Attempt reconnect after 3 seconds for non-terminal states
       const currentStatus = progressRef.current?.status;
-      if (currentStatus !== 'completed' && currentStatus !== 'failed') {
+      if (currentStatus !== 'completed' && currentStatus !== 'failed' && currentStatus !== 'cancelled') {
         setTimeout(connect, 3000);
       }
     };

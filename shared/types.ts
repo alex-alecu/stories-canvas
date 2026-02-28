@@ -1,6 +1,6 @@
 export type PageStatus = 'pending' | 'generating' | 'completed' | 'failed';
 
-export type StoryStatus = 'generating_scenario' | 'generating_characters' | 'generating_images' | 'completed' | 'failed';
+export type StoryStatus = 'generating_scenario' | 'generating_characters' | 'generating_images' | 'completed' | 'failed' | 'cancelled';
 
 export interface Character {
   name: string;
@@ -17,6 +17,7 @@ export interface Page {
   imagePrompt: string;
   characters: string[];
   status: PageStatus;
+  imageUrl?: string;
 }
 
 export interface Scenario {
@@ -33,6 +34,8 @@ export interface StoryMeta {
   createdAt: string;
   scenario?: Scenario;
   coverImage?: string;
+  userId?: string;
+  isPublic?: boolean;
 }
 
 export interface StoryDetail extends StoryMeta {
@@ -47,10 +50,13 @@ export interface GenerationProgress {
   totalPages: number;
   failedPages: number[];
   message: string;
+  pageNumber?: number;
+  pageStatus?: PageStatus;
 }
 
 export interface CreateStoryRequest {
   prompt: string;
+  language?: string;
 }
 
 export interface CreateStoryResponse {

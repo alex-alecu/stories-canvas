@@ -1,0 +1,106 @@
+import type { Translations } from '../types';
+
+const sv: Translations = {
+  appTitle: 'Magiska Sagor',
+  appSubtitle: 'Skapa magiska illustrerade sagor med hjälp av AI',
+
+  explore: 'Utforska',
+  login: 'Logga in',
+  logout: 'Logga ut',
+  profile: 'Profil',
+  backHome: 'Tillbaka hem',
+
+  storyInputPlaceholder: "Beskriv din saga... till exempel, 'En modig liten kanin som upptäcker en magisk trädgård i molnen'",
+  storyInputGuestPlaceholder: 'Du måste logga in för att skapa sagor',
+  createStory: 'Skapa Saga',
+  creating: 'Skapar...',
+
+  creatingYourStory: 'Skapar din saga',
+  generationFailed: 'Genereringen misslyckades',
+  generationCancelled: 'Genereringen avbröts',
+  writingStory: 'Skriver sagan',
+  drawingCharacters: 'Ritar karaktärerna',
+  illustratingPages: 'Illustrerar sidorna',
+  pages: 'Sidor',
+  pagesFailedCount: 'sida/or kunde inte genereras',
+  cancelGeneration: 'Avbryt',
+  cancelConfirmTitle: 'Avbryta genereringen?',
+  cancelConfirmMessage: 'Är du säker? Detta stoppar genereringen av din saga och raderar den.',
+  confirmCancel: 'Ja, avbryt',
+  keepGenerating: 'Fortsätt generera',
+
+  generatingStory: 'Genererar sagan...',
+  writingStoryStatus: 'Skriver sagan...',
+  drawingCharactersStatus: 'Ritar karaktärerna...',
+  illustratingStatus: 'Illustrerar...',
+  failed: 'Misslyckades',
+  creatingMagic: 'Skapar magi...',
+  publicLabel: 'Offentlig',
+  privateLabel: 'Privat',
+  makePublic: 'Gör offentlig',
+  makePrivate: 'Gör privat',
+  deleteStory: 'Radera saga',
+
+  noStoriesYet: 'Inga sagor ännu',
+  createFirstStory: 'Skapa din första saga ovan!',
+
+  storyNotFound: 'Saga hittades inte',
+  storyNotFoundDescription: 'Denna saga har raderats eller finns inte.',
+  storyDataUnavailable: 'Sagans data är inte tillgänglig',
+  reconnectedProgress: 'Återansluten till genereringsförloppet...',
+  storyGeneratedSuccess: 'Saga genererad framgångsrikt!',
+  done: 'Klar!',
+  inProgress: 'Pågår...',
+  imageCouldNotGenerate: 'Bilden kunde inte genereras',
+  imageNotAvailable: 'Bild inte tillgänglig',
+
+  loginTitle: 'Logga in',
+  loginSubtitle: 'Logga in för att skapa och hantera dina sagor',
+  email: 'E-post',
+  password: 'Lösenord',
+  signIn: 'Logga in',
+  signUp: 'Registrera dig',
+  forgotPassword: 'Glömt lösenordet?',
+  resetPasswordSent: 'E-post för lösenordsåterställning skickad. Kolla din inkorg.',
+  noAccountYet: 'Har du inget konto?',
+  alreadyHaveAccount: 'Har du redan ett konto?',
+  orContinueWith: 'eller fortsätt med',
+  checkEmailForConfirmation: 'Kolla din e-post för att bekräfta ditt konto.',
+  continueWithGoogle: 'Fortsätt med Google',
+  finalizingAuth: 'Slutför autentisering...',
+
+  myStories: 'Mina Sagor',
+  noStoriesYetProfile: 'Du har inga sagor ännu',
+  createFirstStoryMagic: 'Skapa din första magiska saga!',
+  createAStory: 'Skapa en saga',
+  user: 'Användare',
+
+  exploreStories: 'Utforska Sagor',
+  discoverCommunityStories: 'Upptäck sagor skapade av gemenskapen',
+  searchStories: 'Sök sagor...',
+  noPublicStoriesFound: 'Inga offentliga sagor hittades',
+  tryDifferentSearch: 'Prova ett annat sökord',
+  noPublicStoriesYet: 'Inga offentliga sagor ännu',
+
+  somethingWentWrong: 'Något gick fel',
+  unexpectedError: 'Ett oväntat fel inträffade',
+  home: 'Hem',
+
+  confirmDeleteStory: 'Är du säker på att du vill radera denna saga?',
+  couldNotDeleteStory: 'Kunde inte radera sagan',
+  couldNotChangeVisibility: 'Kunde inte ändra sagans synlighet',
+  couldNotCreateStory: 'Kunde inte skapa sagan. Försök igen.',
+
+  fontSize: 'Teckenstorlek',
+  fontSizeSmall: 'Liten',
+  fontSizeMedium: 'Medium',
+  fontSizeLarge: 'Stor',
+
+  menu: 'Meny',
+  theme: 'Utseende',
+
+  language: 'Språk',
+  languageName: 'Svenska',
+};
+
+export default sv;

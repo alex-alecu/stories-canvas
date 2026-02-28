@@ -1,21 +1,27 @@
 import { Link } from 'react-router-dom';
 import type { StorySummary } from '../types';
+import { useLanguage } from '../i18n/LanguageContext';
 
 interface StoryCardProps {
   story: StorySummary;
+  onDelete?: (id: string) => void;
+  onTogglePublic?: (id: string, isPublic: boolean) => void;
 }
 
 function StatusBadge({ status, completedPages, totalPages }: { status: string; completedPages: number; totalPages: number }) {
+  const { t } = useLanguage();
+
   if (status === 'completed') return null;
 
   const labels: Record<string, string> = {
-    generating_scenario: 'Se scrie povestea...',
-    generating_characters: 'Se desenează personajele...',
-    generating_images: `Se ilustrează... ${completedPages}/${totalPages}`,
-    failed: 'Eșuat',
+    generating_scenario: t.writingStoryStatus,
+    generating_characters: t.drawingCharactersStatus,
+    generating_images: `${t.illustratingStatus} ${completedPages}/${totalPages}`,
+    failed: t.failed,
+    cancelled: t.failed,
   };
 
-  const isGenerating = status !== 'failed';
+  const isGenerating = status !== 'failed' && status !== 'cancelled';
 
   return (
     <div className={`absolute top-3 right-3 px-3 py-1 rounded-full text-xs font-bold backdrop-blur-sm ${
@@ -31,17 +37,19 @@ function StatusBadge({ status, completedPages, totalPages }: { status: string; c
   );
 }
 
-export default function StoryCard({ story }: StoryCardProps) {
+export default function StoryCard({ story, onDelete, onTogglePublic }: StoryCardProps) {
+  const { t } = useLanguage();
+
   return (
     <Link
       to={`/story/${story.id}`}
-      className="group block rounded-2xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 transform hover:scale-[1.02] bg-white"
+      className="group block rounded-2xl overflow-hidden shadow-md hover:shadow-xl dark:shadow-primary-900/20 dark:hover:shadow-primary-800/30 transition-all duration-300 transform hover:scale-[1.02] bg-white dark:bg-surface-dark-elevated"
     >
-      <div className="aspect-[4/3] relative overflow-hidden bg-gradient-to-br from-primary-100 to-warm-100">
+      <div className="aspect-[4/3] relative overflow-hidden bg-gradient-to-br from-primary-100 to-warm-100 dark:from-primary-900/40 dark:to-warm-500/20">
         {story.coverImage ? (
           <img
             src={story.coverImage}
-            alt={story.title || 'Coperta poveștii'}
+            alt={story.title || t.generatingStory}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
             loading="lazy"
           />
@@ -52,17 +60,65 @@ export default function StoryCard({ story }: StoryCardProps) {
                 <span className="text-4xl">x</span>
               ) : (
                 <div className="space-y-3">
-                  <div className="w-12 h-12 mx-auto rounded-full border-4 border-primary-300 border-t-primary-600 animate-spin" />
-                  <p className="text-primary-400 text-sm font-medium">Se creează magia...</p>
+                  <div className="w-12 h-12 mx-auto rounded-full border-4 border-primary-300 dark:border-primary-700 border-t-primary-600 dark:border-t-primary-400 animate-spin" />
+                  <p className="text-primary-400 dark:text-primary-300 text-sm font-medium">{t.creatingMagic}</p>
                 </div>
               )}
             </div>
           </div>
         )}
+        {onDelete && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onDelete(story.id);
+            }}
+            className="absolute top-3 left-3 w-8 h-8 rounded-full bg-red-500/60 hover:bg-red-500/80 text-white flex items-center justify-center backdrop-blur-sm transition-colors z-10"
+            aria-label={t.deleteStory}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+            </svg>
+          </button>
+        )}
+        {onTogglePublic && story.status === 'completed' && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onTogglePublic(story.id, !story.isPublic);
+            }}
+            className={`absolute bottom-14 right-3 px-2.5 py-1 rounded-full text-xs font-bold backdrop-blur-sm transition-colors z-10 flex items-center gap-1 ${
+              story.isPublic
+                ? 'bg-primary-500/80 text-white hover:bg-primary-600/80'
+                : 'bg-gray-800/50 text-white/80 hover:bg-gray-800/70'
+            }`}
+            aria-label={story.isPublic ? t.makePrivate : t.makePublic}
+            title={story.isPublic ? t.makePrivate : t.makePublic}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
+              {story.isPublic ? (
+                <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
+              ) : null}
+              <path fillRule="evenodd" d={
+                story.isPublic
+                  ? "M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z"
+                  : "M3.707 2.293a1 1 0 00-1.414 1.414l14 14a1 1 0 001.414-1.414l-1.473-1.473A10.014 10.014 0 0019.542 10C18.268 5.943 14.478 3 10 3a9.958 9.958 0 00-4.512 1.074l-1.78-1.781zm4.261 4.26l1.514 1.515a2.003 2.003 0 012.45 2.45l1.514 1.514a4 4 0 00-5.478-5.478z"
+              } clipRule="evenodd" />
+              {!story.isPublic ? (
+                <path d="M12.454 16.697L9.75 13.992a4 4 0 01-3.742-3.741L2.335 6.578A9.98 9.98 0 00.458 10c1.274 4.057 5.065 7 9.542 7 .847 0 1.669-.105 2.454-.303z" />
+              ) : null}
+            </svg>
+            {story.isPublic ? t.publicLabel : t.privateLabel}
+          </button>
+        )}
         <StatusBadge status={story.status} completedPages={story.completedPages} totalPages={story.totalPages} />
         <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent p-4 pt-12">
           <h3 className="text-white font-bold text-lg leading-tight drop-shadow-md">
-            {story.title || 'Se generează povestea...'}
+            {story.title || t.generatingStory}
           </h3>
         </div>
       </div>

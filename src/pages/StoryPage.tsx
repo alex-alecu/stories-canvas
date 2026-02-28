@@ -1,19 +1,34 @@
-import { useParams, Link } from 'react-router-dom';
-import { useStory } from '../hooks/useStories';
+import { useCallback } from 'react';
+import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useStory, useCancelStory } from '../hooks/useStories';
 import { useStoryGeneration } from '../hooks/useStoryGeneration';
 import StoryViewer from '../components/StoryViewer';
 import GenerationProgress from '../components/GenerationProgress';
+import { useLanguage } from '../i18n/LanguageContext';
 
 export default function StoryPage() {
   const { id } = useParams<{ id: string }>();
   const { data: story, isLoading, error } = useStory(id);
-  const isGenerating = story?.status !== 'completed' && story?.status !== 'failed';
+  const isGenerating = story?.status !== 'completed' && story?.status !== 'failed' && story?.status !== 'cancelled';
   const { progress } = useStoryGeneration(isGenerating ? id ?? null : null);
+  const cancelStory = useCancelStory();
+  const navigate = useNavigate();
+  const { t } = useLanguage();
+
+  const handleCancelStory = useCallback(async () => {
+    if (!id) return;
+    try {
+      await cancelStory.mutateAsync(id);
+    } catch (error) {
+      console.error('Failed to cancel story:', error);
+    }
+    navigate('/');
+  }, [id, cancelStory, navigate]);
 
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="w-12 h-12 rounded-full border-4 border-primary-300 border-t-primary-600 animate-spin" />
+        <div className="w-12 h-12 rounded-full border-4 border-primary-300 dark:border-primary-700 border-t-primary-600 dark:border-t-primary-400 animate-spin" />
       </div>
     );
   }
@@ -21,29 +36,36 @@ export default function StoryPage() {
   if (error || !story) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
-        <div className="bg-white rounded-2xl shadow-lg p-8 max-w-md w-full text-center">
-          <h1 className="text-2xl font-bold text-gray-800 mb-2">Povestea nu a fost găsită</h1>
-          <p className="text-gray-500 mb-6">Această poveste a fost ștearsă sau nu există.</p>
+        <div className="bg-white dark:bg-surface-dark-elevated rounded-2xl shadow-lg dark:shadow-primary-900/30 p-8 max-w-md w-full text-center">
+          <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-100 mb-2">{t.storyNotFound}</h1>
+          <p className="text-gray-500 dark:text-gray-400 mb-6">{t.storyNotFoundDescription}</p>
           <Link
             to="/"
             className="inline-block bg-primary-500 hover:bg-primary-600 text-white font-bold py-3 px-6 rounded-xl transition-colors"
           >
-            Înapoi acasă
+            {t.backHome}
           </Link>
         </div>
       </div>
     );
   }
 
-  // If story is still generating, show progress
-  if (isGenerating) {
+  // Check if any pages have completed images
+  const hasCompletedPages = story.scenario?.pages?.some(p => p.status === 'completed');
+
+  // If still generating but no pages ready yet, show progress only
+  if (isGenerating && !hasCompletedPages) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
         <div>
-          <GenerationProgress progress={progress} />
+          <GenerationProgress
+            progress={progress}
+            onCancel={handleCancelStory}
+            isCancelling={cancelStory.isPending}
+          />
           <div className="text-center mt-4">
-            <Link to="/" className="text-primary-500 hover:text-primary-600 font-medium text-sm">
-              ← Înapoi acasă
+            <Link to="/" className="text-primary-500 dark:text-primary-400 hover:text-primary-600 dark:hover:text-primary-300 font-medium text-sm">
+              &larr; {t.backHome}
             </Link>
           </div>
         </div>
@@ -51,20 +73,27 @@ export default function StoryPage() {
     );
   }
 
-  // Show the story viewer
+  // Show the story viewer (with progress overlay if still generating)
   if (story.scenario) {
-    return <StoryViewer storyId={story.id} scenario={story.scenario} />;
+    return (
+      <StoryViewer
+        storyId={story.id}
+        scenario={story.scenario}
+        isGenerating={isGenerating}
+        progress={progress}
+      />
+    );
   }
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-lg p-8 max-w-md w-full text-center">
-        <h1 className="text-2xl font-bold text-gray-800 mb-2">Datele poveștii nu sunt disponibile</h1>
+      <div className="bg-white dark:bg-surface-dark-elevated rounded-2xl shadow-lg dark:shadow-primary-900/30 p-8 max-w-md w-full text-center">
+        <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-100 mb-2">{t.storyDataUnavailable}</h1>
         <Link
           to="/"
           className="inline-block bg-primary-500 hover:bg-primary-600 text-white font-bold py-3 px-6 rounded-xl transition-colors mt-4"
         >
-          Înapoi acasă
+          {t.backHome}
         </Link>
       </div>
     </div>

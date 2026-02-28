@@ -1,0 +1,106 @@
+import type { Translations } from '../types';
+
+const zh: Translations = {
+  appTitle: '魔法故事',
+  appSubtitle: '借助AI创建神奇的插画故事',
+
+  explore: '探索',
+  login: '登录',
+  logout: '退出',
+  profile: '个人资料',
+  backHome: '返回首页',
+
+  storyInputPlaceholder: "描述你的故事...例如，'一只勇敢的小兔子在云端发现了一个神奇的花园'",
+  storyInputGuestPlaceholder: '你需要登录才能创建故事',
+  createStory: '创建故事',
+  creating: '创建中...',
+
+  creatingYourStory: '正在创建你的故事',
+  generationFailed: '生成失败',
+  generationCancelled: '生成已取消',
+  writingStory: '正在写故事',
+  drawingCharacters: '正在画角色',
+  illustratingPages: '正在画插图',
+  pages: '页',
+  pagesFailedCount: '页未能生成',
+  cancelGeneration: '取消',
+  cancelConfirmTitle: '取消生成？',
+  cancelConfirmMessage: '你确定吗？这将停止生成你的故事并将其删除。',
+  confirmCancel: '是的，取消',
+  keepGenerating: '继续生成',
+
+  generatingStory: '正在生成故事...',
+  writingStoryStatus: '正在写故事...',
+  drawingCharactersStatus: '正在画角色...',
+  illustratingStatus: '正在插图...',
+  failed: '失败',
+  creatingMagic: '正在创造魔法...',
+  publicLabel: '公开',
+  privateLabel: '私密',
+  makePublic: '设为公开',
+  makePrivate: '设为私密',
+  deleteStory: '删除故事',
+
+  noStoriesYet: '还没有故事',
+  createFirstStory: '在上方创建你的第一个故事吧！',
+
+  storyNotFound: '未找到故事',
+  storyNotFoundDescription: '这个故事已被删除或不存在。',
+  storyDataUnavailable: '故事数据不可用',
+  reconnectedProgress: '已重新连接到生成进度...',
+  storyGeneratedSuccess: '故事生成成功！',
+  done: '完成！',
+  inProgress: '进行中...',
+  imageCouldNotGenerate: '图片无法生成',
+  imageNotAvailable: '图片不可用',
+
+  loginTitle: '登录',
+  loginSubtitle: '登录以创建和管理你的故事',
+  email: '电子邮箱',
+  password: '密码',
+  signIn: '登录',
+  signUp: '注册',
+  forgotPassword: '忘记密码？',
+  resetPasswordSent: '密码重置邮件已发送，请查看收件箱。',
+  noAccountYet: '还没有账号？',
+  alreadyHaveAccount: '已有账号？',
+  orContinueWith: '或通过以下方式继续',
+  checkEmailForConfirmation: '请查看邮箱以确认您的账号。',
+  continueWithGoogle: '使用Google继续',
+  finalizingAuth: '正在完成认证...',
+
+  myStories: '我的故事',
+  noStoriesYetProfile: '你还没有故事',
+  createFirstStoryMagic: '创建你的第一个魔法故事吧！',
+  createAStory: '创建故事',
+  user: '用户',
+
+  exploreStories: '探索故事',
+  discoverCommunityStories: '发现社区创建的故事',
+  searchStories: '搜索故事...',
+  noPublicStoriesFound: '未找到公开故事',
+  tryDifferentSearch: '尝试其他搜索词',
+  noPublicStoriesYet: '还没有公开故事',
+
+  somethingWentWrong: '出了点问题',
+  unexpectedError: '发生了意外错误',
+  home: '首页',
+
+  confirmDeleteStory: '你确定要删除这个故事吗？',
+  couldNotDeleteStory: '无法删除故事',
+  couldNotChangeVisibility: '无法更改故事可见性',
+  couldNotCreateStory: '无法创建故事。请重试。',
+
+  fontSize: '字体大小',
+  fontSizeSmall: '小',
+  fontSizeMedium: '中',
+  fontSizeLarge: '大',
+
+  menu: '菜单',
+  theme: '主题',
+
+  language: '语言',
+  languageName: '中文',
+};
+
+export default zh;

@@ -1,0 +1,106 @@
+import type { Translations } from '../types';
+
+const pl: Translations = {
+  appTitle: 'Magiczne Opowieści',
+  appSubtitle: 'Twórz magiczne ilustrowane opowieści z pomocą AI',
+
+  explore: 'Odkrywaj',
+  login: 'Zaloguj się',
+  logout: 'Wyloguj się',
+  profile: 'Profil',
+  backHome: 'Powrót do strony głównej',
+
+  storyInputPlaceholder: "Opisz swoją opowieść... na przykład, 'Odważny króliczek, który odkrywa magiczny ogród w chmurach'",
+  storyInputGuestPlaceholder: 'Musisz się zalogować, aby tworzyć opowieści',
+  createStory: 'Utwórz Opowieść',
+  creating: 'Tworzenie...',
+
+  creatingYourStory: 'Tworzenie twojej opowieści',
+  generationFailed: 'Generowanie nie powiodło się',
+  generationCancelled: 'Generowanie anulowane',
+  writingStory: 'Pisanie opowieści',
+  drawingCharacters: 'Rysowanie postaci',
+  illustratingPages: 'Ilustrowanie stron',
+  pages: 'Strony',
+  pagesFailedCount: 'stron(a) nie udało się wygenerować',
+  cancelGeneration: 'Anuluj',
+  cancelConfirmTitle: 'Anulować generowanie?',
+  cancelConfirmMessage: 'Czy na pewno? To zatrzyma generowanie opowieści i ją usunie.',
+  confirmCancel: 'Tak, anuluj',
+  keepGenerating: 'Kontynuuj generowanie',
+
+  generatingStory: 'Generowanie opowieści...',
+  writingStoryStatus: 'Pisanie opowieści...',
+  drawingCharactersStatus: 'Rysowanie postaci...',
+  illustratingStatus: 'Ilustrowanie...',
+  failed: 'Niepowodzenie',
+  creatingMagic: 'Tworzenie magii...',
+  publicLabel: 'Publiczna',
+  privateLabel: 'Prywatna',
+  makePublic: 'Upublicznij',
+  makePrivate: 'Ustaw jako prywatną',
+  deleteStory: 'Usuń opowieść',
+
+  noStoriesYet: 'Brak opowieści',
+  createFirstStory: 'Utwórz swoją pierwszą opowieść powyżej!',
+
+  storyNotFound: 'Opowieść nie znaleziona',
+  storyNotFoundDescription: 'Ta opowieść została usunięta lub nie istnieje.',
+  storyDataUnavailable: 'Dane opowieści niedostępne',
+  reconnectedProgress: 'Ponownie połączono z postępem generowania...',
+  storyGeneratedSuccess: 'Opowieść wygenerowana pomyślnie!',
+  done: 'Gotowe!',
+  inProgress: 'W toku...',
+  imageCouldNotGenerate: 'Nie udało się wygenerować obrazu',
+  imageNotAvailable: 'Obraz niedostępny',
+
+  loginTitle: 'Zaloguj się',
+  loginSubtitle: 'Zaloguj się, aby tworzyć i zarządzać swoimi opowieściami',
+  email: 'E-mail',
+  password: 'Hasło',
+  signIn: 'Zaloguj się',
+  signUp: 'Zarejestruj się',
+  forgotPassword: 'Nie pamiętasz hasła?',
+  resetPasswordSent: 'E-mail resetujący hasło został wysłany. Sprawdź swoją skrzynkę.',
+  noAccountYet: 'Nie masz konta?',
+  alreadyHaveAccount: 'Masz już konto?',
+  orContinueWith: 'lub kontynuuj z',
+  checkEmailForConfirmation: 'Sprawdź e-mail, aby potwierdzić swoje konto.',
+  continueWithGoogle: 'Kontynuuj z Google',
+  finalizingAuth: 'Kończenie uwierzytelniania...',
+
+  myStories: 'Moje Opowieści',
+  noStoriesYetProfile: 'Nie masz jeszcze żadnych opowieści',
+  createFirstStoryMagic: 'Utwórz swoją pierwszą magiczną opowieść!',
+  createAStory: 'Utwórz opowieść',
+  user: 'Użytkownik',
+
+  exploreStories: 'Odkrywaj Opowieści',
+  discoverCommunityStories: 'Odkryj opowieści stworzone przez społeczność',
+  searchStories: 'Szukaj opowieści...',
+  noPublicStoriesFound: 'Nie znaleziono publicznych opowieści',
+  tryDifferentSearch: 'Spróbuj innego terminu wyszukiwania',
+  noPublicStoriesYet: 'Brak publicznych opowieści',
+
+  somethingWentWrong: 'Coś poszło nie tak',
+  unexpectedError: 'Wystąpił nieoczekiwany błąd',
+  home: 'Strona główna',
+
+  confirmDeleteStory: 'Czy na pewno chcesz usunąć tę opowieść?',
+  couldNotDeleteStory: 'Nie udało się usunąć opowieści',
+  couldNotChangeVisibility: 'Nie udało się zmienić widoczności opowieści',
+  couldNotCreateStory: 'Nie udało się utworzyć opowieści. Spróbuj ponownie.',
+
+  fontSize: 'Rozmiar czcionki',
+  fontSizeSmall: 'Mały',
+  fontSizeMedium: 'Średni',
+  fontSizeLarge: 'Duży',
+
+  menu: 'Menu',
+  theme: 'Motyw',
+
+  language: 'Język',
+  languageName: 'Polski',
+};
+
+export default pl;

@@ -1,33 +1,84 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import StoryInput from '../components/StoryInput';
 import StoryGrid from '../components/StoryGrid';
 import GenerationProgress from '../components/GenerationProgress';
-import { useStories, useCreateStory } from '../hooks/useStories';
+import { useStories, useCreateStory, useCancelStory } from '../hooks/useStories';
 import { useStoryGeneration } from '../hooks/useStoryGeneration';
+import { useLanguage } from '../i18n/LanguageContext';
+
+const GENERATING_STORY_KEY = 'stories-canvas:generatingStoryId';
+
+function getStoredGeneratingId(): string | null {
+  try {
+    return localStorage.getItem(GENERATING_STORY_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function setStoredGeneratingId(id: string | null): void {
+  try {
+    if (id) {
+      localStorage.setItem(GENERATING_STORY_KEY, id);
+    } else {
+      localStorage.removeItem(GENERATING_STORY_KEY);
+    }
+  } catch {}
+}
 
 export default function Home() {
-  const [generatingStoryId, setGeneratingStoryId] = useState<string | null>(null);
+  const [generatingStoryId, setGeneratingStoryId] = useState<string | null>(getStoredGeneratingId);
   const { data: stories = [], isLoading } = useStories();
   const createStory = useCreateStory();
+  const cancelStory = useCancelStory();
   const { progress } = useStoryGeneration(generatingStoryId);
   const navigate = useNavigate();
+  const { t, language } = useLanguage();
 
-  const handleCreateStory = async (prompt: string) => {
+  // Sync generatingStoryId to localStorage
+  useEffect(() => {
+    setStoredGeneratingId(generatingStoryId);
+  }, [generatingStoryId]);
+
+  const handleCreateStory = useCallback(async (prompt: string) => {
     try {
-      const result = await createStory.mutateAsync(prompt);
+      const result = await createStory.mutateAsync({ prompt, language });
       setGeneratingStoryId(result.id);
     } catch (error) {
       console.error('Failed to create story:', error);
     }
-  };
+  }, [createStory, language]);
 
-  // Navigate to story when generation completes
-  useEffect(() => {
-    if (progress?.status === 'completed' && generatingStoryId) {
-      navigate(`/story/${generatingStoryId}`);
+  const handleCancelStory = useCallback(async () => {
+    if (!generatingStoryId) return;
+    try {
+      await cancelStory.mutateAsync(generatingStoryId);
+    } catch (error) {
+      console.error('Failed to cancel story:', error);
     }
-  }, [progress?.status, generatingStoryId, navigate]);
+    setGeneratingStoryId(null);
+    setStoredGeneratingId(null);
+  }, [generatingStoryId, cancelStory]);
+
+  // Navigate to story as soon as the first page image is ready (or when fully completed)
+  useEffect(() => {
+    if (generatingStoryId && progress) {
+      if (progress.completedPages >= 1 || progress.status === 'completed') {
+        const targetId = generatingStoryId;
+        setGeneratingStoryId(null);
+        setStoredGeneratingId(null);
+        navigate(`/story/${targetId}`);
+      }
+      if (progress.status === 'failed' || progress.status === 'cancelled') {
+        setGeneratingStoryId(null);
+        setStoredGeneratingId(null);
+      }
+    }
+  }, [progress?.status, progress?.completedPages, generatingStoryId, navigate]);
+
+  // Show progress if we have a generatingStoryId (even before SSE connects, for instant feedback)
+  const showProgress = generatingStoryId && progress?.status !== 'completed';
 
   return (
     <div className="min-h-screen p-4 md:p-8">
@@ -37,14 +88,18 @@ export default function Home() {
         </div>
 
         {createStory.isError && (
-          <div className="max-w-2xl mx-auto mb-8 bg-red-50 border border-red-200 rounded-xl p-4 text-red-600 text-center">
-            {createStory.error?.message || 'Nu s-a putut crea povestea. Te rugăm să încerci din nou.'}
+          <div className="max-w-2xl mx-auto mb-8 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/50 rounded-xl p-4 text-red-600 dark:text-red-400 text-center">
+            {createStory.error?.message || t.couldNotCreateStory}
           </div>
         )}
 
-        {generatingStoryId && progress && progress.status !== 'completed' && (
+        {showProgress && (
           <div className="mb-8 flex justify-center">
-            <GenerationProgress progress={progress} />
+            <GenerationProgress
+              progress={progress ?? null}
+              onCancel={handleCancelStory}
+              isCancelling={cancelStory.isPending}
+            />
           </div>
         )}
 

@@ -1,5 +1,7 @@
 import { generateImage } from './gemini.js';
 import { saveImage } from '../utils/storage.js';
+import { uploadImage } from './supabaseStorage.js';
+import { config } from '../config.js';
 import type { Character } from '../../shared/types.js';
 
 export function getCharacterSheetFilename(name: string): string {
@@ -10,18 +12,29 @@ export function getCharacterSheetFilename(name: string): string {
 export async function generateCharacterSheet(
   storyId: string,
   character: Character,
+  userId?: string,
 ): Promise<{ name: string; filename: string; base64: string }> {
-  const prompt = `Character reference sheet for "${character.name}". 
-Left side: front view. Right side: back view. 
-${character.appearance}. ${character.clothing}. 
-Disney/Pixar 3D animation style with warm, round, and friendly character designs. 
-Pure white background. Clean, professional character sheet layout.
+  const prompt = `Professional character reference sheet for "${character.name}".
+Layout: Front view (left), 3/4 view (center), Back view (right).
+Below: Close-up face showing key facial features and expressions.
+Color palette swatches at the bottom showing exact colors used for skin/fur, clothing, eyes, and accessories.
+
+${character.appearance}. ${character.clothing}.
+
+Disney/Pixar 3D animation style with warm, round, and friendly character designs.
+Pure white background. Clean, professional character model sheet layout.
+CRITICAL: Show the EXACT same character in all views - same colors, same proportions, same clothing.
 Label at the bottom: "${character.name.toUpperCase()} CHARACTER SHEET"`;
 
   console.log(`Generating character sheet for ${character.name}...`);
   const base64 = await generateImage(prompt);
   const filename = getCharacterSheetFilename(character.name);
-  await saveImage(storyId, filename, base64);
+
+  if (config.useSupabase) {
+    await uploadImage(userId, storyId, filename, base64);
+  } else {
+    await saveImage(storyId, filename, base64);
+  }
   console.log(`Character sheet saved: ${filename}`);
 
   return { name: character.name, filename, base64 };
@@ -30,12 +43,17 @@ Label at the bottom: "${character.name.toUpperCase()} CHARACTER SHEET"`;
 export async function generateAllCharacterSheets(
   storyId: string,
   characters: Character[],
+  userId?: string,
+  signal?: AbortSignal,
 ): Promise<Map<string, string>> {
   const characterSheets = new Map<string, string>();
 
   for (const character of characters) {
+    if (signal?.aborted) {
+      throw new Error('Generation cancelled');
+    }
     try {
-      const result = await generateCharacterSheet(storyId, character);
+      const result = await generateCharacterSheet(storyId, character, userId);
       characterSheets.set(result.name, result.base64);
     } catch (error) {
       console.error(`Failed to generate character sheet for ${character.name}:`, error);
