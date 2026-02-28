@@ -68,6 +68,8 @@ const zh: Translations = {
   checkEmailForConfirmation: '请查看邮箱以确认您的账号。',
   continueWithGoogle: '使用Google继续',
   finalizingAuth: '正在完成认证...',
+  authError: '认证失败',
+  backToLogin: '返回登录',
 
   myStories: '我的故事',
   noStoriesYetProfile: '你还没有故事',

@@ -76,6 +76,8 @@ const ro: Translations = {
   checkEmailForConfirmation: 'Verifică email-ul pentru a confirma contul.',
   continueWithGoogle: 'Continuă cu Google',
   finalizingAuth: 'Se finalizează autentificarea...',
+  authError: 'Autentificare eșuată',
+  backToLogin: 'Înapoi la autentificare',
 
   // Profile
   myStories: 'Poveștile mele',

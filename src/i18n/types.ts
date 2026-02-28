@@ -76,6 +76,8 @@ export interface Translations {
   checkEmailForConfirmation: string;
   continueWithGoogle: string;
   finalizingAuth: string;
+  authError: string;
+  backToLogin: string;
 
   // Profile
   myStories: string;

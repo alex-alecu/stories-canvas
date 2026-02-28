@@ -68,6 +68,8 @@ const it: Translations = {
   checkEmailForConfirmation: 'Controlla la tua email per confermare il tuo account.',
   continueWithGoogle: 'Continua con Google',
   finalizingAuth: 'Autenticazione in corso...',
+  authError: 'Autenticazione fallita',
+  backToLogin: 'Torna al login',
 
   myStories: 'Le Mie Storie',
   noStoriesYetProfile: 'Non hai ancora storie',

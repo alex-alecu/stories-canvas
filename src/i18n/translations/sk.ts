@@ -68,6 +68,8 @@ const sk: Translations = {
   checkEmailForConfirmation: 'Skontrolujte e-mail na potvrdenie účtu.',
   continueWithGoogle: 'Pokračovať s Google',
   finalizingAuth: 'Dokončovanie overovania...',
+  authError: 'Overenie zlyhalo',
+  backToLogin: 'Späť na prihlásenie',
 
   myStories: 'Moje Príbehy',
   noStoriesYetProfile: 'Zatiaľ nemáte žiadne príbehy',

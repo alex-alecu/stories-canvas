@@ -68,6 +68,8 @@ const cs: Translations = {
   checkEmailForConfirmation: 'Zkontrolujte e-mail pro potvrzení účtu.',
   continueWithGoogle: 'Pokračovat s Google',
   finalizingAuth: 'Dokončování ověřování...',
+  authError: 'Ověření se nezdařilo',
+  backToLogin: 'Zpět na přihlášení',
 
   myStories: 'Moje Příběhy',
   noStoriesYetProfile: 'Zatím nemáte žádné příběhy',

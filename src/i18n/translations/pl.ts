@@ -68,6 +68,8 @@ const pl: Translations = {
   checkEmailForConfirmation: 'Sprawdź e-mail, aby potwierdzić swoje konto.',
   continueWithGoogle: 'Kontynuuj z Google',
   finalizingAuth: 'Kończenie uwierzytelniania...',
+  authError: 'Uwierzytelnianie nie powiodło się',
+  backToLogin: 'Wróć do logowania',
 
   myStories: 'Moje Opowieści',
   noStoriesYetProfile: 'Nie masz jeszcze żadnych opowieści',

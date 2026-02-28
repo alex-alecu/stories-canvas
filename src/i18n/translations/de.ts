@@ -68,6 +68,8 @@ const de: Translations = {
   checkEmailForConfirmation: 'Überprüfe deine E-Mail, um dein Konto zu bestätigen.',
   continueWithGoogle: 'Weiter mit Google',
   finalizingAuth: 'Authentifizierung wird abgeschlossen...',
+  authError: 'Authentifizierung fehlgeschlagen',
+  backToLogin: 'Zurück zur Anmeldung',
 
   myStories: 'Meine Geschichten',
   noStoriesYetProfile: 'Du hast noch keine Geschichten',

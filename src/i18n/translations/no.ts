@@ -68,6 +68,8 @@ const no: Translations = {
   checkEmailForConfirmation: 'Sjekk e-posten din for å bekrefte kontoen.',
   continueWithGoogle: 'Fortsett med Google',
   finalizingAuth: 'Fullfører autentisering...',
+  authError: 'Autentisering mislyktes',
+  backToLogin: 'Tilbake til innlogging',
 
   myStories: 'Mine Historier',
   noStoriesYetProfile: 'Du har ingen historier ennå',

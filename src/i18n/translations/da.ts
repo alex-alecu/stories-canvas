@@ -68,6 +68,8 @@ const da: Translations = {
   checkEmailForConfirmation: 'Tjek din e-mail for at bekræfte din konto.',
   continueWithGoogle: 'Fortsæt med Google',
   finalizingAuth: 'Færdiggør godkendelse...',
+  authError: 'Godkendelse mislykkedes',
+  backToLogin: 'Tilbage til login',
 
   myStories: 'Mine Historier',
   noStoriesYetProfile: 'Du har ingen historier endnu',

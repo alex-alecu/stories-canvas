@@ -68,6 +68,8 @@ const sv: Translations = {
   checkEmailForConfirmation: 'Kolla din e-post för att bekräfta ditt konto.',
   continueWithGoogle: 'Fortsätt med Google',
   finalizingAuth: 'Slutför autentisering...',
+  authError: 'Autentisering misslyckades',
+  backToLogin: 'Tillbaka till inloggning',
 
   myStories: 'Mina Sagor',
   noStoriesYetProfile: 'Du har inga sagor ännu',

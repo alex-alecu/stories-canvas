@@ -68,6 +68,8 @@ const ko: Translations = {
   checkEmailForConfirmation: '계정을 확인하려면 이메일을 확인하세요.',
   continueWithGoogle: 'Google로 계속하기',
   finalizingAuth: '인증을 완료하는 중...',
+  authError: '인증에 실패했습니다',
+  backToLogin: '로그인으로 돌아가기',
 
   myStories: '내 이야기',
   noStoriesYetProfile: '아직 이야기가 없어요',

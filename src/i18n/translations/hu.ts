@@ -68,6 +68,8 @@ const hu: Translations = {
   checkEmailForConfirmation: 'Ellenőrizd az e-mailed a fiókod megerősítéséhez.',
   continueWithGoogle: 'Folytatás Google-lel',
   finalizingAuth: 'Hitelesítés befejezése...',
+  authError: 'A hitelesítés sikertelen',
+  backToLogin: 'Vissza a bejelentkezéshez',
 
   myStories: 'Meséim',
   noStoriesYetProfile: 'Még nincsenek meséid',

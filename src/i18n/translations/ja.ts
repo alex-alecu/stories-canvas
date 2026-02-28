@@ -68,6 +68,8 @@ const ja: Translations = {
   checkEmailForConfirmation: 'アカウントを確認するためメールを確認してください。',
   continueWithGoogle: 'Googleで続ける',
   finalizingAuth: '認証を完了しています...',
+  authError: '認証に失敗しました',
+  backToLogin: 'ログインに戻る',
 
   myStories: 'わたしのおはなし',
   noStoriesYetProfile: 'まだおはなしがありません',

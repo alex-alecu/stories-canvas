@@ -68,6 +68,8 @@ const nl: Translations = {
   checkEmailForConfirmation: 'Controleer je e-mail om je account te bevestigen.',
   continueWithGoogle: 'Doorgaan met Google',
   finalizingAuth: 'Authenticatie wordt afgerond...',
+  authError: 'Authenticatie mislukt',
+  backToLogin: 'Terug naar inloggen',
 
   myStories: 'Mijn Verhalen',
   noStoriesYetProfile: 'Je hebt nog geen verhalen',

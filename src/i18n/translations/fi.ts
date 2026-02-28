@@ -68,6 +68,8 @@ const fi: Translations = {
   checkEmailForConfirmation: 'Tarkista sähköpostisi vahvistaaksesi tilisi.',
   continueWithGoogle: 'Jatka Googlella',
   finalizingAuth: 'Viimeistellään todennusta...',
+  authError: 'Todennus epäonnistui',
+  backToLogin: 'Takaisin kirjautumiseen',
 
   myStories: 'Omat Sadut',
   noStoriesYetProfile: 'Sinulla ei ole vielä satuja',
