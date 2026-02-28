@@ -25,11 +25,39 @@
   --color-surface-dark-accent: #2d2550;
 }
 
+/* ── Gradient animation keyframes ──────────────────────────────────── */
+
+@keyframes gradientShift {
+  0%, 100% { background-position: 0% 50%; }
+  25%      { background-position: 50% 0%; }
+  50%      { background-position: 100% 50%; }
+  75%      { background-position: 50% 100%; }
+}
+
+@keyframes orbFloat1 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33%      { transform: translate(30px, -40px) scale(1.05); }
+  66%      { transform: translate(-20px, 20px) scale(0.95); }
+}
+
+@keyframes orbFloat2 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33%      { transform: translate(-40px, 30px) scale(0.95); }
+  66%      { transform: translate(25px, -25px) scale(1.08); }
+}
+
+@keyframes orbFloat3 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50%      { transform: translate(35px, 35px) scale(1.04); }
+}
+
+/* ── Default body (no age selected / non-home pages) ──────────────── */
+
 body {
   font-family: var(--font-sans);
   background: linear-gradient(135deg, #faf5ff 0%, #fffbeb 50%, #f3e8ff 100%);
   min-height: 100vh;
-  transition: background 0.3s ease;
+  transition: background 0.8s ease, background-color 0.8s ease;
 }
 
 .dark {
@@ -40,10 +68,164 @@ body {
   background: linear-gradient(135deg, #0f0a1a 0%, #120e24 50%, #0f0a1a 100%);
 }
 
+/* ── Age group: Toddler (1-3) — gentle, dreamy ───────────────────── */
+
+[data-age-group="toddler"] body {
+  background: linear-gradient(135deg, #fce4ec, #e8eaf6, #e0f7fa, #fce4ec);
+  background-size: 400% 400%;
+  animation: gradientShift 30s ease infinite;
+}
+
+.dark[data-age-group="toddler"] body {
+  background: linear-gradient(135deg, #1a0a14, #0f0e24, #0a1a1f, #1a0a14);
+  background-size: 400% 400%;
+  animation: gradientShift 30s ease infinite;
+}
+
+/* ── Age group: Young (4-6) — playful, warm ──────────────────────── */
+
+[data-age-group="young"] body {
+  background: linear-gradient(135deg, #f3e5f5, #fff8e1, #e8f5e9, #f3e5f5);
+  background-size: 400% 400%;
+  animation: gradientShift 25s ease infinite;
+}
+
+.dark[data-age-group="young"] body {
+  background: linear-gradient(135deg, #1a0e20, #1a1508, #0e1a10, #1a0e20);
+  background-size: 400% 400%;
+  animation: gradientShift 25s ease infinite;
+}
+
+/* ── Age group: Older (7-9) — adventurous, cool aurora ───────────── */
+
+[data-age-group="older"] body {
+  background: linear-gradient(135deg, #e0f2f1, #ede7f6, #e3f2fd, #e0f2f1);
+  background-size: 400% 400%;
+  animation: gradientShift 20s ease infinite;
+}
+
+.dark[data-age-group="older"] body {
+  background: linear-gradient(135deg, #0a1614, #100e1f, #0a1220, #0a1614);
+  background-size: 400% 400%;
+  animation: gradientShift 20s ease infinite;
+}
+
+/* ── Age group: Pre-teen (10-12) — sophisticated, elegant ────────── */
+
+[data-age-group="preteen"] body {
+  background: linear-gradient(135deg, #e8eaf6, #f3e5f5, #fff8e1, #e8eaf6);
+  background-size: 400% 400%;
+  animation: gradientShift 22s ease infinite;
+}
+
+.dark[data-age-group="preteen"] body {
+  background: linear-gradient(135deg, #0e0e1f, #150e1a, #1a1808, #0e0e1f);
+  background-size: 400% 400%;
+  animation: gradientShift 22s ease infinite;
+}
+
+/* ── Background orbs container ────────────────────────────────────── */
+
+.bg-orbs {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.bg-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: 0;
+  transition: opacity 1.2s ease, background 1.2s ease;
+}
+
+/* Orb opacity is set per-age-group below; default stays at 0 (hidden) */
+
+.bg-orb--1 {
+  width: 350px;
+  height: 350px;
+  top: 10%;
+  left: 15%;
+  animation: orbFloat1 40s ease-in-out infinite;
+}
+
+.bg-orb--2 {
+  width: 280px;
+  height: 280px;
+  top: 55%;
+  right: 10%;
+  animation: orbFloat2 45s ease-in-out infinite;
+  animation-delay: -12s;
+}
+
+.bg-orb--3 {
+  width: 220px;
+  height: 220px;
+  bottom: 15%;
+  left: 40%;
+  animation: orbFloat3 50s ease-in-out infinite;
+  animation-delay: -25s;
+}
+
+/* ── Orb colors per age group ─────────────────────────────────────── */
+
+/* Toddler: soft pink / baby blue / lavender */
+[data-age-group="toddler"] .bg-orb--1 { background: radial-gradient(circle, #f8bbd0, transparent 70%); opacity: 0.12; }
+[data-age-group="toddler"] .bg-orb--2 { background: radial-gradient(circle, #b3e5fc, transparent 70%); opacity: 0.10; }
+[data-age-group="toddler"] .bg-orb--3 { background: radial-gradient(circle, #d1c4e9, transparent 70%); opacity: 0.08; }
+
+.dark[data-age-group="toddler"] .bg-orb--1 { background: radial-gradient(circle, #880e4f, transparent 70%); opacity: 0.07; }
+.dark[data-age-group="toddler"] .bg-orb--2 { background: radial-gradient(circle, #0277bd, transparent 70%); opacity: 0.06; }
+.dark[data-age-group="toddler"] .bg-orb--3 { background: radial-gradient(circle, #4527a0, transparent 70%); opacity: 0.05; }
+
+/* Young: warm purple / amber / soft green */
+[data-age-group="young"] .bg-orb--1 { background: radial-gradient(circle, #ce93d8, transparent 70%); opacity: 0.11; }
+[data-age-group="young"] .bg-orb--2 { background: radial-gradient(circle, #ffe082, transparent 70%); opacity: 0.10; }
+[data-age-group="young"] .bg-orb--3 { background: radial-gradient(circle, #a5d6a7, transparent 70%); opacity: 0.09; }
+
+.dark[data-age-group="young"] .bg-orb--1 { background: radial-gradient(circle, #7b1fa2, transparent 70%); opacity: 0.07; }
+.dark[data-age-group="young"] .bg-orb--2 { background: radial-gradient(circle, #f9a825, transparent 70%); opacity: 0.06; }
+.dark[data-age-group="young"] .bg-orb--3 { background: radial-gradient(circle, #2e7d32, transparent 70%); opacity: 0.05; }
+
+/* Older: teal / purple / blue aurora */
+[data-age-group="older"] .bg-orb--1 { background: radial-gradient(circle, #80cbc4, transparent 70%); opacity: 0.11; }
+[data-age-group="older"] .bg-orb--2 { background: radial-gradient(circle, #b39ddb, transparent 70%); opacity: 0.10; }
+[data-age-group="older"] .bg-orb--3 { background: radial-gradient(circle, #90caf9, transparent 70%); opacity: 0.09; }
+
+.dark[data-age-group="older"] .bg-orb--1 { background: radial-gradient(circle, #00695c, transparent 70%); opacity: 0.08; }
+.dark[data-age-group="older"] .bg-orb--2 { background: radial-gradient(circle, #4527a0, transparent 70%); opacity: 0.07; }
+.dark[data-age-group="older"] .bg-orb--3 { background: radial-gradient(circle, #1565c0, transparent 70%); opacity: 0.06; }
+
+/* Pre-teen: indigo / purple / subtle gold */
+[data-age-group="preteen"] .bg-orb--1 { background: radial-gradient(circle, #9fa8da, transparent 70%); opacity: 0.10; }
+[data-age-group="preteen"] .bg-orb--2 { background: radial-gradient(circle, #b39ddb, transparent 70%); opacity: 0.09; }
+[data-age-group="preteen"] .bg-orb--3 { background: radial-gradient(circle, #fff176, transparent 70%); opacity: 0.07; }
+
+.dark[data-age-group="preteen"] .bg-orb--1 { background: radial-gradient(circle, #283593, transparent 70%); opacity: 0.08; }
+.dark[data-age-group="preteen"] .bg-orb--2 { background: radial-gradient(circle, #4527a0, transparent 70%); opacity: 0.07; }
+.dark[data-age-group="preteen"] .bg-orb--3 { background: radial-gradient(circle, #f9a825, transparent 70%); opacity: 0.05; }
+
+/* ── Story view override (keep black bg for story reader) ─────────── */
+
 html.story-view {
   background-color: #000;
 }
 
 html.story-view body {
   background: #000;
+  animation: none;
+}
+
+/* ── Reduced motion ───────────────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  body {
+    animation: none !important;
+  }
+  .bg-orb {
+    animation: none !important;
+  }
 }

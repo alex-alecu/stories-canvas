@@ -16,12 +16,28 @@ export const ART_STYLES: Record<ArtStyleKey, string> = {
 export const DEFAULT_ART_STYLE: ArtStyleKey = 'disney-pixar';
 export const DEFAULT_AGE = 3;
 
+export type AgeGroup = 'toddler' | 'young' | 'older' | 'preteen';
+
+export function getAgeGroup(age: number): AgeGroup {
+  if (age <= 3) return 'toddler';
+  if (age <= 6) return 'young';
+  if (age <= 9) return 'older';
+  return 'preteen';
+}
+
 export const AGE_RANGES = [
-  { value: 2, label: '1-2' },
-  { value: 3, label: '3-4' },
-  { value: 5, label: '5-6' },
-  { value: 7, label: '7-8' },
-  { value: 10, label: '9-12' },
+  { value: 1, label: '1' },
+  { value: 2, label: '2' },
+  { value: 3, label: '3' },
+  { value: 4, label: '4' },
+  { value: 5, label: '5' },
+  { value: 6, label: '6' },
+  { value: 7, label: '7' },
+  { value: 8, label: '8' },
+  { value: 9, label: '9' },
+  { value: 10, label: '10' },
+  { value: 11, label: '11' },
+  { value: 12, label: '12' },
 ] as const;
 
 export interface Character {
