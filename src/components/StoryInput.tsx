@@ -2,14 +2,7 @@ import { useState, useEffect, type FormEvent } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../i18n/LanguageContext';
-import { AGE_RANGES, DEFAULT_AGE, DEFAULT_ART_STYLE, type ArtStyleKey } from '../../shared/types';
-
-function getAgeGroup(age: number): string {
-  if (age <= 3) return 'toddler';
-  if (age <= 6) return 'young';
-  if (age <= 9) return 'older';
-  return 'preteen';
-}
+import { AGE_RANGES, DEFAULT_AGE, DEFAULT_ART_STYLE, getAgeGroup, type ArtStyleKey } from '../../shared/types';
 
 const STYLE_KEYS: ArtStyleKey[] = ['disney-pixar', 'watercolor', 'storybook', 'anime', 'colored-pencil', 'paper-cutout'];
 

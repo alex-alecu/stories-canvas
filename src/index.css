@@ -142,8 +142,7 @@ body {
   transition: opacity 1.2s ease, background 1.2s ease;
 }
 
-/* Show orbs only when an age group is active */
-[data-age-group] .bg-orb { opacity: 1; }
+/* Orb opacity is set per-age-group below; default stays at 0 (hidden) */
 
 .bg-orb--1 {
   width: 350px;
