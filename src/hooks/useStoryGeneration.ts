@@ -30,6 +30,11 @@ export function useStoryGeneration(storyId: string | null) {
         progressRef.current = data;
         setProgress(data);
 
+        // Invalidate story query when an individual page completes (for progressive loading)
+        if (data.pageStatus === 'completed' && storyId) {
+          queryClient.invalidateQueries({ queryKey: ['story', storyId] });
+        }
+
         // Invalidate queries when generation completes, fails, or is cancelled
         if (data.status === 'completed' || data.status === 'failed' || data.status === 'cancelled') {
           queryClient.invalidateQueries({ queryKey: ['stories'] });

@@ -61,16 +61,18 @@ export default function Home() {
     setStoredGeneratingId(null);
   }, [generatingStoryId, cancelStory]);
 
-  // Navigate to story when generation completes, clear localStorage
+  // Navigate to story as soon as the first page image is ready (or when fully completed)
   useEffect(() => {
-    if (progress?.status === 'completed' && generatingStoryId) {
-      setStoredGeneratingId(null);
-      navigate(`/story/${generatingStoryId}`);
+    if (generatingStoryId && progress) {
+      if (progress.completedPages >= 1 || progress.status === 'completed') {
+        setStoredGeneratingId(null);
+        navigate(`/story/${generatingStoryId}`);
+      }
+      if (progress.status === 'failed' || progress.status === 'cancelled') {
+        setStoredGeneratingId(null);
+      }
     }
-    if (progress?.status === 'failed' || progress?.status === 'cancelled') {
-      setStoredGeneratingId(null);
-    }
-  }, [progress?.status, generatingStoryId, navigate]);
+  }, [progress?.status, progress?.completedPages, generatingStoryId, navigate]);
 
   // Show progress if we have a generatingStoryId (even before SSE connects, for instant feedback)
   const showProgress = generatingStoryId && progress?.status !== 'completed';

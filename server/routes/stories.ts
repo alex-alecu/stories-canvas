@@ -327,6 +327,8 @@ async function runGenerationPipeline(storyId: string, prompt: string, userId?: s
           totalPages: scenario.pages.length,
           failedPages,
           message: progress.message || '',
+          pageNumber: progress.pageNumber,
+          pageStatus: progress.pageStatus,
         });
       },
       userId,

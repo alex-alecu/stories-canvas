@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Swiper, SwiperSlide } from 'swiper/react';
 import { Navigation, Pagination, Keyboard } from 'swiper/modules';
 import { Link } from 'react-router-dom';
-import type { Scenario } from '../types';
+import type { Scenario, GenerationProgress } from '../types';
 import { useLanguage } from '../i18n/LanguageContext';
 import { useFontSize, type FontSize } from '../contexts/FontSizeContext';
 import FontSizeControl from './FontSizeControl';
@@ -13,6 +13,8 @@ import 'swiper/css/pagination';
 interface StoryViewerProps {
   storyId: string;
   scenario: Scenario;
+  isGenerating?: boolean;
+  progress?: GenerationProgress | null;
 }
 
 const fontSizeClasses: Record<FontSize, string> = {
@@ -21,7 +23,7 @@ const fontSizeClasses: Record<FontSize, string> = {
   large: 'text-xl md:text-2xl lg:text-3xl',
 };
 
-export default function StoryViewer({ storyId, scenario }: StoryViewerProps) {
+export default function StoryViewer({ storyId, scenario, isGenerating, progress }: StoryViewerProps) {
   const { t } = useLanguage();
   const { fontSize } = useFontSize();
   const [showFontSize, setShowFontSize] = useState(false);
@@ -97,6 +99,14 @@ export default function StoryViewer({ storyId, scenario }: StoryViewerProps) {
         {scenario.title}
       </div>
 
+      {/* Progress pill — shown while images are still being generated */}
+      {isGenerating && progress && progress.totalPages > 0 && (
+        <div className="absolute bottom-20 right-4 z-50 bg-black/50 backdrop-blur-sm text-white px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-2 animate-pulse">
+          <div className="w-3 h-3 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+          <span>{progress.completedPages} / {progress.totalPages}</span>
+        </div>
+      )}
+
       <Swiper
         modules={[Navigation, Pagination, Keyboard]}
         navigation
@@ -116,10 +126,17 @@ export default function StoryViewer({ storyId, scenario }: StoryViewerProps) {
                   className="w-full h-full object-cover"
                 />
               ) : (
-                <div className="w-full h-full bg-gradient-to-br from-primary-900/60 to-surface-dark-accent flex items-center justify-center">
-                  <p className="text-primary-300 text-lg">
-                    {page.status === 'failed' ? t.imageCouldNotGenerate : t.imageNotAvailable}
-                  </p>
+                <div className="w-full h-full bg-gradient-to-br from-primary-900/60 to-surface-dark-accent flex flex-col items-center justify-center gap-4">
+                  {page.status === 'failed' ? (
+                    <p className="text-primary-300 text-lg">{t.imageCouldNotGenerate}</p>
+                  ) : isGenerating ? (
+                    <>
+                      <div className="w-10 h-10 rounded-full border-3 border-primary-400/30 border-t-primary-400 animate-spin" />
+                      <p className="text-primary-300/70 text-sm">{t.illustratingPages}...</p>
+                    </>
+                  ) : (
+                    <p className="text-primary-300 text-lg">{t.imageNotAvailable}</p>
+                  )}
                 </div>
               )}
 

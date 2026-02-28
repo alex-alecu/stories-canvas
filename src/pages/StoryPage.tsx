@@ -50,8 +50,11 @@ export default function StoryPage() {
     );
   }
 
-  // If story is still generating, show progress
-  if (isGenerating) {
+  // Check if any pages have completed images
+  const hasCompletedPages = story.scenario?.pages?.some(p => p.status === 'completed');
+
+  // If still generating but no pages ready yet, show progress only
+  if (isGenerating && !hasCompletedPages) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
         <div>
@@ -70,9 +73,16 @@ export default function StoryPage() {
     );
   }
 
-  // Show the story viewer
+  // Show the story viewer (with progress overlay if still generating)
   if (story.scenario) {
-    return <StoryViewer storyId={story.id} scenario={story.scenario} />;
+    return (
+      <StoryViewer
+        storyId={story.id}
+        scenario={story.scenario}
+        isGenerating={isGenerating}
+        progress={progress}
+      />
+    );
   }
 
   return (
