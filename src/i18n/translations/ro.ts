@@ -58,8 +58,18 @@ const ro: Translations = {
   // Login
   loginTitle: 'Conectare',
   loginSubtitle: 'Conectează-te pentru a crea și gestiona poveștile tale',
+  email: 'Email',
+  password: 'Parolă',
+  signIn: 'Autentificare',
+  signUp: 'Înregistrare',
+  forgotPassword: 'Ai uitat parola?',
+  resetPasswordSent: 'Email de resetare a parolei trimis. Verifică inbox-ul.',
+  noAccountYet: 'Nu ai un cont?',
+  alreadyHaveAccount: 'Ai deja un cont?',
+  orContinueWith: 'sau continuă cu',
+  checkEmailForConfirmation: 'Verifică email-ul pentru a confirma contul.',
   continueWithGoogle: 'Continuă cu Google',
-  continueWithApple: 'Continuă cu Apple',
+  finalizingAuth: 'Se finalizează autentificarea...',
 
   // Profile
   myStories: 'Poveștile mele',

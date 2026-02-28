@@ -58,8 +58,18 @@ export interface Translations {
   // Login
   loginTitle: string;
   loginSubtitle: string;
+  email: string;
+  password: string;
+  signIn: string;
+  signUp: string;
+  forgotPassword: string;
+  resetPasswordSent: string;
+  noAccountYet: string;
+  alreadyHaveAccount: string;
+  orContinueWith: string;
+  checkEmailForConfirmation: string;
   continueWithGoogle: string;
-  continueWithApple: string;
+  finalizingAuth: string;
 
   // Profile
   myStories: string;

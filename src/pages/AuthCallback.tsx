@@ -1,11 +1,13 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import { useLanguage } from '../i18n/LanguageContext';
 
 const RETURN_TO_KEY = 'stories-canvas:returnTo';
 
 export default function AuthCallback() {
   const navigate = useNavigate();
+  const { t } = useLanguage();
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -43,7 +45,7 @@ export default function AuthCallback() {
     <div className="min-h-screen flex items-center justify-center">
       <div className="text-center">
         <div className="w-12 h-12 mx-auto rounded-full border-4 border-primary-300 border-t-primary-600 animate-spin mb-4" />
-        <p className="text-gray-500 text-lg">Se finalizează autentificarea...</p>
+        <p className="text-gray-500 text-lg">{t.finalizingAuth}</p>
       </div>
     </div>
   );
