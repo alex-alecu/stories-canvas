@@ -1,9 +1,0 @@
-# Features and bug fixes
-
-- [ ] Image generation does not provide feedback instantly, only after a while. Fix it to be instant and to continue on refresh. Add supabase storage to keep track of generation status and progress and of the generated stories.
-- [ ] Add support for multiple languages: romanian, german, spanish, english, french, italian, portuguese, dutch, hungarian, polish, czech, slovak, swedish, norwegian, danish, finnish, japanese, chinese, korean. Create a folder with all translation keys and each language gets its own STORY.md in their language. Track in supabase the user language and use it to serve the correct STORY.md file.
-- [ ] Add supabase authentication with google and apple providers. Keep the current page as it is, but when guest users click on the prompt input, redirect them to the login page. After they log in, redirect them back to the page they were on and let them continue with their story. Add a user profile page where users can see their stories and manage them.
-- [ ] Make stories private by default - each user gets his own folder with stories
-- [ ] Enable deleting stories - add a delete button on each story in the user profile page. When a story is deleted, remove it from supabase storage and from the database.
-- [ ] Add option to make stories public - track them in supabase. Any guest user can see the public stories and can search through them. Add a page to show all public stories and a search bar to search through them.
-- [ ] Improve stories image generation - the current characters are slightly different from frame to frame. Search online how to generate consistent characters in different images. Maybe we need to pass the previous image as a reference to the model when generating the next image - maybe, check online for best practices.
