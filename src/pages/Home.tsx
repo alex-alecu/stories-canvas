@@ -71,7 +71,7 @@ export default function Home() {
         </div>
 
         {createStory.isError && (
-          <div className="max-w-2xl mx-auto mb-8 bg-red-50 border border-red-200 rounded-xl p-4 text-red-600 text-center">
+          <div className="max-w-2xl mx-auto mb-8 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/50 rounded-xl p-4 text-red-600 dark:text-red-400 text-center">
             {createStory.error?.message || t.couldNotCreateStory}
           </div>
         )}

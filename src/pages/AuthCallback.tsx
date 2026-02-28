@@ -44,8 +44,8 @@ export default function AuthCallback() {
   return (
     <div className="min-h-screen flex items-center justify-center">
       <div className="text-center">
-        <div className="w-12 h-12 mx-auto rounded-full border-4 border-primary-300 border-t-primary-600 animate-spin mb-4" />
-        <p className="text-gray-500 text-lg">{t.finalizingAuth}</p>
+        <div className="w-12 h-12 mx-auto rounded-full border-4 border-primary-300 dark:border-primary-700 border-t-primary-600 dark:border-t-primary-400 animate-spin mb-4" />
+        <p className="text-gray-500 dark:text-gray-400 text-lg">{t.finalizingAuth}</p>
       </div>
     </div>
   );

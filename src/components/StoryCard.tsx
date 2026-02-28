@@ -42,9 +42,9 @@ export default function StoryCard({ story, onDelete, onTogglePublic }: StoryCard
   return (
     <Link
       to={`/story/${story.id}`}
-      className="group block rounded-2xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 transform hover:scale-[1.02] bg-white"
+      className="group block rounded-2xl overflow-hidden shadow-md hover:shadow-xl dark:shadow-primary-900/20 dark:hover:shadow-primary-800/30 transition-all duration-300 transform hover:scale-[1.02] bg-white dark:bg-surface-dark-elevated"
     >
-      <div className="aspect-[4/3] relative overflow-hidden bg-gradient-to-br from-primary-100 to-warm-100">
+      <div className="aspect-[4/3] relative overflow-hidden bg-gradient-to-br from-primary-100 to-warm-100 dark:from-primary-900/40 dark:to-warm-500/20">
         {story.coverImage ? (
           <img
             src={story.coverImage}
@@ -59,8 +59,8 @@ export default function StoryCard({ story, onDelete, onTogglePublic }: StoryCard
                 <span className="text-4xl">x</span>
               ) : (
                 <div className="space-y-3">
-                  <div className="w-12 h-12 mx-auto rounded-full border-4 border-primary-300 border-t-primary-600 animate-spin" />
-                  <p className="text-primary-400 text-sm font-medium">{t.creatingMagic}</p>
+                  <div className="w-12 h-12 mx-auto rounded-full border-4 border-primary-300 dark:border-primary-700 border-t-primary-600 dark:border-t-primary-400 animate-spin" />
+                  <p className="text-primary-400 dark:text-primary-300 text-sm font-medium">{t.creatingMagic}</p>
                 </div>
               )}
             </div>

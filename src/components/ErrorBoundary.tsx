@@ -23,6 +23,17 @@ function getErrorTranslations(): Translations {
   return translations.en;
 }
 
+function isDarkMode(): boolean {
+  try {
+    const theme = localStorage.getItem('stories-canvas:theme') || 'system';
+    if (theme === 'dark') return true;
+    if (theme === 'light') return false;
+    return window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false;
+  } catch {
+    return false;
+  }
+}
+
 export default class ErrorBoundary extends Component<Props, State> {
   constructor(props: Props) {
     super(props);
@@ -40,12 +51,21 @@ export default class ErrorBoundary extends Component<Props, State> {
   render() {
     if (this.state.hasError) {
       const t = getErrorTranslations();
+      const dark = isDarkMode();
       return (
-        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-50 via-warm-50 to-primary-100 p-4">
-          <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full text-center">
+        <div className={`min-h-screen flex items-center justify-center p-4 ${
+          dark
+            ? 'bg-gradient-to-br from-[#0f0a1a] via-[#120e24] to-[#0f0a1a]'
+            : 'bg-gradient-to-br from-primary-50 via-warm-50 to-primary-100'
+        }`}>
+          <div className={`rounded-2xl shadow-xl p-8 max-w-md w-full text-center ${
+            dark ? 'bg-surface-dark-elevated' : 'bg-white'
+          }`}>
             <div className="text-5xl mb-4">oops!</div>
-            <h1 className="text-2xl font-bold text-gray-800 mb-2">{t.somethingWentWrong}</h1>
-            <p className="text-gray-600 mb-6">
+            <h1 className={`text-2xl font-bold mb-2 ${dark ? 'text-gray-100' : 'text-gray-800'}`}>
+              {t.somethingWentWrong}
+            </h1>
+            <p className={`mb-6 ${dark ? 'text-gray-400' : 'text-gray-600'}`}>
               {this.state.error?.message || t.unexpectedError}
             </p>
             <button

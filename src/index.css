@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
   --font-sans: "Nunito", sans-serif;
   --color-primary-50: #faf5ff;
@@ -18,10 +20,18 @@
   --color-warm-300: #fcd34d;
   --color-warm-400: #fbbf24;
   --color-warm-500: #f59e0b;
+  --color-surface-dark: #1a1530;
+  --color-surface-dark-elevated: #231e3d;
+  --color-surface-dark-accent: #2d2550;
 }
 
 body {
   font-family: var(--font-sans);
   background: linear-gradient(135deg, #faf5ff 0%, #fffbeb 50%, #f3e8ff 100%);
   min-height: 100vh;
+  transition: background 0.3s ease;
+}
+
+.dark body {
+  background: linear-gradient(135deg, #0f0a1a 0%, #120e24 50%, #0f0a1a 100%);
 }

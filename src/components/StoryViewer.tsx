@@ -50,8 +50,8 @@ export default function StoryViewer({ storyId, scenario }: StoryViewerProps) {
                   className="w-full h-full object-cover"
                 />
               ) : (
-                <div className="w-full h-full bg-gradient-to-br from-primary-200 to-warm-200 flex items-center justify-center">
-                  <p className="text-primary-400 text-lg">
+                <div className="w-full h-full bg-gradient-to-br from-primary-900/60 to-surface-dark-accent flex items-center justify-center">
+                  <p className="text-primary-300 text-lg">
                     {page.status === 'failed' ? t.imageCouldNotGenerate : t.imageNotAvailable}
                   </p>
                 </div>

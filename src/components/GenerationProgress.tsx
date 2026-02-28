@@ -7,11 +7,11 @@ interface GenerationProgressProps {
 
 function PhaseIndicator({ phase, isActive, isDone }: { phase: string; isActive: boolean; isDone: boolean }) {
   return (
-    <div className={`flex items-center gap-2 text-sm ${isDone ? 'text-green-500' : isActive ? 'text-primary-600 font-semibold' : 'text-gray-300'}`}>
+    <div className={`flex items-center gap-2 text-sm ${isDone ? 'text-green-500' : isActive ? 'text-primary-600 dark:text-primary-400 font-semibold' : 'text-gray-300 dark:text-gray-600'}`}>
       <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold border-2 ${
         isDone ? 'bg-green-500 border-green-500 text-white' :
-        isActive ? 'border-primary-500 text-primary-600 animate-pulse' :
-        'border-gray-200 text-gray-300'
+        isActive ? 'border-primary-500 text-primary-600 dark:text-primary-400 animate-pulse' :
+        'border-gray-200 dark:border-gray-700 text-gray-300 dark:text-gray-600'
       }`}>
         {isDone ? '\u2713' : isActive ? '...' : '\u25CB'}
       </div>
@@ -38,8 +38,8 @@ export default function GenerationProgress({ progress }: GenerationProgressProps
     : 0;
 
   return (
-    <div className="bg-white rounded-2xl shadow-lg p-6 max-w-md w-full mx-auto">
-      <h2 className="text-lg font-bold text-gray-800 mb-4">
+    <div className="bg-white dark:bg-surface-dark-elevated rounded-2xl shadow-lg dark:shadow-primary-900/30 p-6 max-w-md w-full mx-auto">
+      <h2 className="text-lg font-bold text-gray-800 dark:text-gray-100 mb-4">
         {progress?.status === 'failed' ? t.generationFailed : t.creatingYourStory}
       </h2>
 
@@ -56,11 +56,11 @@ export default function GenerationProgress({ progress }: GenerationProgressProps
 
       {progress?.status === 'generating_images' && progress.totalPages > 0 && (
         <div className="mb-4">
-          <div className="flex justify-between text-sm text-gray-500 mb-1">
+          <div className="flex justify-between text-sm text-gray-500 dark:text-gray-400 mb-1">
             <span>{t.pages}</span>
             <span>{progress.completedPages}/{progress.totalPages}</span>
           </div>
-          <div className="w-full bg-gray-100 rounded-full h-3 overflow-hidden">
+          <div className="w-full bg-gray-100 dark:bg-surface-dark-accent rounded-full h-3 overflow-hidden">
             <div
               className="h-full bg-gradient-to-r from-primary-400 to-primary-600 rounded-full transition-all duration-500 ease-out"
               style={{ width: `${progressPercent}%` }}
@@ -75,7 +75,7 @@ export default function GenerationProgress({ progress }: GenerationProgressProps
       )}
 
       {progress?.message && (
-        <p className="text-sm text-gray-500 italic">{progress.message}</p>
+        <p className="text-sm text-gray-500 dark:text-gray-400 italic">{progress.message}</p>
       )}
 
       {progress?.status === 'failed' && (

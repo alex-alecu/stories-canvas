@@ -22,7 +22,7 @@ export default function Profile() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="w-12 h-12 rounded-full border-4 border-primary-300 border-t-primary-600 animate-spin" />
+        <div className="w-12 h-12 rounded-full border-4 border-primary-300 dark:border-primary-700 border-t-primary-600 dark:border-t-primary-400 animate-spin" />
       </div>
     );
   }
@@ -59,13 +59,13 @@ export default function Profile() {
     <div className="min-h-screen p-4 md:p-8">
       <div className="max-w-6xl mx-auto">
         {/* Profile header */}
-        <div className="bg-white rounded-2xl shadow-lg shadow-primary-100/50 border border-primary-100 p-6 md:p-8 mb-8">
+        <div className="bg-white dark:bg-surface-dark-elevated rounded-2xl shadow-lg shadow-primary-100/50 dark:shadow-primary-900/30 border border-primary-100 dark:border-primary-800/50 p-6 md:p-8 mb-8">
           <div className="flex flex-col sm:flex-row items-center gap-6">
             {avatarUrl ? (
               <img
                 src={avatarUrl}
                 alt={displayName}
-                className="w-20 h-20 rounded-full border-4 border-primary-200 shadow-md"
+                className="w-20 h-20 rounded-full border-4 border-primary-200 dark:border-primary-700 shadow-md"
                 referrerPolicy="no-referrer"
               />
             ) : (
@@ -74,12 +74,12 @@ export default function Profile() {
               </div>
             )}
             <div className="text-center sm:text-left flex-1">
-              <h1 className="text-2xl font-extrabold text-gray-800">{displayName}</h1>
-              {email && <p className="text-gray-500">{email}</p>}
+              <h1 className="text-2xl font-extrabold text-gray-800 dark:text-gray-100">{displayName}</h1>
+              {email && <p className="text-gray-500 dark:text-gray-400">{email}</p>}
             </div>
             <button
               onClick={handleSignOut}
-              className="bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-2.5 px-6 rounded-xl transition-colors text-sm"
+              className="bg-gray-100 dark:bg-surface-dark-accent hover:bg-gray-200 dark:hover:bg-surface-dark text-gray-700 dark:text-gray-200 font-bold py-2.5 px-6 rounded-xl transition-colors text-sm"
             >
               {t.logout}
             </button>
@@ -88,14 +88,14 @@ export default function Profile() {
 
         {/* User's stories */}
         <div className="mb-6">
-          <h2 className="text-xl font-bold text-gray-700 mb-4">{t.myStories}</h2>
+          <h2 className="text-xl font-bold text-gray-700 dark:text-gray-200 mb-4">{t.myStories}</h2>
         </div>
 
         {stories.length === 0 && !storiesLoading ? (
           <div className="text-center py-16">
             <div className="text-6xl mb-4 opacity-50">~</div>
-            <h3 className="text-xl font-bold text-gray-400 mb-2">{t.noStoriesYetProfile}</h3>
-            <p className="text-gray-400 mb-6">{t.createFirstStoryMagic}</p>
+            <h3 className="text-xl font-bold text-gray-400 dark:text-gray-500 mb-2">{t.noStoriesYetProfile}</h3>
+            <p className="text-gray-400 dark:text-gray-500 mb-6">{t.createFirstStoryMagic}</p>
             <Link
               to="/"
               className="inline-block bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 text-white font-bold py-3 px-8 rounded-xl transition-all transform hover:scale-[1.02]"
