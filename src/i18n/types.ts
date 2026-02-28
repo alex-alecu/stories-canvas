@@ -17,6 +17,14 @@ export interface Translations {
   storyInputGuestPlaceholder: string;
   createStory: string;
   creating: string;
+  childAge: string;
+  artStyle: string;
+  styleDisneyPixar: string;
+  styleWatercolor: string;
+  styleStorybook: string;
+  styleAnime: string;
+  styleColoredPencil: string;
+  stylePaperCutout: string;
 
   // Generation progress
   creatingYourStory: string;

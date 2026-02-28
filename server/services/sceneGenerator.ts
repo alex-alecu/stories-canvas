@@ -27,6 +27,7 @@ function buildScenePrompt(
   characters: Character[],
   hasFirstScene: boolean,
   hasPreviousScene: boolean,
+  styleDescription?: string,
 ): string {
   const charDescriptions = page.characters
     .map(name => {
@@ -86,7 +87,7 @@ CONSISTENCY REQUIREMENTS:
 - Maintain the SAME art style across all scenes: same rendering quality, same color saturation, same lighting approach
 - Use the SAME visual language: same line weight, same level of detail, same background style
 ${hasPreviousScene ? '- The previous scene is shown for visual continuity. Maintain the same character appearance, art style, and color palette.\n' : ''}
-Style: Disney/Pixar 3D animation style with warm, vibrant colors, round and friendly character designs.
+Style: ${styleDescription || 'Disney/Pixar 3D animation style with warm, vibrant colors, round and friendly character designs'}.
 The characters MUST look EXACTLY like the characters in the reference sheets above.
 4:3 aspect ratio composition. No text or words in the image.`;
 }
@@ -106,6 +107,7 @@ export async function generateSceneImage(
   page: Page,
   characters: Character[],
   characterSheets: Map<string, string>,
+  styleDescription?: string,
   onProgress?: (progress: Partial<GenerationProgress>) => void,
   userId?: string,
   previousSceneBase64?: string | null,
@@ -142,7 +144,7 @@ export async function generateSceneImage(
     }
   }
 
-  const prompt = buildScenePrompt(page, characters, hasFirstScene, hasPreviousScene);
+  const prompt = buildScenePrompt(page, characters, hasFirstScene, hasPreviousScene, styleDescription);
 
   try {
     const base64 = await pRetry(
@@ -199,6 +201,7 @@ export async function generateAllSceneImages(
   pages: Page[],
   characters: Character[],
   characterSheets: Map<string, string>,
+  styleDescription?: string,
   onProgress?: (progress: Partial<GenerationProgress>) => void,
   userId?: string,
   signal?: AbortSignal,
@@ -214,7 +217,7 @@ export async function generateAllSceneImages(
 
     const result = await imageGenerationLimiter(() =>
       generateSceneImage(
-        storyId, page, characters, characterSheets,
+        storyId, page, characters, characterSheets, styleDescription,
         onProgress, userId, previousSceneBase64, firstSceneBase64,
       ),
     );

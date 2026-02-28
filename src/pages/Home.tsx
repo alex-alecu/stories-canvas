@@ -7,6 +7,7 @@ import { useStories, useCreateStory, useCancelStory, useToggleVisibility } from 
 import { useStoryGeneration } from '../hooks/useStoryGeneration';
 import { useNotification } from '../hooks/useNotification';
 import { useLanguage } from '../i18n/LanguageContext';
+import type { ArtStyleKey } from '../../shared/types';
 
 const GENERATING_STORY_KEY = 'stories-canvas:generatingStoryId';
 
@@ -44,10 +45,10 @@ export default function Home() {
     setStoredGeneratingId(generatingStoryId);
   }, [generatingStoryId]);
 
-  const handleCreateStory = useCallback(async (prompt: string) => {
+  const handleCreateStory = useCallback(async (prompt: string, age: number, style: ArtStyleKey) => {
     try {
       requestPermission();
-      const result = await createStory.mutateAsync({ prompt, language });
+      const result = await createStory.mutateAsync({ prompt, language, age, style });
       setGeneratingStoryId(result.id);
     } catch (error) {
       console.error('Failed to create story:', error);

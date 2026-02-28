@@ -2,6 +2,28 @@ export type PageStatus = 'pending' | 'generating' | 'completed' | 'failed';
 
 export type StoryStatus = 'generating_scenario' | 'generating_characters' | 'generating_images' | 'completed' | 'failed' | 'cancelled';
 
+export type ArtStyleKey = 'disney-pixar' | 'watercolor' | 'storybook' | 'anime' | 'colored-pencil' | 'paper-cutout';
+
+export const ART_STYLES: Record<ArtStyleKey, string> = {
+  'disney-pixar': 'Disney/Pixar 3D animation style with warm, vibrant colors, round and friendly character designs',
+  'watercolor': 'Soft watercolor illustration style with delicate washes of color, dreamy atmosphere, and gentle brushstrokes',
+  'storybook': 'Classic hand-drawn storybook illustration with detailed line work, warm colors, and a nostalgic feel',
+  'anime': 'Soft anime style with large expressive eyes, vibrant colors, and gentle cel-shading',
+  'colored-pencil': 'Colored pencil illustration style with visible pencil textures, warm shading, and a handcrafted feel',
+  'paper-cutout': 'Paper cutout collage style with layered textures, craft paper elements, and a handmade feel',
+};
+
+export const DEFAULT_ART_STYLE: ArtStyleKey = 'disney-pixar';
+export const DEFAULT_AGE = 3;
+
+export const AGE_RANGES = [
+  { value: 2, label: '1-2' },
+  { value: 3, label: '3-4' },
+  { value: 5, label: '5-6' },
+  { value: 7, label: '7-8' },
+  { value: 10, label: '9-12' },
+] as const;
+
 export interface Character {
   name: string;
   role: string;
@@ -57,6 +79,8 @@ export interface GenerationProgress {
 export interface CreateStoryRequest {
   prompt: string;
   language?: string;
+  age?: number;
+  style?: ArtStyleKey;
 }
 
 export interface CreateStoryResponse {

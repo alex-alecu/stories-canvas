@@ -13,7 +13,9 @@ export async function generateCharacterSheet(
   storyId: string,
   character: Character,
   userId?: string,
+  styleDescription?: string,
 ): Promise<{ name: string; filename: string; base64: string }> {
+  const artStyle = styleDescription || 'Disney/Pixar 3D animation style with warm, round, and friendly character designs';
   const prompt = `Professional character reference sheet for "${character.name}".
 Layout: Front view (left), 3/4 view (center), Back view (right).
 Below: Close-up face showing key facial features and expressions.
@@ -21,7 +23,7 @@ Color palette swatches at the bottom showing exact colors used for skin/fur, clo
 
 ${character.appearance}. ${character.clothing}.
 
-Disney/Pixar 3D animation style with warm, round, and friendly character designs.
+${artStyle}.
 Pure white background. Clean, professional character model sheet layout.
 CRITICAL: Show the EXACT same character in all views - same colors, same proportions, same clothing.
 Label at the bottom: "${character.name.toUpperCase()} CHARACTER SHEET"`;
@@ -45,6 +47,7 @@ export async function generateAllCharacterSheets(
   characters: Character[],
   userId?: string,
   signal?: AbortSignal,
+  styleDescription?: string,
 ): Promise<Map<string, string>> {
   const characterSheets = new Map<string, string>();
 
@@ -53,7 +56,7 @@ export async function generateAllCharacterSheets(
       throw new Error('Generation cancelled');
     }
     try {
-      const result = await generateCharacterSheet(storyId, character, userId);
+      const result = await generateCharacterSheet(storyId, character, userId, styleDescription);
       characterSheets.set(result.name, result.base64);
     } catch (error) {
       console.error(`Failed to generate character sheet for ${character.name}:`, error);

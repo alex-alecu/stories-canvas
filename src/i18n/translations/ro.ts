@@ -17,6 +17,14 @@ const ro: Translations = {
   storyInputGuestPlaceholder: 'Trebuie să te conectezi pentru a crea povești',
   createStory: 'Creează Poveste',
   creating: 'Se creează...',
+  childAge: 'Vârsta copilului',
+  artStyle: 'Stil artistic',
+  styleDisneyPixar: 'Disney/Pixar 3D',
+  styleWatercolor: 'Acuarelă',
+  styleStorybook: 'Carte clasică de povești',
+  styleAnime: 'Anime',
+  styleColoredPencil: 'Creioane colorate',
+  stylePaperCutout: 'Colaj de hârtie',
 
   // Generation progress
   creatingYourStory: 'Se creează povestea ta',
