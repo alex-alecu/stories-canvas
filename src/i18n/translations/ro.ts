@@ -21,11 +21,17 @@ const ro: Translations = {
   // Generation progress
   creatingYourStory: 'Se creează povestea ta',
   generationFailed: 'Generarea a eșuat',
+  generationCancelled: 'Generarea a fost anulată',
   writingStory: 'Se scrie povestea',
   drawingCharacters: 'Se desenează personajele',
   illustratingPages: 'Se ilustrează paginile',
   pages: 'Pagini',
   pagesFailedCount: 'pagină/pagini nu s-au generat',
+  cancelGeneration: 'Anulează',
+  cancelConfirmTitle: 'Anulezi generarea?',
+  cancelConfirmMessage: 'Ești sigur? Aceasta va opri generarea poveștii și o va șterge.',
+  confirmCancel: 'Da, anulează',
+  keepGenerating: 'Continuă generarea',
 
   // Story card
   generatingStory: 'Se generează povestea...',

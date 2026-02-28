@@ -17,11 +17,17 @@ const ja: Translations = {
 
   creatingYourStory: 'おはなしを作っています',
   generationFailed: '生成に失敗しました',
+  generationCancelled: '生成がキャンセルされました',
   writingStory: 'おはなしを書いています',
   drawingCharacters: 'キャラクターを描いています',
   illustratingPages: 'ページを描いています',
   pages: 'ページ',
   pagesFailedCount: 'ページの生成に失敗しました',
+  cancelGeneration: 'キャンセル',
+  cancelConfirmTitle: '生成をキャンセルしますか？',
+  cancelConfirmMessage: '本当にキャンセルしますか？おはなしの生成が停止し、削除されます。',
+  confirmCancel: 'はい、キャンセル',
+  keepGenerating: '生成を続ける',
 
   generatingStory: 'おはなしを生成中...',
   writingStoryStatus: 'おはなしを書いています...',

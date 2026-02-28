@@ -195,12 +195,17 @@ export async function generateAllSceneImages(
   characterSheets: Map<string, string>,
   onProgress?: (progress: Partial<GenerationProgress>) => void,
   userId?: string,
+  signal?: AbortSignal,
 ): Promise<void> {
   let previousSceneBase64: string | null = null;
   let firstSceneBase64: string | null = null;
 
   // Generate scenes sequentially so each can reference the previous scene
   for (const page of pages) {
+    if (signal?.aborted) {
+      throw new Error('Generation cancelled');
+    }
+
     const result = await imageGenerationLimiter(() =>
       generateSceneImage(
         storyId, page, characters, characterSheets,

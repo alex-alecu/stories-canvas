@@ -17,11 +17,17 @@ const ko: Translations = {
 
   creatingYourStory: '이야기를 만들고 있어요',
   generationFailed: '생성에 실패했습니다',
+  generationCancelled: '생성이 취소되었습니다',
   writingStory: '이야기를 쓰고 있어요',
   drawingCharacters: '캐릭터를 그리고 있어요',
   illustratingPages: '페이지를 그리고 있어요',
   pages: '페이지',
   pagesFailedCount: '페이지를 생성하지 못했습니다',
+  cancelGeneration: '취소',
+  cancelConfirmTitle: '생성을 취소할까요?',
+  cancelConfirmMessage: '정말 취소하시겠어요? 이야기 생성이 중단되고 삭제됩니다.',
+  confirmCancel: '네, 취소합니다',
+  keepGenerating: '계속 생성하기',
 
   generatingStory: '이야기를 생성하는 중...',
   writingStoryStatus: '이야기를 쓰는 중...',

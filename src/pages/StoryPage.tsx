@@ -1,5 +1,6 @@
-import { useParams, Link } from 'react-router-dom';
-import { useStory } from '../hooks/useStories';
+import { useCallback } from 'react';
+import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useStory, useCancelStory } from '../hooks/useStories';
 import { useStoryGeneration } from '../hooks/useStoryGeneration';
 import StoryViewer from '../components/StoryViewer';
 import GenerationProgress from '../components/GenerationProgress';
@@ -8,9 +9,21 @@ import { useLanguage } from '../i18n/LanguageContext';
 export default function StoryPage() {
   const { id } = useParams<{ id: string }>();
   const { data: story, isLoading, error } = useStory(id);
-  const isGenerating = story?.status !== 'completed' && story?.status !== 'failed';
+  const isGenerating = story?.status !== 'completed' && story?.status !== 'failed' && story?.status !== 'cancelled';
   const { progress } = useStoryGeneration(isGenerating ? id ?? null : null);
+  const cancelStory = useCancelStory();
+  const navigate = useNavigate();
   const { t } = useLanguage();
+
+  const handleCancelStory = useCallback(async () => {
+    if (!id) return;
+    try {
+      await cancelStory.mutateAsync(id);
+    } catch (error) {
+      console.error('Failed to cancel story:', error);
+    }
+    navigate('/');
+  }, [id, cancelStory, navigate]);
 
   if (isLoading) {
     return (
@@ -42,7 +55,11 @@ export default function StoryPage() {
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
         <div>
-          <GenerationProgress progress={progress} />
+          <GenerationProgress
+            progress={progress}
+            onCancel={handleCancelStory}
+            isCancelling={cancelStory.isPending}
+          />
           <div className="text-center mt-4">
             <Link to="/" className="text-primary-500 dark:text-primary-400 hover:text-primary-600 dark:hover:text-primary-300 font-medium text-sm">
               &larr; {t.backHome}

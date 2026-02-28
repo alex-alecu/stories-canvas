@@ -44,10 +44,14 @@ export async function generateAllCharacterSheets(
   storyId: string,
   characters: Character[],
   userId?: string,
+  signal?: AbortSignal,
 ): Promise<Map<string, string>> {
   const characterSheets = new Map<string, string>();
 
   for (const character of characters) {
+    if (signal?.aborted) {
+      throw new Error('Generation cancelled');
+    }
     try {
       const result = await generateCharacterSheet(storyId, character, userId);
       characterSheets.set(result.name, result.base64);

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import StoryInput from '../components/StoryInput';
 import StoryGrid from '../components/StoryGrid';
 import GenerationProgress from '../components/GenerationProgress';
-import { useStories, useCreateStory } from '../hooks/useStories';
+import { useStories, useCreateStory, useCancelStory } from '../hooks/useStories';
 import { useStoryGeneration } from '../hooks/useStoryGeneration';
 import { useLanguage } from '../i18n/LanguageContext';
 
@@ -31,6 +31,7 @@ export default function Home() {
   const [generatingStoryId, setGeneratingStoryId] = useState<string | null>(getStoredGeneratingId);
   const { data: stories = [], isLoading } = useStories();
   const createStory = useCreateStory();
+  const cancelStory = useCancelStory();
   const { progress } = useStoryGeneration(generatingStoryId);
   const navigate = useNavigate();
   const { t, language } = useLanguage();
@@ -49,13 +50,24 @@ export default function Home() {
     }
   }, [createStory, language]);
 
+  const handleCancelStory = useCallback(async () => {
+    if (!generatingStoryId) return;
+    try {
+      await cancelStory.mutateAsync(generatingStoryId);
+    } catch (error) {
+      console.error('Failed to cancel story:', error);
+    }
+    setGeneratingStoryId(null);
+    setStoredGeneratingId(null);
+  }, [generatingStoryId, cancelStory]);
+
   // Navigate to story when generation completes, clear localStorage
   useEffect(() => {
     if (progress?.status === 'completed' && generatingStoryId) {
       setStoredGeneratingId(null);
       navigate(`/story/${generatingStoryId}`);
     }
-    if (progress?.status === 'failed') {
+    if (progress?.status === 'failed' || progress?.status === 'cancelled') {
       setStoredGeneratingId(null);
     }
   }, [progress?.status, generatingStoryId, navigate]);
@@ -78,7 +90,11 @@ export default function Home() {
 
         {showProgress && (
           <div className="mb-8 flex justify-center">
-            <GenerationProgress progress={progress ?? null} />
+            <GenerationProgress
+              progress={progress ?? null}
+              onCancel={handleCancelStory}
+              isCancelling={cancelStory.isPending}
+            />
           </div>
         )}
 

@@ -17,11 +17,17 @@ const fi: Translations = {
 
   creatingYourStory: 'Luodaan satuasi',
   generationFailed: 'Generointi epäonnistui',
+  generationCancelled: 'Generointi peruutettu',
   writingStory: 'Kirjoitetaan satua',
   drawingCharacters: 'Piirretään hahmoja',
   illustratingPages: 'Kuvitetaan sivuja',
   pages: 'Sivut',
   pagesFailedCount: 'sivua ei voitu generoida',
+  cancelGeneration: 'Peruuta',
+  cancelConfirmTitle: 'Peruuta generointi?',
+  cancelConfirmMessage: 'Oletko varma? Tämä pysäyttää sadun generoinnin ja poistaa sen.',
+  confirmCancel: 'Kyllä, peruuta',
+  keepGenerating: 'Jatka generointia',
 
   generatingStory: 'Generoidaan satua...',
   writingStoryStatus: 'Kirjoitetaan satua...',

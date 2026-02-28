@@ -17,11 +17,17 @@ const fr: Translations = {
 
   creatingYourStory: 'Création de votre histoire',
   generationFailed: 'La génération a échoué',
+  generationCancelled: 'Génération annulée',
   writingStory: "Écriture de l'histoire",
   drawingCharacters: 'Dessin des personnages',
   illustratingPages: 'Illustration des pages',
   pages: 'Pages',
   pagesFailedCount: "page(s) n'ont pas pu être générée(s)",
+  cancelGeneration: 'Annuler',
+  cancelConfirmTitle: 'Annuler la génération ?',
+  cancelConfirmMessage: "Êtes-vous sûr ? Cela arrêtera la génération de votre histoire et la supprimera.",
+  confirmCancel: 'Oui, annuler',
+  keepGenerating: 'Continuer la génération',
 
   generatingStory: "Génération de l'histoire...",
   writingStoryStatus: "Écriture de l'histoire...",

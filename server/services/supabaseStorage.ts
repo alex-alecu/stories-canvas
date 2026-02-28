@@ -169,7 +169,7 @@ export async function getActiveGenerations(): Promise<StoryMeta[]> {
   const { data, error } = await supabase
     .from('stories')
     .select('*')
-    .not('status', 'in', '("completed","failed")')
+    .not('status', 'in', '("completed","failed","cancelled")')
     .order('created_at', { ascending: false });
   if (error) throw new Error(`Failed to get active generations: ${error.message}`);
   return (data as StoryRow[]).map(rowToStoryMeta);

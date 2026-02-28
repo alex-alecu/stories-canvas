@@ -21,11 +21,17 @@ export interface Translations {
   // Generation progress
   creatingYourStory: string;
   generationFailed: string;
+  generationCancelled: string;
   writingStory: string;
   drawingCharacters: string;
   illustratingPages: string;
   pages: string;
   pagesFailedCount: string;
+  cancelGeneration: string;
+  cancelConfirmTitle: string;
+  cancelConfirmMessage: string;
+  confirmCancel: string;
+  keepGenerating: string;
 
   // Story card
   generatingStory: string;

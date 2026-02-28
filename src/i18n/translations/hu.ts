@@ -17,11 +17,17 @@ const hu: Translations = {
 
   creatingYourStory: 'A meséd készül',
   generationFailed: 'A generálás sikertelen',
+  generationCancelled: 'A generálás megszakítva',
   writingStory: 'A mese írása',
   drawingCharacters: 'A szereplők rajzolása',
   illustratingPages: 'Az oldalak illusztrálása',
   pages: 'Oldalak',
   pagesFailedCount: 'oldal(ak) nem sikerült legenerálni',
+  cancelGeneration: 'Megszakítás',
+  cancelConfirmTitle: 'Megszakítod a generálást?',
+  cancelConfirmMessage: 'Biztosan? Ez leállítja a mesed generálását és törli azt.',
+  confirmCancel: 'Igen, megszakítom',
+  keepGenerating: 'Folytatás',
 
   generatingStory: 'Mese generálása...',
   writingStoryStatus: 'Mese írása...',

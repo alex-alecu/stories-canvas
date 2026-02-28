@@ -17,11 +17,17 @@ const zh: Translations = {
 
   creatingYourStory: '正在创建你的故事',
   generationFailed: '生成失败',
+  generationCancelled: '生成已取消',
   writingStory: '正在写故事',
   drawingCharacters: '正在画角色',
   illustratingPages: '正在画插图',
   pages: '页',
   pagesFailedCount: '页未能生成',
+  cancelGeneration: '取消',
+  cancelConfirmTitle: '取消生成？',
+  cancelConfirmMessage: '你确定吗？这将停止生成你的故事并将其删除。',
+  confirmCancel: '是的，取消',
+  keepGenerating: '继续生成',
 
   generatingStory: '正在生成故事...',
   writingStoryStatus: '正在写故事...',

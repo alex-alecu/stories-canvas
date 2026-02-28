@@ -1,6 +1,6 @@
 export type PageStatus = 'pending' | 'generating' | 'completed' | 'failed';
 
-export type StoryStatus = 'generating_scenario' | 'generating_characters' | 'generating_images' | 'completed' | 'failed';
+export type StoryStatus = 'generating_scenario' | 'generating_characters' | 'generating_images' | 'completed' | 'failed' | 'cancelled';
 
 export interface Character {
   name: string;

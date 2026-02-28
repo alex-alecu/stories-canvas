@@ -17,11 +17,17 @@ const pl: Translations = {
 
   creatingYourStory: 'Tworzenie twojej opowieści',
   generationFailed: 'Generowanie nie powiodło się',
+  generationCancelled: 'Generowanie anulowane',
   writingStory: 'Pisanie opowieści',
   drawingCharacters: 'Rysowanie postaci',
   illustratingPages: 'Ilustrowanie stron',
   pages: 'Strony',
   pagesFailedCount: 'stron(a) nie udało się wygenerować',
+  cancelGeneration: 'Anuluj',
+  cancelConfirmTitle: 'Anulować generowanie?',
+  cancelConfirmMessage: 'Czy na pewno? To zatrzyma generowanie opowieści i ją usunie.',
+  confirmCancel: 'Tak, anuluj',
+  keepGenerating: 'Kontynuuj generowanie',
 
   generatingStory: 'Generowanie opowieści...',
   writingStoryStatus: 'Pisanie opowieści...',

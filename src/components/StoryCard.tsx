@@ -18,9 +18,10 @@ function StatusBadge({ status, completedPages, totalPages }: { status: string; c
     generating_characters: t.drawingCharactersStatus,
     generating_images: `${t.illustratingStatus} ${completedPages}/${totalPages}`,
     failed: t.failed,
+    cancelled: t.failed,
   };
 
-  const isGenerating = status !== 'failed';
+  const isGenerating = status !== 'failed' && status !== 'cancelled';
 
   return (
     <div className={`absolute top-3 right-3 px-3 py-1 rounded-full text-xs font-bold backdrop-blur-sm ${

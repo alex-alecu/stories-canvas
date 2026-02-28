@@ -17,11 +17,17 @@ const de: Translations = {
 
   creatingYourStory: 'Deine Geschichte wird erstellt',
   generationFailed: 'Generierung fehlgeschlagen',
+  generationCancelled: 'Generierung abgebrochen',
   writingStory: 'Geschichte wird geschrieben',
   drawingCharacters: 'Charaktere werden gezeichnet',
   illustratingPages: 'Seiten werden illustriert',
   pages: 'Seiten',
   pagesFailedCount: 'Seite(n) konnten nicht generiert werden',
+  cancelGeneration: 'Abbrechen',
+  cancelConfirmTitle: 'Generierung abbrechen?',
+  cancelConfirmMessage: 'Bist du sicher? Dies stoppt die Generierung deiner Geschichte und löscht sie.',
+  confirmCancel: 'Ja, abbrechen',
+  keepGenerating: 'Weiter generieren',
 
   generatingStory: 'Geschichte wird generiert...',
   writingStoryStatus: 'Geschichte wird geschrieben...',

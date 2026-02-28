@@ -57,6 +57,12 @@ async function removeStory(id: string): Promise<void> {
   if (!res.ok) throw new Error('Failed to delete story');
 }
 
+async function cancelStory(id: string): Promise<void> {
+  const authHeaders = await getAuthHeaders();
+  const res = await fetch(`/api/stories/${id}/cancel`, { method: 'POST', headers: authHeaders });
+  if (!res.ok) throw new Error('Failed to cancel story');
+}
+
 async function fetchPublicStories(search?: string): Promise<StorySummary[]> {
   const params = new URLSearchParams();
   if (search) params.set('search', search);
@@ -115,6 +121,17 @@ export function useDeleteStory() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: removeStory,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['stories'] });
+      queryClient.invalidateQueries({ queryKey: ['stories', 'mine'] });
+    },
+  });
+}
+
+export function useCancelStory() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: cancelStory,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['stories'] });
       queryClient.invalidateQueries({ queryKey: ['stories', 'mine'] });

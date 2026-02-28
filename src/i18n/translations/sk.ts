@@ -17,11 +17,17 @@ const sk: Translations = {
 
   creatingYourStory: 'Vytvárame váš príbeh',
   generationFailed: 'Generovanie zlyhalo',
+  generationCancelled: 'Generovanie zrušené',
   writingStory: 'Písanie príbehu',
   drawingCharacters: 'Kreslenie postáv',
   illustratingPages: 'Ilustrovanie stránok',
   pages: 'Stránky',
   pagesFailedCount: 'stránka/y sa nepodarilo vygenerovať',
+  cancelGeneration: 'Zrušiť',
+  cancelConfirmTitle: 'Zrušiť generovanie?',
+  cancelConfirmMessage: 'Ste si istí? Tým sa zastaví generovanie príbehu a vymaže sa.',
+  confirmCancel: 'Áno, zrušiť',
+  keepGenerating: 'Pokračovať v generovaní',
 
   generatingStory: 'Generovanie príbehu...',
   writingStoryStatus: 'Písanie príbehu...',

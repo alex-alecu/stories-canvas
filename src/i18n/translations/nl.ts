@@ -17,11 +17,17 @@ const nl: Translations = {
 
   creatingYourStory: 'Je verhaal wordt gemaakt',
   generationFailed: 'Generatie mislukt',
+  generationCancelled: 'Generatie geannuleerd',
   writingStory: 'Het verhaal wordt geschreven',
   drawingCharacters: 'De personages worden getekend',
   illustratingPages: "De pagina's worden geïllustreerd",
   pages: "Pagina's",
   pagesFailedCount: "pagina('s) konden niet worden gegenereerd",
+  cancelGeneration: 'Annuleren',
+  cancelConfirmTitle: 'Generatie annuleren?',
+  cancelConfirmMessage: 'Weet je het zeker? Dit stopt het genereren van je verhaal en verwijdert het.',
+  confirmCancel: 'Ja, annuleren',
+  keepGenerating: 'Doorgaan met genereren',
 
   generatingStory: 'Verhaal wordt gegenereerd...',
   writingStoryStatus: 'Verhaal wordt geschreven...',

@@ -66,6 +66,10 @@ function getCoverImageUrl(story: StoryMeta): string | undefined {
   return getPageImageUrl(story.id, story.scenario.pages[0].pageNumber, story.userId);
 }
 
+// ---------- Active generation abort controllers ----------
+
+const activeGenerations = new Map<string, AbortController>();
+
 // ---------- SSE connections ----------
 
 const sseConnections = new Map<string, Set<Response>>();
@@ -250,6 +254,10 @@ router.post('/', optionalAuth, async (req: Request, res: Response) => {
 });
 
 async function runGenerationPipeline(storyId: string, prompt: string, userId?: string, language?: string): Promise<void> {
+  const controller = new AbortController();
+  activeGenerations.set(storyId, controller);
+  const { signal } = controller;
+
   try {
     // Phase 1: Generate scenario
     await sendProgressUpdate(storyId, {
@@ -262,9 +270,11 @@ async function runGenerationPipeline(storyId: string, prompt: string, userId?: s
       message: 'Creating your story...',
     });
 
+    if (signal.aborted) throw new Error('Generation cancelled');
     const scenario = await generateScenario(prompt, language);
     await saveScenario(storyId, scenario, 'generating_characters', prompt);
 
+    if (signal.aborted) throw new Error('Generation cancelled');
     await sendProgressUpdate(storyId, {
       storyId,
       status: 'generating_characters',
@@ -276,7 +286,9 @@ async function runGenerationPipeline(storyId: string, prompt: string, userId?: s
     });
 
     // Phase 2: Generate character sheets (sequential)
-    const characterSheets = await generateAllCharacterSheets(storyId, scenario.characters, userId);
+    const characterSheets = await generateAllCharacterSheets(storyId, scenario.characters, userId, signal);
+
+    if (signal.aborted) throw new Error('Generation cancelled');
     await updateStoryStatus(storyId, 'generating_images');
 
     await sendProgressUpdate(storyId, {
@@ -318,6 +330,7 @@ async function runGenerationPipeline(storyId: string, prompt: string, userId?: s
         });
       },
       userId,
+      signal,
     );
 
     // Update cover image URL
@@ -349,20 +362,25 @@ async function runGenerationPipeline(storyId: string, prompt: string, userId?: s
       message: 'Story generated successfully!',
     });
   } catch (error) {
-    console.error(`Pipeline failed for ${storyId}:`, error);
+    const isCancelled = signal.aborted;
+    const status = isCancelled ? 'cancelled' : 'failed';
+    console.error(`Pipeline ${status} for ${storyId}:`, isCancelled ? 'cancelled by user' : error);
+
     try {
-      await updateStoryStatus(storyId, 'failed');
+      await updateStoryStatus(storyId, status);
     } catch {}
+
     sendSSE(storyId, {
       storyId,
-      status: 'failed',
-      currentPhase: 'Failed',
+      status,
+      currentPhase: isCancelled ? 'Cancelled' : 'Failed',
       completedPages: 0,
       totalPages: 0,
       failedPages: [],
-      message: error instanceof Error ? error.message : 'Generation failed',
+      message: isCancelled ? 'Generation cancelled' : (error instanceof Error ? error.message : 'Generation failed'),
     });
   } finally {
+    activeGenerations.delete(storyId);
     // Close SSE connections after a short delay
     setTimeout(() => {
       const connections = sseConnections.get(storyId);
@@ -456,8 +474,8 @@ router.get('/:id/status', async (req: Request, res: Response) => {
       message: story.status === 'completed' ? 'Story generated successfully!' : 'Reconnected to generation progress...',
     })}\n\n`);
 
-    // If already completed or failed, close after sending status
-    if (story.status === 'completed' || story.status === 'failed') {
+    // If already completed, failed, or cancelled, close after sending status
+    if (story.status === 'completed' || story.status === 'failed' || story.status === 'cancelled') {
       res.end();
       return;
     }
@@ -566,6 +584,53 @@ router.delete('/:id', optionalAuth, async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Failed to delete story:', error);
     res.status(500).json({ error: 'Failed to delete story' });
+  }
+});
+
+// POST /api/stories/:id/cancel - Cancel story generation and delete the story
+router.post('/:id/cancel', optionalAuth, async (req: Request, res: Response) => {
+  try {
+    const storyId = req.params.id as string;
+
+    // Require authentication when Supabase is configured
+    if (config.useSupabase && !req.authUser) {
+      res.status(401).json({ error: 'Authentication required' });
+      return;
+    }
+
+    // Verify ownership if authenticated
+    if (config.useSupabase && req.authUser) {
+      const story = await getStory(storyId);
+      if (story && story.userId && story.userId !== req.authUser.id) {
+        res.status(403).json({ error: 'Forbidden: you can only cancel your own stories' });
+        return;
+      }
+    }
+
+    // Abort the active generation pipeline if still running
+    const controller = activeGenerations.get(storyId);
+    if (controller) {
+      controller.abort();
+    }
+
+    // Delete the story from the database
+    await removeStory(storyId, req.authUser?.id);
+
+    // Send cancelled SSE event so connected clients update immediately
+    sendSSE(storyId, {
+      storyId,
+      status: 'cancelled',
+      currentPhase: 'Cancelled',
+      completedPages: 0,
+      totalPages: 0,
+      failedPages: [],
+      message: 'Generation cancelled',
+    });
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Failed to cancel story:', error);
+    res.status(500).json({ error: 'Failed to cancel story' });
   }
 });
 

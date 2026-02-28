@@ -17,11 +17,17 @@ const sv: Translations = {
 
   creatingYourStory: 'Skapar din saga',
   generationFailed: 'Genereringen misslyckades',
+  generationCancelled: 'Genereringen avbröts',
   writingStory: 'Skriver sagan',
   drawingCharacters: 'Ritar karaktärerna',
   illustratingPages: 'Illustrerar sidorna',
   pages: 'Sidor',
   pagesFailedCount: 'sida/or kunde inte genereras',
+  cancelGeneration: 'Avbryt',
+  cancelConfirmTitle: 'Avbryta genereringen?',
+  cancelConfirmMessage: 'Är du säker? Detta stoppar genereringen av din saga och raderar den.',
+  confirmCancel: 'Ja, avbryt',
+  keepGenerating: 'Fortsätt generera',
 
   generatingStory: 'Genererar sagan...',
   writingStoryStatus: 'Skriver sagan...',

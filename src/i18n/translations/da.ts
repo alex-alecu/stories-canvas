@@ -17,11 +17,17 @@ const da: Translations = {
 
   creatingYourStory: 'Opretter din historie',
   generationFailed: 'Generering mislykkedes',
+  generationCancelled: 'Generering annulleret',
   writingStory: 'Skriver historien',
   drawingCharacters: 'Tegner karaktererne',
   illustratingPages: 'Illustrerer siderne',
   pages: 'Sider',
   pagesFailedCount: 'side(r) kunne ikke genereres',
+  cancelGeneration: 'Annuller',
+  cancelConfirmTitle: 'Annuller generering?',
+  cancelConfirmMessage: 'Er du sikker? Dette stopper genereringen af din historie og sletter den.',
+  confirmCancel: 'Ja, annuller',
+  keepGenerating: 'Fortsæt med at generere',
 
   generatingStory: 'Genererer historien...',
   writingStoryStatus: 'Skriver historien...',
