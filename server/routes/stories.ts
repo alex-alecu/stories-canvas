@@ -329,7 +329,7 @@ async function runGenerationPipeline(storyId: string, prompt: string, userId?: s
           message: progress.message || '',
           pageNumber: progress.pageNumber,
           pageStatus: progress.pageStatus,
-        });
+        }).catch(() => {});
       },
       userId,
       signal,

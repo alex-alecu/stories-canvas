@@ -197,8 +197,12 @@ export async function listPublicStories(search?: string, limit = 50): Promise<St
     .limit(limit);
 
   if (search && search.trim()) {
-    const term = `%${search.trim()}%`;
-    query = query.or(`title.ilike."${term}",prompt.ilike."${term}"`);
+    // Sanitize: strip double quotes to prevent PostgREST filter injection
+    const sanitized = search.trim().replace(/"/g, '');
+    if (sanitized) {
+      const term = `%${sanitized}%`;
+      query = query.or(`title.ilike."${term}",prompt.ilike."${term}"`);
+    }
   }
 
   const { data, error } = await query;

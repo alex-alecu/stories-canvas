@@ -65,10 +65,13 @@ export default function Home() {
   useEffect(() => {
     if (generatingStoryId && progress) {
       if (progress.completedPages >= 1 || progress.status === 'completed') {
+        const targetId = generatingStoryId;
+        setGeneratingStoryId(null);
         setStoredGeneratingId(null);
-        navigate(`/story/${generatingStoryId}`);
+        navigate(`/story/${targetId}`);
       }
       if (progress.status === 'failed' || progress.status === 'cancelled') {
+        setGeneratingStoryId(null);
         setStoredGeneratingId(null);
       }
     }
