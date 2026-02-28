@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useStory, useCancelStory } from '../hooks/useStories';
 import { useStoryGeneration } from '../hooks/useStoryGeneration';
@@ -8,6 +8,14 @@ import { useLanguage } from '../i18n/LanguageContext';
 
 export default function StoryPage() {
   const { id } = useParams<{ id: string }>();
+
+  // Set black browser background while viewing stories (visible in overscroll areas)
+  useEffect(() => {
+    document.documentElement.classList.add('story-view');
+    return () => {
+      document.documentElement.classList.remove('story-view');
+    };
+  }, []);
   const { data: story, isLoading, error } = useStory(id);
   const isGenerating = story?.status !== 'completed' && story?.status !== 'failed' && story?.status !== 'cancelled';
   const { progress } = useStoryGeneration(isGenerating ? id ?? null : null);
