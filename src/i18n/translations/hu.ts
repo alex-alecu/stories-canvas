@@ -14,6 +14,14 @@ const hu: Translations = {
   storyInputGuestPlaceholder: 'Be kell jelentkezned a mesék létrehozásához',
   createStory: 'Mese Készítése',
   creating: 'Készítés...',
+  childAge: 'Gyermek életkora',
+  artStyle: 'Művészeti stílus',
+  styleDisneyPixar: 'Disney/Pixar 3D',
+  styleWatercolor: 'Akvarell',
+  styleStorybook: 'Klasszikus mesekönyv',
+  styleAnime: 'Anime',
+  styleColoredPencil: 'Színes ceruza',
+  stylePaperCutout: 'Papírkivágás',
 
   creatingYourStory: 'A meséd készül',
   generationFailed: 'A generálás sikertelen',
@@ -68,6 +76,8 @@ const hu: Translations = {
   checkEmailForConfirmation: 'Ellenőrizd az e-mailed a fiókod megerősítéséhez.',
   continueWithGoogle: 'Folytatás Google-lel',
   finalizingAuth: 'Hitelesítés befejezése...',
+  authError: 'A hitelesítés sikertelen',
+  backToLogin: 'Vissza a bejelentkezéshez',
 
   myStories: 'Meséim',
   noStoriesYetProfile: 'Még nincsenek meséid',
@@ -98,6 +108,9 @@ const hu: Translations = {
 
   menu: 'Menü',
   theme: 'Téma',
+
+  notificationTitle: 'A meséd elkészült!',
+  notificationBody: 'Az első illusztráció elkészült. Gyere, nézd meg!',
 
   language: 'Nyelv',
   languageName: 'Magyar',

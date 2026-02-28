@@ -17,6 +17,14 @@ const ro: Translations = {
   storyInputGuestPlaceholder: 'Trebuie să te conectezi pentru a crea povești',
   createStory: 'Creează Poveste',
   creating: 'Se creează...',
+  childAge: 'Vârsta copilului',
+  artStyle: 'Stil artistic',
+  styleDisneyPixar: 'Disney/Pixar 3D',
+  styleWatercolor: 'Acuarelă',
+  styleStorybook: 'Carte clasică de povești',
+  styleAnime: 'Anime',
+  styleColoredPencil: 'Creioane colorate',
+  stylePaperCutout: 'Colaj de hârtie',
 
   // Generation progress
   creatingYourStory: 'Se creează povestea ta',
@@ -76,6 +84,8 @@ const ro: Translations = {
   checkEmailForConfirmation: 'Verifică email-ul pentru a confirma contul.',
   continueWithGoogle: 'Continuă cu Google',
   finalizingAuth: 'Se finalizează autentificarea...',
+  authError: 'Autentificare eșuată',
+  backToLogin: 'Înapoi la autentificare',
 
   // Profile
   myStories: 'Poveștile mele',
@@ -111,6 +121,9 @@ const ro: Translations = {
 
   menu: 'Meniu',
   theme: 'Temă',
+
+  notificationTitle: 'Povestea ta este gata!',
+  notificationBody: 'Prima ilustrație a fost generată. Vino să o vezi!',
 
   language: 'Limbă',
   languageName: 'Română',

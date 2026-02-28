@@ -14,6 +14,14 @@ const zh: Translations = {
   storyInputGuestPlaceholder: '你需要登录才能创建故事',
   createStory: '创建故事',
   creating: '创建中...',
+  childAge: '孩子年龄',
+  artStyle: '艺术风格',
+  styleDisneyPixar: '迪士尼/皮克斯 3D',
+  styleWatercolor: '水彩画',
+  styleStorybook: '经典绘本',
+  styleAnime: '动漫',
+  styleColoredPencil: '彩色铅笔',
+  stylePaperCutout: '纸拼贴',
 
   creatingYourStory: '正在创建你的故事',
   generationFailed: '生成失败',
@@ -68,6 +76,8 @@ const zh: Translations = {
   checkEmailForConfirmation: '请查看邮箱以确认您的账号。',
   continueWithGoogle: '使用Google继续',
   finalizingAuth: '正在完成认证...',
+  authError: '认证失败',
+  backToLogin: '返回登录',
 
   myStories: '我的故事',
   noStoriesYetProfile: '你还没有故事',
@@ -98,6 +108,9 @@ const zh: Translations = {
 
   menu: '菜单',
   theme: '主题',
+
+  notificationTitle: '你的故事准备好了！',
+  notificationBody: '第一张插图已生成。快来看看吧！',
 
   language: '语言',
   languageName: '中文',

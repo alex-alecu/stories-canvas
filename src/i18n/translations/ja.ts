@@ -14,6 +14,14 @@ const ja: Translations = {
   storyInputGuestPlaceholder: 'おはなしを作るにはログインしてね',
   createStory: 'おはなしを作る',
   creating: '作成中...',
+  childAge: 'お子さまの年齢',
+  artStyle: 'アートスタイル',
+  styleDisneyPixar: 'ディズニー/ピクサー 3D',
+  styleWatercolor: '水彩画',
+  styleStorybook: 'クラシック絵本',
+  styleAnime: 'アニメ',
+  styleColoredPencil: '色鉛筆',
+  stylePaperCutout: '切り絵',
 
   creatingYourStory: 'おはなしを作っています',
   generationFailed: '生成に失敗しました',
@@ -68,6 +76,8 @@ const ja: Translations = {
   checkEmailForConfirmation: 'アカウントを確認するためメールを確認してください。',
   continueWithGoogle: 'Googleで続ける',
   finalizingAuth: '認証を完了しています...',
+  authError: '認証に失敗しました',
+  backToLogin: 'ログインに戻る',
 
   myStories: 'わたしのおはなし',
   noStoriesYetProfile: 'まだおはなしがありません',
@@ -98,6 +108,9 @@ const ja: Translations = {
 
   menu: 'メニュー',
   theme: 'テーマ',
+
+  notificationTitle: 'おはなしができました！',
+  notificationBody: '最初のイラストが完成しました。見に来てね！',
 
   language: '言語',
   languageName: '日本語',

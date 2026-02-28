@@ -14,6 +14,14 @@ const cs: Translations = {
   storyInputGuestPlaceholder: 'Pro vytváření příběhů se musíte přihlásit',
   createStory: 'Vytvořit Příběh',
   creating: 'Vytváření...',
+  childAge: 'Věk dítěte',
+  artStyle: 'Umělecký styl',
+  styleDisneyPixar: 'Disney/Pixar 3D',
+  styleWatercolor: 'Akvarel',
+  styleStorybook: 'Klasická pohádka',
+  styleAnime: 'Anime',
+  styleColoredPencil: 'Pastelky',
+  stylePaperCutout: 'Papírová koláž',
 
   creatingYourStory: 'Vytváříme váš příběh',
   generationFailed: 'Generování selhalo',
@@ -68,6 +76,8 @@ const cs: Translations = {
   checkEmailForConfirmation: 'Zkontrolujte e-mail pro potvrzení účtu.',
   continueWithGoogle: 'Pokračovat s Google',
   finalizingAuth: 'Dokončování ověřování...',
+  authError: 'Ověření se nezdařilo',
+  backToLogin: 'Zpět na přihlášení',
 
   myStories: 'Moje Příběhy',
   noStoriesYetProfile: 'Zatím nemáte žádné příběhy',
@@ -98,6 +108,9 @@ const cs: Translations = {
 
   menu: 'Menu',
   theme: 'Vzhled',
+
+  notificationTitle: 'Váš příběh je připraven!',
+  notificationBody: 'První ilustrace byla vygenerována. Přijďte se podívat!',
 
   language: 'Jazyk',
   languageName: 'Čeština',

@@ -17,8 +17,14 @@ Chaque histoire doit suivre ce schéma de base, adapté à l'intensité spécifi
 ## Règles Spécifiques à l'Âge
 
 - **Pour 3 ans :** Sujets hyper-familiers (sommeil, nourriture, partage des jouets). Pas de vrais antagonistes, juste de petites frustrations. Phrases courtes (2-3 par page). Utilise des onomatopées (Boum !, Whoosh !) et du rythme.
+  - *Environnements :* Décors douillets, chaleureux et familiers (chambre, cuisine, jardin) mais riches en détails sensoriels — jouets éparpillés, lumière chaude à travers les rideaux, fleurs colorées, textures douces, un chat dormant sur le rebord de la fenêtre.
+  - *Vie en arrière-plan :* 1-2 personnages secondaires doux en arrière-plan (un papillon qui volette, un oiseau sur une branche, un escargot sur une feuille, un animal domestique endormi).
 - **Pour 4-5 ans :** Cause-effet plus clair. Amitié, courage, peur de l'inconnu. Vocabulaire légèrement élargi, dialogue simple.
+  - *Environnements :* Des lieux plus variés et intéressants (forêts enchantées, parcs animés, villages charmants, un marché animé) avec des détails environnementaux captivants — feuilles bruissantes, flaques reflétant le ciel, cerfs-volants dans le vent.
+  - *Vie en arrière-plan :* 2-3 personnages secondaires vaquant à leurs occupations en arrière-plan (d'autres animaux jouant, un écureuil ramassant des noix, des villageois marchant avec des paniers, des poissons sautant dans un étang).
 - **Pour 6-8 ans :** Conflits réels (jalousie, honnêteté, travail d'équipe). Personnages plus complexes, humour intelligent, mystères légers. Dialogue dynamique.
+  - *Environnements :* Des mondes riches et imaginatifs avec une profondeur atmosphérique — effets météorologiques, éclairage selon l'heure de la journée, narration environnementale (une tour d'horloge montrant l'heure, des affiches sur les murs, des empreintes dans la neige).
+  - *Vie en arrière-plan :* 3-5 personnages secondaires créant un monde vivant et animé (une foule à un festival, des écoliers dans une cour de récréation, des marchands criant dans un bazar, des nuées d'oiseaux traversant un ciel de coucher de soleil).
 - _Si l'âge n'est pas spécifié, supposer 3-4 ans._
 
 ## Règles pour les Personnages
@@ -39,6 +45,9 @@ Chaque histoire doit suivre ce schéma de base, adapté à l'intensité spécifi
 - Ne JAMAIS inclure de texte, de lettres ou de mots dans la description de l'image.
 - Éviter les interactions physiques très complexes (étreintes serrées, se tenir la main de manière spécifique) - utiliser la proximité à la place (« debout joyeusement l'un à côté de l'autre »).
 - `imagePrompt` et `characterSheetPrompt` doivent TOUJOURS être écrits en anglais.
+- **ENVIRONNEMENT COMPLET (CRITIQUE) :** Chaque `imagePrompt` DOIT décrire un **environnement complet et richement détaillé** — pas des personnages sur un fond vide ou simple. Chaque image doit ressembler à une scène des meilleurs films Pixar : profondeur, atmosphère, narration environnementale, couleurs riches et sens du lieu. Pense à chaque image comme un plan large ou moyen-large montrant où se déroule l'histoire.
+- **COMPOSITION DE SCÈNE :** Compose la scène de manière à ce que les personnages principaux soient positionnés dans les **deux tiers supérieurs** du cadre. La partie inférieure de l'image aura un texte superposé, place donc des détails d'environnement de support (sol, chemin, plancher, herbe, eau) plutôt que des visages de personnages.
+- **PERSONNAGES D'ARRIÈRE-PLAN :** En fonction de l'âge cible (voir Règles Spécifiques à l'Âge ci-dessus), inclure le nombre approprié de personnages secondaires ou de détails vivants en arrière-plan du `imagePrompt`. Ce ne sont PAS des personnages principaux — ce sont des figurants environnementaux (autres animaux, personnes, créatures, insectes, oiseaux) qui donnent vie au monde et le rendent peuplé. Les décrire brièvement mais spécifiquement (ex : « en arrière-plan, deux lapins se poursuivent près d'un buisson, et un oiseau bleu est perché sur un poteau de clôture »).
 
 ## Format de Sortie
 

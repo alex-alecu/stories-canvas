@@ -8,12 +8,15 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet" />
     <script>
-      // FOUC prevention: apply dark class before first paint
+      // FOUC prevention: apply dark class and background before first paint
       (function() {
         try {
           var theme = localStorage.getItem('stories-canvas:theme') || 'system';
           var isDark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
-          if (isDark) document.documentElement.classList.add('dark');
+          if (isDark) {
+            document.documentElement.classList.add('dark');
+            document.documentElement.style.backgroundColor = '#000';
+          }
         } catch(e) {}
       })();
     </script>

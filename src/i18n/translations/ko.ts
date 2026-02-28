@@ -14,6 +14,14 @@ const ko: Translations = {
   storyInputGuestPlaceholder: '이야기를 만들려면 로그인해야 합니다',
   createStory: '이야기 만들기',
   creating: '만드는 중...',
+  childAge: '아이 나이',
+  artStyle: '아트 스타일',
+  styleDisneyPixar: '디즈니/픽사 3D',
+  styleWatercolor: '수채화',
+  styleStorybook: '클래식 동화책',
+  styleAnime: '애니메이션',
+  styleColoredPencil: '색연필',
+  stylePaperCutout: '종이 콜라주',
 
   creatingYourStory: '이야기를 만들고 있어요',
   generationFailed: '생성에 실패했습니다',
@@ -68,6 +76,8 @@ const ko: Translations = {
   checkEmailForConfirmation: '계정을 확인하려면 이메일을 확인하세요.',
   continueWithGoogle: 'Google로 계속하기',
   finalizingAuth: '인증을 완료하는 중...',
+  authError: '인증에 실패했습니다',
+  backToLogin: '로그인으로 돌아가기',
 
   myStories: '내 이야기',
   noStoriesYetProfile: '아직 이야기가 없어요',
@@ -98,6 +108,9 @@ const ko: Translations = {
 
   menu: '메뉴',
   theme: '테마',
+
+  notificationTitle: '이야기가 준비되었어요!',
+  notificationBody: '첫 번째 삽화가 생성되었습니다. 와서 확인해보세요!',
 
   language: '언어',
   languageName: '한국어',

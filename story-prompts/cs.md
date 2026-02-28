@@ -17,8 +17,14 @@ Každý příběh musí sledovat tento základní vzorec, přizpůsobený intenz
 ## Pravidla Specifická pro Věk
 
 - **Pro 3 roky:** Hyper-známá témata (spánek, jídlo, sdílení hraček). Žádní skuteční antagonisté, pouze malé frustrace. Krátké věty (2-3 na stránku). Používej onomatopoie (Bum!, Fíí!) a rytmus.
+  - *Prostředí:* Útulná, teplá, známá místa (ložnice, kuchyně, zahrada) ale bohatá na smyslové detaily — rozházené hračky, teplé světlo skrz záclony, barevné květiny, měkké textury, kočka spící na parapetu.
+  - *Život v pozadí:* 1-2 jemné vedlejší postavy v pozadí (poletující motýl, ptáček na větvi, šnek na listu, spící domácí mazlíček).
 - **Pro 4-5 let:** Jasnější příčina a následek. Přátelství, odvaha, strach z neznámého. Mírně rozšířená slovní zásoba, jednoduchý dialog.
+  - *Prostředí:* Rozmanitější a zajímavější lokace (začarované lesy, živé parky, kouzelné vesničky, rušný trh) s poutavými detaily prostředí — šustící listy, louže odrážející nebe, draci ve větru.
+  - *Život v pozadí:* 2-3 vedlejší postavy, které si v pozadí dělají své (jiná zvířata si hrají, veverka sbírá oříšky, vesničané jdou s košíky, ryby vyskakují z rybníka).
 - **Pro 6-8 let:** Skutečné konflikty (žárlivost, poctivost, týmová práce). Složitější postavy, chytrý humor, lehká tajemství. Dynamický dialog.
+  - *Prostředí:* Bohaté, fantazijní světy s atmosférickou hloubkou — povětrnostní efekty, osvětlení podle denní doby, vyprávění prostředím (hodinová věž ukazující čas, plakáty na zdech, stopy ve sněhu).
+  - *Život v pozadí:* 3-5 vedlejších postav vytvářejících živý, rušný svět (dav na festivalu, školáci na hřišti, obchodníci volající na bazaru, hejna ptáků přelétající po obloze při západu slunce).
 - _Pokud věk není uveden, předpokládej 3-4 roky._
 
 ## Pravidla pro Postavy
@@ -39,6 +45,9 @@ Každý příběh musí sledovat tento základní vzorec, přizpůsobený intenz
 - NIKDY nezahrnuj text, písmena nebo slova do popisu obrázku.
 - Vyhýbej se velmi složitým fyzickým interakcím (těsná objetí, specifické držení za ruce) - místo toho používej blízkost ("stojící šťastně vedle sebe").
 - `imagePrompt` a `characterSheetPrompt` se píší VŽDY v angličtině.
+- **KOMPLETNÍ PROSTŘEDÍ (KRITICKÉ):** Každý `imagePrompt` MUSÍ popisovat **kompletní, bohatě detailní prostředí** — ne postavy na prázdném nebo jednoduchém pozadí. Každý obrázek by měl vypadat jako scéna z nejlepších filmů Pixaru: hloubka, atmosféra, vyprávění prostředím, sytě barvy a pocit místa. Přemýšlej o každém obrázku jako o celkovém nebo polocelkovém záběru, který ukazuje, kde se příběh odehrává.
+- **KOMPOZICE SCÉNY:** Komponuj scénu tak, aby hlavní postavy byly umístěny v **horních dvou třetinách** záběru. Spodní část obrázku bude mít textový překryv, proto tam umísti podpůrné detaily prostředí (zem, cestu, podlahu, trávu, vodu) místo obličejů postav.
+- **POSTAVY V POZADÍ:** Na základě cílového věku (viz Pravidla Specifická pro Věk výše) zahrň do pozadí `imagePrompt` odpovídající počet vedlejších postav nebo živých detailů. Nejsou to hlavní postavy — jsou to komparzisté prostředí (jiná zvířata, lidé, stvoření, hmyz, ptáci), kteří dávají světu živý a obydlený pocit. Popiš je stručně, ale konkrétně (např.: "v pozadí se dva králíčci honí u keře a modrý ptáček sedí na sloupku plotu").
 
 ## Výstupní Formát
 

@@ -14,6 +14,14 @@ const no: Translations = {
   storyInputGuestPlaceholder: 'Du må logge inn for å lage historier',
   createStory: 'Lag Historie',
   creating: 'Lager...',
+  childAge: 'Barnets alder',
+  artStyle: 'Kunststil',
+  styleDisneyPixar: 'Disney/Pixar 3D',
+  styleWatercolor: 'Akvarell',
+  styleStorybook: 'Klassisk eventyrbok',
+  styleAnime: 'Anime',
+  styleColoredPencil: 'Fargeblyant',
+  stylePaperCutout: 'Papirklipp',
 
   creatingYourStory: 'Lager historien din',
   generationFailed: 'Genereringen mislyktes',
@@ -68,6 +76,8 @@ const no: Translations = {
   checkEmailForConfirmation: 'Sjekk e-posten din for å bekrefte kontoen.',
   continueWithGoogle: 'Fortsett med Google',
   finalizingAuth: 'Fullfører autentisering...',
+  authError: 'Autentisering mislyktes',
+  backToLogin: 'Tilbake til innlogging',
 
   myStories: 'Mine Historier',
   noStoriesYetProfile: 'Du har ingen historier ennå',
@@ -98,6 +108,9 @@ const no: Translations = {
 
   menu: 'Meny',
   theme: 'Utseende',
+
+  notificationTitle: 'Historien din er klar!',
+  notificationBody: 'Den første illustrasjonen er laget. Kom og se!',
 
   language: 'Språk',
   languageName: 'Norsk',

@@ -17,6 +17,14 @@ export interface Translations {
   storyInputGuestPlaceholder: string;
   createStory: string;
   creating: string;
+  childAge: string;
+  artStyle: string;
+  styleDisneyPixar: string;
+  styleWatercolor: string;
+  styleStorybook: string;
+  styleAnime: string;
+  styleColoredPencil: string;
+  stylePaperCutout: string;
 
   // Generation progress
   creatingYourStory: string;
@@ -76,6 +84,8 @@ export interface Translations {
   checkEmailForConfirmation: string;
   continueWithGoogle: string;
   finalizingAuth: string;
+  authError: string;
+  backToLogin: string;
 
   // Profile
   myStories: string;
@@ -112,6 +122,10 @@ export interface Translations {
   // Mobile menu
   menu: string;
   theme: string;
+
+  // Notifications
+  notificationTitle: string;
+  notificationBody: string;
 
   // Language
   language: string;

@@ -14,6 +14,14 @@ const fi: Translations = {
   storyInputGuestPlaceholder: 'Sinun täytyy kirjautua sisään luodaksesi satuja',
   createStory: 'Luo Satu',
   creating: 'Luodaan...',
+  childAge: 'Lapsen ikä',
+  artStyle: 'Taideyyli',
+  styleDisneyPixar: 'Disney/Pixar 3D',
+  styleWatercolor: 'Vesiväri',
+  styleStorybook: 'Klassinen satukirja',
+  styleAnime: 'Anime',
+  styleColoredPencil: 'Värikynä',
+  stylePaperCutout: 'Paperileikkaus',
 
   creatingYourStory: 'Luodaan satuasi',
   generationFailed: 'Generointi epäonnistui',
@@ -68,6 +76,8 @@ const fi: Translations = {
   checkEmailForConfirmation: 'Tarkista sähköpostisi vahvistaaksesi tilisi.',
   continueWithGoogle: 'Jatka Googlella',
   finalizingAuth: 'Viimeistellään todennusta...',
+  authError: 'Todennus epäonnistui',
+  backToLogin: 'Takaisin kirjautumiseen',
 
   myStories: 'Omat Sadut',
   noStoriesYetProfile: 'Sinulla ei ole vielä satuja',
@@ -98,6 +108,9 @@ const fi: Translations = {
 
   menu: 'Valikko',
   theme: 'Teema',
+
+  notificationTitle: 'Satusi on valmis!',
+  notificationBody: 'Ensimmäinen kuvitus on luotu. Tule katsomaan!',
 
   language: 'Kieli',
   languageName: 'Suomi',

@@ -1,7 +1,8 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { generateJSON } from './gemini.js';
-import type { Scenario } from '../../shared/types.js';
+import type { Scenario, ArtStyleKey } from '../../shared/types.js';
+import { ART_STYLES, DEFAULT_ART_STYLE, DEFAULT_AGE } from '../../shared/types.js';
 
 const STORY_PROMPTS_DIR = path.join(process.cwd(), 'story-prompts');
 
@@ -120,12 +121,25 @@ async function getStoryPrompt(language: string): Promise<string> {
 export async function generateScenario(
   userPrompt: string,
   language?: string,
+  age?: number,
+  style?: ArtStyleKey,
 ): Promise<Scenario> {
   const lang = language && VALID_LANGUAGES.has(language) ? language : 'ro';
-  const systemInstruction = await getStoryPrompt(lang);
+  let systemInstruction = await getStoryPrompt(lang);
+
+  // Replace the default Disney/Pixar style in the system prompt with the user-selected style
+  const styleDesc = style ? ART_STYLES[style] : ART_STYLES[DEFAULT_ART_STYLE];
+  systemInstruction = systemInstruction.replace(
+    /Disney\/Pixar 3D animation style with warm, round, and friendly character designs/g,
+    styleDesc,
+  );
+
+  // Build enhanced prompt with age context
+  const targetAge = age ?? DEFAULT_AGE;
+  const enhancedPrompt = `[Target age: ${targetAge} years old]\n[Art style: ${styleDesc}]\n\n${userPrompt}`;
 
   const scenario = await generateJSON<Scenario>(
-    userPrompt,
+    enhancedPrompt,
     systemInstruction,
     scenarioSchema,
   );

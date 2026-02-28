@@ -32,6 +32,18 @@ body {
   transition: background 0.3s ease;
 }
 
+.dark {
+  background-color: #000;
+}
+
 .dark body {
   background: linear-gradient(135deg, #0f0a1a 0%, #120e24 50%, #0f0a1a 100%);
+}
+
+html.story-view {
+  background-color: #000;
+}
+
+html.story-view body {
+  background: #000;
 }

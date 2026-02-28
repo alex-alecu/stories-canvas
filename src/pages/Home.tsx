@@ -3,9 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import StoryInput from '../components/StoryInput';
 import StoryGrid from '../components/StoryGrid';
 import GenerationProgress from '../components/GenerationProgress';
-import { useStories, useCreateStory, useCancelStory } from '../hooks/useStories';
+import { useStories, useCreateStory, useCancelStory, useToggleVisibility } from '../hooks/useStories';
 import { useStoryGeneration } from '../hooks/useStoryGeneration';
+import { useNotification } from '../hooks/useNotification';
 import { useLanguage } from '../i18n/LanguageContext';
+import type { ArtStyleKey } from '../../shared/types';
 
 const GENERATING_STORY_KEY = 'stories-canvas:generatingStoryId';
 
@@ -32,7 +34,9 @@ export default function Home() {
   const { data: stories = [], isLoading } = useStories();
   const createStory = useCreateStory();
   const cancelStory = useCancelStory();
+  const toggleVisibility = useToggleVisibility();
   const { progress } = useStoryGeneration(generatingStoryId);
+  const { requestPermission, notify } = useNotification();
   const navigate = useNavigate();
   const { t, language } = useLanguage();
 
@@ -41,14 +45,23 @@ export default function Home() {
     setStoredGeneratingId(generatingStoryId);
   }, [generatingStoryId]);
 
-  const handleCreateStory = useCallback(async (prompt: string) => {
+  const handleCreateStory = useCallback(async (prompt: string, age: number, style: ArtStyleKey) => {
     try {
-      const result = await createStory.mutateAsync({ prompt, language });
+      requestPermission();
+      const result = await createStory.mutateAsync({ prompt, language, age, style });
       setGeneratingStoryId(result.id);
     } catch (error) {
       console.error('Failed to create story:', error);
     }
-  }, [createStory, language]);
+  }, [createStory, language, requestPermission]);
+
+  const handleTogglePublic = useCallback(async (id: string, isPublic: boolean) => {
+    try {
+      await toggleVisibility.mutateAsync({ id, isPublic });
+    } catch {
+      // Silently fail - React Query will keep the previous state
+    }
+  }, [toggleVisibility]);
 
   const handleCancelStory = useCallback(async () => {
     if (!generatingStoryId) return;
@@ -65,6 +78,7 @@ export default function Home() {
   useEffect(() => {
     if (generatingStoryId && progress) {
       if (progress.completedPages >= 1 || progress.status === 'completed') {
+        notify(t.notificationTitle, t.notificationBody);
         const targetId = generatingStoryId;
         setGeneratingStoryId(null);
         setStoredGeneratingId(null);
@@ -75,7 +89,7 @@ export default function Home() {
         setStoredGeneratingId(null);
       }
     }
-  }, [progress?.status, progress?.completedPages, generatingStoryId, navigate]);
+  }, [progress?.status, progress?.completedPages, generatingStoryId, navigate, notify, t]);
 
   // Show progress if we have a generatingStoryId (even before SSE connects, for instant feedback)
   const showProgress = generatingStoryId && progress?.status !== 'completed';
@@ -104,7 +118,7 @@ export default function Home() {
         )}
 
         <div className="mt-4">
-          <StoryGrid stories={stories} isLoading={isLoading} />
+          <StoryGrid stories={stories} isLoading={isLoading} onTogglePublic={handleTogglePublic} />
         </div>
       </div>
     </div>

@@ -17,8 +17,14 @@ Cada cuento debe seguir este patrón básico, adaptado a la intensidad específi
 ## Reglas Específicas por Edad
 
 - **Para 3 años:** Temas hiperfamiliares (dormir, comer, compartir juguetes). Sin antagonistas reales, solo pequeñas frustraciones. Frases cortas (2-3 por página). Usa onomatopeyas (Bum!, Zas!) y ritmo.
+  - *Entornos:* Escenarios acogedores, cálidos y familiares (dormitorio, cocina, jardín) pero ricos en detalles sensoriales — juguetes esparcidos, luz cálida a través de las cortinas, flores coloridas, texturas suaves, un gato durmiendo en el alféizar.
+  - *Vida de fondo:* 1-2 personajes secundarios suaves en el fondo (una mariposa revoloteando, un pájaro en una rama, un caracol en una hoja, una mascota durmiendo).
 - **Para 4-5 años:** Causa-efecto más claro. Amistad, valentía, miedo a lo desconocido. Vocabulario ligeramente ampliado, diálogo simple.
+  - *Entornos:* Ubicaciones más variadas e interesantes (bosques encantados, parques animados, pueblos pintorescos, un mercado concurrido) con detalles ambientales atractivos — hojas crujientes, charcos reflejando el cielo, cometas en el viento.
+  - *Vida de fondo:* 2-3 personajes secundarios haciendo sus propias cosas en el fondo (otros animales jugando, una ardilla recolectando nueces, aldeanos caminando con cestas, peces saltando en un estanque).
 - **Para 6-8 años:** Conflictos reales (celos, honestidad, trabajo en equipo). Personajes más complejos, humor inteligente, misterios ligeros. Diálogo dinámico.
+  - *Entornos:* Mundos ricos e imaginativos con profundidad atmosférica — efectos climáticos, iluminación según la hora del día, narrativa ambiental (una torre con reloj mostrando la hora, carteles en las paredes, huellas en la nieve).
+  - *Vida de fondo:* 3-5 personajes secundarios creando un mundo vivo y bullicioso (una multitud en un festival, niños en un patio de recreo, comerciantes gritando en un bazar, bandadas de pájaros cruzando un cielo de atardecer).
 - _Si no se especifica la edad, se asumen 3-4 años._
 
 ## Reglas para los Personajes
@@ -39,6 +45,9 @@ Cada cuento debe seguir este patrón básico, adaptado a la intensidad específi
 - No incluyas NUNCA texto, letras o palabras en la descripción de la imagen.
 - Evita interacciones físicas muy complejas (abrazos apretados, tomarse de la mano de forma específica) - usa la proximidad en su lugar ("de pie felices uno junto al otro").
 - `imagePrompt` y `characterSheetPrompt` se escriben SIEMPRE en inglés.
+- **ENTORNO COMPLETO (CRÍTICO):** Cada `imagePrompt` DEBE describir un **entorno completo y ricamente detallado** — no personajes sobre un fondo vacío o simple. Cada cuadro debe parecer una escena de las mejores películas de Pixar: profundidad, atmósfera, narrativa ambiental, colores ricos y sentido del lugar. Piensa en cada cuadro como un plano general o medio-general que muestra dónde ocurre la historia.
+- **COMPOSICIÓN DE ESCENA:** Compón la escena de modo que los personajes principales estén posicionados en los **dos tercios superiores** del cuadro. La parte inferior de la imagen tendrá un texto superpuesto, así que coloca detalles de entorno de apoyo allí (suelo, camino, piso, hierba, agua) en lugar de rostros de personajes.
+- **PERSONAJES DE FONDO:** Según la edad objetivo (ver Reglas Específicas por Edad arriba), incluye el número apropiado de personajes secundarios o detalles vivos en el fondo del `imagePrompt`. Estos NO son personajes principales — son extras ambientales (otros animales, personas, criaturas, insectos, pájaros) que hacen que el mundo se sienta vivo y poblado. Descríbelos brevemente pero de forma específica (ej: "en el fondo, dos conejitos se persiguen cerca de un arbusto, y un pájaro azul se posa en un poste de cerca").
 
 ## Formato de Salida
 

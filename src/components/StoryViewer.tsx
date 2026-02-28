@@ -140,8 +140,8 @@ export default function StoryViewer({ storyId, scenario, isGenerating, progress 
                 </div>
               )}
 
-              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 via-black/50 to-transparent">
-                <div className="px-6 pb-16 pt-20 md:px-12 md:pb-20 md:pt-24">
+              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/85 via-black/60 via-[25%] to-transparent">
+                <div className="px-6 pb-16 pt-10 md:px-12 md:pb-20 md:pt-14">
                   <p className={`text-white ${fontSizeClasses[fontSize]} leading-relaxed max-w-3xl mx-auto text-center drop-shadow-lg font-medium transition-[font-size] duration-200`}>
                     {page.text}
                   </p>

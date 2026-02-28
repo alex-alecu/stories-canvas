@@ -14,6 +14,14 @@ const pt: Translations = {
   storyInputGuestPlaceholder: 'Você precisa entrar para criar histórias',
   createStory: 'Criar História',
   creating: 'Criando...',
+  childAge: 'Idade da criança',
+  artStyle: 'Estilo artístico',
+  styleDisneyPixar: 'Disney/Pixar 3D',
+  styleWatercolor: 'Aquarela',
+  styleStorybook: 'Livro clássico',
+  styleAnime: 'Anime',
+  styleColoredPencil: 'Lápis de cor',
+  stylePaperCutout: 'Colagem de papel',
 
   creatingYourStory: 'Criando sua história',
   generationFailed: 'A geração falhou',
@@ -68,6 +76,8 @@ const pt: Translations = {
   checkEmailForConfirmation: 'Verifique seu email para confirmar sua conta.',
   continueWithGoogle: 'Continuar com Google',
   finalizingAuth: 'Finalizando autenticação...',
+  authError: 'Falha na autenticação',
+  backToLogin: 'Voltar ao login',
 
   myStories: 'Minhas Histórias',
   noStoriesYetProfile: 'Você ainda não tem histórias',
@@ -98,6 +108,9 @@ const pt: Translations = {
 
   menu: 'Menu',
   theme: 'Tema',
+
+  notificationTitle: 'Sua história está pronta!',
+  notificationBody: 'A primeira ilustração foi gerada. Venha dar uma olhada!',
 
   language: 'Idioma',
   languageName: 'Português',

@@ -14,6 +14,14 @@ const es: Translations = {
   storyInputGuestPlaceholder: 'Necesitas iniciar sesión para crear cuentos',
   createStory: 'Crear Cuento',
   creating: 'Creando...',
+  childAge: 'Edad del niño',
+  artStyle: 'Estilo artístico',
+  styleDisneyPixar: 'Disney/Pixar 3D',
+  styleWatercolor: 'Acuarela',
+  styleStorybook: 'Cuento clásico',
+  styleAnime: 'Anime',
+  styleColoredPencil: 'Lápices de colores',
+  stylePaperCutout: 'Recortes de papel',
 
   creatingYourStory: 'Creando tu cuento',
   generationFailed: 'La generación falló',
@@ -68,6 +76,8 @@ const es: Translations = {
   checkEmailForConfirmation: 'Revisa tu correo para confirmar tu cuenta.',
   continueWithGoogle: 'Continuar con Google',
   finalizingAuth: 'Finalizando autenticación...',
+  authError: 'Autenticación fallida',
+  backToLogin: 'Volver al inicio de sesión',
 
   myStories: 'Mis Cuentos',
   noStoriesYetProfile: 'Aún no tienes cuentos',
@@ -98,6 +108,9 @@ const es: Translations = {
 
   menu: 'Menú',
   theme: 'Tema',
+
+  notificationTitle: '¡Tu cuento está listo!',
+  notificationBody: 'La primera ilustración ha sido generada. ¡Ven a verla!',
 
   language: 'Idioma',
   languageName: 'Español',

@@ -14,6 +14,14 @@ const sk: Translations = {
   storyInputGuestPlaceholder: 'Na vytváranie príbehov sa musíte prihlásiť',
   createStory: 'Vytvoriť Príbeh',
   creating: 'Vytváranie...',
+  childAge: 'Vek dieťaťa',
+  artStyle: 'Umelecký štýl',
+  styleDisneyPixar: 'Disney/Pixar 3D',
+  styleWatercolor: 'Akvarel',
+  styleStorybook: 'Klasická rozprávka',
+  styleAnime: 'Anime',
+  styleColoredPencil: 'Pastelky',
+  stylePaperCutout: 'Papierová koláž',
 
   creatingYourStory: 'Vytvárame váš príbeh',
   generationFailed: 'Generovanie zlyhalo',
@@ -68,6 +76,8 @@ const sk: Translations = {
   checkEmailForConfirmation: 'Skontrolujte e-mail na potvrdenie účtu.',
   continueWithGoogle: 'Pokračovať s Google',
   finalizingAuth: 'Dokončovanie overovania...',
+  authError: 'Overenie zlyhalo',
+  backToLogin: 'Späť na prihlásenie',
 
   myStories: 'Moje Príbehy',
   noStoriesYetProfile: 'Zatiaľ nemáte žiadne príbehy',
@@ -98,6 +108,9 @@ const sk: Translations = {
 
   menu: 'Menu',
   theme: 'Vzhľad',
+
+  notificationTitle: 'Váš príbeh je pripravený!',
+  notificationBody: 'Prvá ilustrácia bola vygenerovaná. Príďte sa pozrieť!',
 
   language: 'Jazyk',
   languageName: 'Slovenčina',

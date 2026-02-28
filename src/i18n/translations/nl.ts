@@ -14,6 +14,14 @@ const nl: Translations = {
   storyInputGuestPlaceholder: 'Je moet inloggen om verhalen te maken',
   createStory: 'Verhaal Maken',
   creating: 'Bezig met maken...',
+  childAge: 'Leeftijd van het kind',
+  artStyle: 'Kunststijl',
+  styleDisneyPixar: 'Disney/Pixar 3D',
+  styleWatercolor: 'Aquarel',
+  styleStorybook: 'Klassiek prentenboek',
+  styleAnime: 'Anime',
+  styleColoredPencil: 'Kleurpotlood',
+  stylePaperCutout: 'Papierknipsel',
 
   creatingYourStory: 'Je verhaal wordt gemaakt',
   generationFailed: 'Generatie mislukt',
@@ -68,6 +76,8 @@ const nl: Translations = {
   checkEmailForConfirmation: 'Controleer je e-mail om je account te bevestigen.',
   continueWithGoogle: 'Doorgaan met Google',
   finalizingAuth: 'Authenticatie wordt afgerond...',
+  authError: 'Authenticatie mislukt',
+  backToLogin: 'Terug naar inloggen',
 
   myStories: 'Mijn Verhalen',
   noStoriesYetProfile: 'Je hebt nog geen verhalen',
@@ -98,6 +108,9 @@ const nl: Translations = {
 
   menu: 'Menu',
   theme: 'Thema',
+
+  notificationTitle: 'Je verhaal is klaar!',
+  notificationBody: 'De eerste illustratie is gegenereerd. Kom kijken!',
 
   language: 'Taal',
   languageName: 'Nederlands',

@@ -14,6 +14,14 @@ const sv: Translations = {
   storyInputGuestPlaceholder: 'Du måste logga in för att skapa sagor',
   createStory: 'Skapa Saga',
   creating: 'Skapar...',
+  childAge: 'Barnets ålder',
+  artStyle: 'Konststil',
+  styleDisneyPixar: 'Disney/Pixar 3D',
+  styleWatercolor: 'Akvarell',
+  styleStorybook: 'Klassisk sagobok',
+  styleAnime: 'Anime',
+  styleColoredPencil: 'Färgpenna',
+  stylePaperCutout: 'Pappersklipp',
 
   creatingYourStory: 'Skapar din saga',
   generationFailed: 'Genereringen misslyckades',
@@ -68,6 +76,8 @@ const sv: Translations = {
   checkEmailForConfirmation: 'Kolla din e-post för att bekräfta ditt konto.',
   continueWithGoogle: 'Fortsätt med Google',
   finalizingAuth: 'Slutför autentisering...',
+  authError: 'Autentisering misslyckades',
+  backToLogin: 'Tillbaka till inloggning',
 
   myStories: 'Mina Sagor',
   noStoriesYetProfile: 'Du har inga sagor ännu',
@@ -98,6 +108,9 @@ const sv: Translations = {
 
   menu: 'Meny',
   theme: 'Utseende',
+
+  notificationTitle: 'Din saga är klar!',
+  notificationBody: 'Den första illustrationen har skapats. Kom och titta!',
 
   language: 'Språk',
   languageName: 'Svenska',
