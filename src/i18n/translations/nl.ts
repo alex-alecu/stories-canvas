@@ -101,6 +101,9 @@ const nl: Translations = {
   menu: 'Menu',
   theme: 'Thema',
 
+  notificationTitle: 'Je verhaal is klaar!',
+  notificationBody: 'De eerste illustratie is gegenereerd. Kom kijken!',
+
   language: 'Taal',
   languageName: 'Nederlands',
 };

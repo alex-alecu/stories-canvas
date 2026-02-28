@@ -115,6 +115,10 @@ export interface Translations {
   menu: string;
   theme: string;
 
+  // Notifications
+  notificationTitle: string;
+  notificationBody: string;
+
   // Language
   language: string;
   languageName: string;

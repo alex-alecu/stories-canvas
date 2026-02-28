@@ -114,6 +114,9 @@ const ro: Translations = {
   menu: 'Meniu',
   theme: 'Temă',
 
+  notificationTitle: 'Povestea ta este gata!',
+  notificationBody: 'Prima ilustrație a fost generată. Vino să o vezi!',
+
   language: 'Limbă',
   languageName: 'Română',
 };

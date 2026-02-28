@@ -101,6 +101,9 @@ const da: Translations = {
   menu: 'Menu',
   theme: 'Udseende',
 
+  notificationTitle: 'Din historie er klar!',
+  notificationBody: 'Den første illustration er blevet genereret. Kom og se!',
+
   language: 'Sprog',
   languageName: 'Dansk',
 };

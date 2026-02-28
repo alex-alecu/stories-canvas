@@ -101,6 +101,9 @@ const fr: Translations = {
   menu: 'Menu',
   theme: 'Thème',
 
+  notificationTitle: 'Votre histoire est prête !',
+  notificationBody: 'La première illustration a été générée. Venez y jeter un œil !',
+
   language: 'Langue',
   languageName: 'Français',
 };

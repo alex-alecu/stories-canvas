@@ -101,6 +101,9 @@ const ko: Translations = {
   menu: '메뉴',
   theme: '테마',
 
+  notificationTitle: '이야기가 준비되었어요!',
+  notificationBody: '첫 번째 삽화가 생성되었습니다. 와서 확인해보세요!',
+
   language: '언어',
   languageName: '한국어',
 };

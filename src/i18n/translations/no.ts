@@ -101,6 +101,9 @@ const no: Translations = {
   menu: 'Meny',
   theme: 'Utseende',
 
+  notificationTitle: 'Historien din er klar!',
+  notificationBody: 'Den første illustrasjonen er laget. Kom og se!',
+
   language: 'Språk',
   languageName: 'Norsk',
 };

@@ -101,6 +101,9 @@ const ja: Translations = {
   menu: 'メニュー',
   theme: 'テーマ',
 
+  notificationTitle: 'おはなしができました！',
+  notificationBody: '最初のイラストが完成しました。見に来てね！',
+
   language: '言語',
   languageName: '日本語',
 };

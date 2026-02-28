@@ -101,6 +101,9 @@ const pl: Translations = {
   menu: 'Menu',
   theme: 'Motyw',
 
+  notificationTitle: 'Twoja opowieść jest gotowa!',
+  notificationBody: 'Pierwsza ilustracja została wygenerowana. Przyjdź zobaczyć!',
+
   language: 'Język',
   languageName: 'Polski',
 };

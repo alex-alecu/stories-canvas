@@ -101,6 +101,9 @@ const sv: Translations = {
   menu: 'Meny',
   theme: 'Utseende',
 
+  notificationTitle: 'Din saga är klar!',
+  notificationBody: 'Den första illustrationen har skapats. Kom och titta!',
+
   language: 'Språk',
   languageName: 'Svenska',
 };

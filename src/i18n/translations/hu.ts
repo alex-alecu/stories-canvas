@@ -101,6 +101,9 @@ const hu: Translations = {
   menu: 'Menü',
   theme: 'Téma',
 
+  notificationTitle: 'A meséd elkészült!',
+  notificationBody: 'Az első illusztráció elkészült. Gyere, nézd meg!',
+
   language: 'Nyelv',
   languageName: 'Magyar',
 };

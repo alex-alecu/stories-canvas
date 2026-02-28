@@ -5,6 +5,7 @@ import StoryGrid from '../components/StoryGrid';
 import GenerationProgress from '../components/GenerationProgress';
 import { useStories, useCreateStory, useCancelStory } from '../hooks/useStories';
 import { useStoryGeneration } from '../hooks/useStoryGeneration';
+import { useNotification } from '../hooks/useNotification';
 import { useLanguage } from '../i18n/LanguageContext';
 
 const GENERATING_STORY_KEY = 'stories-canvas:generatingStoryId';
@@ -33,6 +34,7 @@ export default function Home() {
   const createStory = useCreateStory();
   const cancelStory = useCancelStory();
   const { progress } = useStoryGeneration(generatingStoryId);
+  const { requestPermission, notify } = useNotification();
   const navigate = useNavigate();
   const { t, language } = useLanguage();
 
@@ -43,12 +45,13 @@ export default function Home() {
 
   const handleCreateStory = useCallback(async (prompt: string) => {
     try {
+      requestPermission();
       const result = await createStory.mutateAsync({ prompt, language });
       setGeneratingStoryId(result.id);
     } catch (error) {
       console.error('Failed to create story:', error);
     }
-  }, [createStory, language]);
+  }, [createStory, language, requestPermission]);
 
   const handleCancelStory = useCallback(async () => {
     if (!generatingStoryId) return;
@@ -65,6 +68,7 @@ export default function Home() {
   useEffect(() => {
     if (generatingStoryId && progress) {
       if (progress.completedPages >= 1 || progress.status === 'completed') {
+        notify(t.notificationTitle, t.notificationBody);
         const targetId = generatingStoryId;
         setGeneratingStoryId(null);
         setStoredGeneratingId(null);
@@ -75,7 +79,7 @@ export default function Home() {
         setStoredGeneratingId(null);
       }
     }
-  }, [progress?.status, progress?.completedPages, generatingStoryId, navigate]);
+  }, [progress?.status, progress?.completedPages, generatingStoryId, navigate, notify, t]);
 
   // Show progress if we have a generatingStoryId (even before SSE connects, for instant feedback)
   const showProgress = generatingStoryId && progress?.status !== 'completed';

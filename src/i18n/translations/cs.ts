@@ -101,6 +101,9 @@ const cs: Translations = {
   menu: 'Menu',
   theme: 'Vzhled',
 
+  notificationTitle: 'Váš příběh je připraven!',
+  notificationBody: 'První ilustrace byla vygenerována. Přijďte se podívat!',
+
   language: 'Jazyk',
   languageName: 'Čeština',
 };

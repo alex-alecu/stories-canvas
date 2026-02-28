@@ -101,6 +101,9 @@ const sk: Translations = {
   menu: 'Menu',
   theme: 'Vzhľad',
 
+  notificationTitle: 'Váš príbeh je pripravený!',
+  notificationBody: 'Prvá ilustrácia bola vygenerovaná. Príďte sa pozrieť!',
+
   language: 'Jazyk',
   languageName: 'Slovenčina',
 };

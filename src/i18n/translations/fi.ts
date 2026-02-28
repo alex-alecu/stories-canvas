@@ -101,6 +101,9 @@ const fi: Translations = {
   menu: 'Valikko',
   theme: 'Teema',
 
+  notificationTitle: 'Satusi on valmis!',
+  notificationBody: 'Ensimmäinen kuvitus on luotu. Tule katsomaan!',
+
   language: 'Kieli',
   languageName: 'Suomi',
 };

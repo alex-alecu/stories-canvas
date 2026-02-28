@@ -101,6 +101,9 @@ const zh: Translations = {
   menu: '菜单',
   theme: '主题',
 
+  notificationTitle: '你的故事准备好了！',
+  notificationBody: '第一张插图已生成。快来看看吧！',
+
   language: '语言',
   languageName: '中文',
 };
