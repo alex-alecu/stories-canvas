@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import StoryInput from '../components/StoryInput';
 import StoryGrid from '../components/StoryGrid';
+import BackgroundOrbs from '../components/BackgroundOrbs';
 import GenerationProgress from '../components/GenerationProgress';
 import { useStories, useCreateStory, useCancelStory, useToggleVisibility } from '../hooks/useStories';
 import { useStoryGeneration } from '../hooks/useStoryGeneration';
@@ -95,8 +96,9 @@ export default function Home() {
   const showProgress = generatingStoryId && progress?.status !== 'completed';
 
   return (
-    <div className="min-h-screen p-4 md:p-8">
-      <div className="max-w-6xl mx-auto">
+    <div className="min-h-screen p-4 md:p-8 relative">
+      <BackgroundOrbs />
+      <div className="max-w-6xl mx-auto relative z-10">
         <div className="py-8 md:py-16">
           <StoryInput onSubmit={handleCreateStory} isLoading={createStory.isPending} />
         </div>
