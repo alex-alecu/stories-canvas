@@ -17,8 +17,8 @@ const supabaseServiceKey = optionalEnv('SUPABASE_SERVICE_KEY');
 
 export const config = {
   geminiApiKey: requireEnv('GEMINI_API_KEY'),
-  scenarioModel: process.env.SCENARIO_MODEL || 'gemini-2.5-flash',
-  imageModel: process.env.IMAGE_MODEL || 'gemini-2.5-flash-preview-image-generation',
+  scenarioModel: process.env.SCENARIO_MODEL || 'gemini-3.1-pro-preview',
+  imageModel: process.env.IMAGE_MODEL || 'gemini-3.1-flash-image-preview',
   imageConcurrency: parseInt(process.env.IMAGE_CONCURRENCY || '3', 10),
   port: parseInt(process.env.PORT || process.env.SERVER_PORT || '3001', 10),
   dataDir: process.env.DATA_DIR || path.join(process.cwd(), 'data', 'stories'),
