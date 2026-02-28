@@ -96,7 +96,7 @@ export default function StoryInput({ onSubmit, isLoading }: StoryInputProps) {
 
           {/* Age & Style selectors - only for authenticated users */}
           {!isGuest && (
-            <div className="flex items-center gap-4 px-6 pb-3">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 px-6 pb-3">
               <div className="flex items-center gap-2">
                 <label htmlFor="age-select" className="text-sm text-gray-400 dark:text-gray-500 whitespace-nowrap">
                   {t.childAge}
@@ -114,7 +114,7 @@ export default function StoryInput({ onSubmit, isLoading }: StoryInputProps) {
                 </select>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 min-w-0">
                 <label htmlFor="style-select" className="text-sm text-gray-400 dark:text-gray-500 whitespace-nowrap">
                   {t.artStyle}
                 </label>
@@ -123,7 +123,7 @@ export default function StoryInput({ onSubmit, isLoading }: StoryInputProps) {
                   value={style}
                   onChange={(e) => setStyle(e.target.value as ArtStyleKey)}
                   disabled={isLoading}
-                  className="text-sm bg-gray-50 dark:bg-surface-dark border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1.5 text-gray-700 dark:text-gray-300 focus:outline-none focus:border-primary-300 dark:focus:border-primary-600 disabled:opacity-50 cursor-pointer"
+                  className="text-sm bg-gray-50 dark:bg-surface-dark border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1.5 text-gray-700 dark:text-gray-300 focus:outline-none focus:border-primary-300 dark:focus:border-primary-600 disabled:opacity-50 cursor-pointer min-w-0"
                 >
                   {STYLE_KEYS.map((key) => (
                     <option key={key} value={key}>{t[styleTranslationMap[key]]}</option>
