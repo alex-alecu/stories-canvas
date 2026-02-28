@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import StoryInput from '../components/StoryInput';
 import StoryGrid from '../components/StoryGrid';
 import GenerationProgress from '../components/GenerationProgress';
-import { useStories, useCreateStory, useCancelStory } from '../hooks/useStories';
+import { useStories, useCreateStory, useCancelStory, useToggleVisibility } from '../hooks/useStories';
 import { useStoryGeneration } from '../hooks/useStoryGeneration';
 import { useNotification } from '../hooks/useNotification';
 import { useLanguage } from '../i18n/LanguageContext';
@@ -33,6 +33,7 @@ export default function Home() {
   const { data: stories = [], isLoading } = useStories();
   const createStory = useCreateStory();
   const cancelStory = useCancelStory();
+  const toggleVisibility = useToggleVisibility();
   const { progress } = useStoryGeneration(generatingStoryId);
   const { requestPermission, notify } = useNotification();
   const navigate = useNavigate();
@@ -52,6 +53,14 @@ export default function Home() {
       console.error('Failed to create story:', error);
     }
   }, [createStory, language, requestPermission]);
+
+  const handleTogglePublic = useCallback(async (id: string, isPublic: boolean) => {
+    try {
+      await toggleVisibility.mutateAsync({ id, isPublic });
+    } catch {
+      // Silently fail - React Query will keep the previous state
+    }
+  }, [toggleVisibility]);
 
   const handleCancelStory = useCallback(async () => {
     if (!generatingStoryId) return;
@@ -108,7 +117,7 @@ export default function Home() {
         )}
 
         <div className="mt-4">
-          <StoryGrid stories={stories} isLoading={isLoading} />
+          <StoryGrid stories={stories} isLoading={isLoading} onTogglePublic={handleTogglePublic} />
         </div>
       </div>
     </div>

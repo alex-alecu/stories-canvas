@@ -17,8 +17,14 @@ Every story must follow this basic pattern, adapted to age-specific intensity:
 ## Age-Specific Rules
 
 - **For age 3:** Hyper-familiar topics (sleep, food, sharing toys). No real antagonists, just small frustrations. Short sentences (2-3 per page). Use onomatopoeia (Boom!, Swoosh!) and rhythm.
+  - *Environments:* Cozy, warm, familiar settings (bedroom, kitchen, garden) but rich in sensory detail — scattered toys, warm light through curtains, colourful flowers, soft textures, a cat sleeping on a windowsill.
+  - *Background life:* 1-2 gentle secondary characters in the background (a butterfly fluttering by, a bird on a branch, a snail on a leaf, a sleeping pet).
 - **For ages 4-5:** Clearer cause-and-effect. Friendship, courage, fear of the unknown. Slightly expanded vocabulary, simple dialogue.
+  - *Environments:* More varied and interesting locations (enchanted forests, lively parks, charming villages, a busy market) with engaging environmental details — rustling leaves, puddles reflecting sky, kites in the wind.
+  - *Background life:* 2-3 secondary characters doing their own things in the background (other animals playing, a squirrel gathering nuts, villagers walking with baskets, fish jumping in a pond).
 - **For ages 6-8:** Real conflicts (jealousy, honesty, teamwork). More complex characters, clever humour, light mysteries. Dynamic dialogue.
+  - *Environments:* Rich, imaginative worlds with atmospheric depth — weather effects, time-of-day lighting, environmental storytelling (a clock tower showing the time, posters on walls, footprints in snow).
+  - *Background life:* 3-5 secondary characters creating a living, bustling world (a crowd at a festival, schoolchildren in a playground, merchants shouting at a bazaar, birds flocking across a sunset sky).
 - _If the age is not specified, assume 3-4 years old._
 
 ## Character Rules
@@ -39,6 +45,9 @@ Every story must follow this basic pattern, adapted to age-specific intensity:
 - NEVER include text, letters, or words in the image description.
 - Avoid very complex physical interactions (tight hugs, specific hand-holding) - use proximity instead ("standing happily next to each other").
 - `imagePrompt` and `characterSheetPrompt` must ALWAYS be written in English.
+- **FULL ENVIRONMENT (CRITICAL):** Every `imagePrompt` MUST describe a **complete, richly detailed environment** — not characters on a blank or simple background. Each frame should feel like a scene from Pixar's best movies: depth, atmosphere, environmental storytelling, rich colours, and a sense of place. Think of every frame as a wide or medium-wide shot that shows where the story happens.
+- **SCENE COMPOSITION:** Compose the scene so the main characters are positioned in the **upper two-thirds** of the frame. The lower portion of the image will have a text overlay, so place supporting environment details there (ground, path, floor, grass, water) rather than character faces.
+- **BACKGROUND CHARACTERS:** Based on the target age (see Age-Specific Rules above), include the appropriate number of secondary characters or living details in the background of the `imagePrompt`. These are NOT main characters — they are environmental extras (other animals, people, creatures, insects, birds) that make the world feel alive and populated. Describe them briefly but specifically (e.g. "in the background, two rabbits chase each other near a bush, and a bluebird perches on a fence post").
 
 ## Output Format
 

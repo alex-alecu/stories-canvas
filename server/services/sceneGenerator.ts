@@ -75,6 +75,12 @@ Scene: ${page.imagePrompt}
 Characters in scene:
 ${charDescriptions}
 
+ENVIRONMENT: This must be a COMPLETE, richly detailed scene — like a frame from a Pixar/Disney animated movie. Render a FULL environment with depth, atmospheric lighting, and environmental storytelling details (weather, time of day, objects that tell a story). Do NOT render characters on a plain or overly simple background. The setting should feel alive and immersive.
+
+BACKGROUND LIFE: Include secondary characters and living details in the background to make the world feel alive — other animals, people, creatures, or environmental activity appropriate to the setting. These background elements should add depth and atmosphere without distracting from the main characters.
+
+COMPOSITION: Position the main characters in the UPPER TWO-THIRDS of the frame. The lower portion of the image will have a text overlay, so keep character faces and critical visual elements out of the bottom third. Place supporting environment details (ground, path, floor, grass) in the lower area instead.
+
 CONSISTENCY REQUIREMENTS:
 - Characters must look IDENTICAL to the reference sheets: same exact fur/skin colors, eye colors, body proportions, clothing details
 - Maintain the SAME art style across all scenes: same rendering quality, same color saturation, same lighting approach
