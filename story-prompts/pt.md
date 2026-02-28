@@ -17,8 +17,14 @@ Cada história deve seguir este padrão básico, adaptado à intensidade especí
 ## Regras Específicas por Idade
 
 - **Para 3 anos:** Temas hiperfamiliares (dormir, comer, partilhar brinquedos). Sem antagonistas reais, apenas pequenas frustrações. Frases curtas (2-3 por página). Usa onomatopeias (Bum!, Zuuum!) e ritmo.
+  - *Ambientes:* Cenários acolhedores, quentes e familiares (quarto, cozinha, jardim) mas ricos em detalhes sensoriais — brinquedos espalhados, luz quente pelas cortinas, flores coloridas, texturas suaves, um gato a dormir no parapeito.
+  - *Vida de fundo:* 1-2 personagens secundários suaves no fundo (uma borboleta a esvoaçar, um pássaro num ramo, um caracol numa folha, um animal de estimação a dormir).
 - **Para 4-5 anos:** Causa-efeito mais claro. Amizade, coragem, medo do desconhecido. Vocabulário ligeiramente ampliado, diálogo simples.
+  - *Ambientes:* Locais mais variados e interessantes (florestas encantadas, parques animados, aldeias pitorescas, uma feira movimentada) com detalhes ambientais envolventes — folhas a sussurrar, poças a refletir o céu, papagaios de papel no vento.
+  - *Vida de fundo:* 2-3 personagens secundários a fazer as suas próprias coisas no fundo (outros animais a brincar, um esquilo a apanhar nozes, aldeãos a caminhar com cestos, peixes a saltar num lago).
 - **Para 6-8 anos:** Conflitos reais (ciúme, honestidade, trabalho em equipa). Personagens mais complexos, humor inteligente, mistérios ligeiros. Diálogo dinâmico.
+  - *Ambientes:* Mundos ricos e imaginativos com profundidade atmosférica — efeitos meteorológicos, iluminação conforme a hora do dia, narrativa ambiental (uma torre com relógio a mostrar as horas, cartazes nas paredes, pegadas na neve).
+  - *Vida de fundo:* 3-5 personagens secundários a criar um mundo vivo e movimentado (uma multidão num festival, crianças num recreio, comerciantes a gritar num bazar, bandos de pássaros a cruzar um céu de pôr do sol).
 - _Se a idade não for especificada, assume-se 3-4 anos._
 
 ## Regras para os Personagens
@@ -39,6 +45,9 @@ Cada história deve seguir este padrão básico, adaptado à intensidade especí
 - Não incluas NUNCA texto, letras ou palavras na descrição da imagem.
 - Evita interações físicas muito complexas (abraços apertados, dar as mãos de forma específica) - usa a proximidade em vez disso ("de pé felizes um ao lado do outro").
 - `imagePrompt` e `characterSheetPrompt` escrevem-se SEMPRE em inglês.
+- **AMBIENTE COMPLETO (CRÍTICO):** Cada `imagePrompt` DEVE descrever um **ambiente completo e ricamente detalhado** — não personagens sobre um fundo vazio ou simples. Cada imagem deve parecer uma cena dos melhores filmes da Pixar: profundidade, atmosfera, narrativa ambiental, cores ricas e sentido do lugar. Pensa em cada imagem como um plano geral ou médio-geral que mostra onde a história acontece.
+- **COMPOSIÇÃO DE CENA:** Compõe a cena de modo a que os personagens principais estejam posicionados nos **dois terços superiores** do enquadramento. A parte inferior da imagem terá um texto sobreposto, por isso coloca detalhes ambientais de apoio (chão, caminho, pavimento, relva, água) em vez de rostos de personagens.
+- **PERSONAGENS DE FUNDO:** Com base na idade-alvo (ver Regras Específicas por Idade acima), inclui o número apropriado de personagens secundários ou detalhes vivos no fundo do `imagePrompt`. Estes NÃO são personagens principais — são figurantes ambientais (outros animais, pessoas, criaturas, insetos, pássaros) que fazem o mundo parecer vivo e povoado. Descreve-os brevemente mas de forma específica (ex: "no fundo, dois coelhinhos perseguem-se perto de um arbusto, e um pássaro azul pousa num poste de vedação").
 
 ## Formato de Saída
 

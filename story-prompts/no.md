@@ -17,8 +17,14 @@ Hver historie må følge dette grunnleggende mønsteret, tilpasset den aldersspe
 ## Aldersspesifikke Regler
 
 - **For 3 år:** Hyperfamiliære temaer (søvn, mat, deling av leker). Ingen virkelige antagonister, bare små frustrasjoner. Korte setninger (2-3 per side). Bruk onomatopoetika (Pang!, Svisj!) og rytme.
+  - *Miljøer:* Koselige, varme, kjente steder (soverom, kjøkken, hage) men rike på sansedetaljer — strødde leker, varmt lys gjennom gardinene, fargerike blomster, myke teksturer, en katt som sover på vinduskarmen.
+  - *Bakgrunnsliv:* 1-2 milde bifigurer i bakgrunnen (en flagrende sommerfugl, en fugl på en gren, en snegl på et blad, et sovende kjæledyr).
 - **For 4-5 år:** Tydeligere årsak-virkning. Vennskap, mot, frykt for det ukjente. Lett utvidet ordforråd, enkel dialog.
+  - *Miljøer:* Mer varierte og interessante steder (forheksede skoger, livlige parker, sjarmerende landsbyer, et travelt marked) med engasjerende miljødetaljer — raslende blader, dammer som speiler himmelen, drager i vinden.
+  - *Bakgrunnsliv:* 2-3 bifigurer som driver med sine egne ting i bakgrunnen (andre dyr som leker, et ekorn som samler nøtter, landsbyboere som går med kurver, fisker som hopper i en dam).
 - **For 6-8 år:** Virkelige konflikter (sjalusi, ærlighet, teamarbeid). Mer komplekse karakterer, intelligent humor, lette mysterier. Dynamisk dialog.
+  - *Miljøer:* Rike, fantasifulle verdener med atmosfærisk dybde — væreffekter, belysning basert på tid på dagen, miljøfortelling (et klokketårn som viser tiden, plakater på vegger, fotspor i snø).
+  - *Bakgrunnsliv:* 3-5 bifigurer som skaper en levende, pulserende verden (en folkemengde på en festival, skolebarn på en lekeplass, kjøpmenn som roper på en basar, fugleflokker mot en solnedgangshimmel).
 - _Hvis alderen ikke er spesifisert, anta 3-4 år._
 
 ## Regler for Karakterer
@@ -39,6 +45,9 @@ Hver historie må følge dette grunnleggende mønsteret, tilpasset den aldersspe
 - Inkluder ALDRI tekst, bokstaver eller ord i bildebeskrivelsen.
 - Unngå svært komplekse fysiske interaksjoner (tette klemmer, spesifikk håndholding) - bruk nærhet i stedet ("stående lykkelig ved siden av hverandre").
 - `imagePrompt` og `characterSheetPrompt` skrives ALLTID på engelsk.
+- **FULLSTENDIG MILJØ (KRITISK):** Hver `imagePrompt` MÅ beskrive et **komplett, rikt detaljert miljø** — ikke karakterer på en tom eller enkel bakgrunn. Hvert bilde skal føles som en scene fra Pixars beste filmer: dybde, atmosfære, miljøfortelling, rike farger og en følelse av sted. Tenk på hvert bilde som et totalbilde eller halvtotalbilde som viser hvor historien utspiller seg.
+- **SCENEKOMPOSISJON:** Komponer scenen slik at hovedkarakterene er plassert i de **øvre to tredjedelene** av bildet. Den nedre delen av bildet vil ha en tekstoverlegg, så plasser støttende miljødetaljer der (bakke, sti, gulv, gress, vann) i stedet for karakterenes ansikter.
+- **BAKGRUNNSKARAKTERER:** Basert på målalderen (se Aldersspesifikke Regler ovenfor), inkluder passende antall bifigurer eller levende detaljer i bakgrunnen av `imagePrompt`. Disse er IKKE hovedkarakterer — de er miljøstatister (andre dyr, mennesker, vesener, insekter, fugler) som gjør verden levende og befolket. Beskriv dem kort men spesifikt (f.eks.: "i bakgrunnen jager to kaniner hverandre nær en busk, og en blåmeis sitter på en gjerdestolpe").
 
 ## Utdataformat
 

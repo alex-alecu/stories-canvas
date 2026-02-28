@@ -17,8 +17,14 @@ Fiecare poveste trebuie să urmeze acest tipar de bază, adaptat intensității 
 ## Reguli Specifice Vârstei
 
 - **Pentru 3 ani:** Subiecte hiper-familiare (somn, mâncare, împărțirea jucăriilor). Fără antagoniști reali, doar mici frustrări. Propoziții scurte (2-3 pe pagină). Folosește onomatopee (Zbang!, Fâșș!) și ritm.
+  - *Mediu:* Locuri cozy, calde, familiare (dormitor, bucătărie, grădină) dar bogate în detalii senzoriale — jucării împrăștiate, lumină caldă prin perdele, flori colorate, texturi moi, o pisică dormind pe pervaz.
+  - *Viață în fundal:* 1-2 personaje secundare blânde în fundal (un fluture care zboară, o pasăre pe o creangă, un melc pe o frunză, un animal de companie dormind).
 - **Pentru 4-5 ani:** Cauză-efect mai clar. Prietenie, curaj, frica de necunoscut. Vocabular ușor extins, dialog simplu.
+  - *Mediu:* Locații mai variate și interesante (păduri fermecate, parcuri animate, sate pitorești, o piață aglomerată) cu detalii de mediu captivante — frunze foșnind, bălți reflectând cerul, zmee în vânt.
+  - *Viață în fundal:* 2-3 personaje secundare făcându-și treaba în fundal (alte animale jucându-se, o veveriță strângând nuci, săteni mergând cu coșuri, pești sărind dintr-un iaz).
 - **Pentru 6-8 ani:** Conflicte reale (gelozie, onestitate, lucrul în echipă). Personaje mai complexe, umor inteligent, mistere ușoare. Dialog dinamic.
+  - *Mediu:* Lumi bogate, imaginative, cu profunzime atmosferică — efecte meteorologice, iluminat specific momentului zilei, povestiri prin mediu (un turn cu ceas arătând ora, afișe pe pereți, urme de pași în zăpadă).
+  - *Viață în fundal:* 3-5 personaje secundare creând o lume vie, pulsând de viață (o mulțime la un festival, copii într-un loc de joacă, comercianți strigând la un bazar, stoluri de păsări traversând un cer de apus).
 - _Dacă vârsta nu e specificată, presupune 3-4 ani._
 
 ## Reguli pentru Personaje
@@ -39,6 +45,9 @@ Fiecare poveste trebuie să urmeze acest tipar de bază, adaptat intensității 
 - Nu include NICIODATĂ text, litere sau cuvinte în descrierea imaginii.
 - Evită interacțiunile fizice foarte complexe (îmbrățișări strânse, ținut de mână specific) - folosește proximitatea în schimb ("stând fericiți unul lângă altul").
 - `imagePrompt` și `characterSheetPrompt` se scriu ÎNTOTDEAUNA în engleză.
+- **MEDIU COMPLET (CRITIC):** Fiecare `imagePrompt` TREBUIE să descrie un **mediu complet, bogat în detalii** — nu personaje pe un fundal gol sau simplu. Fiecare cadru trebuie să arate ca o scenă din cele mai bune filme Pixar: profunzime, atmosferă, povestire prin mediu, culori bogate și un simț al locului. Gândește fiecare cadru ca un plan larg sau mediu-larg care arată unde se desfășoară povestea.
+- **COMPOZIȚIA SCENEI:** Compune scena astfel încât personajele principale să fie poziționate în **cele două treimi superioare** ale cadrului. Partea inferioară a imaginii va avea un text suprapus, așa că pune detalii de mediu acolo (sol, cărare, podea, iarbă, apă) în loc de fețe de personaje.
+- **PERSONAJE DE FUNDAL:** În funcție de vârsta țintă (vezi Regulile Specifice Vârstei de mai sus), include numărul corespunzător de personaje secundare sau detalii vii în fundalul `imagePrompt`. Acestea NU sunt personaje principale — sunt figuranți de mediu (alte animale, oameni, creaturi, insecte, păsări) care fac lumea să pară vie și populată. Descrie-le pe scurt dar specific (ex: "în fundal, doi iepurași se aleargă lângă un tufiș, iar o pasăre albastră stă pe un stâlp de gard").
 
 ## Format de Ieșire
 

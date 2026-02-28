@@ -17,8 +17,14 @@ Jede Geschichte muss diesem Grundmuster folgen, angepasst an die altersspezifisc
 ## Altersspezifische Regeln
 
 - **Für 3 Jahre:** Hypervertraute Themen (Schlafen, Essen, Spielzeug teilen). Keine echten Antagonisten, nur kleine Frustrationen. Kurze Sätze (2-3 pro Seite). Verwende Lautmalerei (Bumm!, Wusch!) und Rhythmus.
+  - *Umgebungen:* Gemütliche, warme, vertraute Schauplätze (Schlafzimmer, Küche, Garten) aber reich an sensorischen Details — verstreutes Spielzeug, warmes Licht durch Vorhänge, bunte Blumen, weiche Texturen, eine Katze, die auf der Fensterbank schläft.
+  - *Hintergrundleben:* 1-2 sanfte Nebenfiguren im Hintergrund (ein flatternder Schmetterling, ein Vogel auf einem Ast, eine Schnecke auf einem Blatt, ein schlafendes Haustier).
 - **Für 4-5 Jahre:** Klarere Ursache-Wirkung. Freundschaft, Mut, Angst vor dem Unbekannten. Leicht erweiterter Wortschatz, einfacher Dialog.
+  - *Umgebungen:* Abwechslungsreichere und interessantere Schauplätze (verwunschene Wälder, belebte Parks, malerische Dörfer, ein geschäftiger Markt) mit fesselnden Umgebungsdetails — raschelnde Blätter, Pfützen, die den Himmel spiegeln, Drachen im Wind.
+  - *Hintergrundleben:* 2-3 Nebenfiguren, die im Hintergrund ihren eigenen Aktivitäten nachgehen (andere Tiere beim Spielen, ein Eichhörnchen beim Nüssesammeln, Dorfbewohner mit Körben, Fische, die aus einem Teich springen).
 - **Für 6-8 Jahre:** Echte Konflikte (Eifersucht, Ehrlichkeit, Teamarbeit). Komplexere Figuren, cleverer Humor, leichte Rätsel. Dynamischer Dialog.
+  - *Umgebungen:* Reichhaltige, fantasievolle Welten mit atmosphärischer Tiefe — Wettereffekte, tageszeitsabhängige Beleuchtung, erzählerische Umgebungsdetails (ein Uhrturm, der die Zeit anzeigt, Poster an Wänden, Fußspuren im Schnee).
+  - *Hintergrundleben:* 3-5 Nebenfiguren, die eine lebendige, geschäftige Welt schaffen (eine Menge auf einem Fest, Schulkinder auf einem Spielplatz, Händler, die auf einem Basar rufen, Vogelschwärme vor einem Sonnenuntergangshimmel).
 - _Wenn das Alter nicht angegeben ist, gehe von 3-4 Jahren aus._
 
 ## Regeln für Figuren
@@ -39,6 +45,9 @@ Jede Geschichte muss diesem Grundmuster folgen, angepasst an die altersspezifisc
 - Füge NIEMALS Text, Buchstaben oder Wörter in die Bildbeschreibung ein.
 - Vermeide sehr komplexe physische Interaktionen (enge Umarmungen, spezifisches Händchenhalten) - verwende stattdessen Nähe („stehen glücklich nebeneinander").
 - `imagePrompt` und `characterSheetPrompt` werden IMMER auf Englisch geschrieben.
+- **VOLLSTÄNDIGE UMGEBUNG (KRITISCH):** Jeder `imagePrompt` MUSS eine **komplette, detailreiche Umgebung** beschreiben — keine Figuren auf leerem oder einfachem Hintergrund. Jedes Bild soll wie eine Szene aus den besten Pixar-Filmen wirken: Tiefe, Atmosphäre, erzählerische Umgebungsdetails, satte Farben und ein Gefühl für den Ort. Denke bei jedem Bild an eine Totale oder Halbtotale, die zeigt, wo die Geschichte stattfindet.
+- **SZENENKOMPOSITION:** Komponiere die Szene so, dass die Hauptfiguren in den **oberen zwei Dritteln** des Bildes positioniert sind. Der untere Teil des Bildes wird ein Textoverlay haben, platziere dort also unterstützende Umgebungsdetails (Boden, Weg, Fußboden, Gras, Wasser) statt Gesichter von Figuren.
+- **HINTERGRUNDFIGUREN:** Basierend auf dem Zieltalter (siehe Altersspezifische Regeln oben) füge die entsprechende Anzahl an Nebenfiguren oder lebendigen Details im Hintergrund des `imagePrompt` hinzu. Dies sind KEINE Hauptfiguren — es sind Umgebungsstatisten (andere Tiere, Menschen, Wesen, Insekten, Vögel), die die Welt lebendig und bevölkert wirken lassen. Beschreibe sie kurz aber spezifisch (z.B. „im Hintergrund jagen sich zwei Kaninchen neben einem Busch, und ein Blaumeise sitzt auf einem Zaunpfahl").
 
 ## Ausgabeformat
 

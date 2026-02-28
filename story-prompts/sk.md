@@ -17,8 +17,14 @@ Každý príbeh musí nasledovať tento základný vzor, prispôsobený intenzit
 ## Pravidlá Špecifické pre Vek
 
 - **Pre 3 roky:** Hyper-známe témy (spánok, jedlo, delenie sa o hračky). Žiadni skutoční antagonisti, len malé frustrácie. Krátke vety (2-3 na stránku). Použi onomatopoje (Bum!, Fíí!) a rytmus.
+  - *Prostredia:* Útulné, teplé, známe miesta (spálňa, kuchyňa, záhrada) ale bohaté na zmyslové detaily — rozhádzané hračky, teplé svetlo cez záclony, farebné kvety, mäkké textúry, mačka spiaca na parapete.
+  - *Život v pozadí:* 1-2 jemné vedľajšie postavy v pozadí (poletujúci motýľ, vtáčik na konári, slimák na liste, spiace domáce zvieratko).
 - **Pre 4-5 rokov:** Jasnejšia príčina a následok. Priateľstvo, odvaha, strach z neznámeho. Mierne rozšírená slovná zásoba, jednoduchý dialóg.
+  - *Prostredia:* Rozmanitejšie a zaujímavejšie lokácie (začarované lesy, živé parky, pôvabné dedinky, rušný trh) s pútavými detailmi prostredia — šuštiace listy, mláky odrážajúce oblohu, šarkany vo vetre.
+  - *Život v pozadí:* 2-3 vedľajšie postavy, ktoré si v pozadí robia svoje (iné zvieratá sa hrajú, veverička zbiera oriešky, dedinčania kráčajú s košíkmi, ryby vyskakujú z rybníka).
 - **Pre 6-8 rokov:** Skutočné konflikty (žiarlivosť, čestnosť, tímová práca). Zložitejšie postavy, inteligentný humor, ľahké záhady. Dynamický dialóg.
+  - *Prostredia:* Bohaté, fantastické svety s atmosférickou hĺbkou — poveternostné efekty, osvetlenie podľa dennej doby, rozprávanie prostredím (hodinová veža ukazujúca čas, plagáty na stenách, stopy v snehu).
+  - *Život v pozadí:* 3-5 vedľajších postáv vytvárajúcich živý, rušný svet (dav na festivale, školáci na ihrisku, obchodníci kričiaci na bazáre, kŕdle vtákov preletávajúce po oblohe pri západe slnka).
 - _Ak vek nie je špecifikovaný, predpokladaj 3-4 roky._
 
 ## Pravidlá pre Postavy
@@ -39,6 +45,9 @@ Každý príbeh musí nasledovať tento základný vzor, prispôsobený intenzit
 - NIKDY nezahrňuj text, písmená ani slová do opisu obrázka.
 - Vyhýbaj sa veľmi zložitým fyzickým interakciám (tesné objatia, špecifické držanie sa za ruky) - namiesto toho použi blízkosť ("stoja šťastne vedľa seba").
 - `imagePrompt` a `characterSheetPrompt` sa píšu VŽDY v angličtine.
+- **KOMPLETNÉ PROSTREDIE (KRITICKÉ):** Každý `imagePrompt` MUSÍ opisovať **kompletné, bohato detailné prostredie** — nie postavy na prázdnom alebo jednoduchom pozadí. Každý obrázok by mal vyzerať ako scéna z najlepších filmov Pixaru: hĺbka, atmosféra, rozprávanie prostredím, sýte farby a pocit miesta. Premýšľaj o každom obrázku ako o celkovom alebo polocelkovom zábere, ktorý ukazuje, kde sa príbeh odohráva.
+- **KOMPOZÍCIA SCÉNY:** Komponuj scénu tak, aby hlavné postavy boli umiestnené v **horných dvoch tretinách** záberu. Spodná časť obrázka bude mať textový prekryv, preto tam umiestni podporné detaily prostredia (zem, cestu, podlahu, trávu, vodu) namiesto tvárí postáv.
+- **POSTAVY V POZADÍ:** Na základe cieľového veku (pozri Pravidlá Špecifické pre Vek vyššie) zahrň do pozadia `imagePrompt` zodpovedajúci počet vedľajších postáv alebo živých detailov. Nie sú to hlavné postavy — sú to komparzisti prostredia (iné zvieratá, ľudia, tvory, hmyz, vtáky), ktorí dávajú svetu živý a obývaný pocit. Opíš ich stručne, ale konkrétne (napr.: "v pozadí sa dva zajačiky naháňajú pri kríku a modrý vtáčik sedí na stĺpiku plota").
 
 ## Výstupný Formát
 

@@ -17,8 +17,14 @@ Każde opowiadanie musi podążać za tym podstawowym schematem, dostosowanym do
 ## Zasady Specyficzne dla Wieku
 
 - **Dla 3 lat:** Hiper-znane tematy (sen, jedzenie, dzielenie się zabawkami). Brak prawdziwych antagonistów, tylko małe frustracje. Krótkie zdania (2-3 na stronę). Używaj onomatopei (Bum!, Szuu!) i rytmu.
+  - *Otoczenie:* Przytulne, ciepłe, znajome scenerie (sypialnia, kuchnia, ogród) ale bogate w detale zmysłowe — rozrzucone zabawki, ciepłe światło przez zasłony, kolorowe kwiaty, miękkie tekstury, kot śpiący na parapecie.
+  - *Życie w tle:* 1-2 delikatne postacie drugoplanowe w tle (fruwający motyl, ptaszek na gałęzi, ślimak na liściu, śpiące zwierzątko domowe).
 - **Dla 4-5 lat:** Wyraźniejszy związek przyczynowo-skutkowy. Przyjaźń, odwaga, strach przed nieznanym. Lekko rozszerzony słownik, prosty dialog.
+  - *Otoczenie:* Bardziej urozmaicone i interesujące lokacje (zaczarowane lasy, tętniące życiem parki, urokliwe wioski, ruchliwy targ) z wciągającymi detalami środowiskowymi — szeleszczące liście, kałuże odbijające niebo, latawce na wietrze.
+  - *Życie w tle:* 2-3 postacie drugoplanowe zajmujące się własnymi sprawami w tle (inne zwierzęta bawiące się, wiewiórka zbierająca orzechy, wieśniacy idący z koszami, ryby wyskakujące ze stawu).
 - **Dla 6-8 lat:** Prawdziwe konflikty (zazdrość, uczciwość, praca zespołowa). Bardziej złożone postacie, inteligentny humor, lekkie zagadki. Dynamiczny dialog.
+  - *Otoczenie:* Bogate, wyobraźniowe światy z atmosferyczną głębią — efekty pogodowe, oświetlenie zależne od pory dnia, narracja środowiskowa (wieża zegarowa pokazująca godzinę, plakaty na ścianach, ślady stóp w śniegu).
+  - *Życie w tle:* 3-5 postaci drugoplanowych tworzących żywy, tętniący życiem świat (tłum na festiwalu, dzieci na placu zabaw, kupcy krzyczący na bazarze, stada ptaków przelatujące po niebie o zachodzie słońca).
 - _Jeśli wiek nie jest określony, zakładaj 3-4 lata._
 
 ## Zasady dotyczące Postaci
@@ -39,6 +45,9 @@ Każde opowiadanie musi podążać za tym podstawowym schematem, dostosowanym do
 - NIGDY nie umieszczaj tekstu, liter ani słów w opisie obrazu.
 - Unikaj bardzo złożonych interakcji fizycznych (ciasne uściski, specyficzne trzymanie się za ręce) - zamiast tego używaj bliskości ("stojący szczęśliwie obok siebie").
 - `imagePrompt` i `characterSheetPrompt` są ZAWSZE pisane w języku angielskim.
+- **PEŁNE OTOCZENIE (KRYTYCZNE):** Każdy `imagePrompt` MUSI opisywać **kompletne, bogato szczegółowe otoczenie** — nie postacie na pustym lub prostym tle. Każda klatka powinna wyglądać jak scena z najlepszych filmów Pixara: głębia, atmosfera, narracja środowiskowa, bogate kolory i poczucie miejsca. Myśl o każdej klatce jak o planie ogólnym lub średnio-ogólnym, który pokazuje, gdzie toczy się historia.
+- **KOMPOZYCJA SCENY:** Skomponuj scenę tak, aby główne postacie były umieszczone w **górnych dwóch trzecich** kadru. Dolna część obrazu będzie miała nałożony tekst, więc umieść tam wspierające detale otoczenia (ziemia, ścieżka, podłoga, trawa, woda) zamiast twarzy postaci.
+- **POSTACIE W TLE:** Na podstawie docelowego wieku (patrz Zasady Specyficzne dla Wieku powyżej) uwzględnij odpowiednią liczbę postaci drugoplanowych lub żywych detali w tle `imagePrompt`. To NIE są postacie główne — to statyści środowiskowi (inne zwierzęta, ludzie, stworzenia, owady, ptaki), którzy sprawiają, że świat wydaje się żywy i zaludniony. Opisz je krótko, ale konkretnie (np.: "w tle dwa króliczki gonią się koło krzaka, a niebieski ptaszek siedzi na słupku ogrodzenia").
 
 ## Format Wyjściowy
 
