@@ -91,6 +91,14 @@ const sv: Translations = {
   couldNotChangeVisibility: 'Kunde inte ändra sagans synlighet',
   couldNotCreateStory: 'Kunde inte skapa sagan. Försök igen.',
 
+  fontSize: 'Teckenstorlek',
+  fontSizeSmall: 'Liten',
+  fontSizeMedium: 'Medium',
+  fontSizeLarge: 'Stor',
+
+  menu: 'Meny',
+  theme: 'Utseende',
+
   language: 'Språk',
   languageName: 'Svenska',
 };

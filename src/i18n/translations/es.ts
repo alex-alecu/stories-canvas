@@ -91,6 +91,14 @@ const es: Translations = {
   couldNotChangeVisibility: 'No se pudo cambiar la visibilidad del cuento',
   couldNotCreateStory: 'No se pudo crear el cuento. Por favor, inténtalo de nuevo.',
 
+  fontSize: 'Tamaño de fuente',
+  fontSizeSmall: 'Pequeño',
+  fontSizeMedium: 'Mediano',
+  fontSizeLarge: 'Grande',
+
+  menu: 'Menú',
+  theme: 'Tema',
+
   language: 'Idioma',
   languageName: 'Español',
 };

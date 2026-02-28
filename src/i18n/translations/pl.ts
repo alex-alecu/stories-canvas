@@ -91,6 +91,14 @@ const pl: Translations = {
   couldNotChangeVisibility: 'Nie udało się zmienić widoczności opowieści',
   couldNotCreateStory: 'Nie udało się utworzyć opowieści. Spróbuj ponownie.',
 
+  fontSize: 'Rozmiar czcionki',
+  fontSizeSmall: 'Mały',
+  fontSizeMedium: 'Średni',
+  fontSizeLarge: 'Duży',
+
+  menu: 'Menu',
+  theme: 'Motyw',
+
   language: 'Język',
   languageName: 'Polski',
 };

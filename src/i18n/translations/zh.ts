@@ -91,6 +91,14 @@ const zh: Translations = {
   couldNotChangeVisibility: '无法更改故事可见性',
   couldNotCreateStory: '无法创建故事。请重试。',
 
+  fontSize: '字体大小',
+  fontSizeSmall: '小',
+  fontSizeMedium: '中',
+  fontSizeLarge: '大',
+
+  menu: '菜单',
+  theme: '主题',
+
   language: '语言',
   languageName: '中文',
 };

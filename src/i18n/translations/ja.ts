@@ -91,6 +91,14 @@ const ja: Translations = {
   couldNotChangeVisibility: 'おはなしの公開設定を変更できませんでした',
   couldNotCreateStory: 'おはなしを作成できませんでした。もう一度お試しください。',
 
+  fontSize: 'フォントサイズ',
+  fontSizeSmall: '小',
+  fontSizeMedium: '中',
+  fontSizeLarge: '大',
+
+  menu: 'メニュー',
+  theme: 'テーマ',
+
   language: '言語',
   languageName: '日本語',
 };

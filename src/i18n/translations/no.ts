@@ -91,6 +91,14 @@ const no: Translations = {
   couldNotChangeVisibility: 'Kunne ikke endre synligheten til historien',
   couldNotCreateStory: 'Kunne ikke lage historien. Vennligst prøv igjen.',
 
+  fontSize: 'Skriftstørrelse',
+  fontSizeSmall: 'Liten',
+  fontSizeMedium: 'Medium',
+  fontSizeLarge: 'Stor',
+
+  menu: 'Meny',
+  theme: 'Utseende',
+
   language: 'Språk',
   languageName: 'Norsk',
 };

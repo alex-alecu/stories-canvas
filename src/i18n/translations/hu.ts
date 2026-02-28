@@ -91,6 +91,14 @@ const hu: Translations = {
   couldNotChangeVisibility: 'Nem sikerült módosítani a láthatóságot',
   couldNotCreateStory: 'Nem sikerült létrehozni a mesét. Kérjük, próbáld újra.',
 
+  fontSize: 'Betűméret',
+  fontSizeSmall: 'Kicsi',
+  fontSizeMedium: 'Közepes',
+  fontSizeLarge: 'Nagy',
+
+  menu: 'Menü',
+  theme: 'Téma',
+
   language: 'Nyelv',
   languageName: 'Magyar',
 };

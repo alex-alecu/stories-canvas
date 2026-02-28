@@ -91,6 +91,14 @@ const ko: Translations = {
   couldNotChangeVisibility: '이야기의 공개 설정을 변경할 수 없었습니다',
   couldNotCreateStory: '이야기를 만들 수 없었습니다. 다시 시도해주세요.',
 
+  fontSize: '글꼴 크기',
+  fontSizeSmall: '작게',
+  fontSizeMedium: '보통',
+  fontSizeLarge: '크게',
+
+  menu: '메뉴',
+  theme: '테마',
+
   language: '언어',
   languageName: '한국어',
 };

@@ -104,6 +104,14 @@ const ro: Translations = {
   couldNotCreateStory: 'Nu s-a putut crea povestea. Te rugăm să încerci din nou.',
 
   // Language
+  fontSize: 'Dimensiune font',
+  fontSizeSmall: 'Mic',
+  fontSizeMedium: 'Mediu',
+  fontSizeLarge: 'Mare',
+
+  menu: 'Meniu',
+  theme: 'Temă',
+
   language: 'Limbă',
   languageName: 'Română',
 };

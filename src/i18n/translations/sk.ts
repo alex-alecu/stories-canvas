@@ -91,6 +91,14 @@ const sk: Translations = {
   couldNotChangeVisibility: 'Nepodarilo sa zmeniť viditeľnosť príbehu',
   couldNotCreateStory: 'Príbeh sa nepodarilo vytvoriť. Skúste to prosím znova.',
 
+  fontSize: 'Veľkosť písma',
+  fontSizeSmall: 'Malé',
+  fontSizeMedium: 'Stredné',
+  fontSizeLarge: 'Veľké',
+
+  menu: 'Menu',
+  theme: 'Vzhľad',
+
   language: 'Jazyk',
   languageName: 'Slovenčina',
 };

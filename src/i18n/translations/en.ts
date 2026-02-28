@@ -91,6 +91,14 @@ const en: Translations = {
   couldNotChangeVisibility: 'Could not change story visibility',
   couldNotCreateStory: 'Could not create the story. Please try again.',
 
+  fontSize: 'Font size',
+  fontSizeSmall: 'Small',
+  fontSizeMedium: 'Medium',
+  fontSizeLarge: 'Large',
+
+  menu: 'Menu',
+  theme: 'Theme',
+
   language: 'Language',
   languageName: 'English',
 };

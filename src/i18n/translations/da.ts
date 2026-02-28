@@ -91,6 +91,14 @@ const da: Translations = {
   couldNotChangeVisibility: 'Kunne ikke ændre historiens synlighed',
   couldNotCreateStory: 'Kunne ikke oprette historien. Prøv venligst igen.',
 
+  fontSize: 'Skriftstørrelse',
+  fontSizeSmall: 'Lille',
+  fontSizeMedium: 'Medium',
+  fontSizeLarge: 'Stor',
+
+  menu: 'Menu',
+  theme: 'Udseende',
+
   language: 'Sprog',
   languageName: 'Dansk',
 };

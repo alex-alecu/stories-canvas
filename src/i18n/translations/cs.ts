@@ -91,6 +91,14 @@ const cs: Translations = {
   couldNotChangeVisibility: 'Nepodařilo se změnit viditelnost příběhu',
   couldNotCreateStory: 'Příběh se nepodařilo vytvořit. Zkuste to prosím znovu.',
 
+  fontSize: 'Velikost písma',
+  fontSizeSmall: 'Malé',
+  fontSizeMedium: 'Střední',
+  fontSizeLarge: 'Velké',
+
+  menu: 'Menu',
+  theme: 'Vzhled',
+
   language: 'Jazyk',
   languageName: 'Čeština',
 };

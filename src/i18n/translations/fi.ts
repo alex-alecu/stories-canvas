@@ -91,6 +91,14 @@ const fi: Translations = {
   couldNotChangeVisibility: 'Sadun näkyvyyttä ei voitu muuttaa',
   couldNotCreateStory: 'Satua ei voitu luoda. Yritä uudelleen.',
 
+  fontSize: 'Fonttikoko',
+  fontSizeSmall: 'Pieni',
+  fontSizeMedium: 'Keskikokoinen',
+  fontSizeLarge: 'Suuri',
+
+  menu: 'Valikko',
+  theme: 'Teema',
+
   language: 'Kieli',
   languageName: 'Suomi',
 };

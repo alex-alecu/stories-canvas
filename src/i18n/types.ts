@@ -103,6 +103,16 @@ export interface Translations {
   couldNotChangeVisibility: string;
   couldNotCreateStory: string;
 
+  // Font size
+  fontSize: string;
+  fontSizeSmall: string;
+  fontSizeMedium: string;
+  fontSizeLarge: string;
+
+  // Mobile menu
+  menu: string;
+  theme: string;
+
   // Language
   language: string;
   languageName: string;

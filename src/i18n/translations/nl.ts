@@ -91,6 +91,14 @@ const nl: Translations = {
   couldNotChangeVisibility: 'Kon de zichtbaarheid niet wijzigen',
   couldNotCreateStory: 'Kon het verhaal niet maken. Probeer het opnieuw.',
 
+  fontSize: 'Lettergrootte',
+  fontSizeSmall: 'Klein',
+  fontSizeMedium: 'Middel',
+  fontSizeLarge: 'Groot',
+
+  menu: 'Menu',
+  theme: 'Thema',
+
   language: 'Taal',
   languageName: 'Nederlands',
 };

@@ -91,6 +91,14 @@ const it: Translations = {
   couldNotChangeVisibility: 'Impossibile cambiare la visibilità della storia',
   couldNotCreateStory: 'Impossibile creare la storia. Per favore riprova.',
 
+  fontSize: 'Dimensione carattere',
+  fontSizeSmall: 'Piccolo',
+  fontSizeMedium: 'Medio',
+  fontSizeLarge: 'Grande',
+
+  menu: 'Menu',
+  theme: 'Tema',
+
   language: 'Lingua',
   languageName: 'Italiano',
 };

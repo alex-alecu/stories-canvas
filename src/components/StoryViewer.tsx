@@ -1,8 +1,11 @@
+import { useState, useEffect, useRef } from 'react';
 import { Swiper, SwiperSlide } from 'swiper/react';
 import { Navigation, Pagination, Keyboard } from 'swiper/modules';
 import { Link } from 'react-router-dom';
 import type { Scenario } from '../types';
 import { useLanguage } from '../i18n/LanguageContext';
+import { useFontSize, type FontSize } from '../contexts/FontSizeContext';
+import FontSizeControl from './FontSizeControl';
 import 'swiper/css';
 import 'swiper/css/navigation';
 import 'swiper/css/pagination';
@@ -12,11 +15,47 @@ interface StoryViewerProps {
   scenario: Scenario;
 }
 
+const fontSizeClasses: Record<FontSize, string> = {
+  small: 'text-base md:text-lg lg:text-xl',
+  medium: 'text-lg md:text-xl lg:text-2xl',
+  large: 'text-xl md:text-2xl lg:text-3xl',
+};
+
 export default function StoryViewer({ storyId, scenario }: StoryViewerProps) {
   const { t } = useLanguage();
+  const { fontSize } = useFontSize();
+  const [showFontSize, setShowFontSize] = useState(false);
+  const popoverRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+
+  // Close popover on outside click
+  useEffect(() => {
+    if (!showFontSize) return;
+    const handleClick = (e: MouseEvent) => {
+      if (
+        popoverRef.current && !popoverRef.current.contains(e.target as Node) &&
+        buttonRef.current && !buttonRef.current.contains(e.target as Node)
+      ) {
+        setShowFontSize(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [showFontSize]);
+
+  // Close popover on Escape
+  useEffect(() => {
+    if (!showFontSize) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setShowFontSize(false);
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [showFontSize]);
 
   return (
     <div className="fixed inset-0 bg-black z-50">
+      {/* Back button */}
       <Link
         to="/"
         className="absolute top-4 left-4 z-50 bg-black/40 hover:bg-black/60 backdrop-blur-sm text-white w-10 h-10 rounded-full flex items-center justify-center transition-colors"
@@ -27,7 +66,34 @@ export default function StoryViewer({ storyId, scenario }: StoryViewerProps) {
         </svg>
       </Link>
 
-      <div className="absolute top-4 right-4 z-50 bg-black/40 backdrop-blur-sm text-white px-4 py-2 rounded-full text-sm font-semibold">
+      {/* Font size button + popover */}
+      <div className="absolute top-4 left-16 z-50">
+        <button
+          ref={buttonRef}
+          onClick={() => setShowFontSize(prev => !prev)}
+          className={`bg-black/40 hover:bg-black/60 backdrop-blur-sm text-white w-10 h-10 rounded-full flex items-center justify-center transition-colors text-sm font-bold ${
+            showFontSize ? 'bg-black/60' : ''
+          }`}
+          aria-label={t.fontSize}
+          aria-expanded={showFontSize}
+        >
+          Aa
+        </button>
+        {/* Popover */}
+        <div
+          ref={popoverRef}
+          className={`absolute top-12 left-0 transition-all duration-200 ${
+            showFontSize
+              ? 'opacity-100 scale-100 translate-y-0'
+              : 'opacity-0 scale-95 -translate-y-1 pointer-events-none'
+          }`}
+        >
+          <FontSizeControl variant="overlay" />
+        </div>
+      </div>
+
+      {/* Story title badge */}
+      <div className="absolute top-4 right-4 z-50 bg-black/40 backdrop-blur-sm text-white px-4 py-2 rounded-full text-sm font-semibold max-w-[50%] truncate">
         {scenario.title}
       </div>
 
@@ -59,7 +125,7 @@ export default function StoryViewer({ storyId, scenario }: StoryViewerProps) {
 
               <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 via-black/50 to-transparent">
                 <div className="px-6 pb-16 pt-20 md:px-12 md:pb-20 md:pt-24">
-                  <p className="text-white text-lg md:text-xl lg:text-2xl leading-relaxed max-w-3xl mx-auto text-center drop-shadow-lg font-medium">
+                  <p className={`text-white ${fontSizeClasses[fontSize]} leading-relaxed max-w-3xl mx-auto text-center drop-shadow-lg font-medium transition-[font-size] duration-200`}>
                     {page.text}
                   </p>
                   <p className="text-white/40 text-xs text-center mt-3">
