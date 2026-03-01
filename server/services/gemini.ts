@@ -49,6 +49,7 @@ export async function generateJSON<T>(
 export async function generateImage(
   prompt: string,
   referenceImages: Array<{ data: string; mimeType: string }> = [],
+  pro?: boolean,
 ): Promise<string> {
   const contents: Array<{ inlineData?: { data: string; mimeType: string }; text?: string }> = [];
 
@@ -58,7 +59,7 @@ export async function generateImage(
   contents.push({ text: prompt });
 
   const response = await ai.models.generateContent({
-    model: config.imageModel,
+    model: pro ? config.imageModelPro : config.imageModel,
     contents,
     config: {
       responseModalities: ['IMAGE'],

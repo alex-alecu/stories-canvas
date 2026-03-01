@@ -46,10 +46,10 @@ export default function Home() {
     setStoredGeneratingId(generatingStoryId);
   }, [generatingStoryId]);
 
-  const handleCreateStory = useCallback(async (prompt: string, age: number, style: ArtStyleKey) => {
+  const handleCreateStory = useCallback(async (prompt: string, age: number, style: ArtStyleKey, pro: boolean) => {
     try {
       requestPermission();
-      const result = await createStory.mutateAsync({ prompt, language, age, style });
+      const result = await createStory.mutateAsync({ prompt, language, age, style, pro });
       setGeneratingStoryId(result.id);
     } catch (error) {
       console.error('Failed to create story:', error);

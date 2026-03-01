@@ -16,7 +16,7 @@ const styleTranslationMap: Record<ArtStyleKey, keyof ReturnType<typeof useLangua
 };
 
 interface StoryInputProps {
-  onSubmit: (prompt: string, age: number, style: ArtStyleKey) => void;
+  onSubmit: (prompt: string, age: number, style: ArtStyleKey, pro: boolean) => void;
   isLoading: boolean;
 }
 
@@ -24,6 +24,7 @@ export default function StoryInput({ onSubmit, isLoading }: StoryInputProps) {
   const [prompt, setPrompt] = useState('');
   const [age, setAge] = useState<number>(DEFAULT_AGE);
   const [style, setStyle] = useState<ArtStyleKey>(DEFAULT_ART_STYLE);
+  const [pro, setPro] = useState(false);
   const maxLength = 500;
   const { user, loading } = useAuth();
   const { t } = useLanguage();
@@ -52,7 +53,7 @@ export default function StoryInput({ onSubmit, isLoading }: StoryInputProps) {
     }
     const trimmed = prompt.trim();
     if (trimmed && !isLoading) {
-      onSubmit(trimmed, age, style);
+      onSubmit(trimmed, age, style, pro);
       setPrompt('');
     }
   };
@@ -134,9 +135,32 @@ export default function StoryInput({ onSubmit, isLoading }: StoryInputProps) {
           )}
 
           <div className="flex items-center justify-between px-6 pb-4">
-            <span className={`text-sm ${prompt.length > maxLength * 0.9 ? 'text-red-400' : 'text-gray-300 dark:text-gray-600'}`}>
-              {prompt.length}/{maxLength}
-            </span>
+            {!isGuest ? (
+              <div className="flex items-center gap-2 select-none">
+                <span className="text-sm text-gray-400 dark:text-gray-500">Pro</span>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={pro}
+                  aria-label="Pro"
+                  onClick={() => setPro(!pro)}
+                  disabled={isLoading}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors disabled:opacity-50 cursor-pointer ${
+                    pro
+                      ? 'bg-gradient-to-r from-primary-500 to-primary-600'
+                      : 'bg-gray-200 dark:bg-gray-700'
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform ${
+                      pro ? 'translate-x-6' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
+              </div>
+            ) : (
+              <span />
+            )}
             <button
               type="submit"
               disabled={user ? (!prompt.trim() || isLoading) : false}

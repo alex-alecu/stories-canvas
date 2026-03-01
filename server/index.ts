@@ -36,5 +36,6 @@ app.listen(config.port, () => {
   console.log(`Stories Canvas server running on http://localhost:${config.port}`);
   console.log(`  Scenario model: ${config.scenarioModel}`);
   console.log(`  Image model: ${config.imageModel}`);
+  console.log(`  Image model (pro): ${config.imageModelPro}`);
   console.log(`  Image concurrency: ${config.imageConcurrency}`);
 });
