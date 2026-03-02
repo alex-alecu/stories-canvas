@@ -1,8 +1,18 @@
 export type PageStatus = 'pending' | 'generating' | 'completed' | 'failed';
 
-export type StoryStatus = 'generating_scenario' | 'generating_characters' | 'generating_images' | 'completed' | 'failed' | 'cancelled';
+export type StoryStatus = 'generating_scenario' | 'generating_characters' | 'generating_images' | 'generating_audio' | 'completed' | 'failed' | 'cancelled';
 
 export type ArtStyleKey = 'disney-pixar' | 'watercolor' | 'storybook' | 'anime' | 'colored-pencil' | 'paper-cutout';
+
+export type VoiceKey = 'grandma' | 'grandpa' | 'dad' | 'mom' | 'whisper';
+
+export const VOICE_OPTIONS: { key: VoiceKey; labelKey: string; descKey: string }[] = [
+  { key: 'grandma', labelKey: 'voiceGrandma', descKey: 'voiceGrandmaDesc' },
+  { key: 'grandpa', labelKey: 'voiceGrandpa', descKey: 'voiceGrandpaDesc' },
+  { key: 'dad', labelKey: 'voiceDad', descKey: 'voiceDadDesc' },
+  { key: 'mom', labelKey: 'voiceMom', descKey: 'voiceMomDesc' },
+  { key: 'whisper', labelKey: 'voiceWhisper', descKey: 'voiceWhisperDesc' },
+];
 
 export const ART_STYLES: Record<ArtStyleKey, string> = {
   'disney-pixar': 'Disney/Pixar 3D animation style with warm, vibrant colors, round and friendly character designs',
@@ -56,6 +66,7 @@ export interface Page {
   characters: string[];
   status: PageStatus;
   imageUrl?: string;
+  audioUrl?: string;
 }
 
 export interface Scenario {
@@ -98,6 +109,7 @@ export interface CreateStoryRequest {
   age?: number;
   style?: ArtStyleKey;
   pro?: boolean;
+  voice?: VoiceKey;
 }
 
 export interface CreateStoryResponse {

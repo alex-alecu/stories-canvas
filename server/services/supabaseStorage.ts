@@ -6,7 +6,7 @@ const BUCKET = 'story-images';
 
 // ---------- Story CRUD ----------
 
-export async function createStory(id: string, prompt: string, status: StoryStatus, userId?: string, language?: string): Promise<void> {
+export async function createStory(id: string, prompt: string, status: StoryStatus, userId?: string, language?: string, voice?: string): Promise<void> {
   const supabase = getSupabase();
   const { error } = await supabase.from('stories').insert({
     id,
@@ -14,6 +14,7 @@ export async function createStory(id: string, prompt: string, status: StoryStatu
     status,
     user_id: userId ?? null,
     language: language ?? 'ro',
+    voice: voice ?? null,
     current_phase: 'Generating story scenario...',
     progress_message: 'Creating your story...',
   });
@@ -233,4 +234,26 @@ export function getImageUrl(userId: string | undefined, storyId: string, filenam
     return `${config.supabaseUrl}/storage/v1/object/public/${BUCKET}/${userId}/${storyId}/${filename}`;
   }
   return `${config.supabaseUrl}/storage/v1/object/public/${BUCKET}/${storyId}/${filename}`;
+}
+
+// ---------- Audio Storage ----------
+
+export async function uploadAudio(userId: string | undefined, storyId: string, filename: string, audioBuffer: Buffer): Promise<string> {
+  const supabase = getSupabase();
+  const storagePath = userId ? `${userId}/${storyId}/${filename}` : `${storyId}/${filename}`;
+
+  const { error } = await supabase.storage
+    .from(BUCKET)
+    .upload(storagePath, audioBuffer, {
+      contentType: 'audio/mpeg',
+      upsert: true,
+    });
+  if (error) throw new Error(`Failed to upload audio: ${error.message}`);
+
+  return getImageUrl(userId, storyId, filename);
+}
+
+export function getAudioUrl(userId: string | undefined, storyId: string, filename: string): string {
+  // Uses same bucket and URL pattern as images
+  return getImageUrl(userId, storyId, filename);
 }

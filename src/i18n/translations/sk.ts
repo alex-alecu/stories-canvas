@@ -114,6 +114,22 @@ const sk: Translations = {
 
   language: 'Jazyk',
   languageName: 'Slovenčina',
+
+  narratorVoice: 'Hlas rozprávača',
+  noVoice: 'Bez narácie',
+  voiceGrandma: 'Babička',
+  voiceGrandpa: 'Dedko',
+  voiceDad: 'Otec',
+  voiceMom: 'Mama',
+  voiceWhisper: 'Šepot',
+  voiceGrandmaDesc: 'Teplá a útulná',
+  voiceGrandpaDesc: 'Láskavý a jemný',
+  voiceDadDesc: 'Teplý otcovský hlas',
+  voiceMomDesc: 'Jemný materský hlas',
+  voiceWhisperDesc: 'Tichý šepkajúci hlas',
+  recordingNarration: 'Nahrávanie narácie',
+  playNarration: 'Prehrať naráciu',
+  pauseNarration: 'Pozastaviť naráciu',
 };
 
 export default sk;

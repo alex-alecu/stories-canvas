@@ -1,6 +1,7 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Swiper, SwiperSlide } from 'swiper/react';
 import { Navigation, Keyboard } from 'swiper/modules';
+import type { Swiper as SwiperType } from 'swiper';
 import { Link } from 'react-router-dom';
 import type { Scenario, GenerationProgress } from '../types';
 import { useLanguage } from '../i18n/LanguageContext';
@@ -28,6 +29,74 @@ export default function StoryViewer({ storyId, scenario, isGenerating, progress 
   const [showFontSize, setShowFontSize] = useState(false);
   const popoverRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
+
+  // Audio playback state
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [playingPage, setPlayingPage] = useState<number | null>(null);
+  const [audioLoading, setAudioLoading] = useState<number | null>(null);
+
+  // Stop audio playback
+  const stopAudio = useCallback(() => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+      audioRef.current.src = '';
+    }
+    setPlayingPage(null);
+    setAudioLoading(null);
+  }, []);
+
+  // Play audio for a specific page
+  const playPageAudio = useCallback((pageNumber: number, audioUrl: string) => {
+    // If already playing this page, stop it
+    if (playingPage === pageNumber) {
+      stopAudio();
+      return;
+    }
+
+    // Stop any current playback
+    stopAudio();
+
+    // Create new audio element if needed
+    if (!audioRef.current) {
+      audioRef.current = new Audio();
+      audioRef.current.addEventListener('ended', () => {
+        setPlayingPage(null);
+      });
+      audioRef.current.addEventListener('error', () => {
+        setPlayingPage(null);
+        setAudioLoading(null);
+      });
+    }
+
+    setAudioLoading(pageNumber);
+    audioRef.current.src = audioUrl;
+    audioRef.current.play()
+      .then(() => {
+        setPlayingPage(pageNumber);
+        setAudioLoading(null);
+      })
+      .catch(() => {
+        setPlayingPage(null);
+        setAudioLoading(null);
+      });
+  }, [playingPage, stopAudio]);
+
+  // Stop audio on slide change
+  const handleSlideChange = useCallback((_swiper: SwiperType) => {
+    stopAudio();
+  }, [stopAudio]);
+
+  // Cleanup audio on unmount
+  useEffect(() => {
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.src = '';
+        audioRef.current = null;
+      }
+    };
+  }, []);
 
   // Close popover on outside click
   useEffect(() => {
@@ -113,6 +182,7 @@ export default function StoryViewer({ storyId, scenario, isGenerating, progress 
         className="w-full h-full story-swiper"
         spaceBetween={0}
         slidesPerView={1}
+        onSlideChange={handleSlideChange}
       >
         {scenario.pages.map(page => (
           <SwiperSlide key={page.pageNumber}>
@@ -143,9 +213,34 @@ export default function StoryViewer({ storyId, scenario, isGenerating, progress 
                   <p className={`text-white ${fontSizeClasses[fontSize]} leading-relaxed max-w-3xl mx-auto text-center drop-shadow-lg font-medium transition-[font-size] duration-200`}>
                     {page.text}
                   </p>
-                  <p className="text-white/40 text-xs text-center mt-3">
-                    {page.pageNumber} / {scenario.pages.length}
-                  </p>
+                  <div className="flex items-center justify-center gap-3 mt-3">
+                    {/* Audio play/pause button */}
+                    {page.audioUrl && (
+                      <button
+                        onClick={() => playPageAudio(page.pageNumber, page.audioUrl!)}
+                        className="bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white w-8 h-8 rounded-full flex items-center justify-center transition-colors"
+                        aria-label={playingPage === page.pageNumber ? t.pauseNarration : t.playNarration}
+                      >
+                        {audioLoading === page.pageNumber ? (
+                          <div className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+                        ) : playingPage === page.pageNumber ? (
+                          /* Pause icon */
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
+                            <rect x="6" y="4" width="4" height="16" rx="1" />
+                            <rect x="14" y="4" width="4" height="16" rx="1" />
+                          </svg>
+                        ) : (
+                          /* Play icon */
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 ml-0.5" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M8 5v14l11-7z" />
+                          </svg>
+                        )}
+                      </button>
+                    )}
+                    <p className="text-white/40 text-xs">
+                      {page.pageNumber} / {scenario.pages.length}
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>

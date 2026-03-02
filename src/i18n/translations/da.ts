@@ -114,6 +114,22 @@ const da: Translations = {
 
   language: 'Sprog',
   languageName: 'Dansk',
+
+  narratorVoice: 'Fortaellerstemme',
+  noVoice: 'Ingen fortaelling',
+  voiceGrandma: 'Bedstemor',
+  voiceGrandpa: 'Bedstefar',
+  voiceDad: 'Far',
+  voiceMom: 'Mor',
+  voiceWhisper: 'Hvisken',
+  voiceGrandmaDesc: 'Varm og hyggelig',
+  voiceGrandpaDesc: 'Venlig og blid',
+  voiceDadDesc: 'Varm faderlig stemme',
+  voiceMomDesc: 'Blid moderlig stemme',
+  voiceWhisperDesc: 'Blid hviskende stemme',
+  recordingNarration: 'Optager fortaelling',
+  playNarration: 'Afspil fortaelling',
+  pauseNarration: 'Pause fortaelling',
 };
 
 export default da;

@@ -2,7 +2,7 @@ import { useState, useEffect, type FormEvent } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../i18n/LanguageContext';
-import { AGE_RANGES, DEFAULT_AGE, DEFAULT_ART_STYLE, getAgeGroup, type ArtStyleKey } from '../../shared/types';
+import { AGE_RANGES, DEFAULT_AGE, DEFAULT_ART_STYLE, getAgeGroup, VOICE_OPTIONS, type ArtStyleKey, type VoiceKey } from '../../shared/types';
 
 const STYLE_KEYS: ArtStyleKey[] = ['disney-pixar', 'watercolor', 'storybook', 'anime', 'colored-pencil', 'paper-cutout'];
 
@@ -16,7 +16,7 @@ const styleTranslationMap: Record<ArtStyleKey, keyof ReturnType<typeof useLangua
 };
 
 interface StoryInputProps {
-  onSubmit: (prompt: string, age: number, style: ArtStyleKey, pro: boolean) => void;
+  onSubmit: (prompt: string, age: number, style: ArtStyleKey, pro: boolean, voice?: VoiceKey) => void;
   isLoading: boolean;
 }
 
@@ -25,6 +25,7 @@ export default function StoryInput({ onSubmit, isLoading }: StoryInputProps) {
   const [age, setAge] = useState<number>(DEFAULT_AGE);
   const [style, setStyle] = useState<ArtStyleKey>(DEFAULT_ART_STYLE);
   const [pro, setPro] = useState(false);
+  const [voice, setVoice] = useState<VoiceKey | ''>('');
   const maxLength = 500;
   const { user, loading } = useAuth();
   const { t } = useLanguage();
@@ -53,7 +54,7 @@ export default function StoryInput({ onSubmit, isLoading }: StoryInputProps) {
     }
     const trimmed = prompt.trim();
     if (trimmed && !isLoading) {
-      onSubmit(trimmed, age, style, pro);
+      onSubmit(trimmed, age, style, pro, voice || undefined);
       setPrompt('');
     }
   };
@@ -128,6 +129,26 @@ export default function StoryInput({ onSubmit, isLoading }: StoryInputProps) {
                 >
                   {STYLE_KEYS.map((key) => (
                     <option key={key} value={key}>{t[styleTranslationMap[key]]}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex items-center gap-2 min-w-0">
+                <label htmlFor="voice-select" className="text-sm text-gray-400 dark:text-gray-500 whitespace-nowrap">
+                  {t.narratorVoice}
+                </label>
+                <select
+                  id="voice-select"
+                  value={voice}
+                  onChange={(e) => setVoice(e.target.value as VoiceKey | '')}
+                  disabled={isLoading}
+                  className="text-sm bg-gray-50 dark:bg-surface-dark border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1.5 text-gray-700 dark:text-gray-300 focus:outline-none focus:border-primary-300 dark:focus:border-primary-600 disabled:opacity-50 cursor-pointer min-w-0"
+                >
+                  <option value="">{t.noVoice}</option>
+                  {VOICE_OPTIONS.map(({ key, labelKey, descKey }) => (
+                    <option key={key} value={key}>
+                      {t[labelKey as keyof typeof t]} - {t[descKey as keyof typeof t]}
+                    </option>
                   ))}
                 </select>
               </div>

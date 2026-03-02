@@ -114,6 +114,22 @@ const nl: Translations = {
 
   language: 'Taal',
   languageName: 'Nederlands',
+
+  narratorVoice: 'Vertellerstem',
+  noVoice: 'Geen vertelling',
+  voiceGrandma: 'Oma',
+  voiceGrandpa: 'Opa',
+  voiceDad: 'Papa',
+  voiceMom: 'Mama',
+  voiceWhisper: 'Fluisteren',
+  voiceGrandmaDesc: 'Warm en gezellig',
+  voiceGrandpaDesc: 'Vriendelijk en zacht',
+  voiceDadDesc: 'Warme vaderlijke stem',
+  voiceMomDesc: 'Zachte moederlijke stem',
+  voiceWhisperDesc: 'Zacht fluisterende stem',
+  recordingNarration: 'Vertelling opnemen',
+  playNarration: 'Vertelling afspelen',
+  pauseNarration: 'Vertelling pauzeren',
 };
 
 export default nl;

@@ -114,6 +114,22 @@ const hu: Translations = {
 
   language: 'Nyelv',
   languageName: 'Magyar',
+
+  narratorVoice: 'Narrator hangja',
+  noVoice: 'Nincs narracio',
+  voiceGrandma: 'Nagymama',
+  voiceGrandpa: 'Nagypapa',
+  voiceDad: 'Apa',
+  voiceMom: 'Anya',
+  voiceWhisper: 'Suttogas',
+  voiceGrandmaDesc: 'Meleg es otthonos',
+  voiceGrandpaDesc: 'Kedves es szelid',
+  voiceDadDesc: 'Meleg apai hang',
+  voiceMomDesc: 'Gyengd anyai hang',
+  voiceWhisperDesc: 'Halk suttogo hang',
+  recordingNarration: 'Narracio felvetele',
+  playNarration: 'Narracio lejatszasa',
+  pauseNarration: 'Narracio szuneteltetese',
 };
 
 export default hu;

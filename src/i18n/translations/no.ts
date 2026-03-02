@@ -114,6 +114,22 @@ const no: Translations = {
 
   language: 'Språk',
   languageName: 'Norsk',
+
+  narratorVoice: 'Fortellerstemme',
+  noVoice: 'Ingen fortelling',
+  voiceGrandma: 'Bestemor',
+  voiceGrandpa: 'Bestefar',
+  voiceDad: 'Pappa',
+  voiceMom: 'Mamma',
+  voiceWhisper: 'Hvisking',
+  voiceGrandmaDesc: 'Varm og koselig',
+  voiceGrandpaDesc: 'Snill og mild',
+  voiceDadDesc: 'Varm faderlig stemme',
+  voiceMomDesc: 'Myk moderlig stemme',
+  voiceWhisperDesc: 'Myk hviskende stemme',
+  recordingNarration: 'Tar opp fortelling',
+  playNarration: 'Spill av fortelling',
+  pauseNarration: 'Pause fortelling',
 };
 
 export default no;

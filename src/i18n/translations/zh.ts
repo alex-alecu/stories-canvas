@@ -114,6 +114,22 @@ const zh: Translations = {
 
   language: '语言',
   languageName: '中文',
+
+  narratorVoice: '旁白声音',
+  noVoice: '无旁白',
+  voiceGrandma: '奶奶',
+  voiceGrandpa: '爷爷',
+  voiceDad: '爸爸',
+  voiceMom: '妈妈',
+  voiceWhisper: '轻语',
+  voiceGrandmaDesc: '温暖舒适',
+  voiceGrandpaDesc: '和蔼可亲',
+  voiceDadDesc: '温暖的父亲声音',
+  voiceMomDesc: '温柔的母亲声音',
+  voiceWhisperDesc: '柔和的轻语声',
+  recordingNarration: '正在录制旁白',
+  playNarration: '播放旁白',
+  pauseNarration: '暂停旁白',
 };
 
 export default zh;

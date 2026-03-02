@@ -114,6 +114,22 @@ const sv: Translations = {
 
   language: 'Språk',
   languageName: 'Svenska',
+
+  narratorVoice: 'Berattarrost',
+  noVoice: 'Ingen upplosning',
+  voiceGrandma: 'Mormor',
+  voiceGrandpa: 'Morfar',
+  voiceDad: 'Pappa',
+  voiceMom: 'Mamma',
+  voiceWhisper: 'Viskning',
+  voiceGrandmaDesc: 'Varm och mysig',
+  voiceGrandpaDesc: 'Vanlig och mild',
+  voiceDadDesc: 'Varm faderlig rost',
+  voiceMomDesc: 'Mjuk moderlig rost',
+  voiceWhisperDesc: 'Mjuk viskande rost',
+  recordingNarration: 'Spelar in berattelse',
+  playNarration: 'Spela upp berattelse',
+  pauseNarration: 'Pausa berattelse',
 };
 
 export default sv;

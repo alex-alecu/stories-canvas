@@ -114,6 +114,22 @@ const pl: Translations = {
 
   language: 'Język',
   languageName: 'Polski',
+
+  narratorVoice: 'Glos narratora',
+  noVoice: 'Bez narracji',
+  voiceGrandma: 'Babcia',
+  voiceGrandpa: 'Dziadek',
+  voiceDad: 'Tata',
+  voiceMom: 'Mama',
+  voiceWhisper: 'Szept',
+  voiceGrandmaDesc: 'Ciepla i przytulna',
+  voiceGrandpaDesc: 'Mily i lagodny',
+  voiceDadDesc: 'Cieplo ojcowski glos',
+  voiceMomDesc: 'Delikatny matczyny glos',
+  voiceWhisperDesc: 'Cichy szepczacy glos',
+  recordingNarration: 'Nagrywanie narracji',
+  playNarration: 'Odtworz narracje',
+  pauseNarration: 'Wstrzymaj narracje',
 };
 
 export default pl;

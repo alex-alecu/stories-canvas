@@ -114,6 +114,22 @@ const cs: Translations = {
 
   language: 'Jazyk',
   languageName: 'Čeština',
+
+  narratorVoice: 'Hlas vypravece',
+  noVoice: 'Bez narace',
+  voiceGrandma: 'Babicka',
+  voiceGrandpa: 'Dedecek',
+  voiceDad: 'Tata',
+  voiceMom: 'Mama',
+  voiceWhisper: 'Sept',
+  voiceGrandmaDesc: 'Tepla a utulna',
+  voiceGrandpaDesc: 'Laskavy a jemny',
+  voiceDadDesc: 'Teply otcovsky hlas',
+  voiceMomDesc: 'Jemny matersky hlas',
+  voiceWhisperDesc: 'Tichy septajici hlas',
+  recordingNarration: 'Nahravam narraci',
+  playNarration: 'Prehrat narraci',
+  pauseNarration: 'Pozastavit narraci',
 };
 
 export default cs;

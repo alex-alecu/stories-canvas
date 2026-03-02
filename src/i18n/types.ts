@@ -130,4 +130,21 @@ export interface Translations {
   // Language
   language: string;
   languageName: string;
+
+  // Voice narration
+  narratorVoice: string;
+  noVoice: string;
+  voiceGrandma: string;
+  voiceGrandpa: string;
+  voiceDad: string;
+  voiceMom: string;
+  voiceWhisper: string;
+  voiceGrandmaDesc: string;
+  voiceGrandpaDesc: string;
+  voiceDadDesc: string;
+  voiceMomDesc: string;
+  voiceWhisperDesc: string;
+  recordingNarration: string;
+  playNarration: string;
+  pauseNarration: string;
 }
