@@ -214,7 +214,7 @@ router.post('/', optionalAuth, async (req: Request, res: Response) => {
       return;
     }
 
-    const { prompt, language, age, style } = req.body as CreateStoryRequest;
+    const { prompt, language, age, style, pro } = req.body as CreateStoryRequest;
 
     if (!prompt || typeof prompt !== 'string') {
       res.status(400).json({ error: 'Prompt is required' });
@@ -235,6 +235,7 @@ router.post('/', optionalAuth, async (req: Request, res: Response) => {
     const storyLanguage = typeof language === 'string' ? language : 'ro';
     const storyAge = typeof age === 'number' && age > 0 && age <= 12 ? age : DEFAULT_AGE;
     const storyStyle: ArtStyleKey = (typeof style === 'string' && style in ART_STYLES) ? style as ArtStyleKey : DEFAULT_ART_STYLE;
+    const storyPro = typeof pro === 'boolean' ? pro : false;
     const storyId = crypto.randomUUID();
     const userId = req.authUser?.id;
 
@@ -247,7 +248,7 @@ router.post('/', optionalAuth, async (req: Request, res: Response) => {
     res.status(201).json({ id: storyId, status: 'generating_scenario' as StoryStatus });
 
     // Background generation pipeline
-    runGenerationPipeline(storyId, trimmedPrompt, userId, storyLanguage, storyAge, storyStyle).catch(error => {
+    runGenerationPipeline(storyId, trimmedPrompt, userId, storyLanguage, storyAge, storyStyle, storyPro).catch(error => {
       console.error(`Generation pipeline failed for ${storyId}:`, error);
     });
   } catch (error) {
@@ -256,7 +257,7 @@ router.post('/', optionalAuth, async (req: Request, res: Response) => {
   }
 });
 
-async function runGenerationPipeline(storyId: string, prompt: string, userId?: string, language?: string, age?: number, style?: ArtStyleKey): Promise<void> {
+async function runGenerationPipeline(storyId: string, prompt: string, userId?: string, language?: string, age?: number, style?: ArtStyleKey, pro?: boolean): Promise<void> {
   const controller = new AbortController();
   activeGenerations.set(storyId, controller);
   const { signal } = controller;
@@ -290,7 +291,7 @@ async function runGenerationPipeline(storyId: string, prompt: string, userId?: s
 
     // Phase 2: Generate character sheets (sequential)
     const styleDescription = style ? ART_STYLES[style] : ART_STYLES[DEFAULT_ART_STYLE];
-    const characterSheets = await generateAllCharacterSheets(storyId, scenario.characters, userId, signal, styleDescription);
+    const characterSheets = await generateAllCharacterSheets(storyId, scenario.characters, userId, signal, styleDescription, pro);
 
     if (signal.aborted) throw new Error('Generation cancelled');
     await updateStoryStatus(storyId, 'generating_images');
@@ -338,6 +339,7 @@ async function runGenerationPipeline(storyId: string, prompt: string, userId?: s
       },
       userId,
       signal,
+      pro,
     );
 
     // Update cover image URL

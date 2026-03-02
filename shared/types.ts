@@ -97,6 +97,7 @@ export interface CreateStoryRequest {
   language?: string;
   age?: number;
   style?: ArtStyleKey;
+  pro?: boolean;
 }
 
 export interface CreateStoryResponse {

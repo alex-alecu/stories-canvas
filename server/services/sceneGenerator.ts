@@ -112,6 +112,7 @@ export async function generateSceneImage(
   userId?: string,
   previousSceneBase64?: string | null,
   firstSceneBase64?: string | null,
+  pro?: boolean,
 ): Promise<string | null> {
   const pageFilename = `page-${String(page.pageNumber).padStart(2, '0')}.png`;
 
@@ -153,6 +154,7 @@ export async function generateSceneImage(
           return await generateImage(
             attemptNumber > 1 ? softenPrompt(prompt) : prompt,
             referenceImages,
+            pro,
           );
         } catch (error: any) {
           // Check for safety filter
@@ -205,6 +207,7 @@ export async function generateAllSceneImages(
   onProgress?: (progress: Partial<GenerationProgress>) => void,
   userId?: string,
   signal?: AbortSignal,
+  pro?: boolean,
 ): Promise<void> {
   let previousSceneBase64: string | null = null;
   let firstSceneBase64: string | null = null;
@@ -218,7 +221,7 @@ export async function generateAllSceneImages(
     const result = await imageGenerationLimiter(() =>
       generateSceneImage(
         storyId, page, characters, characterSheets, styleDescription,
-        onProgress, userId, previousSceneBase64, firstSceneBase64,
+        onProgress, userId, previousSceneBase64, firstSceneBase64, pro,
       ),
     );
 

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Swiper, SwiperSlide } from 'swiper/react';
-import { Navigation, Pagination, Keyboard } from 'swiper/modules';
+import { Navigation, Keyboard } from 'swiper/modules';
 import { Link } from 'react-router-dom';
 import type { Scenario, GenerationProgress } from '../types';
 import { useLanguage } from '../i18n/LanguageContext';
@@ -8,7 +8,6 @@ import { useFontSize, type FontSize } from '../contexts/FontSizeContext';
 import FontSizeControl from './FontSizeControl';
 import 'swiper/css';
 import 'swiper/css/navigation';
-import 'swiper/css/pagination';
 
 interface StoryViewerProps {
   storyId: string;
@@ -108,9 +107,8 @@ export default function StoryViewer({ storyId, scenario, isGenerating, progress 
       )}
 
       <Swiper
-        modules={[Navigation, Pagination, Keyboard]}
+        modules={[Navigation, Keyboard]}
         navigation
-        pagination={{ clickable: true }}
         keyboard={{ enabled: true }}
         className="w-full h-full story-swiper"
         spaceBetween={0}
@@ -141,7 +139,7 @@ export default function StoryViewer({ storyId, scenario, isGenerating, progress 
               )}
 
               <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/85 via-black/60 via-[25%] to-transparent">
-                <div className="px-6 pb-16 pt-10 md:px-12 md:pb-20 md:pt-14">
+                <div className="px-6 pb-4 pt-10 md:px-12 md:pb-3 md:pt-14">
                   <p className={`text-white ${fontSizeClasses[fontSize]} leading-relaxed max-w-3xl mx-auto text-center drop-shadow-lg font-medium transition-[font-size] duration-200`}>
                     {page.text}
                   </p>
@@ -169,14 +167,6 @@ export default function StoryViewer({ storyId, scenario, isGenerating, progress 
         .story-swiper .swiper-button-prev::after {
           font-size: 18px;
           font-weight: bold;
-        }
-        .story-swiper .swiper-pagination-bullet {
-          background: white;
-          opacity: 0.5;
-        }
-        .story-swiper .swiper-pagination-bullet-active {
-          opacity: 1;
-          background: white;
         }
       `}</style>
     </div>

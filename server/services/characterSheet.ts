@@ -14,6 +14,7 @@ export async function generateCharacterSheet(
   character: Character,
   userId?: string,
   styleDescription?: string,
+  pro?: boolean,
 ): Promise<{ name: string; filename: string; base64: string }> {
   const artStyle = styleDescription || 'Disney/Pixar 3D animation style with warm, round, and friendly character designs';
   const prompt = `Professional character reference sheet for "${character.name}".
@@ -29,7 +30,7 @@ CRITICAL: Show the EXACT same character in all views - same colors, same proport
 Label at the bottom: "${character.name.toUpperCase()} CHARACTER SHEET"`;
 
   console.log(`Generating character sheet for ${character.name}...`);
-  const base64 = await generateImage(prompt);
+  const base64 = await generateImage(prompt, [], pro);
   const filename = getCharacterSheetFilename(character.name);
 
   if (config.useSupabase) {
@@ -48,6 +49,7 @@ export async function generateAllCharacterSheets(
   userId?: string,
   signal?: AbortSignal,
   styleDescription?: string,
+  pro?: boolean,
 ): Promise<Map<string, string>> {
   const characterSheets = new Map<string, string>();
 
@@ -56,7 +58,7 @@ export async function generateAllCharacterSheets(
       throw new Error('Generation cancelled');
     }
     try {
-      const result = await generateCharacterSheet(storyId, character, userId, styleDescription);
+      const result = await generateCharacterSheet(storyId, character, userId, styleDescription, pro);
       characterSheets.set(result.name, result.base64);
     } catch (error) {
       console.error(`Failed to generate character sheet for ${character.name}:`, error);
