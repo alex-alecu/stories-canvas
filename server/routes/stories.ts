@@ -695,7 +695,7 @@ router.get('/:id/images/:filename', async (req: Request, res: Response) => {
     const filename = req.params.filename as string;
 
     // Basic security: prevent path traversal
-    if (filename.includes('..') || filename.includes('/')) {
+    if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
       res.status(400).json({ error: 'Invalid filename' });
       return;
     }
@@ -729,7 +729,7 @@ router.get('/:id/audio/:filename', async (req: Request, res: Response) => {
     const filename = req.params.filename as string;
 
     // Basic security: prevent path traversal
-    if (filename.includes('..') || filename.includes('/')) {
+    if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
       res.status(400).json({ error: 'Invalid filename' });
       return;
     }
