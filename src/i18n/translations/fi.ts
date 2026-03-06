@@ -130,6 +130,7 @@ const fi: Translations = {
   recordingNarration: 'Nauhoitetaan kerrontaa',
   playNarration: 'Toista kerronta',
   pauseNarration: 'Keskeyta kerronta',
+  autoPlay: 'Automaattinen toisto',
 };
 
 export default fi;

@@ -130,6 +130,7 @@ const de: Translations = {
   recordingNarration: 'Erzahlung aufnehmen',
   playNarration: 'Erzahlung abspielen',
   pauseNarration: 'Erzahlung pausieren',
+  autoPlay: 'Automatisch abspielen',
 };
 
 export default de;

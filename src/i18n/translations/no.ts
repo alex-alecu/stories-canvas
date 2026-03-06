@@ -130,6 +130,7 @@ const no: Translations = {
   recordingNarration: 'Tar opp fortelling',
   playNarration: 'Spill av fortelling',
   pauseNarration: 'Pause fortelling',
+  autoPlay: 'Automatisk avspilling',
 };
 
 export default no;
