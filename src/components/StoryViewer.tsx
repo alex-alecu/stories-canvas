@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Swiper, SwiperSlide } from 'swiper/react';
 import { Navigation, Keyboard } from 'swiper/modules';
 import type { Swiper as SwiperType } from 'swiper';
@@ -9,6 +9,16 @@ import { useFontSize, type FontSize } from '../contexts/FontSizeContext';
 import FontSizeControl from './FontSizeControl';
 import 'swiper/css';
 import 'swiper/css/navigation';
+
+const AUTOPLAY_STORAGE_KEY = 'stories-canvas:auto-play';
+
+function getStoredAutoPlay(): boolean {
+  try {
+    return localStorage.getItem(AUTOPLAY_STORAGE_KEY) === 'true';
+  } catch {
+    return false;
+  }
+}
 
 interface StoryViewerProps {
   storyId: string;
@@ -29,6 +39,26 @@ export default function StoryViewer({ storyId, scenario, isGenerating, progress 
   const [showFontSize, setShowFontSize] = useState(false);
   const popoverRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
+  const swiperRef = useRef<SwiperType | null>(null);
+
+  // Auto-play state (persisted to localStorage)
+  const [autoPlay, setAutoPlay] = useState(getStoredAutoPlay);
+  const autoPlayRef = useRef(autoPlay);
+  useEffect(() => { autoPlayRef.current = autoPlay; }, [autoPlay]);
+
+  const toggleAutoPlay = useCallback(() => {
+    setAutoPlay(prev => {
+      const next = !prev;
+      try { localStorage.setItem(AUTOPLAY_STORAGE_KEY, String(next)); } catch {}
+      return next;
+    });
+  }, []);
+
+  // Check if any page in the story has audio
+  const hasAudio = useMemo(
+    () => scenario.pages.some(p => !!p.audioUrl),
+    [scenario.pages],
+  );
 
   // Audio playback state
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -44,6 +74,17 @@ export default function StoryViewer({ storyId, scenario, isGenerating, progress 
     }
     setPlayingPage(null);
     setAudioLoading(null);
+  }, []);
+
+  // Auto-advance to next slide and play its audio
+  const autoAdvance = useCallback(() => {
+    const swiper = swiperRef.current;
+    if (!swiper || swiper.isEnd) {
+      // Reached the last slide — stop
+      setPlayingPage(null);
+      return;
+    }
+    swiper.slideNext();
   }, []);
 
   // Play audio for a specific page
@@ -62,6 +103,10 @@ export default function StoryViewer({ storyId, scenario, isGenerating, progress 
       audioRef.current = new Audio();
       audioRef.current.addEventListener('ended', () => {
         setPlayingPage(null);
+        // Auto-advance if enabled
+        if (autoPlayRef.current) {
+          autoAdvance();
+        }
       });
       audioRef.current.addEventListener('error', () => {
         setPlayingPage(null);
@@ -80,12 +125,23 @@ export default function StoryViewer({ storyId, scenario, isGenerating, progress 
         setPlayingPage(null);
         setAudioLoading(null);
       });
-  }, [playingPage, stopAudio]);
+  }, [playingPage, stopAudio, autoAdvance]);
 
-  // Stop audio on slide change
-  const handleSlideChange = useCallback((_swiper: SwiperType) => {
+  // Handle slide change — stop current audio, and auto-play next if enabled
+  const handleSlideChange = useCallback((swiper: SwiperType) => {
     stopAudio();
-  }, [stopAudio]);
+    if (autoPlayRef.current) {
+      const currentPage = scenario.pages[swiper.activeIndex];
+      if (currentPage?.audioUrl) {
+        // Small delay to let the slide transition settle
+        setTimeout(() => {
+          if (autoPlayRef.current && currentPage.audioUrl) {
+            playPageAudio(currentPage.pageNumber, currentPage.audioUrl);
+          }
+        }, 300);
+      }
+    }
+  }, [stopAudio, scenario.pages, playPageAudio]);
 
   // Cleanup audio on unmount
   useEffect(() => {
@@ -162,6 +218,30 @@ export default function StoryViewer({ storyId, scenario, isGenerating, progress 
         </div>
       </div>
 
+      {/* Auto-play toggle — only shown when the story has audio */}
+      {hasAudio && (
+        <button
+          onClick={toggleAutoPlay}
+          className="absolute top-4 left-[7.5rem] z-50 bg-black/40 hover:bg-black/60 backdrop-blur-sm text-white h-10 rounded-full flex items-center gap-2 px-3 transition-colors text-sm font-medium"
+          aria-label={t.autoPlay}
+          aria-pressed={autoPlay}
+        >
+          {/* Toggle track */}
+          <span
+            className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors duration-200 ${
+              autoPlay ? 'bg-primary-500' : 'bg-white/30'
+            }`}
+          >
+            <span
+              className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform duration-200 ${
+                autoPlay ? 'translate-x-[1.125rem]' : 'translate-x-[0.1875rem]'
+              }`}
+            />
+          </span>
+          <span className="hidden sm:inline">{t.autoPlay}</span>
+        </button>
+      )}
+
       {/* Story title badge */}
       <div className="absolute top-4 right-4 z-50 bg-black/40 backdrop-blur-sm text-white px-4 py-2 rounded-full text-sm font-semibold max-w-[50%] truncate">
         {scenario.title}
@@ -182,6 +262,7 @@ export default function StoryViewer({ storyId, scenario, isGenerating, progress 
         className="w-full h-full story-swiper"
         spaceBetween={0}
         slidesPerView={1}
+        onSwiper={(swiper) => { swiperRef.current = swiper; }}
         onSlideChange={handleSlideChange}
       >
         {scenario.pages.map(page => (

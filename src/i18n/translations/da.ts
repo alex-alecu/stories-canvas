@@ -130,6 +130,7 @@ const da: Translations = {
   recordingNarration: 'Optager fortaelling',
   playNarration: 'Afspil fortaelling',
   pauseNarration: 'Pause fortaelling',
+  autoPlay: 'Automatisk afspilning',
 };
 
 export default da;

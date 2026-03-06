@@ -130,6 +130,7 @@ const cs: Translations = {
   recordingNarration: 'Nahravam narraci',
   playNarration: 'Prehrat narraci',
   pauseNarration: 'Pozastavit narraci',
+  autoPlay: 'Automaticke prehravani',
 };
 
 export default cs;

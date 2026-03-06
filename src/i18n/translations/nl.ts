@@ -130,6 +130,7 @@ const nl: Translations = {
   recordingNarration: 'Vertelling opnemen',
   playNarration: 'Vertelling afspelen',
   pauseNarration: 'Vertelling pauzeren',
+  autoPlay: 'Automatisch afspelen',
 };
 
 export default nl;

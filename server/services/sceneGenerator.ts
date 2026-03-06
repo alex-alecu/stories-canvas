@@ -48,13 +48,13 @@ function buildScenePrompt(
     );
     imageIndex++;
     preambleParts.push(
-      `Image ${imageIndex}: CONTINUITY REFERENCE — This is the previous scene. Maintain the exact same character appearances, proportions, and visual style shown here.`,
+      `Image ${imageIndex}: CONTINUITY REFERENCE — This is the previous scene. Maintain the exact same character appearances, proportions, and visual style. If the location is the same, keep ALL objects and furniture in the EXACT same positions as shown here.`,
     );
     imageIndex++;
   } else if (hasPreviousScene) {
     // Only previous scene (page 2, where first === previous)
     preambleParts.push(
-      `Image ${imageIndex}: STYLE & CONTINUITY REFERENCE — This is the previous scene. Maintain the exact same visual style, character appearances, proportions, color palette, and lighting quality.`,
+      `Image ${imageIndex}: STYLE & CONTINUITY REFERENCE — This is the previous scene. Maintain the exact same visual style, character appearances, proportions, color palette, and lighting quality. If the location is the same, keep ALL objects and furniture in the EXACT same positions as shown here.`,
     );
     imageIndex++;
   }
@@ -86,7 +86,9 @@ CONSISTENCY REQUIREMENTS:
 - Characters must look IDENTICAL to the reference sheets: same exact fur/skin colors, eye colors, body proportions, clothing details
 - Maintain the SAME art style across all scenes: same rendering quality, same color saturation, same lighting approach
 - Use the SAME visual language: same line weight, same level of detail, same background style
-${hasPreviousScene ? '- The previous scene is shown for visual continuity. Maintain the same character appearance, art style, and color palette.\n' : ''}
+${hasPreviousScene ? `- The previous scene is shown for visual continuity. Maintain the same character appearance, art style, and color palette.
+- ENVIRONMENT SPATIAL CONTINUITY: If this scene takes place in the same location as the previous scene, ALL furniture, objects, and architectural elements MUST remain in the EXACT same positions. Beds, shelves, windows, doors, trees, rocks — everything must stay where it was. Only the characters' poses and actions should change. Match the camera angle and perspective of the previous scene.
+` : ''}
 Style: ${styleDescription || 'Disney/Pixar 3D animation style with warm, vibrant colors, round and friendly character designs'}.
 The characters MUST look EXACTLY like the characters in the reference sheets above.
 4:3 aspect ratio composition. No text or words in the image.`;

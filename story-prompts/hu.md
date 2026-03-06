@@ -49,6 +49,16 @@ Minden mesének ezt az alapmintát kell követnie, a korspecifikus intenzitásho
 - **JELENET KOMPOZÍCIÓ:** Komponáld a jelenetet úgy, hogy a főszereplők a kép **felső kétharmadában** helyezkedjenek el. A kép alsó részén szöveges rátét lesz, ezért oda támogató környezeti részleteket helyezz (talaj, ösvény, padló, fű, víz) a szereplők arcai helyett.
 - **HÁTTÉRSZEREPLŐK:** A célkorosztály alapján (lásd a Korspecifikus Szabályokat fentebb) az `imagePrompt` hátterében szerepeltess megfelelő számú mellékszereplőt vagy élő részletet. Ezek NEM főszereplők — környezeti statiszták (más állatok, emberek, lények, rovarok, madarak), amelyek élővé és benépesítetté teszik a világot. Írd le őket röviden, de konkrétan (pl.: "a háttérben két nyuszi kergetőzik egy bokor mellett, és egy kék madár ül egy kerítésoszlopon").
 
+### Környezet Térbeli Konzisztenciája (KRITIKUS)
+
+A történet képkockái diavetítésként lesznek megtekintve. A nézők észre fogják venni, ha a bútorok, tárgyak vagy a szoba elrendezése megváltozik az azonos helyszínen játszódó képkockák között. Ennek megelőzésére:
+
+- **HATÁROZZ MEG EGY TÉRBELI ELRENDEZÉST:** Az ELSŐ `imagePrompt` egy adott helyszínen KÖTELES egyértelmű, specifikus térbeli elrendezést meghatározni a környezethez. Írd le, hol vannak a kulcstárgyak a kamerához képest: balra, jobbra, középen, előtérben, háttérben. Például: "A cozy bedroom seen from a slightly elevated angle — a small wooden bed with a blue blanket on the LEFT side of the room, a round window with yellow curtains on the BACK WALL, a bookshelf filled with colourful books on the RIGHT, and a braided rug on the wooden floor in the CENTER."
+- **ISMÉTELD MEG AZ ELRENDEZÉST SZÓRÓL SZÓRA:** Minden további `imagePrompt` UGYANAZON a helyszínen KÖTELES megismételni ugyanazt a térbeli környezetleírást — ugyanazok a tárgyak, ugyanazok a pozíciók (balra/jobbra/középen/előtérben/háttérben), ugyanaz a relatív elrendezés. Másold ki az elrendezés leírását a bevezető képkockából és használd újra. Csak a karakterek pozíciói, cselekvései és kis előtéri részletek változhatnak.
+- **HASZNÁLJ EXPLICIT IRÁNYOKAT:** Mindig explicit térbeli kifejezésekkel írd le a tárgyak elhelyezését: "on the left", "on the right", "in the center", "against the back wall", "in the foreground", "in the far corner". Soha ne hagyd a tárgyak elhelyezését kétértelműnek vagy hallgatólagosnak.
+- **ÚJ HELYSZÍNEK ÚJ ELRENDEZÉST KAPNAK:** Amikor a történet ÚJ helyszínre költözik, írj új térbeli elrendezést ahhoz a helyszínhez. Majd tartsd konzisztensen az összes további képkockán azon a helyszínen, követve a fenti szabályokat.
+- **KAMERAÁLLÁS KONZISZTENCIA:** Amikor egymást követő képkockák ugyanazon a helyszínen játszódnak, tartsd meg ugyanazt a kameraállást és perspektívát, kivéve ha erős narratív ok van a változtatásra. A konzisztens kameraállás megerősíti az érzést, hogy a tárgyak a helyükön maradnak.
+
 ## Kimeneti Formátum
 
 Adj vissza érvényes JSON-t, amely pontosan megfelel a megadott sémának. Ne tartalmazzon markdown formázást, kódblokkokat vagy további szöveget a nyers JSON-on kívül.

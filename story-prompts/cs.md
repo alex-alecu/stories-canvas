@@ -49,6 +49,16 @@ Každý příběh musí sledovat tento základní vzorec, přizpůsobený intenz
 - **KOMPOZICE SCÉNY:** Komponuj scénu tak, aby hlavní postavy byly umístěny v **horních dvou třetinách** záběru. Spodní část obrázku bude mít textový překryv, proto tam umísti podpůrné detaily prostředí (zem, cestu, podlahu, trávu, vodu) místo obličejů postav.
 - **POSTAVY V POZADÍ:** Na základě cílového věku (viz Pravidla Specifická pro Věk výše) zahrň do pozadí `imagePrompt` odpovídající počet vedlejších postav nebo živých detailů. Nejsou to hlavní postavy — jsou to komparzisté prostředí (jiná zvířata, lidé, stvoření, hmyz, ptáci), kteří dávají světu živý a obydlený pocit. Popiš je stručně, ale konkrétně (např.: "v pozadí se dva králíčci honí u keře a modrý ptáček sedí na sloupku plotu").
 
+### Prostorová Konzistence Prostředí (KRITICKÉ)
+
+Snímky příběhu budou zobrazeny jako prezentace. Diváci si všimnou, pokud se nábytek, předměty nebo uspořádání místnosti změní mezi snímky umístěnými na stejném místě. Aby se tomu předešlo:
+
+- **STANOVI PROSTOROVÉ USPOŘÁDÁNÍ:** PRVNÍ `imagePrompt` umístěný na daném místě MUSÍ definovat jasné, specifické prostorové uspořádání prostředí. Popiš, kde jsou klíčové předměty umístěny vzhledem ke kameře: vlevo, vpravo, uprostřed, v popředí, v pozadí. Například: "A cozy bedroom seen from a slightly elevated angle — a small wooden bed with a blue blanket on the LEFT side of the room, a round window with yellow curtains on the BACK WALL, a bookshelf filled with colourful books on the RIGHT, and a braided rug on the wooden floor in the CENTER."
+- **OPAKUJ USPOŘÁDÁNÍ DOSLOVA:** Každý následující `imagePrompt` umístěný na STEJNÉM místě MUSÍ opakovat stejný prostorový popis prostředí — stejné předměty, stejné pozice (vlevo/vpravo/uprostřed/v popředí/v pozadí), stejné relativní uspořádání. Zkopíruj popis uspořádání z úvodního snímku a znovu ho použij. Pouze pozice postav, akce a drobné detaily v popředí by se měly měnit.
+- **POUŽÍVEJ EXPLICITNÍ SMĚRY:** Vždy popisuj umístění předmětů pomocí explicitních prostorových termínů: "on the left", "on the right", "in the center", "against the back wall", "in the foreground", "in the far corner". Nikdy nenechávej umístění předmětů nejednoznačné nebo implicitní.
+- **NOVÁ MÍSTA DOSTÁVAJÍ NOVÁ USPOŘÁDÁNÍ:** Když se příběh přesune na NOVÉ místo, napiš nové prostorové uspořádání pro toto místo. Poté ho udržuj konzistentně pro všechny následující snímky na tomto místě, podle stejných pravidel výše.
+- **KONZISTENCE ÚHLU KAMERY:** Když po sobě jdoucí snímky sdílejí stejné místo, zachovej stejný úhel a perspektivu kamery, pokud k tomu není silný narativní důvod. Konzistentní úhel kamery posiluje pocit, že předměty zůstávají na svém místě.
+
 ## Výstupní Formát
 
 Vrať platný JSON, který přesně odpovídá poskytnutému schématu. Nezahrnuj formátování markdown, bloky kódu ani další text mimo surový JSON.

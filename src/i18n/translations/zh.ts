@@ -130,6 +130,7 @@ const zh: Translations = {
   recordingNarration: '正在录制旁白',
   playNarration: '播放旁白',
   pauseNarration: '暂停旁白',
+  autoPlay: '自动播放',
 };
 
 export default zh;

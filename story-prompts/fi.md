@@ -49,6 +49,16 @@ Jokaisen tarinan täytyy noudattaa tätä perusrakennetta, mukautettuna ikäkoht
 - **KOHTAUKSEN SOMMITTELU:** Sommittele kohtaus niin, että päähahmot sijoittuvat kuvan **ylempään kahteen kolmannekseen**. Kuvan alaosassa on tekstipeitto, joten sijoita sinne tukevia ympäristöyksityiskohtia (maa, polku, lattia, ruoho, vesi) hahmojen kasvojen sijaan.
 - **TAUSTAHAHMOT:** Kohdeiän perusteella (katso Ikäkohtaiset Säännöt yllä) sisällytä sopiva määrä sivuhahmoja tai eläviä yksityiskohtia `imagePrompt`-kentän taustaan. Nämä EIVÄT ole päähahmoja — ne ovat ympäristöavustajia (muita eläimiä, ihmisiä, olentoja, hyönteisiä, lintuja), jotka tekevät maailmasta elävän ja asutun. Kuvaile heitä lyhyesti mutta tarkasti (esim.: "taustalla kaksi kania jahtaa toisiaan pensaan lähellä, ja sinitiainen istuu aidan tolpalla").
 
+### Ympäristön Tilallinen Johdonmukaisuus (KRIITTINEN)
+
+Tarinan kuvat näytetään diaesityksenä. Katsojat huomaavat, jos huonekalut, esineet tai huoneen sommittelu vaihtavat paikkaa samassa sijainnissa olevien kuvien välillä. Tämän estämiseksi:
+
+- **MÄÄRITÄ TILALLINEN SOMMITTELU:** ENSIMMÄINEN `imagePrompt` tietyssä sijainnissa TÄYTYY määritellä selkeä, tarkka tilallinen sommittelu ympäristöstä. Kuvaile missä avainobjektit sijaitsevat suhteessa kameraan: vasemmalla, oikealla, keskellä, etualalla, taustalla. Esimerkiksi: "A cozy bedroom seen from a slightly elevated angle — a small wooden bed with a blue blanket on the LEFT side of the room, a round window with yellow curtains on the BACK WALL, a bookshelf filled with colourful books on the RIGHT, and a braided rug on the wooden floor in the CENTER."
+- **TOISTA SOMMITTELU SANATARKASTI:** Jokainen seuraava `imagePrompt` SAMASSA sijainnissa TÄYTYY toistaa sama tilallinen kuvaus ympäristöstä — samat esineet, samat sijainnit (vasemmalla/oikealla/keskellä/etualalla/taustalla), sama suhteellinen sommittelu. Kopioi sommittelun kuvaus vakiintumiskuvasta ja käytä sitä uudelleen. Vain hahmojen sijainnit, toiminnat ja pienet etualan yksityiskohdat saavat muuttua.
+- **KÄYTÄ SELKEITÄ SUUNTIA:** Kuvaile esineiden sijoittelu aina selkeillä tilallisilla termeillä: "on the left", "on the right", "in the center", "against the back wall", "in the foreground", "in the far corner". Älä koskaan jätä esineiden sijoittelua epäselväksi tai viitteelliseksi.
+- **UUDET SIJAINNIT SAAVAT UUDET SOMMITTELUT:** Kun tarina siirtyy UUTEEN sijaintiin, kirjoita uusi tilallinen sommittelu sille sijainnille. Ylläpidä sitä sitten johdonmukaisesti kaikissa seuraavissa kuvissa siinä sijainnissa, noudattaen samoja sääntöjä yllä.
+- **KAMERAKULMAN JOHDONMUKAISUUS:** Kun peräkkäiset kuvat jakavat saman sijainnin, pidä kamerakulma ja perspektiivi samana, ellei muuttamiseen ole vahvaa tarinallista syytä. Johdonmukainen kamerakulma vahvistaa tunnetta, että esineet pysyvät paikoillaan.
+
 ## Tulosmuoto
 
 Palauta kelvollinen JSON, joka vastaa täsmälleen annettua skeemaa. Älä sisällytä markdown-muotoilua, koodilohkoja tai ylimääräistä tekstiä raa'an JSON:n ulkopuolella.

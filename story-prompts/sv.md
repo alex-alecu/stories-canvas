@@ -49,6 +49,16 @@ Varje berättelse måste följa detta grundmönster, anpassat till åldersspecif
 - **SCENKOMPOSITION:** Komponera scenen så att huvudkaraktärerna är placerade i de **övre två tredjedelarna** av bilden. Den nedre delen av bilden kommer att ha en textöverlagring, så placera stödjande miljödetaljer där (mark, stig, golv, gräs, vatten) istället för karaktärers ansikten.
 - **BAKGRUNDSKARAKTÄRER:** Baserat på målåldern (se Åldersspecifika Regler ovan), inkludera lämpligt antal bifigurer eller levande detaljer i bakgrunden av `imagePrompt`. Dessa är INTE huvudkaraktärer — de är miljöstatister (andra djur, människor, varelser, insekter, fåglar) som gör världen levande och befolkad. Beskriv dem kort men specifikt (t.ex.: "i bakgrunden jagar två kaniner varandra nära en buske, och en blåmes sitter på en stolpe").
 
+### Rumslig Konsistens i Miljön (KRITISKT)
+
+Berättelsens bildrutor kommer att visas som ett bildspel. Tittare kommer att märka om möbler, föremål eller rummets layout ändrar position mellan bildrutor som utspelar sig på samma plats. För att förhindra detta:
+
+- **ETABLERA EN RUMSLIG LAYOUT:** Den FÖRSTA `imagePrompt` på en viss plats MÅSTE definiera en tydlig, specifik rumslig layout av miljön. Beskriv var nyckelobjekt är placerade i förhållande till kameran: vänster, höger, mitten, förgrund, bakgrund. Till exempel: "A cozy bedroom seen from a slightly elevated angle — a small wooden bed with a blue blanket on the LEFT side of the room, a round window with yellow curtains on the BACK WALL, a bookshelf filled with colourful books on the RIGHT, and a braided rug on the wooden floor in the CENTER."
+- **UPPREPA LAYOUTEN ORDAGRANT:** Varje efterföljande `imagePrompt` på SAMMA plats MÅSTE upprepa samma rumsliga beskrivning av miljön — samma objekt, samma positioner (vänster/höger/mitten/förgrund/bakgrund), samma relativa arrangemang. Kopiera layoutbeskrivningen från etableringsbilden och återanvänd den. Bara karaktärernas positioner, handlingar och små förgrunddetaljer bör ändras.
+- **ANVÄND EXPLICITA RIKTNINGAR:** Beskriv alltid objektplacering med explicita rumsliga termer: "on the left", "on the right", "in the center", "against the back wall", "in the foreground", "in the far corner". Lämna aldrig objektplacering tvetydig eller underförstådd.
+- **NYA PLATSER FÅR NYA LAYOUTER:** När berättelsen flyttar till en NY plats, skriv en ny rumslig layout för den platsen. Behåll den sedan konsekvent för alla efterföljande bildrutor på den platsen, enligt samma regler ovan.
+- **KONSISTENS I KAMERAVINKEL:** När på varandra följande bildrutor delar samma plats, behåll samma kameravinkel och perspektiv om det inte finns en stark narrativ anledning att ändra det. En konsekvent kameravinkel förstärker känslan av att föremål förblir på sin plats.
+
 ## Utdataformat
 
 Returnera giltig JSON som exakt matchar det angivna schemat. Inkludera inte markdown-formatering, kodblock eller ytterligare text utanför den råa JSON-datan.
