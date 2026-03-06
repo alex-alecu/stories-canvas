@@ -49,6 +49,16 @@ Hver historie må følge dette grunnleggende mønsteret, tilpasset den aldersspe
 - **SCENEKOMPOSISJON:** Komponer scenen slik at hovedkarakterene er plassert i de **øvre to tredjedelene** av bildet. Den nedre delen av bildet vil ha en tekstoverlegg, så plasser støttende miljødetaljer der (bakke, sti, gulv, gress, vann) i stedet for karakterenes ansikter.
 - **BAKGRUNNSKARAKTERER:** Basert på målalderen (se Aldersspesifikke Regler ovenfor), inkluder passende antall bifigurer eller levende detaljer i bakgrunnen av `imagePrompt`. Disse er IKKE hovedkarakterer — de er miljøstatister (andre dyr, mennesker, vesener, insekter, fugler) som gjør verden levende og befolket. Beskriv dem kort men spesifikt (f.eks.: "i bakgrunnen jager to kaniner hverandre nær en busk, og en blåmeis sitter på en gjerdestolpe").
 
+### Romlig Konsistens i Miljøet (KRITISK)
+
+Historiens bilder vil bli vist som en lysbildefremvisning. Seere vil legge merke til om møbler, gjenstander eller rommets layout endrer posisjon mellom bilder som utspiller seg på samme sted. For å forhindre dette:
+
+- **ETABLER EN ROMLIG LAYOUT:** Den FØRSTE `imagePrompt` på et gitt sted MÅ definere en klar, spesifikk romlig layout av miljøet. Beskriv hvor nøkkelobjekter er plassert i forhold til kameraet: venstre, høyre, midt, forgrunn, bakgrunn. For eksempel: "A cozy bedroom seen from a slightly elevated angle — a small wooden bed with a blue blanket on the LEFT side of the room, a round window with yellow curtains on the BACK WALL, a bookshelf filled with colourful books on the RIGHT, and a braided rug on the wooden floor in the CENTER."
+- **GJENTA LAYOUTEN ORDRETT:** Hver påfølgende `imagePrompt` på SAMME sted MÅ gjenta den samme romlige beskrivelsen av miljøet — samme gjenstander, samme posisjoner (venstre/høyre/midt/forgrunn/bakgrunn), samme relative arrangement. Kopier layoutbeskrivelsen fra etableringsbilde og gjenbruk den. Bare karakterenes posisjoner, handlinger og små forgrunnsdetaljer bør endres.
+- **BRUK EKSPLISITTE RETNINGER:** Beskriv alltid gjenstandsplassering med eksplisitte romlige termer: "on the left", "on the right", "in the center", "against the back wall", "in the foreground", "in the far corner". La aldri gjenstandsplassering være tvetydig eller underforstått.
+- **NYE STEDER FÅR NYE LAYOUTER:** Når historien flytter til et NYTT sted, skriv en ny romlig layout for det stedet. Hold den deretter konsistent for alle påfølgende bilder på det stedet, i henhold til de samme reglene ovenfor.
+- **KONSISTENS I KAMERAVINKEL:** Når påfølgende bilder deler samme sted, behold samme kameravinkel og perspektiv med mindre det er en sterk narrativ grunn til å endre det. En konsistent kameravinkel forsterker følelsen av at gjenstander forblir på plass.
+
 ## Utdataformat
 
 Returner gyldig JSON som samsvarer nøyaktig med det oppgitte skjemaet. Ikke inkluder markdown-formatering, kodeblokker eller ekstra tekst utenfor den rå JSON-en.

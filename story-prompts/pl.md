@@ -49,6 +49,16 @@ Każde opowiadanie musi podążać za tym podstawowym schematem, dostosowanym do
 - **KOMPOZYCJA SCENY:** Skomponuj scenę tak, aby główne postacie były umieszczone w **górnych dwóch trzecich** kadru. Dolna część obrazu będzie miała nałożony tekst, więc umieść tam wspierające detale otoczenia (ziemia, ścieżka, podłoga, trawa, woda) zamiast twarzy postaci.
 - **POSTACIE W TLE:** Na podstawie docelowego wieku (patrz Zasady Specyficzne dla Wieku powyżej) uwzględnij odpowiednią liczbę postaci drugoplanowych lub żywych detali w tle `imagePrompt`. To NIE są postacie główne — to statyści środowiskowi (inne zwierzęta, ludzie, stworzenia, owady, ptaki), którzy sprawiają, że świat wydaje się żywy i zaludniony. Opisz je krótko, ale konkretnie (np.: "w tle dwa króliczki gonią się koło krzaka, a niebieski ptaszek siedzi na słupku ogrodzenia").
 
+### Spójność Przestrzenna Środowiska (KRYTYCZNE)
+
+Klatki historii będą wyświetlane jako pokaz slajdów. Widzowie zauważą, jeśli meble, przedmioty lub układ pokoju zmienią pozycję między klatkami osadzonymi w tej samej lokalizacji. Aby temu zapobiec:
+
+- **USTAL UKŁAD PRZESTRZENNY:** PIERWSZY `imagePrompt` osadzony w danej lokalizacji MUSI definiować jasny, konkretny układ przestrzenny środowiska. Opisz, gdzie kluczowe obiekty są umieszczone względem kamery: po lewej, po prawej, w centrum, na pierwszym planie, w tle. Na przykład: "A cozy bedroom seen from a slightly elevated angle — a small wooden bed with a blue blanket on the LEFT side of the room, a round window with yellow curtains on the BACK WALL, a bookshelf filled with colourful books on the RIGHT, and a braided rug on the wooden floor in the CENTER."
+- **POWTÓRZ UKŁAD DOSŁOWNIE:** Każdy kolejny `imagePrompt` osadzony w TEJ SAMEJ lokalizacji MUSI powtarzać ten sam opis przestrzenny środowiska — te same obiekty, te same pozycje (po lewej/po prawej/w centrum/na pierwszym planie/w tle), ten sam układ względny. Skopiuj opis układu z klatki ustanawiającej i wykorzystaj go ponownie. Tylko pozycje postaci, działania i drobne detale pierwszoplanowe powinny się zmieniać.
+- **UŻYWAJ JAWNYCH KIERUNKÓW:** Zawsze opisuj umiejscowienie obiektów używając jawnych terminów przestrzennych: "on the left", "on the right", "in the center", "against the back wall", "in the foreground", "in the far corner". Nigdy nie pozostawiaj umiejscowienia obiektów niejednoznacznym lub dorozumianym.
+- **NOWE LOKALIZACJE OTRZYMUJĄ NOWE UKŁADY:** Gdy historia przenosi się do NOWEJ lokalizacji, napisz nowy układ przestrzenny dla tej lokalizacji. Następnie utrzymuj go spójnie dla wszystkich kolejnych klatek w tej lokalizacji, przestrzegając tych samych zasad powyżej.
+- **SPÓJNOŚĆ KĄTA KAMERY:** Gdy kolejne klatki dzielą tę samą lokalizację, zachowaj ten sam kąt i perspektywę kamery, chyba że istnieje silny powód narracyjny do ich zmiany. Spójny kąt kamery wzmacnia poczucie, że obiekty pozostają na swoich miejscach.
+
 ## Format Wyjściowy
 
 Zwróć prawidłowy JSON, który dokładnie odpowiada dostarczonemu schematowi. Nie dołączaj formatowania markdown, bloków kodu ani dodatkowego tekstu poza surowym JSON-em.

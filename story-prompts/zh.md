@@ -49,6 +49,16 @@ IMPORTANT: 所有故事必须用中文撰写。故事正文、标题、角色名
 - **场景构图：** 构图时将主要角色放置在画面的**上三分之二**区域。画面下部将叠加文字，因此在那里放置辅助环境细节（地面、小路、地板、草地、水面），而不是角色的面部。
 - **背景角色：** 根据目标年龄（参见上方的年龄段规则），在 `imagePrompt` 的背景中加入适当数量的次要角色或生动的细节。这些不是主要角色——它们是环境群演（其他动物、路人、生物、昆虫、鸟类），让世界显得生动和有人烟。简短但具体地描述它们（例如："背景中，两只小兔子在灌木丛旁追逐嬉戏，一只蓝色小鸟栖息在篱笆柱上"）。
 
+### 环境空间一致性（关键）
+
+故事的画面将以幻灯片形式展示。观众会注意到，如果在同一地点设置的画面之间，家具、物品或房间布局发生了位置变化。为防止这种情况：
+
+- **建立空间布局：** 设置在特定地点的第一个`imagePrompt`必须定义环境的清晰、具体的空间排列。描述关键物品相对于摄像机的位置：左侧、右侧、中心、前景、背景。例如："A cozy bedroom seen from a slightly elevated angle — a small wooden bed with a blue blanket on the LEFT side of the room, a round window with yellow curtains on the BACK WALL, a bookshelf filled with colourful books on the RIGHT, and a braided rug on the wooden floor in the CENTER."
+- **逐字重复布局：** 设置在同一地点的每个后续`imagePrompt`必须重复相同的环境空间描述 — 相同的物品、相同的位置（左/右/中心/前景/背景）、相同的相对排列。从建立画面复制布局描述并重复使用。只有角色的位置、动作和小的前景细节应该改变。
+- **使用明确的方向：** 始终使用明确的空间术语描述物品放置："on the left"、"on the right"、"in the center"、"against the back wall"、"in the foreground"、"in the far corner"。永远不要让物品放置含糊或隐含。
+- **新地点获得新布局：** 当故事移到新地点时，为该地点编写新的空间布局。然后按照上述相同规则，在该地点的所有后续画面中保持一致。
+- **摄像角度一致性：** 当连续画面共享同一地点时，保持相同的摄像角度和视角，除非有强烈的叙事理由需要改变。一致的摄像角度强化了物品保持在原位的感觉。
+
 ## 输出格式
 
 返回与提供的模式完全匹配的有效JSON。不要包含markdown格式、代码块或原始JSON以外的任何额外文本。

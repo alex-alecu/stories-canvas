@@ -49,6 +49,16 @@ Fiecare poveste trebuie să urmeze acest tipar de bază, adaptat intensității 
 - **COMPOZIȚIA SCENEI:** Compune scena astfel încât personajele principale să fie poziționate în **cele două treimi superioare** ale cadrului. Partea inferioară a imaginii va avea un text suprapus, așa că pune detalii de mediu acolo (sol, cărare, podea, iarbă, apă) în loc de fețe de personaje.
 - **PERSONAJE DE FUNDAL:** În funcție de vârsta țintă (vezi Regulile Specifice Vârstei de mai sus), include numărul corespunzător de personaje secundare sau detalii vii în fundalul `imagePrompt`. Acestea NU sunt personaje principale — sunt figuranți de mediu (alte animale, oameni, creaturi, insecte, păsări) care fac lumea să pară vie și populată. Descrie-le pe scurt dar specific (ex: "în fundal, doi iepurași se aleargă lângă un tufiș, iar o pasăre albastră stă pe un stâlp de gard").
 
+### Consistența Spațială a Mediului (CRITIC)
+
+Cadrele poveștii vor fi vizualizate ca un slideshow. Spectatorii vor observa dacă mobilierul, obiectele sau amenajarea camerei se schimbă între cadre situate în aceeași locație. Pentru a preveni acest lucru:
+
+- **STABILEȘTE UN ARANJAMENT SPAȚIAL:** Primul `imagePrompt` situat într-o anumită locație TREBUIE să definească un aranjament spațial clar și specific al mediului. Descrie unde sunt plasate obiectele cheie relativ la cameră: stânga, dreapta, centru, prim-plan, fundal. De exemplu: "A cozy bedroom seen from a slightly elevated angle — a small wooden bed with a blue blanket on the LEFT side of the room, a round window with yellow curtains on the BACK WALL, a bookshelf filled with colourful books on the RIGHT, and a braided rug on the wooden floor in the CENTER."
+- **REPETĂ ARANJAMENTUL EXACT:** Fiecare `imagePrompt` ulterior situat în ACEEAȘI locație TREBUIE să repete aceeași descriere spațială a mediului — aceleași obiecte, aceleași poziții (stânga/dreapta/centru/prim-plan/fundal), același aranjament relativ. Copiază descrierea aranjamentului din cadrul de stabilire și reutilizeaz-o. Doar pozițiile personajelor, acțiunile și micile detalii din prim-plan ar trebui să se schimbe.
+- **FOLOSEȘTE DIRECȚII EXPLICITE:** Descrie întotdeauna plasarea obiectelor folosind termeni spațiali expliciți: "on the left", "on the right", "in the center", "against the back wall", "in the foreground", "in the far corner". Nu lăsa niciodată plasarea obiectelor ambiguă sau implicită.
+- **LOCAȚIILE NOI PRIMESC ARANJAMENTE NOI:** Când povestea se mută într-o locație NOUĂ, scrie un aranjament spațial nou pentru acea locație. Apoi menține-l consistent pentru toate cadrele ulterioare din acea locație, urmând aceleași reguli de mai sus.
+- **CONSISTENȚA UNGHIULUI CAMEREI:** Când cadrele consecutive împărtășesc aceeași locație, păstrează unghiul și perspectiva camerei la fel, cu excepția cazului în care există un motiv narativ puternic pentru a-l schimba. Unghiul consistent al camerei întărește senzația că obiectele rămân la locul lor.
+
 ## Format de Ieșire
 
 Returnează JSON valid care se potrivește exact cu schema furnizată. Nu include formatare markdown, blocuri de cod sau text suplimentar în afara JSON-ului brut.

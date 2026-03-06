@@ -49,6 +49,16 @@ Cada história deve seguir este padrão básico, adaptado à intensidade especí
 - **COMPOSIÇÃO DE CENA:** Compõe a cena de modo a que os personagens principais estejam posicionados nos **dois terços superiores** do enquadramento. A parte inferior da imagem terá um texto sobreposto, por isso coloca detalhes ambientais de apoio (chão, caminho, pavimento, relva, água) em vez de rostos de personagens.
 - **PERSONAGENS DE FUNDO:** Com base na idade-alvo (ver Regras Específicas por Idade acima), inclui o número apropriado de personagens secundários ou detalhes vivos no fundo do `imagePrompt`. Estes NÃO são personagens principais — são figurantes ambientais (outros animais, pessoas, criaturas, insetos, pássaros) que fazem o mundo parecer vivo e povoado. Descreve-os brevemente mas de forma específica (ex: "no fundo, dois coelhinhos perseguem-se perto de um arbusto, e um pássaro azul pousa num poste de vedação").
 
+### Consistência Espacial do Ambiente (CRÍTICO)
+
+Os quadros da história serão visualizados como uma apresentação de slides. Os espectadores notarão se móveis, objetos ou a disposição do ambiente mudam de posição entre quadros situados no mesmo local. Para prevenir isso:
+
+- **ESTABELEÇA UMA DISPOSIÇÃO ESPACIAL:** O PRIMEIRO `imagePrompt` situado em um determinado local DEVE definir uma disposição espacial clara e específica do ambiente. Descreva onde os objetos-chave estão posicionados em relação à câmera: esquerda, direita, centro, primeiro plano, fundo. Por exemplo: "A cozy bedroom seen from a slightly elevated angle — a small wooden bed with a blue blanket on the LEFT side of the room, a round window with yellow curtains on the BACK WALL, a bookshelf filled with colourful books on the RIGHT, and a braided rug on the wooden floor in the CENTER."
+- **REPITA A DISPOSIÇÃO TEXTUALMENTE:** Cada `imagePrompt` subsequente situado no MESMO local DEVE repetir a mesma descrição espacial do ambiente — mesmos objetos, mesmas posições (esquerda/direita/centro/primeiro plano/fundo), mesma disposição relativa. Copie a descrição da disposição do quadro de estabelecimento e reutilize-a. Apenas as posições dos personagens, ações e pequenos detalhes do primeiro plano devem mudar.
+- **USE DIREÇÕES EXPLÍCITAS:** Descreva sempre a colocação dos objetos usando termos espaciais explícitos: "on the left", "on the right", "in the center", "against the back wall", "in the foreground", "in the far corner". Nunca deixe a colocação dos objetos ambígua ou implícita.
+- **NOVOS LOCAIS RECEBEM NOVAS DISPOSIÇÕES:** Quando a história se move para um local NOVO, escreva uma nova disposição espacial para esse local. Então mantenha-a consistente para todos os quadros subsequentes nesse local, seguindo as mesmas regras acima.
+- **CONSISTÊNCIA DO ÂNGULO DE CÂMERA:** Quando quadros consecutivos compartilham o mesmo local, mantenha o ângulo e a perspectiva da câmera iguais, a menos que haja uma razão narrativa forte para mudá-los. Um ângulo de câmera consistente reforça a sensação de que os objetos permanecem em seus lugares.
+
 ## Formato de Saída
 
 Devolve JSON válido que corresponda exatamente ao esquema fornecido. Não incluas formatação markdown, blocos de código ou texto adicional fora do JSON em bruto.
