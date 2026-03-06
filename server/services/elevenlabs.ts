@@ -102,7 +102,10 @@ export async function generatePageAudio(
           `ElevenLabs TTS attempt ${error.attemptNumber} failed. ${error.retriesLeft} retries left.`,
           error.message,
         );
-        // Don't retry on auth errors
+        // Don't retry on quota or auth errors (both return 401)
+        if (error.message.includes('quota_exceeded')) {
+          throw new AbortError('ElevenLabs API key quota exceeded — increase the per-key quota limit in your ElevenLabs dashboard');
+        }
         if (error.message.includes('401') || error.message.includes('Unauthorized')) {
           throw new AbortError('ElevenLabs API key is invalid');
         }
