@@ -86,6 +86,36 @@ export async function getImagePath(storyId: string, filename: string): Promise<s
   }
 }
 
+export async function saveAudio(storyId: string, filename: string, audioBuffer: Buffer): Promise<void> {
+  const dir = await getStoryDir(storyId);
+  await fs.writeFile(path.join(dir, filename), audioBuffer);
+}
+
+export async function updatePageAudioUrl(storyId: string, pageNumber: number, audioUrl: string): Promise<void> {
+  await withLock(storyId, async () => {
+    const dir = path.join(storiesDir, storyId);
+    const filePath = path.join(dir, 'scenario.json');
+    const data = JSON.parse(await fs.readFile(filePath, 'utf-8')) as StoryMeta;
+    if (data.scenario) {
+      const page = data.scenario.pages.find(p => p.pageNumber === pageNumber);
+      if (page) {
+        page.audioUrl = audioUrl;
+      }
+    }
+    await fs.writeFile(filePath, JSON.stringify(data, null, 2));
+  });
+}
+
+export async function getAudioPath(storyId: string, filename: string): Promise<string | null> {
+  const filePath = path.join(storiesDir, storyId, filename);
+  try {
+    await fs.access(filePath);
+    return filePath;
+  } catch {
+    return null;
+  }
+}
+
 export async function getStory(storyId: string): Promise<StoryMeta | null> {
   const filePath = path.join(storiesDir, storyId, 'scenario.json');
   try {

@@ -63,11 +63,16 @@ export default function GenerationProgress({ progress, onCancel, isCancelling = 
   const { t } = useLanguage();
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
 
-  const phases = [
+  const allPhases = [
     { key: 'generating_scenario', label: t.writingStory },
     { key: 'generating_characters', label: t.drawingCharacters },
     { key: 'generating_images', label: t.illustratingPages },
+    { key: 'generating_audio', label: t.recordingNarration },
   ];
+
+  // Only show the audio phase if we actually entered it
+  const hasAudioPhase = progress?.status === 'generating_audio';
+  const phases = hasAudioPhase ? allPhases : allPhases.slice(0, 3);
 
   // When progress is null (waiting for SSE to connect), default to first phase
   const currentPhaseIndex = progress
@@ -121,7 +126,7 @@ export default function GenerationProgress({ progress, onCancel, isCancelling = 
           ))}
         </div>
 
-        {progress?.status === 'generating_images' && progress.totalPages > 0 && (
+        {(progress?.status === 'generating_images' || progress?.status === 'generating_audio') && progress.totalPages > 0 && (
           <div className="mb-4">
             <div className="flex justify-between text-sm text-gray-500 dark:text-gray-400 mb-1">
               <span>{t.pages}</span>

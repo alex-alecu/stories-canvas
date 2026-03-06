@@ -114,6 +114,22 @@ const pt: Translations = {
 
   language: 'Idioma',
   languageName: 'Português',
+
+  narratorVoice: 'Voz do narrador',
+  noVoice: 'Sem narracao',
+  voiceGrandma: 'Avo',
+  voiceGrandpa: 'Avo',
+  voiceDad: 'Pai',
+  voiceMom: 'Mae',
+  voiceWhisper: 'Sussurro',
+  voiceGrandmaDesc: 'Calorosa e aconchegante',
+  voiceGrandpaDesc: 'Gentil e meigo',
+  voiceDadDesc: 'Voz paterna calorosa',
+  voiceMomDesc: 'Voz materna suave',
+  voiceWhisperDesc: 'Voz sussurrante suave',
+  recordingNarration: 'Gravando narracao',
+  playNarration: 'Reproduzir narracao',
+  pauseNarration: 'Pausar narracao',
 };
 
 export default pt;

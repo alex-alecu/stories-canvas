@@ -114,6 +114,22 @@ const ko: Translations = {
 
   language: '언어',
   languageName: '한국어',
+
+  narratorVoice: '내레이터 목소리',
+  noVoice: '내레이션 없음',
+  voiceGrandma: '할머니',
+  voiceGrandpa: '할아버지',
+  voiceDad: '아빠',
+  voiceMom: '엄마',
+  voiceWhisper: '속삭임',
+  voiceGrandmaDesc: '따뜻하고 포근한',
+  voiceGrandpaDesc: '다정하고 부드러운',
+  voiceDadDesc: '따뜻한 아버지 목소리',
+  voiceMomDesc: '부드러운 어머니 목소리',
+  voiceWhisperDesc: '부드러운 속삭이는 목소리',
+  recordingNarration: '내레이션 녹음 중',
+  playNarration: '내레이션 재생',
+  pauseNarration: '내레이션 일시정지',
 };
 
 export default ko;

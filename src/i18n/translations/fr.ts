@@ -114,6 +114,22 @@ const fr: Translations = {
 
   language: 'Langue',
   languageName: 'Français',
+
+  narratorVoice: 'Voix du narrateur',
+  noVoice: 'Pas de narration',
+  voiceGrandma: 'Grand-mere',
+  voiceGrandpa: 'Grand-pere',
+  voiceDad: 'Papa',
+  voiceMom: 'Maman',
+  voiceWhisper: 'Chuchotement',
+  voiceGrandmaDesc: 'Chaleureuse et douce',
+  voiceGrandpaDesc: 'Gentil et doux',
+  voiceDadDesc: 'Voix paternelle chaleureuse',
+  voiceMomDesc: 'Voix maternelle douce',
+  voiceWhisperDesc: 'Voix chuchotee douce',
+  recordingNarration: 'Enregistrement de la narration',
+  playNarration: 'Lire la narration',
+  pauseNarration: 'Mettre en pause la narration',
 };
 
 export default fr;

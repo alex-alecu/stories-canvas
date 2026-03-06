@@ -6,8 +6,9 @@ import * as sbStorage from '../services/supabaseStorage.js';
 import { generateScenario } from '../services/scenario.js';
 import { generateAllCharacterSheets } from '../services/characterSheet.js';
 import { generateAllSceneImages } from '../services/sceneGenerator.js';
+import { generateAllPageAudio, isElevenLabsConfigured } from '../services/elevenlabs.js';
 import { optionalAuth } from '../middleware/auth.js';
-import type { GenerationProgress, CreateStoryRequest, StoryStatus, StoryMeta, Scenario, ArtStyleKey } from '../../shared/types.js';
+import type { GenerationProgress, CreateStoryRequest, StoryStatus, StoryMeta, Scenario, ArtStyleKey, VoiceKey } from '../../shared/types.js';
 import { ART_STYLES, DEFAULT_AGE, DEFAULT_ART_STYLE } from '../../shared/types.js';
 
 const router = Router();
@@ -214,7 +215,7 @@ router.post('/', optionalAuth, async (req: Request, res: Response) => {
       return;
     }
 
-    const { prompt, language, age, style, pro } = req.body as CreateStoryRequest;
+    const { prompt, language, age, style, pro, voice } = req.body as CreateStoryRequest;
 
     if (!prompt || typeof prompt !== 'string') {
       res.status(400).json({ error: 'Prompt is required' });
@@ -235,20 +236,21 @@ router.post('/', optionalAuth, async (req: Request, res: Response) => {
     const storyLanguage = typeof language === 'string' ? language : 'ro';
     const storyAge = typeof age === 'number' && age > 0 && age <= 12 ? age : DEFAULT_AGE;
     const storyStyle: ArtStyleKey = (typeof style === 'string' && style in ART_STYLES) ? style as ArtStyleKey : DEFAULT_ART_STYLE;
-    const storyPro = typeof pro === 'boolean' ? pro : false;
+    const validVoices: VoiceKey[] = ['grandma', 'grandpa', 'dad', 'mom', 'whisper'];
+    const storyVoice: VoiceKey | undefined = (typeof voice === 'string' && validVoices.includes(voice as VoiceKey)) ? voice as VoiceKey : undefined;
     const storyId = crypto.randomUUID();
     const userId = req.authUser?.id;
 
     // Create the story in DB IMMEDIATELY so it's available for SSE and refresh
     if (config.useSupabase) {
-      await sbStorage.createStory(storyId, trimmedPrompt, 'generating_scenario', userId, storyLanguage);
+      await sbStorage.createStory(storyId, trimmedPrompt, 'generating_scenario', userId, storyLanguage, storyVoice);
     }
 
     // Return immediately, generation happens in background
     res.status(201).json({ id: storyId, status: 'generating_scenario' as StoryStatus });
 
     // Background generation pipeline
-    runGenerationPipeline(storyId, trimmedPrompt, userId, storyLanguage, storyAge, storyStyle, storyPro).catch(error => {
+    runGenerationPipeline(storyId, trimmedPrompt, userId, storyLanguage, storyAge, storyStyle, !!pro, storyVoice).catch(error => {
       console.error(`Generation pipeline failed for ${storyId}:`, error);
     });
   } catch (error) {
@@ -257,7 +259,7 @@ router.post('/', optionalAuth, async (req: Request, res: Response) => {
   }
 });
 
-async function runGenerationPipeline(storyId: string, prompt: string, userId?: string, language?: string, age?: number, style?: ArtStyleKey, pro?: boolean): Promise<void> {
+async function runGenerationPipeline(storyId: string, prompt: string, userId?: string, language?: string, age?: number, style?: ArtStyleKey, pro?: boolean, voice?: VoiceKey): Promise<void> {
   const controller = new AbortController();
   activeGenerations.set(storyId, controller);
   const { signal } = controller;
@@ -347,7 +349,7 @@ async function runGenerationPipeline(storyId: string, prompt: string, userId?: s
       const coverUrl = getPageImageUrl(storyId, 1, userId);
       try {
         await sbStorage.updateStoryProgress(storyId, {
-          status: 'completed',
+          status: voice && isElevenLabsConfigured() ? 'generating_audio' : 'completed',
           completed_pages: completedPages,
           failed_pages: failedPages,
         });
@@ -357,6 +359,49 @@ async function runGenerationPipeline(storyId: string, prompt: string, userId?: s
       } catch (err) {
         console.error(`Failed to update cover image for ${storyId}:`, err);
       }
+    }
+
+    // Phase 4: Generate audio narration (only if voice selected and ElevenLabs configured)
+    if (voice && isElevenLabsConfigured()) {
+      if (signal.aborted) throw new Error('Generation cancelled');
+      await updateStoryStatus(storyId, 'generating_audio');
+
+      await sendProgressUpdate(storyId, {
+        storyId,
+        status: 'generating_audio',
+        currentPhase: 'Recording narration...',
+        completedPages: 0,
+        totalPages: scenario.pages.length,
+        failedPages: [],
+        message: `Illustrations complete. Recording narration with ${voice} voice...`,
+      });
+
+      let audioCompletedPages = 0;
+
+      await generateAllPageAudio(
+        storyId,
+        scenario.pages,
+        voice,
+        userId,
+        signal,
+        (progress) => {
+          if (progress.pageStatus === 'completed') {
+            audioCompletedPages++;
+          }
+
+          sendProgressUpdate(storyId, {
+            storyId,
+            status: 'generating_audio',
+            currentPhase: 'Recording narration...',
+            completedPages: audioCompletedPages,
+            totalPages: scenario.pages.length,
+            failedPages,
+            message: progress.message || '',
+            pageNumber: progress.pageNumber,
+            pageStatus: progress.pageStatus,
+          }).catch(() => {});
+        },
+      );
     }
 
     // Complete
@@ -650,7 +695,7 @@ router.get('/:id/images/:filename', async (req: Request, res: Response) => {
     const filename = req.params.filename as string;
 
     // Basic security: prevent path traversal
-    if (filename.includes('..') || filename.includes('/')) {
+    if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
       res.status(400).json({ error: 'Invalid filename' });
       return;
     }
@@ -674,6 +719,40 @@ router.get('/:id/images/:filename', async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Failed to serve image:', error);
     res.status(500).json({ error: 'Failed to serve image' });
+  }
+});
+
+// GET /api/stories/:id/audio/:filename - Serve story audio (filesystem fallback)
+router.get('/:id/audio/:filename', async (req: Request, res: Response) => {
+  try {
+    const id = req.params.id as string;
+    const filename = req.params.filename as string;
+
+    // Basic security: prevent path traversal
+    if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
+      res.status(400).json({ error: 'Invalid filename' });
+      return;
+    }
+
+    // If Supabase is configured, redirect to Supabase Storage URL
+    if (config.useSupabase) {
+      const story = await getStory(id);
+      const url = sbStorage.getAudioUrl(story?.userId, id, filename);
+      res.redirect(url);
+      return;
+    }
+
+    const audioPath = await fsStorage.getAudioPath(id, filename);
+    if (!audioPath) {
+      res.status(404).json({ error: 'Audio not found' });
+      return;
+    }
+
+    res.setHeader('Content-Type', 'audio/mpeg');
+    res.sendFile(audioPath);
+  } catch (error) {
+    console.error('Failed to serve audio:', error);
+    res.status(500).json({ error: 'Failed to serve audio' });
   }
 });
 

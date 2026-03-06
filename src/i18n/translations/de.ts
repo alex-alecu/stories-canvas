@@ -114,6 +114,22 @@ const de: Translations = {
 
   language: 'Sprache',
   languageName: 'Deutsch',
+
+  narratorVoice: 'Erzahlerstimme',
+  noVoice: 'Keine Erzahlung',
+  voiceGrandma: 'Oma',
+  voiceGrandpa: 'Opa',
+  voiceDad: 'Papa',
+  voiceMom: 'Mama',
+  voiceWhisper: 'Flustern',
+  voiceGrandmaDesc: 'Warm und gemutlich',
+  voiceGrandpaDesc: 'Freundlich und sanft',
+  voiceDadDesc: 'Warme vaterliche Stimme',
+  voiceMomDesc: 'Sanfte mutterliche Stimme',
+  voiceWhisperDesc: 'Leise fluesternde Stimme',
+  recordingNarration: 'Erzahlung aufnehmen',
+  playNarration: 'Erzahlung abspielen',
+  pauseNarration: 'Erzahlung pausieren',
 };
 
 export default de;

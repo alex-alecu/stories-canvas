@@ -114,6 +114,22 @@ const ja: Translations = {
 
   language: '言語',
   languageName: '日本語',
+
+  narratorVoice: 'ナレーターの声',
+  noVoice: 'ナレーションなし',
+  voiceGrandma: 'おばあちゃん',
+  voiceGrandpa: 'おじいちゃん',
+  voiceDad: 'お父さん',
+  voiceMom: 'お母さん',
+  voiceWhisper: 'ささやき',
+  voiceGrandmaDesc: '温かくて優しい',
+  voiceGrandpaDesc: '穏やかで優しい',
+  voiceDadDesc: '温かい父の声',
+  voiceMomDesc: '優しい母の声',
+  voiceWhisperDesc: '柔らかいささやき声',
+  recordingNarration: 'ナレーション録音中',
+  playNarration: 'ナレーションを再生',
+  pauseNarration: 'ナレーションを一時停止',
 };
 
 export default ja;

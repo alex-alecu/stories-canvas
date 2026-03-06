@@ -127,6 +127,22 @@ const ro: Translations = {
 
   language: 'Limbă',
   languageName: 'Română',
+
+  narratorVoice: 'Vocea naratorului',
+  noVoice: 'Fara naratiune',
+  voiceGrandma: 'Bunica',
+  voiceGrandpa: 'Bunicul',
+  voiceDad: 'Tata',
+  voiceMom: 'Mama',
+  voiceWhisper: 'Soapta',
+  voiceGrandmaDesc: 'Calda si confortabila',
+  voiceGrandpaDesc: 'Bun si bland',
+  voiceDadDesc: 'Voce calda de tata',
+  voiceMomDesc: 'Voce blanda de mama',
+  voiceWhisperDesc: 'Voce soptita',
+  recordingNarration: 'Inregistrare naratiune',
+  playNarration: 'Reda naratiunea',
+  pauseNarration: 'Pauza naratiune',
 };
 
 export default ro;

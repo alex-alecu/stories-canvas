@@ -31,4 +31,15 @@ export const config = {
   supabaseAnonKey: optionalEnv('SUPABASE_ANON_KEY'),
   supabaseServiceKey,
   useSupabase: !!(supabaseUrl && supabaseServiceKey),
+
+  // ElevenLabs configuration
+  elevenLabsApiKey: optionalEnv('ELEVENLABS_API_KEY'),
+  elevenLabsModel: process.env.ELEVENLABS_MODEL || 'eleven_multilingual_v2',
+  voiceIds: {
+    grandma: optionalEnv('VOICE_GRANDMA_ID') || 'XB0fDUnXU5powFXDhCwa', // Charlotte
+    grandpa: optionalEnv('VOICE_GRANDPA_ID') || 'JBFqnCBsd6RMkjVDRZzb', // George
+    dad: optionalEnv('VOICE_DAD_ID') || 'TX3LPaxmHKxFdv7VOQHJ', // Liam
+    mom: optionalEnv('VOICE_MOM_ID') || 'EXAVITQu4vr4xnSDxMaL', // Sarah
+    whisper: optionalEnv('VOICE_WHISPER_ID') || 'JBFqnCBsd6RMkjVDRZzb', // George (with whisper settings)
+  },
 } as const;

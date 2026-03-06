@@ -114,6 +114,22 @@ const fi: Translations = {
 
   language: 'Kieli',
   languageName: 'Suomi',
+
+  narratorVoice: 'Kertojan aani',
+  noVoice: 'Ei kerrontaa',
+  voiceGrandma: 'Mummo',
+  voiceGrandpa: 'Pappa',
+  voiceDad: 'Isa',
+  voiceMom: 'Aiti',
+  voiceWhisper: 'Kuiskaus',
+  voiceGrandmaDesc: 'Lammin ja kodikas',
+  voiceGrandpaDesc: 'Ystävällinen ja lempeä',
+  voiceDadDesc: 'Lammin isallinen aani',
+  voiceMomDesc: 'Lempeä aidillinen aani',
+  voiceWhisperDesc: 'Pehmeä kuiskaava aani',
+  recordingNarration: 'Nauhoitetaan kerrontaa',
+  playNarration: 'Toista kerronta',
+  pauseNarration: 'Keskeyta kerronta',
 };
 
 export default fi;
