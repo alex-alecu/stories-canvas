@@ -130,6 +130,7 @@ const es: Translations = {
   recordingNarration: 'Grabando narracion',
   playNarration: 'Reproducir narracion',
   pauseNarration: 'Pausar narracion',
+  autoPlay: 'Reproduccion automatica',
 };
 
 export default es;

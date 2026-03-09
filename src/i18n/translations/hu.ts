@@ -130,6 +130,7 @@ const hu: Translations = {
   recordingNarration: 'Narracio felvetele',
   playNarration: 'Narracio lejatszasa',
   pauseNarration: 'Narracio szuneteltetese',
+  autoPlay: 'Automatikus lejatszas',
 };
 
 export default hu;

@@ -49,6 +49,16 @@ Every story must follow this basic pattern, adapted to age-specific intensity:
 - **SCENE COMPOSITION:** Compose the scene so the main characters are positioned in the **upper two-thirds** of the frame. The lower portion of the image will have a text overlay, so place supporting environment details there (ground, path, floor, grass, water) rather than character faces.
 - **BACKGROUND CHARACTERS:** Based on the target age (see Age-Specific Rules above), include the appropriate number of secondary characters or living details in the background of the `imagePrompt`. These are NOT main characters — they are environmental extras (other animals, people, creatures, insects, birds) that make the world feel alive and populated. Describe them briefly but specifically (e.g. "in the background, two rabbits chase each other near a bush, and a bluebird perches on a fence post").
 
+### Environment Spatial Consistency (CRITICAL)
+
+The story's frames will be viewed as a slideshow. Viewers will notice if furniture, objects, or room layouts change position between frames set in the same location. To prevent this:
+
+- **ESTABLISH A SPATIAL LAYOUT:** The FIRST `imagePrompt` set in a given location MUST define a clear, specific spatial arrangement of the environment. Describe where key objects are placed relative to the camera: left, right, center, foreground, background. For example: "A cozy bedroom seen from a slightly elevated angle — a small wooden bed with a blue blanket on the LEFT side of the room, a round window with yellow curtains on the BACK WALL, a bookshelf filled with colourful books on the RIGHT, and a braided rug on the wooden floor in the CENTER."
+- **REPEAT THE LAYOUT VERBATIM:** Every subsequent `imagePrompt` set in the SAME location MUST repeat the same spatial description of the environment — same objects, same positions (left/right/center/foreground/background), same relative arrangement. Copy the environment layout description from the establishing frame and reuse it. Only the characters' positions, actions, and minor foreground details should change.
+- **USE EXPLICIT DIRECTIONS:** Always describe object placement using explicit spatial terms: "on the left", "on the right", "in the center", "against the back wall", "in the foreground", "in the far corner". Never leave object placement ambiguous or implied.
+- **NEW LOCATIONS GET NEW LAYOUTS:** When the story moves to a NEW location, write a fresh establishing spatial layout for that location. Then maintain it consistently for all subsequent frames in that location, following the same rules above.
+- **CAMERA ANGLE CONSISTENCY:** When consecutive frames share the same location, keep the camera angle and perspective the same unless there is a strong narrative reason to change it (e.g. a dramatic reveal). Consistent camera angle reinforces the feeling that objects stay in place.
+
 ## Output Format
 
 Return valid JSON that matches exactly the provided schema. Do not include markdown formatting, code blocks, or additional text outside of the raw JSON.

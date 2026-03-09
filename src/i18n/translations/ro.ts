@@ -143,6 +143,7 @@ const ro: Translations = {
   recordingNarration: 'Inregistrare naratiune',
   playNarration: 'Reda naratiunea',
   pauseNarration: 'Pauza naratiune',
+  autoPlay: 'Redare automata',
 };
 
 export default ro;

@@ -130,6 +130,7 @@ const ko: Translations = {
   recordingNarration: '내레이션 녹음 중',
   playNarration: '내레이션 재생',
   pauseNarration: '내레이션 일시정지',
+  autoPlay: '자동 재생',
 };
 
 export default ko;

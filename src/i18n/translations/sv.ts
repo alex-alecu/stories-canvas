@@ -130,6 +130,7 @@ const sv: Translations = {
   recordingNarration: 'Spelar in berattelse',
   playNarration: 'Spela upp berattelse',
   pauseNarration: 'Pausa berattelse',
+  autoPlay: 'Automatisk uppspelning',
 };
 
 export default sv;

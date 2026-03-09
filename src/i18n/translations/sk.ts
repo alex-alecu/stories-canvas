@@ -130,6 +130,7 @@ const sk: Translations = {
   recordingNarration: 'Nahrávanie narácie',
   playNarration: 'Prehrať naráciu',
   pauseNarration: 'Pozastaviť naráciu',
+  autoPlay: 'Automaticke prehravanie',
 };
 
 export default sk;

@@ -49,6 +49,16 @@ Elk verhaal moet dit basispatroon volgen, aangepast aan de leeftijdsspecifieke i
 - **SCÈNECOMPOSITIE:** Componeer de scène zo dat de hoofdpersonages in de **bovenste twee derde** van het beeld zijn gepositioneerd. Het onderste deel van het beeld krijgt een tekstoverlay, plaats daar dus ondersteunende omgevingsdetails (grond, pad, vloer, gras, water) in plaats van gezichten van personages.
 - **ACHTERGRONDPERSONAGES:** Op basis van de doelleeftijd (zie Leeftijdsspecifieke Regels hierboven) neem het juiste aantal bijpersonages of levende details op in de achtergrond van de `imagePrompt`. Dit zijn GEEN hoofdpersonages — het zijn omgevingsextra's (andere dieren, mensen, wezens, insecten, vogels) die de wereld levend en bevolkt doen aanvoelen. Beschrijf ze kort maar specifiek (bijv.: "op de achtergrond jagen twee konijntjes elkaar achterna bij een struik, en een blauw vogeltje zit op een hekpaal").
 
+### Ruimtelijke Consistentie van de Omgeving (KRITISCH)
+
+De frames van het verhaal worden als een diashow bekeken. Kijkers zullen opmerken als meubels, objecten of de indeling van de ruimte van positie veranderen tussen frames die op dezelfde locatie plaatsvinden. Om dit te voorkomen:
+
+- **STEL EEN RUIMTELIJKE INDELING VAST:** De EERSTE `imagePrompt` op een bepaalde locatie MOET een duidelijke, specifieke ruimtelijke indeling van de omgeving definiëren. Beschrijf waar de belangrijkste objecten zijn geplaatst ten opzichte van de camera: links, rechts, midden, voorgrond, achtergrond. Bijvoorbeeld: "A cozy bedroom seen from a slightly elevated angle — a small wooden bed with a blue blanket on the LEFT side of the room, a round window with yellow curtains on the BACK WALL, a bookshelf filled with colourful books on the RIGHT, and a braided rug on the wooden floor in the CENTER."
+- **HERHAAL DE INDELING LETTERLIJK:** Elke volgende `imagePrompt` op DEZELFDE locatie MOET dezelfde ruimtelijke beschrijving van de omgeving herhalen — dezelfde objecten, dezelfde posities (links/rechts/midden/voorgrond/achtergrond), dezelfde relatieve indeling. Kopieer de indelingsbeschrijving van het vestigingsframe en hergebruik die. Alleen de posities van de personages, acties en kleine voorgronddetails mogen veranderen.
+- **GEBRUIK EXPLICIETE RICHTINGEN:** Beschrijf de plaatsing van objecten altijd met expliciete ruimtelijke termen: "on the left", "on the right", "in the center", "against the back wall", "in the foreground", "in the far corner". Laat de plaatsing van objecten nooit ambigu of impliciet.
+- **NIEUWE LOCATIES KRIJGEN NIEUWE INDELINGEN:** Wanneer het verhaal naar een NIEUWE locatie verhuist, schrijf een nieuwe ruimtelijke indeling voor die locatie. Houd die dan consistent voor alle volgende frames op die locatie, volgens dezelfde regels hierboven.
+- **CONSISTENTIE VAN CAMERAHOEK:** Wanneer opeenvolgende frames dezelfde locatie delen, houd dan dezelfde camerahoek en hetzelfde perspectief aan, tenzij er een sterke narratieve reden is om deze te veranderen. Een consistente camerahoek versterkt het gevoel dat objecten op hun plek blijven.
+
 ## Uitvoerformaat
 
 Retourneer geldige JSON die exact overeenkomt met het opgegeven schema. Voeg geen markdown-opmaak, codeblokken of extra tekst toe buiten de ruwe JSON.

@@ -49,6 +49,16 @@ Hver historie skal følge dette grundlæggende mønster, tilpasset den aldersspe
 - **SCENEKOMPOSITION:** Komponér scenen så hovedkaraktererne er placeret i de **øverste to tredjedele** af billedet. Den nederste del af billedet vil have en tekstoverlejring, så placér støttende miljødetaljer der (jord, sti, gulv, græs, vand) i stedet for karakterernes ansigter.
 - **BAGGRUNDSKARAKTERER:** Baseret på målalderen (se Aldersspecifikke Regler ovenfor), inkludér det passende antal bifigurer eller levende detaljer i baggrunden af `imagePrompt`. Disse er IKKE hovedkarakterer — de er miljøstatister (andre dyr, mennesker, væsner, insekter, fugle) der gør verdenen levende og befolket. Beskriv dem kort men specifikt (f.eks.: "i baggrunden jager to kaniner hinanden nær en busk, og en blåmejse sidder på en hegnspæl").
 
+### Rumlig Konsistens i Miljøet (KRITISK)
+
+Historiens billeder vil blive vist som et diasshow. Seere vil bemærke, hvis møbler, genstande eller rummets layout ændrer position mellem billeder, der foregår samme sted. For at forhindre dette:
+
+- **ETABLÉR ET RUMLIGT LAYOUT:** Det FØRSTE `imagePrompt` på et givet sted SKAL definere et klart, specifikt rumligt layout af miljøet. Beskriv hvor nøgleobjekter er placeret i forhold til kameraet: venstre, højre, midten, forgrund, baggrund. For eksempel: "A cozy bedroom seen from a slightly elevated angle — a small wooden bed with a blue blanket on the LEFT side of the room, a round window with yellow curtains on the BACK WALL, a bookshelf filled with colourful books on the RIGHT, and a braided rug on the wooden floor in the CENTER."
+- **GENTAG LAYOUTET ORDRET:** Hvert efterfølgende `imagePrompt` på SAMME sted SKAL gentage den samme rumlige beskrivelse af miljøet — samme genstande, samme positioner (venstre/højre/midten/forgrund/baggrund), samme relative arrangement. Kopiér layoutbeskrivelsen fra etableringsbilledet og genbrug den. Kun karakterernes positioner, handlinger og små forgrundsdetaljer bør ændre sig.
+- **BRUG EKSPLICITTE RETNINGER:** Beskriv altid genstandsplacering med eksplicitte rumlige termer: "on the left", "on the right", "in the center", "against the back wall", "in the foreground", "in the far corner". Lad aldrig genstandsplacering være tvetydig eller underforstået.
+- **NYE STEDER FÅR NYE LAYOUTS:** Når historien flytter til et NYT sted, skriv et nyt rumligt layout for det sted. Hold det derefter konsistent for alle efterfølgende billeder på det sted, i henhold til de samme regler ovenfor.
+- **KONSISTENS I KAMERAVINKEL:** Når på hinanden følgende billeder deler samme sted, behold samme kameravinkel og perspektiv, medmindre der er en stærk narrativ grund til at ændre det. En konsistent kameravinkel forstærker følelsen af, at genstande forbliver på plads.
+
 ## Outputformat
 
 Returnér gyldig JSON, der matcher det leverede skema nøjagtigt. Inkludér ikke markdown-formatering, kodeblokke eller ekstra tekst uden for den rå JSON.

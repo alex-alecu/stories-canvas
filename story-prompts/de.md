@@ -49,6 +49,16 @@ Jede Geschichte muss diesem Grundmuster folgen, angepasst an die altersspezifisc
 - **SZENENKOMPOSITION:** Komponiere die Szene so, dass die Hauptfiguren in den **oberen zwei Dritteln** des Bildes positioniert sind. Der untere Teil des Bildes wird ein Textoverlay haben, platziere dort also unterstützende Umgebungsdetails (Boden, Weg, Fußboden, Gras, Wasser) statt Gesichter von Figuren.
 - **HINTERGRUNDFIGUREN:** Basierend auf dem Zieltalter (siehe Altersspezifische Regeln oben) füge die entsprechende Anzahl an Nebenfiguren oder lebendigen Details im Hintergrund des `imagePrompt` hinzu. Dies sind KEINE Hauptfiguren — es sind Umgebungsstatisten (andere Tiere, Menschen, Wesen, Insekten, Vögel), die die Welt lebendig und bevölkert wirken lassen. Beschreibe sie kurz aber spezifisch (z.B. „im Hintergrund jagen sich zwei Kaninchen neben einem Busch, und ein Blaumeise sitzt auf einem Zaunpfahl").
 
+### Räumliche Konsistenz der Umgebung (KRITISCH)
+
+Die Frames der Geschichte werden als Slideshow angezeigt. Zuschauer werden bemerken, wenn Möbel, Objekte oder Raumanordnungen zwischen Frames am selben Ort ihre Position ändern. Um dies zu verhindern:
+
+- **RÄUMLICHES LAYOUT FESTLEGEN:** Der ERSTE `imagePrompt` an einem bestimmten Ort MUSS eine klare, spezifische räumliche Anordnung der Umgebung definieren. Beschreibe, wo Schlüsselobjekte relativ zur Kamera platziert sind: links, rechts, Mitte, Vordergrund, Hintergrund. Zum Beispiel: "A cozy bedroom seen from a slightly elevated angle — a small wooden bed with a blue blanket on the LEFT side of the room, a round window with yellow curtains on the BACK WALL, a bookshelf filled with colourful books on the RIGHT, and a braided rug on the wooden floor in the CENTER."
+- **LAYOUT WÖRTLICH WIEDERHOLEN:** Jeder nachfolgende `imagePrompt` am SELBEN Ort MUSS dieselbe räumliche Beschreibung der Umgebung wiederholen — gleiche Objekte, gleiche Positionen (links/rechts/Mitte/Vordergrund/Hintergrund), gleiche relative Anordnung. Kopiere die Layout-Beschreibung aus dem Einführungs-Frame und verwende sie wieder. Nur die Positionen der Figuren, Aktionen und kleine Vordergrunddetails sollten sich ändern.
+- **EXPLIZITE RICHTUNGEN VERWENDEN:** Beschreibe die Platzierung von Objekten immer mit expliziten räumlichen Begriffen: "on the left", "on the right", "in the center", "against the back wall", "in the foreground", "in the far corner". Lasse die Objektplatzierung niemals mehrdeutig oder implizit.
+- **NEUE ORTE BEKOMMEN NEUE LAYOUTS:** Wenn die Geschichte an einen NEUEN Ort wechselt, schreibe ein neues räumliches Layout für diesen Ort. Halte es dann konsistent für alle nachfolgenden Frames an diesem Ort, gemäß den gleichen Regeln oben.
+- **KONSISTENZ DES KAMERAWINKELS:** Wenn aufeinanderfolgende Frames denselben Ort teilen, behalte den Kamerawinkel und die Perspektive bei, es sei denn, es gibt einen starken narrativen Grund für eine Änderung. Ein konsistenter Kamerawinkel verstärkt das Gefühl, dass Objekte an ihrem Platz bleiben.
+
 ## Ausgabeformat
 
 Gib gültiges JSON zurück, das genau dem bereitgestellten Schema entspricht. Füge keine Markdown-Formatierung, Code-Blöcke oder zusätzlichen Text außerhalb des rohen JSON ein.

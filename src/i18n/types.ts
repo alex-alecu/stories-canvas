@@ -147,4 +147,5 @@ export interface Translations {
   recordingNarration: string;
   playNarration: string;
   pauseNarration: string;
+  autoPlay: string;
 }

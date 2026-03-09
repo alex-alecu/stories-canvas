@@ -130,6 +130,7 @@ const ja: Translations = {
   recordingNarration: 'ナレーション録音中',
   playNarration: 'ナレーションを再生',
   pauseNarration: 'ナレーションを一時停止',
+  autoPlay: '自動再生',
 };
 
 export default ja;
