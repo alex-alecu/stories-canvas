@@ -8,15 +8,21 @@ interface GenerationProgressProps {
   isCancelling?: boolean;
 }
 
-function PhaseIndicator({ phase, isActive, isDone }: { phase: string; isActive: boolean; isDone: boolean }) {
+function PhaseIndicator({ phase, isActive, isDone, isFailed }: { phase: string; isActive: boolean; isDone: boolean; isFailed?: boolean }) {
   return (
-    <div className={`flex items-center gap-2 text-sm ${isDone ? 'text-green-500' : isActive ? 'text-primary-600 dark:text-primary-400 font-semibold' : 'text-gray-300 dark:text-gray-600'}`}>
+    <div className={`flex items-center gap-2 text-sm ${
+      isFailed ? 'text-red-500' :
+      isDone ? 'text-green-500' :
+      isActive ? 'text-primary-600 dark:text-primary-400 font-semibold' :
+      'text-gray-300 dark:text-gray-600'
+    }`}>
       <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold border-2 ${
+        isFailed ? 'bg-red-500 border-red-500 text-white' :
         isDone ? 'bg-green-500 border-green-500 text-white' :
         isActive ? 'border-primary-500 text-primary-600 dark:text-primary-400 animate-pulse' :
         'border-gray-200 dark:border-gray-700 text-gray-300 dark:text-gray-600'
       }`}>
-        {isDone ? '\u2713' : isActive ? '...' : '\u25CB'}
+        {isFailed ? '\u2717' : isDone ? '\u2713' : isActive ? '...' : '\u25CB'}
       </div>
       <span>{phase}</span>
     </div>
@@ -71,8 +77,9 @@ export default function GenerationProgress({ progress, onCancel, isCancelling = 
   ];
 
   // Only show the audio phase if we actually entered it
-  const hasAudioPhase = progress?.status === 'generating_audio';
+  const hasAudioPhase = progress?.status === 'generating_audio' || progress?.audioFailed;
   const phases = hasAudioPhase ? allPhases : allPhases.slice(0, 3);
+  const isAudioFailed = !!progress?.audioFailed;
 
   // When progress is null (waiting for SSE to connect), default to first phase
   const currentPhaseIndex = progress
@@ -122,11 +129,12 @@ export default function GenerationProgress({ progress, onCancel, isCancelling = 
               phase={phase.label}
               isActive={progress ? i === currentPhaseIndex : i === 0}
               isDone={progress ? (i < currentPhaseIndex || progress.status === 'completed') : false}
+              isFailed={isAudioFailed && phase.key === 'generating_audio'}
             />
           ))}
         </div>
 
-        {(progress?.status === 'generating_images' || progress?.status === 'generating_audio') && progress.totalPages > 0 && (
+        {(progress?.status === 'generating_images' || (progress?.status === 'generating_audio' && !isAudioFailed)) && progress.totalPages > 0 && (
           <div className="mb-4">
             <div className="flex justify-between text-sm text-gray-500 dark:text-gray-400 mb-1">
               <span>{t.pages}</span>
@@ -146,7 +154,11 @@ export default function GenerationProgress({ progress, onCancel, isCancelling = 
           </div>
         )}
 
-        {progress?.message && (
+        {isAudioFailed && (
+          <p className="text-sm text-red-500 dark:text-red-400 mb-2">{t.narrationFailed}</p>
+        )}
+
+        {progress?.message && !isAudioFailed && (
           <p className="text-sm text-gray-500 dark:text-gray-400 italic">{progress.message}</p>
         )}
 

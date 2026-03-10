@@ -128,6 +128,7 @@ const ko: Translations = {
   voiceMomDesc: '부드러운 어머니 목소리',
   voiceWhisperDesc: '부드러운 속삭이는 목소리',
   recordingNarration: '내레이션 녹음 중',
+  narrationFailed: '내레이션을 생성할 수 없습니다',
   playNarration: '내레이션 재생',
   pauseNarration: '내레이션 일시정지',
   autoPlay: '자동 재생',

@@ -128,6 +128,7 @@ const fi: Translations = {
   voiceMomDesc: 'Lempeä aidillinen aani',
   voiceWhisperDesc: 'Pehmeä kuiskaava aani',
   recordingNarration: 'Nauhoitetaan kerrontaa',
+  narrationFailed: 'Kerrontaa ei voitu luoda',
   playNarration: 'Toista kerronta',
   pauseNarration: 'Keskeyta kerronta',
   autoPlay: 'Automaattinen toisto',

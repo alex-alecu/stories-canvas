@@ -60,6 +60,16 @@ export default function StoryViewer({ storyId, scenario, isGenerating, progress 
     [scenario.pages],
   );
 
+  // Audio failure notification (auto-dismiss after 5s)
+  const [showAudioFailed, setShowAudioFailed] = useState(false);
+  useEffect(() => {
+    if (progress?.audioFailed) {
+      setShowAudioFailed(true);
+      const timer = setTimeout(() => setShowAudioFailed(false), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [progress?.audioFailed]);
+
   // Audio playback state
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [playingPage, setPlayingPage] = useState<number | null>(null);
@@ -247,8 +257,15 @@ export default function StoryViewer({ storyId, scenario, isGenerating, progress 
         {scenario.title}
       </div>
 
+      {/* Audio failure notification */}
+      {showAudioFailed && (
+        <div className="absolute bottom-20 right-4 z-50 bg-red-500/80 backdrop-blur-sm text-white px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-2">
+          <span>{t.narrationFailed}</span>
+        </div>
+      )}
+
       {/* Progress pill — shown while images are still being generated */}
-      {isGenerating && progress && progress.totalPages > 0 && (
+      {!showAudioFailed && isGenerating && progress && progress.totalPages > 0 && !progress.audioFailed && (
         <div className="absolute bottom-20 right-4 z-50 bg-black/50 backdrop-blur-sm text-white px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-2 animate-pulse">
           <div className="w-3 h-3 rounded-full border-2 border-white/30 border-t-white animate-spin" />
           <span>{progress.completedPages} / {progress.totalPages}</span>

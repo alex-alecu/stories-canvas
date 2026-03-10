@@ -128,6 +128,7 @@ const nl: Translations = {
   voiceMomDesc: 'Zachte moederlijke stem',
   voiceWhisperDesc: 'Zacht fluisterende stem',
   recordingNarration: 'Vertelling opnemen',
+  narrationFailed: 'Vertelling kon niet worden gegenereerd',
   playNarration: 'Vertelling afspelen',
   pauseNarration: 'Vertelling pauzeren',
   autoPlay: 'Automatisch afspelen',

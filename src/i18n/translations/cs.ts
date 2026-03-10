@@ -128,6 +128,7 @@ const cs: Translations = {
   voiceMomDesc: 'Jemny matersky hlas',
   voiceWhisperDesc: 'Tichy septajici hlas',
   recordingNarration: 'Nahravam narraci',
+  narrationFailed: 'Narraci se nepodarilo vygenerovat',
   playNarration: 'Prehrat narraci',
   pauseNarration: 'Pozastavit narraci',
   autoPlay: 'Automaticke prehravani',

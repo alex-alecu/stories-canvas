@@ -362,6 +362,9 @@ async function runGenerationPipeline(storyId: string, prompt: string, userId?: s
     }
 
     // Phase 4: Generate audio narration (only if voice selected and ElevenLabs configured)
+    let audioFailed = false;
+    let audioError: string | undefined;
+
     if (voice && isElevenLabsConfigured()) {
       if (signal.aborted) throw new Error('Generation cancelled');
       await updateStoryStatus(storyId, 'generating_audio');
@@ -378,7 +381,7 @@ async function runGenerationPipeline(storyId: string, prompt: string, userId?: s
 
       let audioCompletedPages = 0;
 
-      await generateAllPageAudio(
+      const audioResult = await generateAllPageAudio(
         storyId,
         scenario.pages,
         voice,
@@ -402,9 +405,29 @@ async function runGenerationPipeline(storyId: string, prompt: string, userId?: s
           }).catch(() => {});
         },
       );
+
+      // Check if audio generation had failures
+      if (audioResult.completedCount < scenario.pages.length) {
+        audioFailed = true;
+        audioError = audioResult.error || 'Some narration pages could not be generated';
+        console.warn(`Audio generation incomplete for ${storyId}: ${audioResult.completedCount}/${scenario.pages.length} succeeded, ${audioResult.failedCount} failed, ${audioResult.skippedCount} skipped`);
+
+        // Notify clients that audio failed before transitioning to completed
+        sendSSE(storyId, {
+          storyId,
+          status: 'generating_audio',
+          currentPhase: 'Recording narration...',
+          completedPages: audioResult.completedCount,
+          totalPages: scenario.pages.length,
+          failedPages,
+          message: audioError,
+          audioFailed: true,
+          audioError,
+        });
+      }
     }
 
-    // Complete
+    // Complete â story is viewable even if audio failed
     await updateStoryStatus(storyId, 'completed');
     sendSSE(storyId, {
       storyId,
@@ -413,7 +436,9 @@ async function runGenerationPipeline(storyId: string, prompt: string, userId?: s
       completedPages,
       totalPages: scenario.pages.length,
       failedPages,
-      message: 'Story generated successfully!',
+      message: audioFailed ? audioError! : 'Story generated successfully!',
+      audioFailed,
+      audioError,
     });
   } catch (error) {
     const isCancelled = signal.aborted;

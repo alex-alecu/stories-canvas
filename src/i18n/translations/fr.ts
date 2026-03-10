@@ -128,6 +128,7 @@ const fr: Translations = {
   voiceMomDesc: 'Voix maternelle douce',
   voiceWhisperDesc: 'Voix chuchotee douce',
   recordingNarration: 'Enregistrement de la narration',
+  narrationFailed: 'La narration n\'a pas pu etre generee',
   playNarration: 'Lire la narration',
   pauseNarration: 'Mettre en pause la narration',
   autoPlay: 'Lecture automatique',

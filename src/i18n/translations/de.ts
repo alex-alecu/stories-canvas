@@ -128,6 +128,7 @@ const de: Translations = {
   voiceMomDesc: 'Sanfte mutterliche Stimme',
   voiceWhisperDesc: 'Leise fluesternde Stimme',
   recordingNarration: 'Erzahlung aufnehmen',
+  narrationFailed: 'Erzahlung konnte nicht erstellt werden',
   playNarration: 'Erzahlung abspielen',
   pauseNarration: 'Erzahlung pausieren',
   autoPlay: 'Automatisch abspielen',

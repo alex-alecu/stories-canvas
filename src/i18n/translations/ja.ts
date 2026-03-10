@@ -128,6 +128,7 @@ const ja: Translations = {
   voiceMomDesc: '優しい母の声',
   voiceWhisperDesc: '柔らかいささやき声',
   recordingNarration: 'ナレーション録音中',
+  narrationFailed: 'ナレーションを生成できませんでした',
   playNarration: 'ナレーションを再生',
   pauseNarration: 'ナレーションを一時停止',
   autoPlay: '自動再生',
