@@ -128,6 +128,7 @@ const no: Translations = {
   voiceMomDesc: 'Myk moderlig stemme',
   voiceWhisperDesc: 'Myk hviskende stemme',
   recordingNarration: 'Tar opp fortelling',
+  narrationFailed: 'Fortellingen kunne ikke genereres',
   playNarration: 'Spill av fortelling',
   pauseNarration: 'Pause fortelling',
   autoPlay: 'Automatisk avspilling',

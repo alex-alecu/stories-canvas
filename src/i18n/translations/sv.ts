@@ -128,6 +128,7 @@ const sv: Translations = {
   voiceMomDesc: 'Mjuk moderlig rost',
   voiceWhisperDesc: 'Mjuk viskande rost',
   recordingNarration: 'Spelar in berattelse',
+  narrationFailed: 'Berattelsen kunde inte genereras',
   playNarration: 'Spela upp berattelse',
   pauseNarration: 'Pausa berattelse',
   autoPlay: 'Automatisk uppspelning',

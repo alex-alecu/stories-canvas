@@ -101,6 +101,8 @@ export interface GenerationProgress {
   message: string;
   pageNumber?: number;
   pageStatus?: PageStatus;
+  audioFailed?: boolean;
+  audioError?: string;
 }
 
 export interface CreateStoryRequest {

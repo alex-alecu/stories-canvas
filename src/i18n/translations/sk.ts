@@ -128,6 +128,7 @@ const sk: Translations = {
   voiceMomDesc: 'Jemný materský hlas',
   voiceWhisperDesc: 'Tichý šepkajúci hlas',
   recordingNarration: 'Nahrávanie narácie',
+  narrationFailed: 'Naráciu sa nepodarilo vygenerovať',
   playNarration: 'Prehrať naráciu',
   pauseNarration: 'Pozastaviť naráciu',
   autoPlay: 'Automaticke prehravanie',

@@ -27,6 +27,7 @@ function buildScenePrompt(
   characters: Character[],
   hasFirstScene: boolean,
   hasPreviousScene: boolean,
+  includedCharNames: string[],
   styleDescription?: string,
 ): string {
   const charDescriptions = page.characters
@@ -38,38 +39,44 @@ function buildScenePrompt(
     .filter(Boolean)
     .join('\n');
 
-  // Build image labels accounting for reference scene images
+  // Build image labels matching the new order: character sheets FIRST, then scene references
   let imageIndex = 1;
   const preambleParts: string[] = [];
 
+  // Character sheet labels come first (they are first in the referenceImages array)
+  const charImageLabels = includedCharNames
+    .map((name, i) => {
+      const label = `Image ${imageIndex + i}: ⭐ AUTHORITATIVE CHARACTER REFERENCE for ${name} — This reference sheet is the DEFINITIVE source for this character's appearance. Every detail (skin/fur color, eye color, body proportions, clothing, accessories) MUST match this sheet EXACTLY in the generated scene.`;
+      return label;
+    })
+    .join('\n');
+  imageIndex += includedCharNames.length;
+
+  // Scene reference labels come after character sheets
   if (hasFirstScene && hasPreviousScene) {
     preambleParts.push(
-      `Image ${imageIndex}: STYLE REFERENCE — This is the first scene of the story. Match its exact art style, rendering quality, color saturation, and lighting approach.`,
+      `Image ${imageIndex}: STYLE REFERENCE — This is the first scene of the story. Match its art style, rendering quality, color saturation, and lighting approach. Do NOT use this image for character appearance — use the character reference sheets above instead.`,
     );
     imageIndex++;
     preambleParts.push(
-      `Image ${imageIndex}: CONTINUITY REFERENCE — This is the previous scene. Maintain the exact same character appearances, proportions, and visual style. If the location is the same, keep ALL objects and furniture in the EXACT same positions as shown here.`,
+      `Image ${imageIndex}: ENVIRONMENT CONTINUITY REFERENCE — This is the previous scene. Use it ONLY for environment layout, background details, and camera angle continuity. If the location is the same, keep ALL objects and furniture in the EXACT same positions. Do NOT use this image for character appearance — use the character reference sheets above instead.`,
     );
     imageIndex++;
   } else if (hasPreviousScene) {
     // Only previous scene (page 2, where first === previous)
     preambleParts.push(
-      `Image ${imageIndex}: STYLE & CONTINUITY REFERENCE — This is the previous scene. Maintain the exact same visual style, character appearances, proportions, color palette, and lighting quality. If the location is the same, keep ALL objects and furniture in the EXACT same positions as shown here.`,
+      `Image ${imageIndex}: STYLE & ENVIRONMENT CONTINUITY REFERENCE — This is the previous scene. Match its art style, color palette, and lighting quality. If the location is the same, keep ALL objects and furniture in the EXACT same positions. For character appearance, ALWAYS defer to the character reference sheets above.`,
     );
     imageIndex++;
   }
 
-  const charImageLabels = page.characters
-    .map((name, i) => `Image ${imageIndex + i}: Character reference sheet for ${name}.`)
-    .join(' ');
-
-  const preamble = preambleParts.length > 0
-    ? preambleParts.join('\n') + '\n\n'
+  const sceneRefLabels = preambleParts.length > 0
+    ? '\n' + preambleParts.join('\n')
     : '';
 
-  return `${preamble}${charImageLabels}
+  return `${charImageLabels}${sceneRefLabels}
 
-IMPORTANT: Generate a new illustration that maintains PERFECT visual consistency with all reference images provided.
+IMPORTANT: Generate a new illustration. The character reference sheets are the SINGLE SOURCE OF TRUTH for how each character looks. Scene references are provided only for art style and environment continuity.
 
 Scene: ${page.imagePrompt}
 
@@ -82,15 +89,17 @@ BACKGROUND LIFE: Include secondary characters and living details in the backgrou
 
 COMPOSITION: Position the main characters in the UPPER TWO-THIRDS of the frame. The lower portion of the image will have a text overlay, so keep character faces and critical visual elements out of the bottom third. Place supporting environment details (ground, path, floor, grass) in the lower area instead.
 
-CONSISTENCY REQUIREMENTS:
-- Characters must look IDENTICAL to the reference sheets: same exact fur/skin colors, eye colors, body proportions, clothing details
+CHARACTER APPEARANCE (HIGHEST PRIORITY):
+- The character reference sheets are the ABSOLUTE AUTHORITY for character appearance. ALWAYS match them exactly.
+- Same exact skin/fur colors, eye colors, hair style and color, body proportions, clothing details, and accessories as shown in the character sheets.
+- If a scene reference shows a character looking even SLIGHTLY different from the character sheet (due to accumulated generation drift), IGNORE the scene reference and follow the character sheet.
+
+STYLE & ENVIRONMENT CONSISTENCY:
 - Maintain the SAME art style across all scenes: same rendering quality, same color saturation, same lighting approach
 - Use the SAME visual language: same line weight, same level of detail, same background style
-${hasPreviousScene ? `- The previous scene is shown for visual continuity. Maintain the same character appearance, art style, and color palette.
-- ENVIRONMENT SPATIAL CONTINUITY: If this scene takes place in the same location as the previous scene, ALL furniture, objects, and architectural elements MUST remain in the EXACT same positions. Beds, shelves, windows, doors, trees, rocks — everything must stay where it was. Only the characters' poses and actions should change. Match the camera angle and perspective of the previous scene.
+${hasPreviousScene ? `- ENVIRONMENT SPATIAL CONTINUITY: If this scene takes place in the same location as the previous scene, ALL furniture, objects, and architectural elements MUST remain in the EXACT same positions. Beds, shelves, windows, doors, trees, rocks — everything must stay where it was. Only the characters' poses and actions should change. Match the camera angle and perspective of the previous scene.
 ` : ''}
 Style: ${styleDescription || 'Disney/Pixar 3D animation style with warm, vibrant colors, round and friendly character designs'}.
-The characters MUST look EXACTLY like the characters in the reference sheets above.
 4:3 aspect ratio composition. No text or words in the image.`;
 }
 
@@ -123,31 +132,35 @@ export async function generateSceneImage(
 
   const referenceImages: Array<{ data: string; mimeType: string }> = [];
 
-  // 1. First scene as style reference (only when it differs from previous scene)
+  // Determine which scene references we have
   const hasFirstScene = !!firstSceneBase64 && firstSceneBase64 !== previousSceneBase64;
+  const hasPreviousScene = !!previousSceneBase64;
+  const sceneRefCount = (hasFirstScene ? 1 : 0) + (hasPreviousScene ? 1 : 0);
+
+  // 1. Character reference sheets FIRST (authoritative source for character appearance)
+  //    This primes the model on correct character appearance before seeing any drifted scenes
+  const maxCharSheets = 5 - sceneRefCount;
+  const includedCharNames: string[] = [];
+  for (const charName of page.characters) {
+    if (includedCharNames.length >= maxCharSheets) break;
+    const sheetBase64 = characterSheets.get(charName);
+    if (sheetBase64) {
+      referenceImages.push({ data: sheetBase64, mimeType: 'image/png' });
+      includedCharNames.push(charName);
+    }
+  }
+
+  // 2. First scene as style reference (only when it differs from previous scene)
   if (hasFirstScene) {
     referenceImages.push({ data: firstSceneBase64!, mimeType: 'image/png' });
   }
 
-  // 2. Previous scene as continuity reference
-  const hasPreviousScene = !!previousSceneBase64;
+  // 3. Previous scene as environment/layout continuity reference
   if (hasPreviousScene) {
     referenceImages.push({ data: previousSceneBase64!, mimeType: 'image/png' });
   }
 
-  // 3. Character reference sheets (limit total to 5 images)
-  const maxCharSheets = 5 - referenceImages.length;
-  let charSheetCount = 0;
-  for (const charName of page.characters) {
-    if (charSheetCount >= maxCharSheets) break;
-    const sheetBase64 = characterSheets.get(charName);
-    if (sheetBase64) {
-      referenceImages.push({ data: sheetBase64, mimeType: 'image/png' });
-      charSheetCount++;
-    }
-  }
-
-  const prompt = buildScenePrompt(page, characters, hasFirstScene, hasPreviousScene, styleDescription);
+  const prompt = buildScenePrompt(page, characters, hasFirstScene, hasPreviousScene, includedCharNames, styleDescription);
 
   try {
     const base64 = await pRetry(

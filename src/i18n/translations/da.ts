@@ -128,6 +128,7 @@ const da: Translations = {
   voiceMomDesc: 'Blid moderlig stemme',
   voiceWhisperDesc: 'Blid hviskende stemme',
   recordingNarration: 'Optager fortaelling',
+  narrationFailed: 'Fortaellingen kunne ikke genereres',
   playNarration: 'Afspil fortaelling',
   pauseNarration: 'Pause fortaelling',
   autoPlay: 'Automatisk afspilning',

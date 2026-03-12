@@ -128,6 +128,7 @@ const pl: Translations = {
   voiceMomDesc: 'Delikatny matczyny glos',
   voiceWhisperDesc: 'Cichy szepczacy glos',
   recordingNarration: 'Nagrywanie narracji',
+  narrationFailed: 'Nie udalo sie wygenerowac narracji',
   playNarration: 'Odtworz narracje',
   pauseNarration: 'Wstrzymaj narracje',
   autoPlay: 'Automatyczne odtwarzanie',

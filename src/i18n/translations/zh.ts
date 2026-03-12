@@ -128,6 +128,7 @@ const zh: Translations = {
   voiceMomDesc: '温柔的母亲声音',
   voiceWhisperDesc: '柔和的轻语声',
   recordingNarration: '正在录制旁白',
+  narrationFailed: '无法生成旁白',
   playNarration: '播放旁白',
   pauseNarration: '暂停旁白',
   autoPlay: '自动播放',

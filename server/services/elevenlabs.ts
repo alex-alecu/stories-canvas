@@ -127,6 +127,13 @@ async function savePageAudio(storyId: string, filename: string, audioBuffer: Buf
 
 type AudioProgressCallback = (progress: Partial<GenerationProgress>) => void;
 
+export interface AudioGenerationResult {
+  completedCount: number;
+  failedCount: number;
+  skippedCount: number;
+  error?: string;
+}
+
 export async function generateAllPageAudio(
   storyId: string,
   pages: Page[],
@@ -134,9 +141,16 @@ export async function generateAllPageAudio(
   userId: string | undefined,
   signal: AbortSignal,
   onProgress?: AudioProgressCallback,
-): Promise<void> {
+): Promise<AudioGenerationResult> {
+  let completedCount = 0;
+  let failedCount = 0;
+  let fatalError: string | undefined;
+
   for (const page of pages) {
     if (signal.aborted) throw new Error('Generation cancelled');
+
+    // On unrecoverable error (auth/quota), skip remaining pages
+    if (fatalError) break;
 
     const pageNum = String(page.pageNumber).padStart(2, '0');
     const filename = `page-${pageNum}.mp3`;
@@ -166,6 +180,7 @@ export async function generateAllPageAudio(
         await updatePageAudioUrl(storyId, page.pageNumber, audioUrl);
       }
 
+      completedCount++;
       onProgress?.({
         message: `Narration for page ${page.pageNumber} complete`,
         pageNumber: page.pageNumber,
@@ -173,15 +188,26 @@ export async function generateAllPageAudio(
       });
     } catch (error) {
       if (signal.aborted) throw new Error('Generation cancelled');
+      failedCount++;
       console.error(`Failed to generate audio for page ${page.pageNumber}:`, error);
       onProgress?.({
         message: `Narration for page ${page.pageNumber} failed`,
         pageNumber: page.pageNumber,
         pageStatus: 'failed',
       });
-      // Audio failures are non-fatal — continue with remaining pages
+
+      // Detect unrecoverable errors (auth/quota) and abort remaining pages
+      if (error instanceof Error && error.name === 'AbortError') {
+        fatalError = error.message;
+        console.warn(`Fatal audio error â skipping remaining ${pages.length - completedCount - failedCount} pages: ${fatalError}`);
+        break;
+      }
+      // Other errors are non-fatal â continue with remaining pages
     }
   }
+
+  const skippedCount = pages.length - completedCount - failedCount;
+  return { completedCount, failedCount, skippedCount, error: fatalError };
 }
 
 export function isElevenLabsConfigured(): boolean {

@@ -145,6 +145,7 @@ export interface Translations {
   voiceMomDesc: string;
   voiceWhisperDesc: string;
   recordingNarration: string;
+  narrationFailed: string;
   playNarration: string;
   pauseNarration: string;
   autoPlay: string;

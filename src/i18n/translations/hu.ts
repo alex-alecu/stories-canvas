@@ -128,6 +128,7 @@ const hu: Translations = {
   voiceMomDesc: 'Gyengd anyai hang',
   voiceWhisperDesc: 'Halk suttogo hang',
   recordingNarration: 'Narracio felvetele',
+  narrationFailed: 'A narraciot nem sikerult letrehozni',
   playNarration: 'Narracio lejatszasa',
   pauseNarration: 'Narracio szuneteltetese',
   autoPlay: 'Automatikus lejatszas',

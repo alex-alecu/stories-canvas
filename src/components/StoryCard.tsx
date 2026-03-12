@@ -17,7 +17,7 @@ function StatusBadge({ status, completedPages, totalPages }: { status: string; c
     generating_scenario: t.writingStoryStatus,
     generating_characters: t.drawingCharactersStatus,
     generating_images: `${t.illustratingStatus} ${completedPages}/${totalPages}`,
-    generating_audio: `${t.recordingNarration} ${completedPages}/${totalPages}`,
+    generating_audio: `${t.recordingNarration}...`,
     failed: t.failed,
     cancelled: t.failed,
   };

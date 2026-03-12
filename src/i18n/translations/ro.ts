@@ -141,6 +141,7 @@ const ro: Translations = {
   voiceMomDesc: 'Voce blanda de mama',
   voiceWhisperDesc: 'Voce soptita',
   recordingNarration: 'Inregistrare naratiune',
+  narrationFailed: 'Naratiunea nu a putut fi generata',
   playNarration: 'Reda naratiunea',
   pauseNarration: 'Pauza naratiune',
   autoPlay: 'Redare automata',
