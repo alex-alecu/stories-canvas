@@ -149,4 +149,19 @@ export interface Translations {
   playNarration: string;
   pauseNarration: string;
   autoPlay: string;
+
+  // Story tools modal
+  storyTools: string;
+  retry: string;
+  back: string;
+  retryDescription: string;
+  failedImages: string;
+  missingAudio: string;
+  retrying: string;
+  retrySuccess: string;
+  retryFailed: string;
+  referenceImages: string;
+  characterSheet: string;
+  noReferenceImages: string;
+  storyStatus: string;
 }

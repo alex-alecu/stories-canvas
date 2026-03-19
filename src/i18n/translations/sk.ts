@@ -132,6 +132,20 @@ const sk: Translations = {
   playNarration: 'Prehrať naráciu',
   pauseNarration: 'Pozastaviť naráciu',
   autoPlay: 'Automaticke prehravanie',
+
+  storyTools: 'Nástroje príbehu',
+  retry: 'Skúsiť znova',
+  back: 'Späť',
+  retryDescription: 'Niektorý obsah sa nepodarilo vygenerovať. Skúste to znova na dokončenie príbehu.',
+  failedImages: 'neúspešné obrázky',
+  missingAudio: 'stránky bez zvuku',
+  retrying: 'Skúšam znova...',
+  retrySuccess: 'Opakovanie úspešne dokončené!',
+  retryFailed: 'Opakovanie zlyhalo. Skúste to prosím znova.',
+  referenceImages: 'Referenčné obrázky',
+  characterSheet: 'List postavy',
+  noReferenceImages: 'Žiadne referenčné obrázky nie sú k dispozícii',
+  storyStatus: 'Stav príbehu',
 };
 
 export default sk;

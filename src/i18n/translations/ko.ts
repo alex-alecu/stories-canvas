@@ -132,6 +132,20 @@ const ko: Translations = {
   playNarration: '내레이션 재생',
   pauseNarration: '내레이션 일시정지',
   autoPlay: '자동 재생',
+
+  storyTools: '스토리 도구',
+  retry: '다시 시도',
+  back: '뒤로',
+  retryDescription: '일부 콘텐츠를 생성하지 못했습니다. 다시 시도하여 스토리를 완성하세요.',
+  failedImages: '실패한 이미지',
+  missingAudio: '오디오가 없는 페이지',
+  retrying: '다시 시도 중...',
+  retrySuccess: '다시 시도 완료!',
+  retryFailed: '다시 시도 실패. 다시 시도해 주세요.',
+  referenceImages: '참고 이미지',
+  characterSheet: '캐릭터 시트',
+  noReferenceImages: '사용 가능한 참고 이미지가 없습니다',
+  storyStatus: '스토리 상태',
 };
 
 export default ko;

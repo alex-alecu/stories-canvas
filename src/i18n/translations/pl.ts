@@ -132,6 +132,20 @@ const pl: Translations = {
   playNarration: 'Odtworz narracje',
   pauseNarration: 'Wstrzymaj narracje',
   autoPlay: 'Automatyczne odtwarzanie',
+
+  storyTools: 'Narzędzia historii',
+  retry: 'Ponów',
+  back: 'Wstecz',
+  retryDescription: 'Niektóre treści nie zostały wygenerowane. Ponów, aby ukończyć swoją historię.',
+  failedImages: 'nieudane obrazy',
+  missingAudio: 'strony bez dźwięku',
+  retrying: 'Ponawiam...',
+  retrySuccess: 'Ponowienie zakończone sukcesem!',
+  retryFailed: 'Ponowienie nie powiodło się. Spróbuj ponownie.',
+  referenceImages: 'Obrazy referencyjne',
+  characterSheet: 'Karta postaci',
+  noReferenceImages: 'Brak dostępnych obrazów referencyjnych',
+  storyStatus: 'Status historii',
 };
 
 export default pl;

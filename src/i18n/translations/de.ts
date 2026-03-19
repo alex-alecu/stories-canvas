@@ -132,6 +132,20 @@ const de: Translations = {
   playNarration: 'Erzahlung abspielen',
   pauseNarration: 'Erzahlung pausieren',
   autoPlay: 'Automatisch abspielen',
+
+  storyTools: 'Story-Werkzeuge',
+  retry: 'Wiederholen',
+  back: 'Zurück',
+  retryDescription: 'Einige Inhalte konnten nicht generiert werden. Versuche es erneut, um deine Geschichte zu vervollständigen.',
+  failedImages: 'fehlgeschlagene Bilder',
+  missingAudio: 'Seiten ohne Audio',
+  retrying: 'Wird wiederholt...',
+  retrySuccess: 'Wiederholung erfolgreich abgeschlossen!',
+  retryFailed: 'Wiederholung fehlgeschlagen. Bitte versuche es erneut.',
+  referenceImages: 'Referenzbilder',
+  characterSheet: 'Charakterbogen',
+  noReferenceImages: 'Keine Referenzbilder verfügbar',
+  storyStatus: 'Story-Status',
 };
 
 export default de;

@@ -145,6 +145,20 @@ const ro: Translations = {
   playNarration: 'Reda naratiunea',
   pauseNarration: 'Pauza naratiune',
   autoPlay: 'Redare automata',
+
+  storyTools: 'Instrumente poveste',
+  retry: 'Reîncearcă',
+  back: 'Înapoi',
+  retryDescription: 'Unele conținuturi nu au fost generate. Reîncearcă pentru a completa povestea.',
+  failedImages: 'imagini eșuate',
+  missingAudio: 'pagini fără audio',
+  retrying: 'Se reîncearcă...',
+  retrySuccess: 'Reîncercarea a reușit!',
+  retryFailed: 'Reîncercarea a eșuat. Te rugăm să încerci din nou.',
+  referenceImages: 'Imagini de referință',
+  characterSheet: 'Fișa personajului',
+  noReferenceImages: 'Nu sunt disponibile imagini de referință',
+  storyStatus: 'Starea poveștii',
 };
 
 export default ro;

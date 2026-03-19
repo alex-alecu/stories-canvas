@@ -132,6 +132,20 @@ const ja: Translations = {
   playNarration: 'ナレーションを再生',
   pauseNarration: 'ナレーションを一時停止',
   autoPlay: '自動再生',
+
+  storyTools: 'ストーリーツール',
+  retry: '再試行',
+  back: '戻る',
+  retryDescription: '一部のコンテンツの生成に失敗しました。再試行してストーリーを完成させましょう。',
+  failedImages: '失敗した画像',
+  missingAudio: '音声がないページ',
+  retrying: '再試行中...',
+  retrySuccess: '再試行が完了しました！',
+  retryFailed: '再試行に失敗しました。もう一度お試しください。',
+  referenceImages: '参考画像',
+  characterSheet: 'キャラクターシート',
+  noReferenceImages: '参考画像はありません',
+  storyStatus: 'ストーリーの状態',
 };
 
 export default ja;

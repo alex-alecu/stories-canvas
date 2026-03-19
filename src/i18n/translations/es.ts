@@ -132,6 +132,20 @@ const es: Translations = {
   playNarration: 'Reproducir narracion',
   pauseNarration: 'Pausar narracion',
   autoPlay: 'Reproduccion automatica',
+
+  storyTools: 'Herramientas de historia',
+  retry: 'Reintentar',
+  back: 'Volver',
+  retryDescription: 'Algunos contenidos no se generaron. Reintenta para completar tu historia.',
+  failedImages: 'imágenes fallidas',
+  missingAudio: 'páginas sin audio',
+  retrying: 'Reintentando...',
+  retrySuccess: '¡Reintento completado con éxito!',
+  retryFailed: 'Reintento fallido. Por favor, inténtalo de nuevo.',
+  referenceImages: 'Imágenes de referencia',
+  characterSheet: 'Ficha de personaje',
+  noReferenceImages: 'No hay imágenes de referencia disponibles',
+  storyStatus: 'Estado de la historia',
 };
 
 export default es;

@@ -132,6 +132,20 @@ const no: Translations = {
   playNarration: 'Spill av fortelling',
   pauseNarration: 'Pause fortelling',
   autoPlay: 'Automatisk avspilling',
+
+  storyTools: 'Historieverktøy',
+  retry: 'Prøv igjen',
+  back: 'Tilbake',
+  retryDescription: 'Noe innhold kunne ikke genereres. Prøv igjen for å fullføre historien din.',
+  failedImages: 'mislykkede bilder',
+  missingAudio: 'sider uten lyd',
+  retrying: 'Prøver igjen...',
+  retrySuccess: 'Nytt forsøk fullført!',
+  retryFailed: 'Nytt forsøk mislyktes. Vennligst prøv igjen.',
+  referenceImages: 'Referansebilder',
+  characterSheet: 'Karakterark',
+  noReferenceImages: 'Ingen referansebilder tilgjengelig',
+  storyStatus: 'Historiestatus',
 };
 
 export default no;

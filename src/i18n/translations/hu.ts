@@ -132,6 +132,20 @@ const hu: Translations = {
   playNarration: 'Narracio lejatszasa',
   pauseNarration: 'Narracio szuneteltetese',
   autoPlay: 'Automatikus lejatszas',
+
+  storyTools: 'Történet eszközök',
+  retry: 'Újrapróbálás',
+  back: 'Vissza',
+  retryDescription: 'Néhány tartalom nem jött létre. Próbáld újra a történeted befejezéséhez.',
+  failedImages: 'sikertelen képek',
+  missingAudio: 'oldalak hang nélkül',
+  retrying: 'Újrapróbálás...',
+  retrySuccess: 'Újrapróbálás sikeresen befejezve!',
+  retryFailed: 'Újrapróbálás sikertelen. Kérjük, próbáld újra.',
+  referenceImages: 'Referencia képek',
+  characterSheet: 'Karakterlap',
+  noReferenceImages: 'Nincsenek elérhető referencia képek',
+  storyStatus: 'Történet állapota',
 };
 
 export default hu;
