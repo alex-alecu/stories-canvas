@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import type { Scenario, GenerationProgress } from '../types';
 import { useRetryStory, useStoryAssets } from '../hooks/useStories';
 import { useStoryGeneration } from '../hooks/useStoryGeneration';
@@ -25,21 +25,37 @@ export default function StoryToolsModal({
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const [retryTriggered, setRetryTriggered] = useState(false);
   const [retryResult, setRetryResult] = useState<'success' | 'failed' | null>(null);
+  // Grace period: when true, ignores stale terminal statuses from the SSE's initial DB read
+  const [retryStarting, setRetryStarting] = useState(false);
+  const retryStartingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const retryStory = useRetryStory();
   const { data: assets, isLoading: assetsLoading } = useStoryAssets(storyId, isOpen);
 
-  // Connect to SSE for retry progress when retry has been triggered
-  const { progress: retryProgress } = useStoryGeneration(retryTriggered ? storyId : null);
+  // Connect to SSE for retry progress — delay until grace period ends to avoid
+  // the stale 'completed' status that the SSE endpoint reads from DB before the
+  // retry pipeline has a chance to update it.
+  const sseActive = retryTriggered && !retryStarting;
+  const { progress: retryProgress } = useStoryGeneration(sseActive ? storyId : null);
   const activeProgress = retryTriggered ? retryProgress : progress;
 
-  // Detect when retry completes or fails
+  // Clear the grace period timer on unmount
   useEffect(() => {
-    if (retryTriggered && (retryProgress?.status === 'completed' || retryProgress?.status === 'failed')) {
+    return () => {
+      if (retryStartingTimerRef.current) clearTimeout(retryStartingTimerRef.current);
+    };
+  }, []);
+
+  // Detect when retry completes or fails
+  // During the retryStarting grace period, ignore stale terminal statuses
+  // (the SSE may read the old 'completed' from DB before the pipeline updates it)
+  useEffect(() => {
+    if (!retryTriggered || retryStarting) return;
+    if (retryProgress?.status === 'completed' || retryProgress?.status === 'failed') {
       setRetryResult(retryProgress.status === 'completed' ? 'success' : 'failed');
       setRetryTriggered(false);
     }
-  }, [retryTriggered, retryProgress?.status]);
+  }, [retryTriggered, retryStarting, retryProgress?.status]);
 
   // Auto-dismiss retry result after 5 seconds
   useEffect(() => {
@@ -67,7 +83,10 @@ export default function StoryToolsModal({
   const hasErrors = failedImageCount > 0 || missingAudioCount > 0;
 
   // Is the retry currently running?
+  // During the grace period (retryStarting), we show retrying state even though the SSE
+  // may not yet reflect the pipeline's in-progress status.
   const isRetrying = retryTriggered && (
+    retryStarting ||
     activeProgress?.status === 'generating_images' ||
     activeProgress?.status === 'generating_audio'
   );
@@ -93,10 +112,18 @@ export default function StoryToolsModal({
 
   const handleRetry = useCallback(async () => {
     setRetryTriggered(true);
+    setRetryStarting(true);
+    // Grace period: ignore stale terminal statuses from the SSE's initial DB read.
+    // The retry pipeline typically updates the story status within 1-2 seconds,
+    // but we allow 5 seconds for network latency and DB round-trips.
+    if (retryStartingTimerRef.current) clearTimeout(retryStartingTimerRef.current);
+    retryStartingTimerRef.current = setTimeout(() => setRetryStarting(false), 5000);
     try {
       await retryStory.mutateAsync(storyId);
     } catch {
       setRetryTriggered(false);
+      setRetryStarting(false);
+      if (retryStartingTimerRef.current) clearTimeout(retryStartingTimerRef.current);
     }
   }, [retryStory, storyId]);
 
