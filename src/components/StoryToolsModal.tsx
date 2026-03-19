@@ -32,9 +32,9 @@ export default function StoryToolsModal({
   const { progress: retryProgress } = useStoryGeneration(retryTriggered ? storyId : null);
   const activeProgress = retryTriggered ? retryProgress : progress;
 
-  // Detect when retry completes
+  // Detect when retry completes or fails
   useEffect(() => {
-    if (retryTriggered && retryProgress?.status === 'completed') {
+    if (retryTriggered && (retryProgress?.status === 'completed' || retryProgress?.status === 'failed')) {
       setRetryTriggered(false);
     }
   }, [retryTriggered, retryProgress?.status]);

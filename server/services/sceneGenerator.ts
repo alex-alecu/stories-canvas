@@ -1,7 +1,7 @@
 import pRetry, { AbortError } from 'p-retry';
 import { generateImage } from './gemini.js';
 import { saveImage, updatePageStatus as fsUpdatePageStatus } from '../utils/storage.js';
-import { uploadImage, updatePageStatus as sbUpdatePageStatus, downloadImage, getImageUrl } from './supabaseStorage.js';
+import { uploadImage, updatePageStatus as sbUpdatePageStatus, downloadImage } from './supabaseStorage.js';
 import { getCharacterSheetFilename } from './characterSheet.js';
 import { config } from '../config.js';
 import { imageGenerationLimiter } from '../utils/rateLimiter.js';
@@ -284,28 +284,26 @@ export async function retryFailedSceneImages(
   // Sort failed pages so we process them in order
   const sortedFailed = [...failedPageNumbers].sort((a, b) => a - b);
 
+  // Download first completed page image once as style reference (reused across all retries)
+  let firstSceneBase64: string | null = null;
+  const firstCompleted = pages.find(p => p.status === 'completed');
+  if (firstCompleted) {
+    try {
+      const filename = `page-${String(firstCompleted.pageNumber).padStart(2, '0')}.png`;
+      firstSceneBase64 = await downloadImage(storyId, filename, userId);
+    } catch {
+      console.warn(`Could not download first scene for style reference`);
+    }
+  }
+
   for (const failedPageNum of sortedFailed) {
     if (signal?.aborted) throw new Error('Generation cancelled');
 
     const page = pages.find(p => p.pageNumber === failedPageNum);
     if (!page) continue;
 
-    // Find the nearest previous successful page for reference chaining
-    let previousSceneBase64: string | null = null;
-    let firstSceneBase64: string | null = null;
-
-    // Download first completed page image as style reference
-    const firstCompleted = pages.find(p => p.status === 'completed');
-    if (firstCompleted) {
-      try {
-        const filename = `page-${String(firstCompleted.pageNumber).padStart(2, '0')}.png`;
-        firstSceneBase64 = await downloadImage(storyId, filename, userId);
-      } catch {
-        console.warn(`Could not download first scene for style reference`);
-      }
-    }
-
     // Download nearest previous completed page for continuity reference
+    let previousSceneBase64: string | null = null;
     for (let i = failedPageNum - 1; i >= 1; i--) {
       const prevPage = pages.find(p => p.pageNumber === i && p.status === 'completed');
       if (prevPage) {

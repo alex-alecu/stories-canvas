@@ -518,6 +518,12 @@ router.post('/:id/retry', optionalAuth, async (req: Request, res: Response) => {
       return;
     }
 
+    // Prevent concurrent retries
+    if (activeGenerations.has(storyId)) {
+      res.status(409).json({ error: 'A retry is already in progress' });
+      return;
+    }
+
     if (!story.scenario) {
       res.status(400).json({ error: 'Story has no scenario data' });
       return;
@@ -587,7 +593,7 @@ async function runRetryPipeline(
       const styleDescription = ART_STYLES[DEFAULT_ART_STYLE];
       const failedPages: number[] = [];
 
-      completedImages = await retryFailedSceneImages(
+      await retryFailedSceneImages(
         storyId,
         scenario.pages,
         scenario.characters,
