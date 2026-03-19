@@ -74,6 +74,7 @@ export default function StoryViewer({ storyId, scenario, isGenerating, progress 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [playingPage, setPlayingPage] = useState<number | null>(null);
   const [audioLoading, setAudioLoading] = useState<number | null>(null);
+  const [activeSlideIndex, setActiveSlideIndex] = useState(0);
 
   // Stop audio playback
   const stopAudio = useCallback(() => {
@@ -84,17 +85,6 @@ export default function StoryViewer({ storyId, scenario, isGenerating, progress 
     }
     setPlayingPage(null);
     setAudioLoading(null);
-  }, []);
-
-  // Auto-advance to next slide and play its audio
-  const autoAdvance = useCallback(() => {
-    const swiper = swiperRef.current;
-    if (!swiper || swiper.isEnd) {
-      // Reached the last slide — stop
-      setPlayingPage(null);
-      return;
-    }
-    swiper.slideNext();
   }, []);
 
   // Play audio for a specific page
@@ -113,10 +103,6 @@ export default function StoryViewer({ storyId, scenario, isGenerating, progress 
       audioRef.current = new Audio();
       audioRef.current.addEventListener('ended', () => {
         setPlayingPage(null);
-        // Auto-advance if enabled
-        if (autoPlayRef.current) {
-          autoAdvance();
-        }
       });
       audioRef.current.addEventListener('error', () => {
         setPlayingPage(null);
@@ -135,11 +121,12 @@ export default function StoryViewer({ storyId, scenario, isGenerating, progress 
         setPlayingPage(null);
         setAudioLoading(null);
       });
-  }, [playingPage, stopAudio, autoAdvance]);
+  }, [playingPage, stopAudio]);
 
   // Handle slide change — stop current audio, and auto-play next if enabled
   const handleSlideChange = useCallback((swiper: SwiperType) => {
     stopAudio();
+    setActiveSlideIndex(swiper.activeIndex);
     if (autoPlayRef.current) {
       const currentPage = scenario.pages[swiper.activeIndex];
       if (currentPage?.audioUrl) {
@@ -152,6 +139,17 @@ export default function StoryViewer({ storyId, scenario, isGenerating, progress 
       }
     }
   }, [stopAudio, scenario.pages, playPageAudio]);
+
+  // Current page helper for the global play button
+  const currentPage = scenario.pages[activeSlideIndex];
+  const currentPageAudioUrl = currentPage?.audioUrl;
+  const currentPageNumber = currentPage?.pageNumber;
+
+  // Global play/pause handler for autoplay mode
+  const handleGlobalPlayPause = useCallback(() => {
+    if (!currentPageNumber || !currentPageAudioUrl) return;
+    playPageAudio(currentPageNumber, currentPageAudioUrl);
+  }, [currentPageNumber, currentPageAudioUrl, playPageAudio]);
 
   // Cleanup audio on unmount
   useEffect(() => {
@@ -252,6 +250,28 @@ export default function StoryViewer({ storyId, scenario, isGenerating, progress 
         </button>
       )}
 
+      {/* Global play/pause button — shown in top-left when autoplay is enabled */}
+      {autoPlay && hasAudio && currentPageAudioUrl && (
+        <button
+          onClick={handleGlobalPlayPause}
+          className="absolute top-4 left-[13rem] sm:left-[16.5rem] z-50 bg-black/40 hover:bg-black/60 backdrop-blur-sm text-white w-10 h-10 rounded-full flex items-center justify-center transition-colors"
+          aria-label={playingPage === currentPageNumber ? t.pauseNarration : t.playNarration}
+        >
+          {audioLoading === currentPageNumber ? (
+            <div className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+          ) : playingPage === currentPageNumber ? (
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
+              <rect x="6" y="4" width="4" height="16" rx="1" />
+              <rect x="14" y="4" width="4" height="16" rx="1" />
+            </svg>
+          ) : (
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 ml-0.5" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M8 5v14l11-7z" />
+            </svg>
+          )}
+        </button>
+      )}
+
       {/* Story title badge */}
       <div className="absolute top-4 right-4 z-50 bg-black/40 backdrop-blur-sm text-white px-4 py-2 rounded-full text-sm font-semibold max-w-[50%] truncate">
         {scenario.title}
@@ -312,8 +332,8 @@ export default function StoryViewer({ storyId, scenario, isGenerating, progress 
                     {page.text}
                   </p>
                   <div className="flex items-center justify-center gap-3 mt-3">
-                    {/* Audio play/pause button */}
-                    {page.audioUrl && (
+                    {/* Audio play/pause button — hidden when autoplay is active (moved to top-left) */}
+                    {page.audioUrl && !autoPlay && (
                       <button
                         onClick={() => playPageAudio(page.pageNumber, page.audioUrl!)}
                         className="bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white w-8 h-8 rounded-full flex items-center justify-center transition-colors"
