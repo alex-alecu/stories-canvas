@@ -7,6 +7,7 @@ import type { Scenario, GenerationProgress } from '../types';
 import { useLanguage } from '../i18n/LanguageContext';
 import { useFontSize, type FontSize } from '../contexts/FontSizeContext';
 import FontSizeControl from './FontSizeControl';
+import StoryToolsModal from './StoryToolsModal';
 import 'swiper/css';
 import 'swiper/css/navigation';
 
@@ -37,9 +38,18 @@ export default function StoryViewer({ storyId, scenario, isGenerating, progress 
   const { t } = useLanguage();
   const { fontSize } = useFontSize();
   const [showFontSize, setShowFontSize] = useState(false);
+  const [showTools, setShowTools] = useState(false);
   const popoverRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const swiperRef = useRef<SwiperType | null>(null);
+
+  // Detect errors for the tools button indicator
+  const hasErrors = useMemo(() => {
+    const hasFailedImages = scenario.pages.some(p => p.status === 'failed');
+    const hasAudioPages = scenario.pages.some(p => !!p.audioUrl);
+    const hasMissingAudio = hasAudioPages && scenario.pages.some(p => !p.audioUrl);
+    return hasFailedImages || hasMissingAudio;
+  }, [scenario.pages]);
 
   // Auto-play state (persisted to localStorage)
   const [autoPlay, setAutoPlay] = useState(getStoredAutoPlay);
@@ -272,9 +282,25 @@ export default function StoryViewer({ storyId, scenario, isGenerating, progress 
         </button>
       )}
 
-      {/* Story title badge */}
-      <div className="absolute top-4 right-4 z-50 bg-black/40 backdrop-blur-sm text-white px-4 py-2 rounded-full text-sm font-semibold max-w-[50%] truncate">
-        {scenario.title}
+      {/* Story title + tools button */}
+      <div className="absolute top-4 right-4 z-50 flex items-center gap-2">
+        <div className="bg-black/40 backdrop-blur-sm text-white px-4 py-2 rounded-full text-sm font-semibold max-w-[40vw] truncate">
+          {scenario.title}
+        </div>
+        <button
+          onClick={() => setShowTools(true)}
+          className="relative bg-black/40 hover:bg-black/60 backdrop-blur-sm text-white w-10 h-10 rounded-full flex items-center justify-center transition-colors"
+          aria-label={t.storyTools}
+        >
+          {/* Grid/gallery icon */}
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+          </svg>
+          {/* Error indicator dot */}
+          {hasErrors && (
+            <span className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-red-500 rounded-full border-2 border-black" />
+          )}
+        </button>
       </div>
 
       {/* Audio failure notification */}
@@ -365,6 +391,16 @@ export default function StoryViewer({ storyId, scenario, isGenerating, progress 
           </SwiperSlide>
         ))}
       </Swiper>
+
+      {/* Story Tools modal */}
+      <StoryToolsModal
+        isOpen={showTools}
+        onClose={() => setShowTools(false)}
+        storyId={storyId}
+        scenario={scenario}
+        progress={progress}
+        isGenerating={isGenerating}
+      />
 
       <style>{`
         .story-swiper .swiper-button-next,
