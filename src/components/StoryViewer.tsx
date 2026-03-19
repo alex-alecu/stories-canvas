@@ -260,8 +260,8 @@ export default function StoryViewer({ storyId, scenario, isGenerating, progress 
         </button>
       )}
 
-      {/* Global play/pause button — shown in top-left when autoplay is enabled */}
-      {autoPlay && hasAudio && currentPageAudioUrl && (
+      {/* Global play/pause button — shown in top-left when the current page has audio */}
+      {hasAudio && currentPageAudioUrl && (
         <button
           onClick={handleGlobalPlayPause}
           className="absolute top-4 left-[13rem] sm:left-[16.5rem] z-50 bg-black/40 hover:bg-black/60 backdrop-blur-sm text-white w-10 h-10 rounded-full flex items-center justify-center transition-colors"
@@ -358,29 +358,6 @@ export default function StoryViewer({ storyId, scenario, isGenerating, progress 
                     {page.text}
                   </p>
                   <div className="flex items-center justify-center gap-3 mt-3">
-                    {/* Audio play/pause button — hidden when autoplay is active (moved to top-left) */}
-                    {page.audioUrl && !autoPlay && (
-                      <button
-                        onClick={() => playPageAudio(page.pageNumber, page.audioUrl!)}
-                        className="bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white w-8 h-8 rounded-full flex items-center justify-center transition-colors"
-                        aria-label={playingPage === page.pageNumber ? t.pauseNarration : t.playNarration}
-                      >
-                        {audioLoading === page.pageNumber ? (
-                          <div className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
-                        ) : playingPage === page.pageNumber ? (
-                          /* Pause icon */
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
-                            <rect x="6" y="4" width="4" height="16" rx="1" />
-                            <rect x="14" y="4" width="4" height="16" rx="1" />
-                          </svg>
-                        ) : (
-                          /* Play icon */
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 ml-0.5" fill="currentColor" viewBox="0 0 24 24">
-                            <path d="M8 5v14l11-7z" />
-                          </svg>
-                        )}
-                      </button>
-                    )}
                     <p className="text-white/40 text-xs">
                       {page.pageNumber} / {scenario.pages.length}
                     </p>

@@ -543,7 +543,7 @@ router.post('/:id/retry', optionalAuth, async (req: Request, res: Response) => {
 
     // Return immediately, retry happens in background
     res.json({
-      status: 'generating_images' as StoryStatus,
+      status: (failedImagePages.length > 0 ? 'generating_images' : 'generating_audio') as StoryStatus,
       retriedImages: failedImagePages.length,
       retriedAudio: needsAudioRetry ? missingAudioPages.length : 0,
     } as RetryStoryResponse);
