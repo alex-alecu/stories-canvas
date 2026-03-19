@@ -1,6 +1,6 @@
 import { getSupabase } from './supabase.js';
 import { config } from '../config.js';
-import type { StoryMeta, StoryStatus, Scenario, PageStatus } from '../../shared/types.js';
+import type { StoryMeta, StoryStatus, Scenario, PageStatus, VoiceKey } from '../../shared/types.js';
 
 const BUCKET = 'story-images';
 
@@ -88,6 +88,7 @@ interface StoryRow {
   progress_message: string | null;
   user_id: string | null;
   is_public: boolean;
+  voice: string | null;
 }
 
 function rowToStoryMeta(row: StoryRow): StoryMeta {
@@ -100,6 +101,7 @@ function rowToStoryMeta(row: StoryRow): StoryMeta {
     coverImage: row.cover_image_url ?? undefined,
     userId: row.user_id ?? undefined,
     isPublic: row.is_public ?? false,
+    voice: (row.voice as VoiceKey) ?? undefined,
   };
 }
 

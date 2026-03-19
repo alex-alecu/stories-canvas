@@ -85,6 +85,7 @@ export interface StoryMeta {
   coverImage?: string;
   userId?: string;
   isPublic?: boolean;
+  voice?: VoiceKey;
 }
 
 export interface StoryDetail extends StoryMeta {
