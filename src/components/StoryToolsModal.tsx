@@ -11,6 +11,7 @@ interface StoryToolsModalProps {
   scenario: Scenario;
   progress?: GenerationProgress | null;
   isGenerating?: boolean;
+  voice?: string;
 }
 
 export default function StoryToolsModal({
@@ -20,6 +21,7 @@ export default function StoryToolsModal({
   scenario,
   progress,
   isGenerating,
+  voice,
 }: StoryToolsModalProps) {
   const { t } = useLanguage();
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
@@ -70,14 +72,14 @@ export default function StoryToolsModal({
     [scenario.pages],
   );
 
-  const hasAudioPages = useMemo(
-    () => scenario.pages.some(p => !!p.audioUrl),
-    [scenario.pages],
+  const shouldHaveAudio = useMemo(
+    () => !!voice || scenario.pages.some(p => !!p.audioUrl),
+    [scenario.pages, voice],
   );
 
   const missingAudioCount = useMemo(
-    () => hasAudioPages ? scenario.pages.filter(p => !p.audioUrl).length : 0,
-    [scenario.pages, hasAudioPages],
+    () => shouldHaveAudio ? scenario.pages.filter(p => !p.audioUrl).length : 0,
+    [scenario.pages, shouldHaveAudio],
   );
 
   const hasErrors = failedImageCount > 0 || missingAudioCount > 0;
@@ -234,7 +236,7 @@ export default function StoryToolsModal({
                 <div className="flex gap-3">
                   <button
                     onClick={handleRetry}
-                    disabled={isRetrying || isGenerating}
+                    disabled={isRetrying}
                     className="bg-primary-500 hover:bg-primary-600 disabled:bg-primary-500/50 disabled:cursor-not-allowed text-white font-bold py-2 px-6 rounded-xl transition-colors text-sm"
                   >
                     {isRetrying ? t.retrying : t.retry}

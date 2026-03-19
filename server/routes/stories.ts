@@ -16,11 +16,11 @@ const router = Router();
 
 // ---------- Storage adapter (delegates to Supabase or filesystem) ----------
 
-async function saveScenario(storyId: string, scenario: Scenario, status: StoryStatus, prompt: string): Promise<void> {
+async function saveScenario(storyId: string, scenario: Scenario, status: StoryStatus, prompt: string, voice?: VoiceKey): Promise<void> {
   if (config.useSupabase) {
     await sbStorage.updateStoryScenario(storyId, scenario, status, prompt);
   } else {
-    await fsStorage.saveScenario(storyId, scenario, status, prompt);
+    await fsStorage.saveScenario(storyId, scenario, status, prompt, voice);
   }
 }
 
@@ -279,7 +279,7 @@ async function runGenerationPipeline(storyId: string, prompt: string, userId?: s
 
     if (signal.aborted) throw new Error('Generation cancelled');
     const scenario = await generateScenario(prompt, language, age, style);
-    await saveScenario(storyId, scenario, 'generating_characters', prompt);
+    await saveScenario(storyId, scenario, 'generating_characters', prompt, voice);
 
     if (signal.aborted) throw new Error('Generation cancelled');
     await sendProgressUpdate(storyId, {
@@ -512,8 +512,12 @@ router.post('/:id/retry', optionalAuth, async (req: Request, res: Response) => {
       return;
     }
 
-    // Only allow retry on completed or failed stories
-    if (story.status !== 'completed' && story.status !== 'failed') {
+    // Allow retry on completed, failed, or stuck generating statuses.
+    // Stories can get stuck at generating_images/generating_audio if the pipeline
+    // crashed or the server restarted. The activeGenerations check below prevents
+    // concurrent retries for genuinely in-progress generations.
+    const retryableStatuses: StoryStatus[] = ['completed', 'failed', 'generating_images', 'generating_audio'];
+    if (!retryableStatuses.includes(story.status)) {
       res.status(400).json({ error: 'Story must be completed or failed to retry' });
       return;
     }
@@ -533,8 +537,9 @@ router.post('/:id/retry', optionalAuth, async (req: Request, res: Response) => {
     const failedImagePages = pages.filter(p => p.status === 'failed').map(p => p.pageNumber);
     const hasAudioPages = pages.some(p => !!p.audioUrl);
     const missingAudioPages = pages.filter(p => !p.audioUrl);
-    // Only consider audio missing if the story was supposed to have audio (has voice setting or some pages have audio)
-    const needsAudioRetry = hasAudioPages && missingAudioPages.length > 0;
+    // Story should have audio if it has a voice setting OR some pages already have audio
+    const shouldHaveAudio = !!story.voice || hasAudioPages;
+    const needsAudioRetry = shouldHaveAudio && missingAudioPages.length > 0;
 
     if (failedImagePages.length === 0 && !needsAudioRetry) {
       res.json({ status: story.status, retriedImages: 0, retriedAudio: 0 } as RetryStoryResponse);
@@ -651,15 +656,8 @@ async function runRetryPipeline(
         message: `Retrying narration for ${pagesNeedingAudio.length} page(s)...`,
       });
 
-      // Determine voice from DB (stored in stories table)
-      let voiceKey: import('../../shared/types.js').VoiceKey = 'grandma';
-      if (config.useSupabase) {
-        try {
-          const { getSupabase } = await import('../services/supabase.js');
-          const { data } = await getSupabase().from('stories').select('voice').eq('id', storyId).single();
-          if (data?.voice) voiceKey = data.voice;
-        } catch {}
-      }
+      // Use voice from story object (now threaded through StoryMeta), fall back to default
+      const voiceKey: VoiceKey = story.voice || 'grandma';
 
       let audioCompletedPages = 0;
       await retryMissingAudio(

@@ -89,6 +89,7 @@ export default function StoryPage() {
         scenario={story.scenario}
         isGenerating={isGenerating}
         progress={progress}
+        voice={story.voice}
       />
     );
   }

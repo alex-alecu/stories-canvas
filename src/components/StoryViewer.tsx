@@ -26,6 +26,7 @@ interface StoryViewerProps {
   scenario: Scenario;
   isGenerating?: boolean;
   progress?: GenerationProgress | null;
+  voice?: string;
 }
 
 const fontSizeClasses: Record<FontSize, string> = {
@@ -34,7 +35,7 @@ const fontSizeClasses: Record<FontSize, string> = {
   large: 'text-xl md:text-2xl lg:text-3xl',
 };
 
-export default function StoryViewer({ storyId, scenario, isGenerating, progress }: StoryViewerProps) {
+export default function StoryViewer({ storyId, scenario, isGenerating, progress, voice }: StoryViewerProps) {
   const { t } = useLanguage();
   const { fontSize } = useFontSize();
   const [showFontSize, setShowFontSize] = useState(false);
@@ -46,10 +47,10 @@ export default function StoryViewer({ storyId, scenario, isGenerating, progress 
   // Detect errors for the tools button indicator
   const hasErrors = useMemo(() => {
     const hasFailedImages = scenario.pages.some(p => p.status === 'failed');
-    const hasAudioPages = scenario.pages.some(p => !!p.audioUrl);
-    const hasMissingAudio = hasAudioPages && scenario.pages.some(p => !p.audioUrl);
+    const shouldHaveAudio = !!voice || scenario.pages.some(p => !!p.audioUrl);
+    const hasMissingAudio = shouldHaveAudio && scenario.pages.some(p => !p.audioUrl);
     return hasFailedImages || hasMissingAudio;
-  }, [scenario.pages]);
+  }, [scenario.pages, voice]);
 
   // Auto-play state (persisted to localStorage)
   const [autoPlay, setAutoPlay] = useState(getStoredAutoPlay);
@@ -377,6 +378,7 @@ export default function StoryViewer({ storyId, scenario, isGenerating, progress 
         scenario={scenario}
         progress={progress}
         isGenerating={isGenerating}
+        voice={voice}
       />
 
       <style>{`
