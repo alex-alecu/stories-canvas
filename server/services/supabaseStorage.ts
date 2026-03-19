@@ -262,7 +262,6 @@ export function getAudioUrl(userId: string | undefined, storyId: string, filenam
 
 export async function listStoryFiles(storyId: string, userId?: string): Promise<string[]> {
   const supabase = getSupabase();
-  const paths: string[] = [];
 
   // Try user-scoped path first
   if (userId) {
@@ -279,7 +278,7 @@ export async function listStoryFiles(storyId: string, userId?: string): Promise<
     return legacyData.map(f => f.name);
   }
 
-  return paths;
+  return [];
 }
 
 export async function downloadImage(storyId: string, filename: string, userId?: string): Promise<string> {

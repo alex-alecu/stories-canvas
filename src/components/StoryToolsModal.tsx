@@ -24,6 +24,7 @@ export default function StoryToolsModal({
   const { t } = useLanguage();
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const [retryTriggered, setRetryTriggered] = useState(false);
+  const [retryResult, setRetryResult] = useState<'success' | 'failed' | null>(null);
 
   const retryStory = useRetryStory();
   const { data: assets, isLoading: assetsLoading } = useStoryAssets(storyId, isOpen);
@@ -35,9 +36,17 @@ export default function StoryToolsModal({
   // Detect when retry completes or fails
   useEffect(() => {
     if (retryTriggered && (retryProgress?.status === 'completed' || retryProgress?.status === 'failed')) {
+      setRetryResult(retryProgress.status === 'completed' ? 'success' : 'failed');
       setRetryTriggered(false);
     }
   }, [retryTriggered, retryProgress?.status]);
+
+  // Auto-dismiss retry result after 5 seconds
+  useEffect(() => {
+    if (!retryResult) return;
+    const timer = setTimeout(() => setRetryResult(null), 5000);
+    return () => clearTimeout(timer);
+  }, [retryResult]);
 
   // Error detection
   const failedImageCount = useMemo(
@@ -171,6 +180,26 @@ export default function StoryToolsModal({
                     {activeProgress.message && (
                       <p className="text-white/40 text-xs mt-1.5">{activeProgress.message}</p>
                     )}
+                  </div>
+                )}
+
+                {/* Retry result message */}
+                {retryResult && (
+                  <div className={`flex items-center gap-2 mb-4 px-3 py-2 rounded-lg text-sm ${
+                    retryResult === 'success'
+                      ? 'bg-green-500/15 text-green-300'
+                      : 'bg-red-500/15 text-red-300'
+                  }`}>
+                    {retryResult === 'success' ? (
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                      </svg>
+                    ) : (
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    )}
+                    <span>{retryResult === 'success' ? t.retrySuccess : t.retryFailed}</span>
                   </div>
                 )}
 
