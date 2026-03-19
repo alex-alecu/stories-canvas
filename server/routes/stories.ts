@@ -542,7 +542,14 @@ router.post('/:id/retry', optionalAuth, async (req: Request, res: Response) => {
     const needsAudioRetry = shouldHaveAudio && missingAudioPages.length > 0;
 
     if (failedImagePages.length === 0 && !needsAudioRetry) {
-      res.json({ status: story.status, retriedImages: 0, retriedAudio: 0 } as RetryStoryResponse);
+      // Fix stuck status: if the story appears complete but status is still a
+      // generating state (e.g. pipeline crashed), correct it to 'completed'.
+      let resolvedStatus = story.status;
+      if (story.status !== 'completed' && story.status !== 'failed') {
+        await updateStoryStatus(storyId, 'completed');
+        resolvedStatus = 'completed';
+      }
+      res.json({ status: resolvedStatus, retriedImages: 0, retriedAudio: 0 } as RetryStoryResponse);
       return;
     }
 
@@ -594,7 +601,8 @@ async function runRetryPipeline(
         message: `Retrying ${failedImagePages.length} failed illustration(s)...`,
       });
 
-      // Determine style from the story (use default if not stored)
+      // TODO: Art style is not stored on StoryMeta — retried images use the default
+      // style, which may mismatch the original. Thread `artStyle` similarly to `voice` to fix.
       const styleDescription = ART_STYLES[DEFAULT_ART_STYLE];
       const failedPages: number[] = [];
 
