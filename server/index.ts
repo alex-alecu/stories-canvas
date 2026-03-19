@@ -4,6 +4,7 @@ import { fileURLToPath } from 'url';
 import { config } from './config.js';
 import storiesRouter from './routes/stories.js';
 import userRouter from './routes/user.js';
+import { recoverStuckStories } from './services/supabaseStorage.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -38,4 +39,13 @@ app.listen(config.port, () => {
   console.log(`  Image model: ${config.imageModel}`);
   console.log(`  Image model (pro): ${config.imageModelPro}`);
   console.log(`  Image concurrency: ${config.imageConcurrency}`);
+
+  // Recover stories stuck in generating states from a previous crash/restart
+  if (config.useSupabase) {
+    recoverStuckStories()
+      .then(count => {
+        if (count > 0) console.log(`Recovered ${count} stuck story(ies)`);
+      })
+      .catch(err => console.error('Failed to recover stuck stories:', err));
+  }
 });
