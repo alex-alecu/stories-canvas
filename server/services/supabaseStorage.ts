@@ -293,3 +293,62 @@ export async function downloadImage(storyId: string, filename: string, userId?: 
   const arrayBuffer = await data.arrayBuffer();
   return Buffer.from(arrayBuffer).toString('base64');
 }
+
+// ---------- Startup Recovery ----------
+
+/**
+ * Recover stories stuck in generating states after a server crash or restart.
+ * Determines the correct status based on actual page data and updates accordingly.
+ */
+export async function recoverStuckStories(): Promise<number> {
+  const stuck = await getActiveGenerations();
+  if (stuck.length === 0) return 0;
+
+  // Only recover stories older than 5 minutes to avoid interfering with
+  // genuinely in-progress generations (e.g. during rolling deploys).
+  const STUCK_THRESHOLD_MS = 5 * 60 * 1000;
+  const now = Date.now();
+
+  let recovered = 0;
+  for (const story of stuck) {
+    const age = now - new Date(story.createdAt).getTime();
+    if (age < STUCK_THRESHOLD_MS) {
+      console.log(`  [recovery] ${story.id}: still fresh (${Math.round(age / 1000)}s old), skipping`);
+      continue;
+    }
+
+    const pages = story.scenario?.pages ?? [];
+
+    // No scenario data yet — story was in very early generation, mark failed
+    if (pages.length === 0) {
+      await updateStoryStatus(story.id, 'failed');
+      console.log(`  [recovery] ${story.id}: no pages → failed`);
+      recovered++;
+      continue;
+    }
+
+    const hasFailedImages = pages.some(p => p.status === 'failed');
+    const allImagesComplete = pages.every(p => p.status === 'completed');
+    const shouldHaveAudio = !!story.voice;
+    const allAudioPresent = !shouldHaveAudio || pages.every(p => !!p.audioUrl);
+
+    if (allImagesComplete && allAudioPresent) {
+      // Everything is done — mark completed
+      await updateStoryStatus(story.id, 'completed');
+      console.log(`  [recovery] ${story.id}: all content present → completed`);
+    } else if (hasFailedImages || (shouldHaveAudio && pages.some(p => !p.audioUrl))) {
+      // Has failures or missing audio — mark completed (retry can fix the rest)
+      // We use 'completed' rather than 'failed' so the story is viewable,
+      // and the retry button will appear for the missing content.
+      await updateStoryStatus(story.id, 'completed');
+      console.log(`  [recovery] ${story.id}: partial content (failed images: ${hasFailedImages}, missing audio: ${shouldHaveAudio && pages.some(p => !p.audioUrl)}) → completed`);
+    } else {
+      // Images still pending/generating — mark failed since pipeline is dead
+      await updateStoryStatus(story.id, 'failed');
+      console.log(`  [recovery] ${story.id}: images incomplete → failed`);
+    }
+    recovered++;
+  }
+
+  return recovered;
+}
