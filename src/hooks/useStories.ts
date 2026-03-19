@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import type { StorySummary, StoryMeta, CreateStoryResponse } from '../types';
+import type { StorySummary, StoryMeta, CreateStoryResponse, StoryAssets, RetryStoryResponse } from '../types';
 import { supabase } from '../lib/supabase';
 
 async function getAuthHeaders(): Promise<Record<string, string>> {
@@ -156,5 +156,48 @@ export function useToggleVisibility() {
       queryClient.invalidateQueries({ queryKey: ['stories', 'mine'] });
       queryClient.invalidateQueries({ queryKey: ['stories', 'public'] });
     },
+  });
+}
+
+// ---------- Retry & Assets ----------
+
+async function retryStory(id: string): Promise<RetryStoryResponse> {
+  const authHeaders = await getAuthHeaders();
+  const res = await fetch(`/api/stories/${id}/retry`, {
+    method: 'POST',
+    headers: authHeaders,
+  });
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({ error: 'Failed to retry story' }));
+    throw new Error(error.error || 'Failed to retry story');
+  }
+  return res.json();
+}
+
+async function fetchStoryAssets(id: string): Promise<StoryAssets> {
+  const authHeaders = await getAuthHeaders();
+  const res = await fetch(`/api/stories/${id}/assets`, {
+    headers: authHeaders,
+  });
+  if (!res.ok) throw new Error('Failed to fetch story assets');
+  return res.json();
+}
+
+export function useRetryStory() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: retryStory,
+    onSuccess: (_data, id) => {
+      queryClient.invalidateQueries({ queryKey: ['story', id] });
+      queryClient.invalidateQueries({ queryKey: ['stories'] });
+    },
+  });
+}
+
+export function useStoryAssets(id: string | undefined, enabled = false) {
+  return useQuery({
+    queryKey: ['story-assets', id],
+    queryFn: () => fetchStoryAssets(id!),
+    enabled: !!id && enabled,
   });
 }
