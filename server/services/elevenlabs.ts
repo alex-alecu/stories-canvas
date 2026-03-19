@@ -213,3 +213,83 @@ export async function generateAllPageAudio(
 export function isElevenLabsConfigured(): boolean {
   return !!config.elevenLabsApiKey;
 }
+
+/**
+ * Retry audio generation only for pages that are missing audioUrl.
+ */
+export async function retryMissingAudio(
+  storyId: string,
+  pages: Page[],
+  voiceKey: VoiceKey,
+  userId: string | undefined,
+  signal: AbortSignal,
+  onProgress?: AudioProgressCallback,
+): Promise<AudioGenerationResult> {
+  // Filter to only pages missing audio
+  const pagesNeedingAudio = pages.filter(p => !p.audioUrl);
+
+  if (pagesNeedingAudio.length === 0) {
+    return { completedCount: 0, failedCount: 0, skippedCount: 0 };
+  }
+
+  let completedCount = 0;
+  let failedCount = 0;
+  let fatalError: string | undefined;
+
+  for (const page of pagesNeedingAudio) {
+    if (signal.aborted) throw new Error('Generation cancelled');
+    if (fatalError) break;
+
+    const pageNum = String(page.pageNumber).padStart(2, '0');
+    const filename = `page-${pageNum}.mp3`;
+
+    try {
+      onProgress?.({
+        message: `Retrying narration for page ${page.pageNumber}...`,
+        pageNumber: page.pageNumber,
+        pageStatus: 'generating',
+      });
+
+      const audioBuffer = await generatePageAudio(page.text, voiceKey);
+      const audioUrl = await savePageAudio(storyId, filename, audioBuffer, userId);
+
+      // Update the page's audioUrl in DB
+      if (config.useSupabase) {
+        const { getSupabase } = await import('./supabase.js');
+        const supabase = getSupabase();
+        await supabase.rpc('update_page_audio_url', {
+          story_id: storyId,
+          page_number: page.pageNumber,
+          audio_url: audioUrl,
+        });
+      } else {
+        const { updatePageAudioUrl } = await import('../utils/storage.js');
+        await updatePageAudioUrl(storyId, page.pageNumber, audioUrl);
+      }
+
+      completedCount++;
+      onProgress?.({
+        message: `Narration for page ${page.pageNumber} complete`,
+        pageNumber: page.pageNumber,
+        pageStatus: 'completed',
+      });
+    } catch (error) {
+      if (signal.aborted) throw new Error('Generation cancelled');
+      failedCount++;
+      console.error(`Failed to retry audio for page ${page.pageNumber}:`, error);
+      onProgress?.({
+        message: `Narration for page ${page.pageNumber} failed`,
+        pageNumber: page.pageNumber,
+        pageStatus: 'failed',
+      });
+
+      if (error instanceof Error && error.name === 'AbortError') {
+        fatalError = error.message;
+        break;
+      }
+    }
+  }
+
+  const skippedCount = pagesNeedingAudio.length - completedCount - failedCount;
+  return { completedCount, failedCount, skippedCount, error: fatalError };
+}

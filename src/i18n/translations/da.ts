@@ -132,6 +132,20 @@ const da: Translations = {
   playNarration: 'Afspil fortaelling',
   pauseNarration: 'Pause fortaelling',
   autoPlay: 'Automatisk afspilning',
+
+  storyTools: 'Historieværktøjer',
+  retry: 'Prøv igen',
+  back: 'Tilbage',
+  retryDescription: 'Noget indhold kunne ikke genereres. Prøv igen for at fuldføre din historie.',
+  failedImages: 'mislykkede billeder',
+  missingAudio: 'sider uden lyd',
+  retrying: 'Prøver igen...',
+  retrySuccess: 'Nyt forsøg fuldført!',
+  retryFailed: 'Nyt forsøg mislykkedes. Prøv venligst igen.',
+  referenceImages: 'Referencebilleder',
+  characterSheet: 'Karakterark',
+  noReferenceImages: 'Ingen referencebilleder tilgængelige',
+  storyStatus: 'Historiestatus',
 };
 
 export default da;

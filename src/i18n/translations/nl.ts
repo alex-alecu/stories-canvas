@@ -132,6 +132,20 @@ const nl: Translations = {
   playNarration: 'Vertelling afspelen',
   pauseNarration: 'Vertelling pauzeren',
   autoPlay: 'Automatisch afspelen',
+
+  storyTools: 'Verhaalgereedschap',
+  retry: 'Opnieuw proberen',
+  back: 'Terug',
+  retryDescription: 'Sommige inhoud kon niet worden gegenereerd. Probeer opnieuw om je verhaal te voltooien.',
+  failedImages: 'mislukte afbeeldingen',
+  missingAudio: 'pagina\'s zonder audio',
+  retrying: 'Opnieuw proberen...',
+  retrySuccess: 'Opnieuw proberen succesvol!',
+  retryFailed: 'Opnieuw proberen mislukt. Probeer het nogmaals.',
+  referenceImages: 'Referentieafbeeldingen',
+  characterSheet: 'Karakterblad',
+  noReferenceImages: 'Geen referentieafbeeldingen beschikbaar',
+  storyStatus: 'Verhaalstatus',
 };
 
 export default nl;

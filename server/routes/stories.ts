@@ -3,12 +3,13 @@ import crypto from 'crypto';
 import { config } from '../config.js';
 import * as fsStorage from '../utils/storage.js';
 import * as sbStorage from '../services/supabaseStorage.js';
+import { getCharacterSheetFilename } from '../services/characterSheet.js';
 import { generateScenario } from '../services/scenario.js';
 import { generateAllCharacterSheets } from '../services/characterSheet.js';
-import { generateAllSceneImages } from '../services/sceneGenerator.js';
-import { generateAllPageAudio, isElevenLabsConfigured } from '../services/elevenlabs.js';
+import { generateAllSceneImages, retryFailedSceneImages } from '../services/sceneGenerator.js';
+import { generateAllPageAudio, retryMissingAudio, isElevenLabsConfigured } from '../services/elevenlabs.js';
 import { optionalAuth } from '../middleware/auth.js';
-import type { GenerationProgress, CreateStoryRequest, StoryStatus, StoryMeta, Scenario, ArtStyleKey, VoiceKey } from '../../shared/types.js';
+import type { GenerationProgress, CreateStoryRequest, StoryStatus, StoryMeta, Scenario, ArtStyleKey, VoiceKey, StoryAssets, RetryStoryResponse } from '../../shared/types.js';
 import { ART_STYLES, DEFAULT_AGE, DEFAULT_ART_STYLE } from '../../shared/types.js';
 
 const router = Router();
@@ -485,6 +486,324 @@ router.get('/active/generations', async (_req: Request, res: Response) => {
   } catch (error) {
     console.error('Failed to get active generations:', error);
     res.status(500).json({ error: 'Failed to get active generations' });
+  }
+});
+
+// POST /api/stories/:id/retry - Retry failed image/audio generation
+router.post('/:id/retry', optionalAuth, async (req: Request, res: Response) => {
+  try {
+    const storyId = req.params.id as string;
+
+    // Require auth when Supabase is configured
+    if (config.useSupabase && !req.authUser) {
+      res.status(401).json({ error: 'Authentication required' });
+      return;
+    }
+
+    const story = await getStory(storyId);
+    if (!story) {
+      res.status(404).json({ error: 'Story not found' });
+      return;
+    }
+
+    // Ownership check
+    if (config.useSupabase && story.userId && story.userId !== req.authUser?.id) {
+      res.status(403).json({ error: 'Forbidden' });
+      return;
+    }
+
+    // Only allow retry on completed or failed stories
+    if (story.status !== 'completed' && story.status !== 'failed') {
+      res.status(400).json({ error: 'Story must be completed or failed to retry' });
+      return;
+    }
+
+    // Prevent concurrent retries
+    if (activeGenerations.has(storyId)) {
+      res.status(409).json({ error: 'A retry is already in progress' });
+      return;
+    }
+
+    if (!story.scenario) {
+      res.status(400).json({ error: 'Story has no scenario data' });
+      return;
+    }
+
+    const pages = story.scenario.pages;
+    const failedImagePages = pages.filter(p => p.status === 'failed').map(p => p.pageNumber);
+    const hasAudioPages = pages.some(p => !!p.audioUrl);
+    const missingAudioPages = pages.filter(p => !p.audioUrl);
+    // Only consider audio missing if the story was supposed to have audio (has voice setting or some pages have audio)
+    const needsAudioRetry = hasAudioPages && missingAudioPages.length > 0;
+
+    if (failedImagePages.length === 0 && !needsAudioRetry) {
+      res.json({ status: story.status, retriedImages: 0, retriedAudio: 0 } as RetryStoryResponse);
+      return;
+    }
+
+    // Return immediately, retry happens in background
+    res.json({
+      status: 'generating_images' as StoryStatus,
+      retriedImages: failedImagePages.length,
+      retriedAudio: needsAudioRetry ? missingAudioPages.length : 0,
+    } as RetryStoryResponse);
+
+    // Run retry pipeline in background
+    runRetryPipeline(storyId, story, failedImagePages, needsAudioRetry).catch(error => {
+      console.error(`Retry pipeline failed for ${storyId}:`, error);
+    });
+  } catch (error) {
+    console.error('Failed to retry story:', error);
+    res.status(500).json({ error: 'Failed to retry story' });
+  }
+});
+
+async function runRetryPipeline(
+  storyId: string,
+  story: StoryMeta,
+  failedImagePages: number[],
+  needsAudioRetry: boolean,
+): Promise<void> {
+  const controller = new AbortController();
+  activeGenerations.set(storyId, controller);
+  const { signal } = controller;
+
+  const scenario = story.scenario!;
+  const userId = story.userId;
+
+  try {
+    let completedImages = 0;
+    const totalRetries = failedImagePages.length;
+
+    // Phase 1: Retry failed images
+    if (failedImagePages.length > 0) {
+      await updateStoryStatus(storyId, 'generating_images');
+
+      await sendProgressUpdate(storyId, {
+        storyId,
+        status: 'generating_images',
+        currentPhase: 'Retrying failed illustrations...',
+        completedPages: 0,
+        totalPages: totalRetries,
+        failedPages: [],
+        message: `Retrying ${failedImagePages.length} failed illustration(s)...`,
+      });
+
+      // Determine style from the story (use default if not stored)
+      const styleDescription = ART_STYLES[DEFAULT_ART_STYLE];
+      const failedPages: number[] = [];
+
+      await retryFailedSceneImages(
+        storyId,
+        scenario.pages,
+        scenario.characters,
+        failedImagePages,
+        styleDescription,
+        (progress) => {
+          if (progress.pageStatus === 'completed') {
+            completedImages++;
+          } else if (progress.pageStatus === 'failed' && progress.pageNumber !== undefined) {
+            failedPages.push(progress.pageNumber);
+          }
+          sendProgressUpdate(storyId, {
+            storyId,
+            status: 'generating_images',
+            currentPhase: 'Retrying failed illustrations...',
+            completedPages: completedImages,
+            totalPages: totalRetries,
+            failedPages,
+            message: progress.message || '',
+            pageNumber: progress.pageNumber,
+            pageStatus: progress.pageStatus,
+          }).catch(() => {});
+        },
+        userId,
+        signal,
+      );
+
+      // Update cover image if page 1 was retried and succeeded
+      if (failedImagePages.includes(1) && !failedPages.includes(1) && config.useSupabase) {
+        const coverUrl = getPageImageUrl(storyId, 1, userId);
+        try {
+          const { getSupabase } = await import('../services/supabase.js');
+          await getSupabase().from('stories').update({ cover_image_url: coverUrl }).eq('id', storyId);
+        } catch {}
+      }
+    }
+
+    // Phase 2: Retry missing audio
+    if (needsAudioRetry && isElevenLabsConfigured()) {
+      if (signal.aborted) throw new Error('Generation cancelled');
+      await updateStoryStatus(storyId, 'generating_audio');
+
+      // We need to re-fetch the story to get updated page data after image retry
+      const updatedStory = await getStory(storyId);
+      const updatedPages = updatedStory?.scenario?.pages || scenario.pages;
+      const pagesNeedingAudio = updatedPages.filter(p => !p.audioUrl);
+
+      await sendProgressUpdate(storyId, {
+        storyId,
+        status: 'generating_audio',
+        currentPhase: 'Retrying narration...',
+        completedPages: 0,
+        totalPages: pagesNeedingAudio.length,
+        failedPages: [],
+        message: `Retrying narration for ${pagesNeedingAudio.length} page(s)...`,
+      });
+
+      // Determine voice from DB (stored in stories table)
+      let voiceKey: import('../../shared/types.js').VoiceKey = 'grandma';
+      if (config.useSupabase) {
+        try {
+          const { getSupabase } = await import('../services/supabase.js');
+          const { data } = await getSupabase().from('stories').select('voice').eq('id', storyId).single();
+          if (data?.voice) voiceKey = data.voice;
+        } catch {}
+      }
+
+      let audioCompletedPages = 0;
+      await retryMissingAudio(
+        storyId,
+        updatedPages,
+        voiceKey,
+        userId,
+        signal,
+        (progress) => {
+          if (progress.pageStatus === 'completed') audioCompletedPages++;
+          sendProgressUpdate(storyId, {
+            storyId,
+            status: 'generating_audio',
+            currentPhase: 'Retrying narration...',
+            completedPages: audioCompletedPages,
+            totalPages: pagesNeedingAudio.length,
+            failedPages: [],
+            message: progress.message || '',
+            pageNumber: progress.pageNumber,
+            pageStatus: progress.pageStatus,
+          }).catch(() => {});
+        },
+      );
+    }
+
+    // Complete
+    await updateStoryStatus(storyId, 'completed');
+    sendSSE(storyId, {
+      storyId,
+      status: 'completed',
+      currentPhase: 'Done!',
+      completedPages: 0,
+      totalPages: 0,
+      failedPages: [],
+      message: 'Retry completed successfully!',
+    });
+  } catch (error) {
+    const isCancelled = signal.aborted;
+    const status = isCancelled ? 'cancelled' : 'failed';
+    console.error(`Retry pipeline ${status} for ${storyId}:`, error);
+
+    try {
+      await updateStoryStatus(storyId, status === 'cancelled' ? 'completed' : 'failed');
+    } catch {}
+
+    sendSSE(storyId, {
+      storyId,
+      status: status === 'cancelled' ? 'completed' : 'failed',
+      currentPhase: isCancelled ? 'Cancelled' : 'Retry failed',
+      completedPages: 0,
+      totalPages: 0,
+      failedPages: [],
+      message: isCancelled ? 'Retry cancelled' : (error instanceof Error ? error.message : 'Retry failed'),
+    });
+  } finally {
+    activeGenerations.delete(storyId);
+    setTimeout(() => {
+      const connections = sseConnections.get(storyId);
+      if (connections) {
+        for (const res of connections) {
+          try { res.end(); } catch {}
+        }
+        sseConnections.delete(storyId);
+      }
+    }, 2000);
+  }
+}
+
+// GET /api/stories/:id/assets - List all stored assets (character sheets, images)
+router.get('/:id/assets', optionalAuth, async (req: Request, res: Response) => {
+  try {
+    const storyId = req.params.id as string;
+
+    const story = await getStory(storyId);
+    if (!story) {
+      res.status(404).json({ error: 'Story not found' });
+      return;
+    }
+
+    // Access check: owner or public story
+    if (config.useSupabase && story.userId) {
+      if (!story.isPublic && (!req.authUser || req.authUser.id !== story.userId)) {
+        res.status(404).json({ error: 'Story not found' });
+        return;
+      }
+    }
+
+    if (!config.useSupabase) {
+      // Filesystem mode: construct asset list from scenario data
+      const assets: StoryAssets = { characterSheets: [], pageImages: [] };
+      if (story.scenario) {
+        for (const char of story.scenario.characters) {
+          const filename = getCharacterSheetFilename(char.name);
+          assets.characterSheets.push({
+            name: char.name,
+            url: `/api/stories/${storyId}/images/${filename}`,
+          });
+        }
+        for (const page of story.scenario.pages) {
+          const filename = `page-${String(page.pageNumber).padStart(2, '0')}.png`;
+          assets.pageImages.push({
+            pageNumber: page.pageNumber,
+            url: `/api/stories/${storyId}/images/${filename}`,
+          });
+        }
+      }
+      res.json(assets);
+      return;
+    }
+
+    // Supabase mode: list actual files in storage
+    const files = await sbStorage.listStoryFiles(storyId, story.userId);
+    const assets: StoryAssets = { characterSheets: [], pageImages: [] };
+
+    for (const filename of files) {
+      const url = sbStorage.getImageUrl(story.userId, storyId, filename);
+
+      if (filename.startsWith('character-sheet-') && filename.endsWith('.png')) {
+        // Extract character name from filename: character-sheet-{name}.png
+        const rawName = filename.replace('character-sheet-', '').replace('.png', '');
+        // Try to find a matching character from the scenario for the display name
+        const matchedChar = story.scenario?.characters.find(c =>
+          c.name.toLowerCase().replace(/[^a-z0-9]/g, '-') === rawName
+        );
+        assets.characterSheets.push({
+          name: matchedChar?.name || rawName,
+          url,
+        });
+      } else if (filename.startsWith('page-') && filename.endsWith('.png')) {
+        const numStr = filename.replace('page-', '').replace('.png', '');
+        const pageNumber = parseInt(numStr, 10);
+        if (!isNaN(pageNumber)) {
+          assets.pageImages.push({ pageNumber, url });
+        }
+      }
+    }
+
+    // Sort by page number
+    assets.pageImages.sort((a, b) => a.pageNumber - b.pageNumber);
+
+    res.json(assets);
+  } catch (error) {
+    console.error('Failed to get story assets:', error);
+    res.status(500).json({ error: 'Failed to get story assets' });
   }
 });
 

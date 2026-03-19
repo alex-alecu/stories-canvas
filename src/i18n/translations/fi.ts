@@ -132,6 +132,20 @@ const fi: Translations = {
   playNarration: 'Toista kerronta',
   pauseNarration: 'Keskeyta kerronta',
   autoPlay: 'Automaattinen toisto',
+
+  storyTools: 'Tarinatyökalut',
+  retry: 'Yritä uudelleen',
+  back: 'Takaisin',
+  retryDescription: 'Jotain sisältöä ei voitu luoda. Yritä uudelleen tarinasi viimeistelemiseksi.',
+  failedImages: 'epäonnistuneet kuvat',
+  missingAudio: 'sivut ilman ääntä',
+  retrying: 'Yritetään uudelleen...',
+  retrySuccess: 'Uudelleenyritys onnistui!',
+  retryFailed: 'Uudelleenyritys epäonnistui. Yritä uudelleen.',
+  referenceImages: 'Viitekuvat',
+  characterSheet: 'Hahmokortti',
+  noReferenceImages: 'Viitekuvia ei saatavilla',
+  storyStatus: 'Tarinan tila',
 };
 
 export default fi;

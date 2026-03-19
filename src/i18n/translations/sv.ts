@@ -132,6 +132,20 @@ const sv: Translations = {
   playNarration: 'Spela upp berattelse',
   pauseNarration: 'Pausa berattelse',
   autoPlay: 'Automatisk uppspelning',
+
+  storyTools: 'Berättelseverktyg',
+  retry: 'Försök igen',
+  back: 'Tillbaka',
+  retryDescription: 'Visst innehåll kunde inte genereras. Försök igen för att slutföra din berättelse.',
+  failedImages: 'misslyckade bilder',
+  missingAudio: 'sidor utan ljud',
+  retrying: 'Försöker igen...',
+  retrySuccess: 'Nytt försök slutfört!',
+  retryFailed: 'Nytt försök misslyckades. Vänligen försök igen.',
+  referenceImages: 'Referensbilder',
+  characterSheet: 'Karaktärsblad',
+  noReferenceImages: 'Inga referensbilder tillgängliga',
+  storyStatus: 'Berättelsestatus',
 };
 
 export default sv;

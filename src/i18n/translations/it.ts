@@ -132,6 +132,20 @@ const it: Translations = {
   playNarration: 'Riproduci narrazione',
   pauseNarration: 'Pausa narrazione',
   autoPlay: 'Riproduzione automatica',
+
+  storyTools: 'Strumenti della storia',
+  retry: 'Riprova',
+  back: 'Indietro',
+  retryDescription: 'Alcuni contenuti non sono stati generati. Riprova per completare la tua storia.',
+  failedImages: 'immagini non riuscite',
+  missingAudio: 'pagine senza audio',
+  retrying: 'Nuovo tentativo...',
+  retrySuccess: 'Nuovo tentativo completato con successo!',
+  retryFailed: 'Nuovo tentativo fallito. Per favore riprova.',
+  referenceImages: 'Immagini di riferimento',
+  characterSheet: 'Scheda del personaggio',
+  noReferenceImages: 'Nessuna immagine di riferimento disponibile',
+  storyStatus: 'Stato della storia',
 };
 
 export default it;

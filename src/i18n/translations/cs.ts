@@ -132,6 +132,20 @@ const cs: Translations = {
   playNarration: 'Prehrat narraci',
   pauseNarration: 'Pozastavit narraci',
   autoPlay: 'Automaticke prehravani',
+
+  storyTools: 'Nástroje příběhu',
+  retry: 'Zkusit znovu',
+  back: 'Zpět',
+  retryDescription: 'Některý obsah se nepodařilo vygenerovat. Zkuste to znovu pro dokončení příběhu.',
+  failedImages: 'neúspěšné obrázky',
+  missingAudio: 'stránky bez zvuku',
+  retrying: 'Zkouším znovu...',
+  retrySuccess: 'Opakování úspěšně dokončeno!',
+  retryFailed: 'Opakování se nezdařilo. Zkuste to prosím znovu.',
+  referenceImages: 'Referenční obrázky',
+  characterSheet: 'List postavy',
+  noReferenceImages: 'Žádné referenční obrázky nejsou k dispozici',
+  storyStatus: 'Stav příběhu',
 };
 
 export default cs;

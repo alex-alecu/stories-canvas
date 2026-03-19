@@ -1,7 +1,8 @@
 import pRetry, { AbortError } from 'p-retry';
 import { generateImage } from './gemini.js';
 import { saveImage, updatePageStatus as fsUpdatePageStatus } from '../utils/storage.js';
-import { uploadImage, updatePageStatus as sbUpdatePageStatus } from './supabaseStorage.js';
+import { uploadImage, updatePageStatus as sbUpdatePageStatus, downloadImage } from './supabaseStorage.js';
+import { getCharacterSheetFilename } from './characterSheet.js';
 import { config } from '../config.js';
 import { imageGenerationLimiter } from '../utils/rateLimiter.js';
 import type { Page, Character, GenerationProgress } from '../../shared/types.js';
@@ -248,4 +249,87 @@ export async function generateAllSceneImages(
       }
     }
   }
+}
+
+/**
+ * Retry generation for failed scene images only.
+ * Downloads reference images from storage to reconstruct the reference chain.
+ */
+export async function retryFailedSceneImages(
+  storyId: string,
+  pages: Page[],
+  characters: Character[],
+  failedPageNumbers: number[],
+  styleDescription?: string,
+  onProgress?: (progress: Partial<GenerationProgress>) => void,
+  userId?: string,
+  signal?: AbortSignal,
+  pro?: boolean,
+): Promise<number> {
+  let retriedCount = 0;
+
+  // Reconstruct character sheets from storage
+  const characterSheets = new Map<string, string>();
+  for (const character of characters) {
+    try {
+      const filename = getCharacterSheetFilename(character.name);
+      const base64 = await downloadImage(storyId, filename, userId);
+      characterSheets.set(character.name, base64);
+    } catch {
+      // Character sheet may not exist if it failed during initial generation
+      console.warn(`Could not download character sheet for ${character.name}, continuing without it`);
+    }
+  }
+
+  // Sort failed pages so we process them in order
+  const sortedFailed = [...failedPageNumbers].sort((a, b) => a - b);
+
+  // Download first completed page image once as style reference (reused across all retries)
+  let firstSceneBase64: string | null = null;
+  const firstCompleted = pages.find(p => p.status === 'completed');
+  if (firstCompleted) {
+    try {
+      const filename = `page-${String(firstCompleted.pageNumber).padStart(2, '0')}.png`;
+      firstSceneBase64 = await downloadImage(storyId, filename, userId);
+    } catch {
+      console.warn(`Could not download first scene for style reference`);
+    }
+  }
+
+  for (const failedPageNum of sortedFailed) {
+    if (signal?.aborted) throw new Error('Generation cancelled');
+
+    const page = pages.find(p => p.pageNumber === failedPageNum);
+    if (!page) continue;
+
+    // Download nearest previous completed page for continuity reference
+    let previousSceneBase64: string | null = null;
+    for (let i = failedPageNum - 1; i >= 1; i--) {
+      const prevPage = pages.find(p => p.pageNumber === i && p.status === 'completed');
+      if (prevPage) {
+        try {
+          const filename = `page-${String(i).padStart(2, '0')}.png`;
+          previousSceneBase64 = await downloadImage(storyId, filename, userId);
+          break;
+        } catch {
+          continue;
+        }
+      }
+    }
+
+    const result = await imageGenerationLimiter(() =>
+      generateSceneImage(
+        storyId, page, characters, characterSheets, styleDescription,
+        onProgress, userId, previousSceneBase64, firstSceneBase64, pro,
+      ),
+    );
+
+    if (result) {
+      // Update the page status in our local array too for subsequent reference lookups
+      page.status = 'completed';
+      retriedCount++;
+    }
+  }
+
+  return retriedCount;
 }

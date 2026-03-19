@@ -132,6 +132,20 @@ const zh: Translations = {
   playNarration: '播放旁白',
   pauseNarration: '暂停旁白',
   autoPlay: '自动播放',
+
+  storyTools: '故事工具',
+  retry: '重试',
+  back: '返回',
+  retryDescription: '部分内容生成失败。请重试以完成您的故事。',
+  failedImages: '失败的图片',
+  missingAudio: '缺少音频的页面',
+  retrying: '重试中...',
+  retrySuccess: '重试成功！',
+  retryFailed: '重试失败。请再试一次。',
+  referenceImages: '参考图片',
+  characterSheet: '角色设定',
+  noReferenceImages: '没有可用的参考图片',
+  storyStatus: '故事状态',
 };
 
 export default zh;

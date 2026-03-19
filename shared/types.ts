@@ -118,3 +118,14 @@ export interface CreateStoryResponse {
   id: string;
   status: StoryStatus;
 }
+
+export interface StoryAssets {
+  characterSheets: { name: string; url: string }[];
+  pageImages: { pageNumber: number; url: string }[];
+}
+
+export interface RetryStoryResponse {
+  status: StoryStatus;
+  retriedImages: number;
+  retriedAudio: number;
+}

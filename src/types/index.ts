@@ -11,6 +11,8 @@ export type {
   GenerationProgress,
   CreateStoryRequest,
   CreateStoryResponse,
+  StoryAssets,
+  RetryStoryResponse,
 } from '../../shared/types';
 
 export interface StorySummary {

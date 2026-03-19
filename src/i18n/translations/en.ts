@@ -132,6 +132,20 @@ const en: Translations = {
   playNarration: 'Play narration',
   pauseNarration: 'Pause narration',
   autoPlay: 'Auto-play',
+
+  storyTools: 'Story Tools',
+  retry: 'Retry',
+  back: 'Back',
+  retryDescription: 'Some content failed to generate. Retry to complete your story.',
+  failedImages: 'failed images',
+  missingAudio: 'pages missing audio',
+  retrying: 'Retrying...',
+  retrySuccess: 'Retry completed successfully!',
+  retryFailed: 'Retry failed. Please try again.',
+  referenceImages: 'Reference Images',
+  characterSheet: 'Character Sheet',
+  noReferenceImages: 'No reference images available',
+  storyStatus: 'Story Status',
 };
 
 export default en;

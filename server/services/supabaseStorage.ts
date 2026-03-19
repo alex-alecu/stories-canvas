@@ -257,3 +257,38 @@ export function getAudioUrl(userId: string | undefined, storyId: string, filenam
   // Uses same bucket and URL pattern as images
   return getImageUrl(userId, storyId, filename);
 }
+
+// ---------- Storage Listing & Download ----------
+
+export async function listStoryFiles(storyId: string, userId?: string): Promise<string[]> {
+  const supabase = getSupabase();
+  const paths: string[] = [];
+
+  // Try user-scoped path first
+  if (userId) {
+    const storagePath = `${userId}/${storyId}`;
+    const { data } = await supabase.storage.from(BUCKET).list(storagePath);
+    if (data && data.length > 0) {
+      return data.map(f => f.name);
+    }
+  }
+
+  // Fallback to legacy path
+  const { data: legacyData } = await supabase.storage.from(BUCKET).list(storyId);
+  if (legacyData && legacyData.length > 0) {
+    return legacyData.map(f => f.name);
+  }
+
+  return paths;
+}
+
+export async function downloadImage(storyId: string, filename: string, userId?: string): Promise<string> {
+  const supabase = getSupabase();
+  const storagePath = userId ? `${userId}/${storyId}/${filename}` : `${storyId}/${filename}`;
+
+  const { data, error } = await supabase.storage.from(BUCKET).download(storagePath);
+  if (error) throw new Error(`Failed to download image ${filename}: ${error.message}`);
+
+  const arrayBuffer = await data.arrayBuffer();
+  return Buffer.from(arrayBuffer).toString('base64');
+}
