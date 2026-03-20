@@ -146,6 +146,13 @@ const fr: Translations = {
   characterSheet: 'Fiche de personnage',
   noReferenceImages: 'Aucune image de référence disponible',
   storyStatus: 'Statut de l\'histoire',
+
+  addNarration: 'Ajouter une narration vocale à cette histoire',
+  selectVoice: 'Choisir la voix',
+  generateNarration: 'Générer la narration',
+  generatingNarration: 'Génération de la narration...',
+  narrationSuccess: 'Narration générée avec succès !',
+  narrationGenerationFailed: 'La génération de la narration a échoué. Veuillez réessayer.',
 };
 
 export default fr;

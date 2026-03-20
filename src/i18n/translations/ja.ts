@@ -146,6 +146,13 @@ const ja: Translations = {
   characterSheet: 'キャラクターシート',
   noReferenceImages: '参考画像はありません',
   storyStatus: 'ストーリーの状態',
+
+  addNarration: 'このストーリーに音声ナレーションを追加',
+  selectVoice: '声を選択',
+  generateNarration: 'ナレーションを生成',
+  generatingNarration: 'ナレーションを生成中...',
+  narrationSuccess: 'ナレーションが正常に生成されました！',
+  narrationGenerationFailed: 'ナレーションの生成に失敗しました。もう一度お試しください。',
 };
 
 export default ja;

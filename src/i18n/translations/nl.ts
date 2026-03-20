@@ -146,6 +146,13 @@ const nl: Translations = {
   characterSheet: 'Karakterblad',
   noReferenceImages: 'Geen referentieafbeeldingen beschikbaar',
   storyStatus: 'Verhaalstatus',
+
+  addNarration: 'Voeg gesproken vertelling toe aan dit verhaal',
+  selectVoice: 'Kies stem',
+  generateNarration: 'Genereer vertelling',
+  generatingNarration: 'Vertelling wordt gegenereerd...',
+  narrationSuccess: 'Vertelling succesvol gegenereerd!',
+  narrationGenerationFailed: 'Genereren van vertelling mislukt. Probeer het opnieuw.',
 };
 
 export default nl;

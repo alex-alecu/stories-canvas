@@ -146,6 +146,13 @@ const ko: Translations = {
   characterSheet: '캐릭터 시트',
   noReferenceImages: '사용 가능한 참고 이미지가 없습니다',
   storyStatus: '스토리 상태',
+
+  addNarration: '이 스토리에 음성 내레이션 추가',
+  selectVoice: '음성 선택',
+  generateNarration: '내레이션 생성',
+  generatingNarration: '내레이션 생성 중...',
+  narrationSuccess: '내레이션이 성공적으로 생성되었습니다!',
+  narrationGenerationFailed: '내레이션 생성에 실패했습니다. 다시 시도해 주세요.',
 };
 
 export default ko;

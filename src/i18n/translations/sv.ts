@@ -146,6 +146,13 @@ const sv: Translations = {
   characterSheet: 'Karaktärsblad',
   noReferenceImages: 'Inga referensbilder tillgängliga',
   storyStatus: 'Berättelsestatus',
+
+  addNarration: 'Lägg till röstberättelse till denna berättelse',
+  selectVoice: 'Välj röst',
+  generateNarration: 'Generera berättelse',
+  generatingNarration: 'Genererar berättelse...',
+  narrationSuccess: 'Berättelse genererad!',
+  narrationGenerationFailed: 'Berättelsen kunde inte genereras. Försök igen.',
 };
 
 export default sv;

@@ -107,6 +107,16 @@ export async function updatePageAudioUrl(storyId: string, pageNumber: number, au
   });
 }
 
+export async function updateStoryVoice(storyId: string, voice: VoiceKey): Promise<void> {
+  await withLock(storyId, async () => {
+    const dir = path.join(storiesDir, storyId);
+    const filePath = path.join(dir, 'scenario.json');
+    const data = JSON.parse(await fs.readFile(filePath, 'utf-8')) as StoryMeta;
+    data.voice = voice;
+    await fs.writeFile(filePath, JSON.stringify(data, null, 2));
+  });
+}
+
 export async function getAudioPath(storyId: string, filename: string): Promise<string | null> {
   const filePath = path.join(storiesDir, storyId, filename);
   try {

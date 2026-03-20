@@ -146,6 +146,13 @@ const sk: Translations = {
   characterSheet: 'List postavy',
   noReferenceImages: 'Žiadne referenčné obrázky nie sú k dispozícii',
   storyStatus: 'Stav príbehu',
+
+  addNarration: 'Pridať hlasové rozprávanie k tomuto príbehu',
+  selectVoice: 'Vybrať hlas',
+  generateNarration: 'Generovať rozprávanie',
+  generatingNarration: 'Generovanie rozprávania...',
+  narrationSuccess: 'Rozprávanie úspešne vygenerované!',
+  narrationGenerationFailed: 'Generovanie rozprávania zlyhalo. Skúste to znova.',
 };
 
 export default sk;

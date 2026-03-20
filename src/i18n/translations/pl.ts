@@ -146,6 +146,13 @@ const pl: Translations = {
   characterSheet: 'Karta postaci',
   noReferenceImages: 'Brak dostępnych obrazów referencyjnych',
   storyStatus: 'Status historii',
+
+  addNarration: 'Dodaj narrację głosową do tej historii',
+  selectVoice: 'Wybierz głos',
+  generateNarration: 'Generuj narrację',
+  generatingNarration: 'Generowanie narracji...',
+  narrationSuccess: 'Narracja wygenerowana pomyślnie!',
+  narrationGenerationFailed: 'Generowanie narracji nie powiodło się. Spróbuj ponownie.',
 };
 
 export default pl;

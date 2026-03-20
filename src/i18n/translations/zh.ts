@@ -146,6 +146,13 @@ const zh: Translations = {
   characterSheet: '角色设定',
   noReferenceImages: '没有可用的参考图片',
   storyStatus: '故事状态',
+
+  addNarration: '为这个故事添加语音旁白',
+  selectVoice: '选择声音',
+  generateNarration: '生成旁白',
+  generatingNarration: '正在生成旁白...',
+  narrationSuccess: '旁白生成成功！',
+  narrationGenerationFailed: '旁白生成失败，请重试。',
 };
 
 export default zh;

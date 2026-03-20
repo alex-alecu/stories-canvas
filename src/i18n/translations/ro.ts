@@ -159,6 +159,13 @@ const ro: Translations = {
   characterSheet: 'Fișa personajului',
   noReferenceImages: 'Nu sunt disponibile imagini de referință',
   storyStatus: 'Starea poveștii',
+
+  addNarration: 'Adaugă narațiune vocală acestei povești',
+  selectVoice: 'Selectează vocea',
+  generateNarration: 'Generează narațiunea',
+  generatingNarration: 'Se generează narațiunea...',
+  narrationSuccess: 'Narațiunea a fost generată cu succes!',
+  narrationGenerationFailed: 'Generarea narațiunii a eșuat. Încearcă din nou.',
 };
 
 export default ro;

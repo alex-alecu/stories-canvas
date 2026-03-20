@@ -201,3 +201,30 @@ export function useStoryAssets(id: string | undefined, enabled = false) {
     enabled: !!id && enabled,
   });
 }
+
+// ---------- Generate Audio ----------
+
+async function generateAudio({ id, voice }: { id: string; voice: string }): Promise<{ status: string }> {
+  const authHeaders = await getAuthHeaders();
+  const res = await fetch(`/api/stories/${id}/generate-audio`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders },
+    body: JSON.stringify({ voice }),
+  });
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({ error: 'Failed to generate audio' }));
+    throw new Error(error.error || 'Failed to generate audio');
+  }
+  return res.json();
+}
+
+export function useGenerateAudio() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: generateAudio,
+    onSuccess: (_data, { id }) => {
+      queryClient.invalidateQueries({ queryKey: ['story', id] });
+      queryClient.invalidateQueries({ queryKey: ['stories'] });
+    },
+  });
+}

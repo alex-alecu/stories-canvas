@@ -146,6 +146,13 @@ const de: Translations = {
   characterSheet: 'Charakterbogen',
   noReferenceImages: 'Keine Referenzbilder verfügbar',
   storyStatus: 'Story-Status',
+
+  addNarration: 'Spracherzählung zu dieser Geschichte hinzufügen',
+  selectVoice: 'Stimme auswählen',
+  generateNarration: 'Erzählung generieren',
+  generatingNarration: 'Erzählung wird generiert...',
+  narrationSuccess: 'Erzählung erfolgreich generiert!',
+  narrationGenerationFailed: 'Erzählung konnte nicht generiert werden. Bitte versuche es erneut.',
 };
 
 export default de;
