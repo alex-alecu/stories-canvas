@@ -133,18 +133,20 @@ export default function StoryToolsModal({
 
   // Any background operation running?
   const isBusy = isRetrying || isGeneratingAudio;
+  const isBusyRef = useRef(isBusy);
+  isBusyRef.current = isBusy;
 
   // Character sheets that are NOT page images (the "intermediate" images)
   const characterSheets = assets?.characterSheets ?? [];
 
-  // Close on Escape
+  // Close on Escape (uses ref to avoid re-registering on every isBusy change)
   useEffect(() => {
     if (!isOpen) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         if (lightboxUrl) {
           setLightboxUrl(null);
-        } else {
+        } else if (!isBusyRef.current) {
           onClose();
         }
       }
