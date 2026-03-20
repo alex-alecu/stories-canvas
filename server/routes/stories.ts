@@ -834,19 +834,23 @@ async function runAudioGenerationPipeline(
   try {
     await updateStoryStatus(storyId, 'generating_audio');
 
+    // Only generate audio for pages that don't already have it (defense in depth)
+    const pagesNeedingAudio = scenario.pages.filter(p => !p.audioUrl);
+    const totalToGenerate = pagesNeedingAudio.length;
+
     await sendProgressUpdate(storyId, {
       storyId,
       status: 'generating_audio',
       currentPhase: 'Recording narration...',
       completedPages: 0,
-      totalPages: scenario.pages.length,
+      totalPages: totalToGenerate,
       failedPages: [],
       message: `Recording narration with ${voiceKey} voice...`,
     });
 
     let audioCompletedPages = 0;
 
-    const audioResult = await generateAllPageAudio(
+    const audioResult = await retryMissingAudio(
       storyId,
       scenario.pages,
       voiceKey,
@@ -861,7 +865,7 @@ async function runAudioGenerationPipeline(
           status: 'generating_audio',
           currentPhase: 'Recording narration...',
           completedPages: audioCompletedPages,
-          totalPages: scenario.pages.length,
+          totalPages: totalToGenerate,
           failedPages: [],
           message: progress.message || '',
           pageNumber: progress.pageNumber,
@@ -873,10 +877,10 @@ async function runAudioGenerationPipeline(
     // Check if audio generation had failures
     let audioFailed = false;
     let audioError: string | undefined;
-    if (audioResult.completedCount < scenario.pages.length) {
+    if (audioResult.completedCount < totalToGenerate) {
       audioFailed = true;
       audioError = audioResult.error || 'Some narration pages could not be generated';
-      console.warn(`Audio generation incomplete for ${storyId}: ${audioResult.completedCount}/${scenario.pages.length} succeeded, ${audioResult.failedCount} failed, ${audioResult.skippedCount} skipped`);
+      console.warn(`Audio generation incomplete for ${storyId}: ${audioResult.completedCount}/${totalToGenerate} succeeded, ${audioResult.failedCount} failed, ${audioResult.skippedCount} skipped`);
     }
 
     // Complete — story is viewable even if some audio failed
@@ -886,7 +890,7 @@ async function runAudioGenerationPipeline(
       status: 'completed',
       currentPhase: 'Done!',
       completedPages: audioCompletedPages,
-      totalPages: scenario.pages.length,
+      totalPages: totalToGenerate,
       failedPages: [],
       message: audioFailed ? audioError! : 'Narration generated successfully!',
       audioFailed,
