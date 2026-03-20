@@ -771,6 +771,13 @@ router.post('/:id/generate-audio', optionalAuth, async (req: Request, res: Respo
       return;
     }
 
+    // Reject if story already has narration (voice set or any page has audio)
+    const alreadyHasAudio = story.scenario.pages.some(p => !!p.audioUrl);
+    if (story.voice || alreadyHasAudio) {
+      res.status(400).json({ error: 'Story already has narration. Use retry to fix missing pages.' });
+      return;
+    }
+
     // Check ElevenLabs is configured
     if (!isElevenLabsConfigured()) {
       res.status(503).json({ error: 'Audio generation service is not configured' });
