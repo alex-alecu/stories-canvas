@@ -146,6 +146,13 @@ const hu: Translations = {
   characterSheet: 'Karakterlap',
   noReferenceImages: 'Nincsenek elérhető referencia képek',
   storyStatus: 'Történet állapota',
+
+  addNarration: 'Hangos narráció hozzáadása ehhez a történethez',
+  selectVoice: 'Hang kiválasztása',
+  generateNarration: 'Narráció generálása',
+  generatingNarration: 'Narráció generálása...',
+  narrationSuccess: 'Narráció sikeresen generálva!',
+  narrationGenerationFailed: 'A narráció generálása sikertelen. Próbáld újra.',
 };
 
 export default hu;

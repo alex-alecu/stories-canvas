@@ -178,6 +178,14 @@ export async function getActiveGenerations(): Promise<StoryMeta[]> {
   return (data as StoryRow[]).map(rowToStoryMeta);
 }
 
+// ---------- Update Voice ----------
+
+export async function updateStoryVoice(id: string, voice: VoiceKey): Promise<void> {
+  const supabase = getSupabase();
+  const { error } = await supabase.from('stories').update({ voice }).eq('id', id);
+  if (error) throw new Error(`Failed to update story voice: ${error.message}`);
+}
+
 // ---------- Public Stories ----------
 
 export async function updateStoryVisibility(id: string, isPublic: boolean): Promise<void> {

@@ -146,6 +146,13 @@ const no: Translations = {
   characterSheet: 'Karakterark',
   noReferenceImages: 'Ingen referansebilder tilgjengelig',
   storyStatus: 'Historiestatus',
+
+  addNarration: 'Legg til stemmefortelling til denne historien',
+  selectVoice: 'Velg stemme',
+  generateNarration: 'Generer fortelling',
+  generatingNarration: 'Genererer fortelling...',
+  narrationSuccess: 'Fortelling generert!',
+  narrationGenerationFailed: 'Generering av fortelling mislyktes. Prøv igjen.',
 };
 
 export default no;

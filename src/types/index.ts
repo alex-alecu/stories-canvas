@@ -25,4 +25,5 @@ export interface StorySummary {
   totalPages: number;
   completedPages: number;
   isPublic?: boolean;
+  hasAudio?: boolean;
 }

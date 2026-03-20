@@ -146,6 +146,13 @@ const pt: Translations = {
   characterSheet: 'Ficha do personagem',
   noReferenceImages: 'Nenhuma imagem de referência disponível',
   storyStatus: 'Estado da história',
+
+  addNarration: 'Adicionar narração de voz a esta história',
+  selectVoice: 'Selecionar voz',
+  generateNarration: 'Gerar narração',
+  generatingNarration: 'Gerando narração...',
+  narrationSuccess: 'Narração gerada com sucesso!',
+  narrationGenerationFailed: 'Falha ao gerar narração. Tente novamente.',
 };
 
 export default pt;

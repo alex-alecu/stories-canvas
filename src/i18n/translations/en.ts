@@ -146,6 +146,13 @@ const en: Translations = {
   characterSheet: 'Character Sheet',
   noReferenceImages: 'No reference images available',
   storyStatus: 'Story Status',
+
+  addNarration: 'Add voice narration to this story',
+  selectVoice: 'Select voice',
+  generateNarration: 'Generate narration',
+  generatingNarration: 'Generating narration...',
+  narrationSuccess: 'Narration generated successfully!',
+  narrationGenerationFailed: 'Narration generation failed. Please try again.',
 };
 
 export default en;

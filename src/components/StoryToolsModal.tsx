@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import type { Scenario, GenerationProgress } from '../types';
-import { useRetryStory, useStoryAssets } from '../hooks/useStories';
+import { useRetryStory, useStoryAssets, useGenerateAudio } from '../hooks/useStories';
 import { useStoryGeneration } from '../hooks/useStoryGeneration';
 import { useLanguage } from '../i18n/LanguageContext';
+import { VOICE_OPTIONS, type VoiceKey } from '../../shared/types';
 
 interface StoryToolsModalProps {
   isOpen: boolean;
@@ -32,19 +33,28 @@ export default function StoryToolsModal({
   const retryStartingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const retryStory = useRetryStory();
+  const generateAudio = useGenerateAudio();
   const { data: assets, isLoading: assetsLoading } = useStoryAssets(storyId, isOpen);
+
+  // --- Audio generation state ---
+  const [selectedVoice, setSelectedVoice] = useState<VoiceKey>('grandma');
+  const [audioGenTriggered, setAudioGenTriggered] = useState(false);
+  const [audioGenResult, setAudioGenResult] = useState<'success' | 'failed' | null>(null);
+  const [audioGenStarting, setAudioGenStarting] = useState(false);
+  const audioGenStartingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Connect to SSE for retry progress — delay until grace period ends to avoid
   // the stale 'completed' status that the SSE endpoint reads from DB before the
   // retry pipeline has a chance to update it.
-  const sseActive = retryTriggered && !retryStarting;
-  const { progress: retryProgress } = useStoryGeneration(sseActive ? storyId : null);
-  const activeProgress = retryTriggered ? retryProgress : progress;
+  const sseActive = (retryTriggered && !retryStarting) || (audioGenTriggered && !audioGenStarting);
+  const { progress: sseProgress } = useStoryGeneration(sseActive ? storyId : null);
+  const activeProgress = (retryTriggered || audioGenTriggered) ? sseProgress : progress;
 
-  // Clear the grace period timer on unmount
+  // Clear the grace period timers on unmount
   useEffect(() => {
     return () => {
       if (retryStartingTimerRef.current) clearTimeout(retryStartingTimerRef.current);
+      if (audioGenStartingTimerRef.current) clearTimeout(audioGenStartingTimerRef.current);
     };
   }, []);
 
@@ -53,11 +63,20 @@ export default function StoryToolsModal({
   // (the SSE may read the old 'completed' from DB before the pipeline updates it)
   useEffect(() => {
     if (!retryTriggered || retryStarting) return;
-    if (retryProgress?.status === 'completed' || retryProgress?.status === 'failed') {
-      setRetryResult(retryProgress.status === 'completed' ? 'success' : 'failed');
+    if (sseProgress?.status === 'completed' || sseProgress?.status === 'failed') {
+      setRetryResult(sseProgress.status === 'completed' ? 'success' : 'failed');
       setRetryTriggered(false);
     }
-  }, [retryTriggered, retryStarting, retryProgress?.status]);
+  }, [retryTriggered, retryStarting, sseProgress?.status]);
+
+  // Detect when audio generation completes or fails
+  useEffect(() => {
+    if (!audioGenTriggered || audioGenStarting) return;
+    if (sseProgress?.status === 'completed' || sseProgress?.status === 'failed') {
+      setAudioGenResult(sseProgress.status === 'completed' ? 'success' : 'failed');
+      setAudioGenTriggered(false);
+    }
+  }, [audioGenTriggered, audioGenStarting, sseProgress?.status]);
 
   // Auto-dismiss retry result after 5 seconds
   useEffect(() => {
@@ -65,6 +84,13 @@ export default function StoryToolsModal({
     const timer = setTimeout(() => setRetryResult(null), 5000);
     return () => clearTimeout(timer);
   }, [retryResult]);
+
+  // Auto-dismiss audio gen result after 5 seconds
+  useEffect(() => {
+    if (!audioGenResult) return;
+    const timer = setTimeout(() => setAudioGenResult(null), 5000);
+    return () => clearTimeout(timer);
+  }, [audioGenResult]);
 
   // Error detection
   const failedImageCount = useMemo(
@@ -84,6 +110,12 @@ export default function StoryToolsModal({
 
   const hasErrors = failedImageCount > 0 || missingAudioCount > 0;
 
+  // Can the user generate audio for this story? Only if no voice was set and no audio exists
+  const canGenerateAudio = useMemo(
+    () => !voice && !isGenerating && scenario.pages.every(p => !p.audioUrl),
+    [voice, isGenerating, scenario.pages],
+  );
+
   // Is the retry currently running?
   // During the grace period (retryStarting), we show retrying state even though the SSE
   // may not yet reflect the pipeline's in-progress status.
@@ -92,6 +124,15 @@ export default function StoryToolsModal({
     activeProgress?.status === 'generating_images' ||
     activeProgress?.status === 'generating_audio'
   );
+
+  // Is audio generation currently running?
+  const isGeneratingAudio = audioGenTriggered && (
+    audioGenStarting ||
+    activeProgress?.status === 'generating_audio'
+  );
+
+  // Any background operation running?
+  const isBusy = isRetrying || isGeneratingAudio;
 
   // Character sheets that are NOT page images (the "intermediate" images)
   const characterSheets = assets?.characterSheets ?? [];
@@ -129,6 +170,20 @@ export default function StoryToolsModal({
     }
   }, [retryStory, storyId]);
 
+  const handleGenerateAudio = useCallback(async () => {
+    setAudioGenTriggered(true);
+    setAudioGenStarting(true);
+    if (audioGenStartingTimerRef.current) clearTimeout(audioGenStartingTimerRef.current);
+    audioGenStartingTimerRef.current = setTimeout(() => setAudioGenStarting(false), 5000);
+    try {
+      await generateAudio.mutateAsync({ id: storyId, voice: selectedVoice });
+    } catch {
+      setAudioGenTriggered(false);
+      setAudioGenStarting(false);
+      if (audioGenStartingTimerRef.current) clearTimeout(audioGenStartingTimerRef.current);
+    }
+  }, [generateAudio, storyId, selectedVoice]);
+
   if (!isOpen) return null;
 
   return (
@@ -137,7 +192,7 @@ export default function StoryToolsModal({
       <div
         className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
         onClick={(e) => {
-          if (e.target === e.currentTarget && !isRetrying) onClose();
+          if (e.target === e.currentTarget && !isBusy) onClose();
         }}
       >
         {/* Modal card */}
@@ -147,7 +202,7 @@ export default function StoryToolsModal({
             <h2 className="text-white text-lg font-bold">{t.storyTools}</h2>
             <button
               onClick={onClose}
-              disabled={isRetrying}
+              disabled={isBusy}
               className="text-white/50 hover:text-white w-8 h-8 rounded-full flex items-center justify-center hover:bg-white/10 transition-colors disabled:opacity-30"
               aria-label="Close"
             >
@@ -236,19 +291,105 @@ export default function StoryToolsModal({
                 <div className="flex gap-3">
                   <button
                     onClick={handleRetry}
-                    disabled={isRetrying}
+                    disabled={isBusy}
                     className="bg-primary-500 hover:bg-primary-600 disabled:bg-primary-500/50 disabled:cursor-not-allowed text-white font-bold py-2 px-6 rounded-xl transition-colors text-sm"
                   >
                     {isRetrying ? t.retrying : t.retry}
                   </button>
                   <button
                     onClick={onClose}
-                    disabled={isRetrying}
+                    disabled={isBusy}
                     className="bg-white/10 hover:bg-white/20 disabled:opacity-50 text-white py-2 px-6 rounded-xl transition-colors text-sm"
                   >
                     {t.back}
                   </button>
                 </div>
+              </div>
+            )}
+
+            {/* Generate narration section — only shown for stories without audio */}
+            {canGenerateAudio && (
+              <div className="bg-white/5 border border-white/10 rounded-xl p-5">
+                <div className="flex items-start gap-3 mb-4">
+                  {/* Speaker icon */}
+                  <div className="w-8 h-8 rounded-full bg-primary-500/20 flex items-center justify-center shrink-0 mt-0.5">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-primary-400" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M13.5 4.06c0-1.336-1.616-2.005-2.56-1.06l-4.5 4.5H4.508c-1.141 0-2.318.664-2.66 1.905A9.76 9.76 0 001.5 12c0 .898.121 1.768.35 2.595.341 1.24 1.518 1.905 2.659 1.905h1.93l4.5 4.5c.945.945 2.561.276 2.561-1.06V4.06zM18.584 5.106a.75.75 0 011.06 0c3.808 3.807 3.808 9.98 0 13.788a.75.75 0 01-1.06-1.06 8.25 8.25 0 000-11.668.75.75 0 010-1.06z" />
+                      <path d="M15.932 7.757a.75.75 0 011.061 0 6 6 0 010 8.486.75.75 0 01-1.06-1.061 4.5 4.5 0 000-6.364.75.75 0 010-1.06z" />
+                    </svg>
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-white font-semibold text-sm mb-1">{t.narratorVoice}</h3>
+                    <p className="text-white/60 text-sm">{t.addNarration}</p>
+                  </div>
+                </div>
+
+                {/* Voice selector */}
+                <div className="mb-4">
+                  <label className="text-white/50 text-xs font-medium block mb-1.5">{t.selectVoice}</label>
+                  <select
+                    value={selectedVoice}
+                    onChange={(e) => setSelectedVoice(e.target.value as VoiceKey)}
+                    disabled={isGeneratingAudio}
+                    className="w-full bg-white/10 border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-400/50 disabled:opacity-50"
+                  >
+                    {VOICE_OPTIONS.map((opt) => (
+                      <option key={opt.key} value={opt.key} className="bg-[#1a1a2e] text-white">
+                        {t[opt.labelKey as keyof typeof t]} — {t[opt.descKey as keyof typeof t]}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Progress indicator during audio generation */}
+                {isGeneratingAudio && activeProgress && (
+                  <div className="mb-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-4 h-4 rounded-full border-2 border-primary-400/30 border-t-primary-400 animate-spin" />
+                      <span className="text-white/70 text-sm">{t.generatingNarration}</span>
+                    </div>
+                    {activeProgress.totalPages > 0 && (
+                      <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-primary-500 rounded-full transition-all duration-300"
+                          style={{ width: `${Math.round((activeProgress.completedPages / activeProgress.totalPages) * 100)}%` }}
+                        />
+                      </div>
+                    )}
+                    {activeProgress.message && (
+                      <p className="text-white/40 text-xs mt-1.5">{activeProgress.message}</p>
+                    )}
+                  </div>
+                )}
+
+                {/* Audio generation result message */}
+                {audioGenResult && (
+                  <div className={`flex items-center gap-2 mb-4 px-3 py-2 rounded-lg text-sm ${
+                    audioGenResult === 'success'
+                      ? 'bg-green-500/15 text-green-300'
+                      : 'bg-red-500/15 text-red-300'
+                  }`}>
+                    {audioGenResult === 'success' ? (
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                      </svg>
+                    ) : (
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    )}
+                    <span>{audioGenResult === 'success' ? t.narrationSuccess : t.narrationGenerationFailed}</span>
+                  </div>
+                )}
+
+                {/* Button */}
+                <button
+                  onClick={handleGenerateAudio}
+                  disabled={isBusy}
+                  className="bg-primary-500 hover:bg-primary-600 disabled:bg-primary-500/50 disabled:cursor-not-allowed text-white font-bold py-2 px-6 rounded-xl transition-colors text-sm"
+                >
+                  {isGeneratingAudio ? t.generatingNarration : t.generateNarration}
+                </button>
               </div>
             )}
 

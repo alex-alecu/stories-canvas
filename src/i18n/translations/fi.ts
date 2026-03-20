@@ -146,6 +146,13 @@ const fi: Translations = {
   characterSheet: 'Hahmokortti',
   noReferenceImages: 'Viitekuvia ei saatavilla',
   storyStatus: 'Tarinan tila',
+
+  addNarration: 'Lisää äänikerronta tähän tarinaan',
+  selectVoice: 'Valitse ääni',
+  generateNarration: 'Luo kerronta',
+  generatingNarration: 'Luodaan kerrontaa...',
+  narrationSuccess: 'Kerronta luotu onnistuneesti!',
+  narrationGenerationFailed: 'Kerronnan luominen epäonnistui. Yritä uudelleen.',
 };
 
 export default fi;

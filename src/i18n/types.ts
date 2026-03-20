@@ -164,4 +164,12 @@ export interface Translations {
   characterSheet: string;
   noReferenceImages: string;
   storyStatus: string;
+
+  // Generate narration
+  addNarration: string;
+  selectVoice: string;
+  generateNarration: string;
+  generatingNarration: string;
+  narrationSuccess: string;
+  narrationGenerationFailed: string;
 }

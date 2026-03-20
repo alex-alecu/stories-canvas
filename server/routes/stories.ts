@@ -134,6 +134,7 @@ router.get('/public', async (req: Request, res: Response) => {
       totalPages: s.scenario?.pages?.length ?? 0,
       completedPages: s.scenario?.pages?.filter(p => p.status === 'completed').length ?? 0,
       isPublic: s.isPublic,
+      hasAudio: s.scenario?.pages?.some(p => !!p.audioUrl) ?? false,
     }));
     res.json(summaries);
   } catch (error) {
@@ -162,6 +163,7 @@ router.get('/mine', optionalAuth, async (req: Request, res: Response) => {
         totalPages: s.scenario?.pages?.length ?? 0,
         completedPages: s.scenario?.pages?.filter(p => p.status === 'completed').length ?? 0,
         isPublic: s.isPublic,
+        hasAudio: s.scenario?.pages?.some(p => !!p.audioUrl) ?? false,
       }));
       res.json(summaries);
     } else {
@@ -199,6 +201,7 @@ router.get('/', optionalAuth, async (req: Request, res: Response) => {
       totalPages: s.scenario?.pages?.length ?? 0,
       completedPages: s.scenario?.pages?.filter(p => p.status === 'completed').length ?? 0,
       isPublic: s.isPublic,
+      hasAudio: s.scenario?.pages?.some(p => !!p.audioUrl) ?? false,
     }));
     res.json(summaries);
   } catch (error) {
@@ -719,6 +722,186 @@ async function runRetryPipeline(
       totalPages: 0,
       failedPages: [],
       message: isCancelled ? 'Retry cancelled' : (error instanceof Error ? error.message : 'Retry failed'),
+    });
+  } finally {
+    activeGenerations.delete(storyId);
+    setTimeout(() => {
+      const connections = sseConnections.get(storyId);
+      if (connections) {
+        for (const res of connections) {
+          try { res.end(); } catch {}
+        }
+        sseConnections.delete(storyId);
+      }
+    }, 2000);
+  }
+}
+
+// POST /api/stories/:id/generate-audio - Generate audio for a story that has none
+router.post('/:id/generate-audio', optionalAuth, async (req: Request, res: Response) => {
+  try {
+    const storyId = req.params.id as string;
+
+    // Require auth when Supabase is configured
+    if (config.useSupabase && !req.authUser) {
+      res.status(401).json({ error: 'Authentication required' });
+      return;
+    }
+
+    const story = await getStory(storyId);
+    if (!story) {
+      res.status(404).json({ error: 'Story not found' });
+      return;
+    }
+
+    // Ownership check
+    if (config.useSupabase && story.userId && story.userId !== req.authUser?.id) {
+      res.status(403).json({ error: 'Forbidden' });
+      return;
+    }
+
+    // Must be a completed story
+    if (story.status !== 'completed') {
+      res.status(400).json({ error: 'Story must be completed to generate audio' });
+      return;
+    }
+
+    if (!story.scenario) {
+      res.status(400).json({ error: 'Story has no scenario data' });
+      return;
+    }
+
+    // Check ElevenLabs is configured
+    if (!isElevenLabsConfigured()) {
+      res.status(503).json({ error: 'Audio generation service is not configured' });
+      return;
+    }
+
+    // Prevent concurrent generations
+    if (activeGenerations.has(storyId)) {
+      res.status(409).json({ error: 'A generation is already in progress' });
+      return;
+    }
+
+    // Validate voice
+    const { voice } = req.body as { voice?: string };
+    const validVoices: VoiceKey[] = ['grandma', 'grandpa', 'dad', 'mom', 'whisper'];
+    if (!voice || !validVoices.includes(voice as VoiceKey)) {
+      res.status(400).json({ error: 'Invalid voice selection' });
+      return;
+    }
+    const voiceKey = voice as VoiceKey;
+
+    // Persist the voice choice
+    if (config.useSupabase) {
+      await sbStorage.updateStoryVoice(storyId, voiceKey);
+    } else {
+      await fsStorage.updateStoryVoice(storyId, voiceKey);
+    }
+
+    // Return immediately
+    res.json({ status: 'generating_audio' as StoryStatus });
+
+    // Run audio generation in background
+    runAudioGenerationPipeline(storyId, story, voiceKey).catch(error => {
+      console.error(`Audio generation pipeline failed for ${storyId}:`, error);
+    });
+  } catch (error) {
+    console.error('Failed to start audio generation:', error);
+    res.status(500).json({ error: 'Failed to start audio generation' });
+  }
+});
+
+async function runAudioGenerationPipeline(
+  storyId: string,
+  story: StoryMeta,
+  voiceKey: VoiceKey,
+): Promise<void> {
+  const controller = new AbortController();
+  activeGenerations.set(storyId, controller);
+  const { signal } = controller;
+
+  const scenario = story.scenario!;
+  const userId = story.userId;
+
+  try {
+    await updateStoryStatus(storyId, 'generating_audio');
+
+    await sendProgressUpdate(storyId, {
+      storyId,
+      status: 'generating_audio',
+      currentPhase: 'Recording narration...',
+      completedPages: 0,
+      totalPages: scenario.pages.length,
+      failedPages: [],
+      message: `Recording narration with ${voiceKey} voice...`,
+    });
+
+    let audioCompletedPages = 0;
+
+    const audioResult = await generateAllPageAudio(
+      storyId,
+      scenario.pages,
+      voiceKey,
+      userId,
+      signal,
+      (progress) => {
+        if (progress.pageStatus === 'completed') {
+          audioCompletedPages++;
+        }
+        sendProgressUpdate(storyId, {
+          storyId,
+          status: 'generating_audio',
+          currentPhase: 'Recording narration...',
+          completedPages: audioCompletedPages,
+          totalPages: scenario.pages.length,
+          failedPages: [],
+          message: progress.message || '',
+          pageNumber: progress.pageNumber,
+          pageStatus: progress.pageStatus,
+        }).catch(() => {});
+      },
+    );
+
+    // Check if audio generation had failures
+    let audioFailed = false;
+    let audioError: string | undefined;
+    if (audioResult.completedCount < scenario.pages.length) {
+      audioFailed = true;
+      audioError = audioResult.error || 'Some narration pages could not be generated';
+      console.warn(`Audio generation incomplete for ${storyId}: ${audioResult.completedCount}/${scenario.pages.length} succeeded, ${audioResult.failedCount} failed, ${audioResult.skippedCount} skipped`);
+    }
+
+    // Complete — story is viewable even if some audio failed
+    await updateStoryStatus(storyId, 'completed');
+    sendSSE(storyId, {
+      storyId,
+      status: 'completed',
+      currentPhase: 'Done!',
+      completedPages: audioCompletedPages,
+      totalPages: scenario.pages.length,
+      failedPages: [],
+      message: audioFailed ? audioError! : 'Narration generated successfully!',
+      audioFailed,
+      audioError,
+    });
+  } catch (error) {
+    const isCancelled = signal.aborted;
+    const status = isCancelled ? 'completed' : 'failed';
+    console.error(`Audio generation pipeline ${isCancelled ? 'cancelled' : 'failed'} for ${storyId}:`, error);
+
+    try {
+      await updateStoryStatus(storyId, status);
+    } catch {}
+
+    sendSSE(storyId, {
+      storyId,
+      status,
+      currentPhase: isCancelled ? 'Cancelled' : 'Failed',
+      completedPages: 0,
+      totalPages: 0,
+      failedPages: [],
+      message: isCancelled ? 'Audio generation cancelled' : (error instanceof Error ? error.message : 'Audio generation failed'),
     });
   } finally {
     activeGenerations.delete(storyId);
