@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Swiper, SwiperSlide } from 'swiper/react';
 import { Navigation, Keyboard } from 'swiper/modules';
 import type { Swiper as SwiperType } from 'swiper';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import type { Scenario, GenerationProgress } from '../types';
 import { useLanguage } from '../i18n/LanguageContext';
 import { useFontSize, type FontSize } from '../contexts/FontSizeContext';
@@ -68,6 +68,11 @@ export default function StoryViewer({ storyId, scenario, isGenerating, progress,
       }
     };
   }, []);
+
+  // Exit animation state — swipe/navigate past last page returns to story list
+  const [isExiting, setIsExiting] = useState(false);
+  const isExitingRef = useRef(false);
+  const navigate = useNavigate();
 
   // Detect errors for the tools button indicator
   const hasErrors = useMemo(() => {
@@ -141,6 +146,64 @@ export default function StoryViewer({ storyId, scenario, isGenerating, progress,
     setPlayingPage(null);
     setAudioLoading(null);
   }, []);
+
+  // Animate exit: swipe/navigate past last page returns to story list
+  const handleExitAnimation = useCallback(() => {
+    if (isExitingRef.current) return;
+    isExitingRef.current = true;
+    setIsExiting(true);
+    stopAudio();
+    if (document.fullscreenElement) {
+      document.exitFullscreen?.().catch(() => {});
+    }
+    setTimeout(() => navigate('/'), 500);
+  }, [navigate, stopAudio]);
+
+  // Detect swipe past end on last slide (touch)
+  useEffect(() => {
+    const container = containerRef.current;
+    const isLastSlide = activeSlideIndex === scenario.pages.length - 1;
+    if (!container || !isLastSlide) return;
+
+    let startX = 0;
+    let startY = 0;
+
+    const onTouchStart = (e: TouchEvent) => {
+      startX = e.touches[0].clientX;
+      startY = e.touches[0].clientY;
+    };
+
+    const onTouchEnd = (e: TouchEvent) => {
+      const diffX = startX - e.changedTouches[0].clientX;
+      const diffY = Math.abs(startY - e.changedTouches[0].clientY);
+      // Horizontal swipe left (forward) by >80px and more horizontal than vertical
+      if (diffX > 80 && diffX > diffY) {
+        handleExitAnimation();
+      }
+    };
+
+    container.addEventListener('touchstart', onTouchStart, { passive: true });
+    container.addEventListener('touchend', onTouchEnd, { passive: true });
+    return () => {
+      container.removeEventListener('touchstart', onTouchStart);
+      container.removeEventListener('touchend', onTouchEnd);
+    };
+  }, [activeSlideIndex, scenario.pages.length, handleExitAnimation]);
+
+  // Detect ArrowRight on last slide (keyboard)
+  useEffect(() => {
+    const isLastSlide = activeSlideIndex === scenario.pages.length - 1;
+    if (!isLastSlide) return;
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowRight') {
+        handleExitAnimation();
+      }
+    };
+
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [activeSlideIndex, scenario.pages.length, handleExitAnimation]);
 
   // Play audio for a specific page
   const playPageAudio = useCallback((pageNumber: number, audioUrl: string) => {
@@ -263,7 +326,12 @@ export default function StoryViewer({ storyId, scenario, isGenerating, progress,
   }, [showFontSize]);
 
   return (
-    <div ref={containerRef} className="fixed inset-0 bg-black z-50">
+    <div
+      ref={containerRef}
+      className={`fixed inset-0 bg-black z-50 transition-all duration-500 ease-out ${
+        isExiting ? 'opacity-0 scale-95' : 'opacity-100 scale-100'
+      }`}
+    >
       {/* Back button */}
       <Link
         to="/"
