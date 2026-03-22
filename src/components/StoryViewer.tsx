@@ -56,12 +56,19 @@ export default function StoryViewer({ storyId, scenario, isGenerating, progress,
   const swiperRef = useRef<SwiperType | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Request native fullscreen on mount, exit on unmount
-  useEffect(() => {
+  // Request native fullscreen on first user interaction (browsers require a user gesture)
+  const hasRequestedFullscreen = useRef(false);
+  const requestFullscreen = useCallback(() => {
+    if (hasRequestedFullscreen.current) return;
+    hasRequestedFullscreen.current = true;
     const el = containerRef.current;
     if (el && document.fullscreenElement !== el) {
       el.requestFullscreen?.().catch(() => {/* ignore if blocked by browser */});
     }
+  }, []);
+
+  // Exit fullscreen on unmount
+  useEffect(() => {
     return () => {
       if (document.fullscreenElement) {
         document.exitFullscreen?.().catch(() => {});
@@ -148,6 +155,7 @@ export default function StoryViewer({ storyId, scenario, isGenerating, progress,
   }, []);
 
   // Animate exit: swipe/navigate past last page returns to story list
+  const exitTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const handleExitAnimation = useCallback(() => {
     if (isExitingRef.current) return;
     isExitingRef.current = true;
@@ -156,13 +164,30 @@ export default function StoryViewer({ storyId, scenario, isGenerating, progress,
     if (document.fullscreenElement) {
       document.exitFullscreen?.().catch(() => {});
     }
-    setTimeout(() => navigate('/'), 500);
+    exitTimeoutRef.current = setTimeout(() => navigate('/'), 500);
   }, [navigate, stopAudio]);
+
+  // Clean up exit timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (exitTimeoutRef.current) clearTimeout(exitTimeoutRef.current);
+    };
+  }, []);
+
+  // Track whether user already attempted to navigate past the end (for keyboard double-press)
+  const reachedEndRef = useRef(false);
+  useEffect(() => {
+    if (activeSlideIndex !== scenario.pages.length - 1) {
+      reachedEndRef.current = false;
+    }
+  }, [activeSlideIndex, scenario.pages.length]);
+
+  // Only enable swipe/keyboard exit for multi-page stories on the last slide
+  const isLastSlide = scenario.pages.length > 1 && activeSlideIndex === scenario.pages.length - 1;
 
   // Detect swipe past end on last slide (touch)
   useEffect(() => {
     const container = containerRef.current;
-    const isLastSlide = activeSlideIndex === scenario.pages.length - 1;
     if (!container || !isLastSlide) return;
 
     let startX = 0;
@@ -188,22 +213,25 @@ export default function StoryViewer({ storyId, scenario, isGenerating, progress,
       container.removeEventListener('touchstart', onTouchStart);
       container.removeEventListener('touchend', onTouchEnd);
     };
-  }, [activeSlideIndex, scenario.pages.length, handleExitAnimation]);
+  }, [isLastSlide, handleExitAnimation]);
 
-  // Detect ArrowRight on last slide (keyboard)
+  // Detect ArrowRight on last slide (keyboard — requires double-press)
   useEffect(() => {
-    const isLastSlide = activeSlideIndex === scenario.pages.length - 1;
     if (!isLastSlide) return;
 
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'ArrowRight') {
-        handleExitAnimation();
+        if (reachedEndRef.current) {
+          handleExitAnimation();
+        } else {
+          reachedEndRef.current = true;
+        }
       }
     };
 
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
-  }, [activeSlideIndex, scenario.pages.length, handleExitAnimation]);
+  }, [isLastSlide, handleExitAnimation]);
 
   // Play audio for a specific page
   const playPageAudio = useCallback((pageNumber: number, audioUrl: string) => {
@@ -328,6 +356,7 @@ export default function StoryViewer({ storyId, scenario, isGenerating, progress,
   return (
     <div
       ref={containerRef}
+      onClick={requestFullscreen}
       className={`fixed inset-0 bg-black z-50 transition-all duration-500 ease-out ${
         isExiting ? 'opacity-0 scale-95' : 'opacity-100 scale-100'
       }`}
