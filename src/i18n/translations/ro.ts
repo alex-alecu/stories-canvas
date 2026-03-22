@@ -145,6 +145,7 @@ const ro: Translations = {
   playNarration: 'Reda naratiunea',
   pauseNarration: 'Pauza naratiune',
   autoPlay: 'Redare automata',
+  narrationSpeed: 'Viteză',
 
   storyTools: 'Instrumente poveste',
   retry: 'Reîncearcă',

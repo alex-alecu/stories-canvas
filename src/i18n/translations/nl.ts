@@ -132,6 +132,7 @@ const nl: Translations = {
   playNarration: 'Vertelling afspelen',
   pauseNarration: 'Vertelling pauzeren',
   autoPlay: 'Automatisch afspelen',
+  narrationSpeed: 'Snelheid',
 
   storyTools: 'Verhaalgereedschap',
   retry: 'Opnieuw proberen',

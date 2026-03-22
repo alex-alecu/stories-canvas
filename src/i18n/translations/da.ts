@@ -132,6 +132,7 @@ const da: Translations = {
   playNarration: 'Afspil fortaelling',
   pauseNarration: 'Pause fortaelling',
   autoPlay: 'Automatisk afspilning',
+  narrationSpeed: 'Hastighed',
 
   storyTools: 'Historieværktøjer',
   retry: 'Prøv igen',

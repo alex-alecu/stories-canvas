@@ -132,6 +132,7 @@ const sk: Translations = {
   playNarration: 'Prehrať naráciu',
   pauseNarration: 'Pozastaviť naráciu',
   autoPlay: 'Automaticke prehravanie',
+  narrationSpeed: 'Rýchlosť',
 
   storyTools: 'Nástroje príbehu',
   retry: 'Skúsiť znova',

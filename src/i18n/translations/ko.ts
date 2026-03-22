@@ -132,6 +132,7 @@ const ko: Translations = {
   playNarration: '내레이션 재생',
   pauseNarration: '내레이션 일시정지',
   autoPlay: '자동 재생',
+  narrationSpeed: '속도',
 
   storyTools: '스토리 도구',
   retry: '다시 시도',

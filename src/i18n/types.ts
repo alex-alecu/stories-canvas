@@ -149,6 +149,7 @@ export interface Translations {
   playNarration: string;
   pauseNarration: string;
   autoPlay: string;
+  narrationSpeed: string;
 
   // Story tools modal
   storyTools: string;

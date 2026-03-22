@@ -132,6 +132,7 @@ const cs: Translations = {
   playNarration: 'Prehrat narraci',
   pauseNarration: 'Pozastavit narraci',
   autoPlay: 'Automaticke prehravani',
+  narrationSpeed: 'Rychlost',
 
   storyTools: 'Nástroje příběhu',
   retry: 'Zkusit znovu',

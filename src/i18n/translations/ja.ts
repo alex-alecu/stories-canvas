@@ -132,6 +132,7 @@ const ja: Translations = {
   playNarration: 'ナレーションを再生',
   pauseNarration: 'ナレーションを一時停止',
   autoPlay: '自動再生',
+  narrationSpeed: '速度',
 
   storyTools: 'ストーリーツール',
   retry: '再試行',

@@ -12,12 +12,23 @@ import 'swiper/css';
 import 'swiper/css/navigation';
 
 const AUTOPLAY_STORAGE_KEY = 'stories-canvas:auto-play';
+const PLAYBACK_RATE_KEY = 'stories-canvas:playback-rate';
+const PLAYBACK_RATES = [0.75, 1, 1.25] as const;
 
 function getStoredAutoPlay(): boolean {
   try {
     return localStorage.getItem(AUTOPLAY_STORAGE_KEY) === 'true';
   } catch {
     return false;
+  }
+}
+
+function getStoredPlaybackRate(): number {
+  try {
+    const val = parseFloat(localStorage.getItem(PLAYBACK_RATE_KEY) || '1');
+    return (PLAYBACK_RATES as readonly number[]).includes(val) ? val : 1;
+  } catch {
+    return 1;
   }
 }
 
@@ -61,6 +72,25 @@ export default function StoryViewer({ storyId, scenario, isGenerating, progress,
     setAutoPlay(prev => {
       const next = !prev;
       try { localStorage.setItem(AUTOPLAY_STORAGE_KEY, String(next)); } catch {}
+      return next;
+    });
+  }, []);
+
+  // Playback rate state (persisted to localStorage)
+  const [playbackRate, setPlaybackRate] = useState(getStoredPlaybackRate);
+  const playbackRateRef = useRef(playbackRate);
+  useEffect(() => { playbackRateRef.current = playbackRate; }, [playbackRate]);
+
+  // Apply playback rate when it changes
+  useEffect(() => {
+    if (audioRef.current) audioRef.current.playbackRate = playbackRate;
+  }, [playbackRate]);
+
+  const cyclePlaybackRate = useCallback(() => {
+    setPlaybackRate(prev => {
+      const idx = (PLAYBACK_RATES as readonly number[]).indexOf(prev);
+      const next = PLAYBACK_RATES[(idx + 1) % PLAYBACK_RATES.length];
+      try { localStorage.setItem(PLAYBACK_RATE_KEY, String(next)); } catch {}
       return next;
     });
   }, []);
@@ -123,6 +153,7 @@ export default function StoryViewer({ storyId, scenario, isGenerating, progress,
 
     setAudioLoading(pageNumber);
     audioRef.current.src = audioUrl;
+    audioRef.current.playbackRate = playbackRateRef.current;
     audioRef.current.play()
       .then(() => {
         setPlayingPage(pageNumber);
@@ -133,6 +164,25 @@ export default function StoryViewer({ storyId, scenario, isGenerating, progress,
         setAudioLoading(null);
       });
   }, [playingPage, stopAudio]);
+
+  // Auto-play the first slide's audio when autoplay is already enabled on mount
+  const firstSlideAutoPlayed = useRef(false);
+  useEffect(() => {
+    if (
+      !firstSlideAutoPlayed.current &&
+      autoPlay &&
+      activeSlideIndex === 0 &&
+      scenario.pages[0]?.audioUrl
+    ) {
+      const timer = setTimeout(() => {
+        if (autoPlayRef.current && scenario.pages[0]?.audioUrl) {
+          firstSlideAutoPlayed.current = true;
+          playPageAudio(scenario.pages[0].pageNumber, scenario.pages[0].audioUrl);
+        }
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [autoPlay, activeSlideIndex, scenario.pages, playPageAudio]);
 
   // Handle slide change — stop current audio, and auto-play next if enabled
   const handleSlideChange = useCallback((swiper: SwiperType) => {
@@ -237,55 +287,67 @@ export default function StoryViewer({ storyId, scenario, isGenerating, progress,
         </div>
       </div>
 
-      {/* Auto-play toggle — only shown when the story has audio */}
+      {/* Audio controls — only shown when the story has audio */}
       {hasAudio && (
-        <button
-          onClick={toggleAutoPlay}
-          className="absolute top-4 left-[7.5rem] z-50 bg-black/40 hover:bg-black/60 backdrop-blur-sm text-white h-10 rounded-full flex items-center gap-2 px-3 transition-colors text-sm font-medium"
-          aria-label={t.autoPlay}
-          aria-pressed={autoPlay}
-        >
-          {/* Toggle track */}
-          <span
-            className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors duration-200 ${
-              autoPlay ? 'bg-primary-500' : 'bg-white/30'
-            }`}
+        <div className="absolute top-4 left-[7.5rem] z-50 flex items-center gap-2">
+          {/* Auto-play toggle */}
+          <button
+            onClick={toggleAutoPlay}
+            className="bg-black/40 hover:bg-black/60 backdrop-blur-sm text-white h-10 rounded-full flex items-center gap-2 px-3 transition-colors text-sm font-medium"
+            aria-label={t.autoPlay}
+            aria-pressed={autoPlay}
           >
+            {/* Toggle track */}
             <span
-              className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform duration-200 ${
-                autoPlay ? 'translate-x-[1.125rem]' : 'translate-x-[0.1875rem]'
+              className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors duration-200 ${
+                autoPlay ? 'bg-primary-500' : 'bg-white/30'
               }`}
-            />
-          </span>
-          <span className="hidden sm:inline">{t.autoPlay}</span>
-        </button>
-      )}
+            >
+              <span
+                className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform duration-200 ${
+                  autoPlay ? 'translate-x-[1.125rem]' : 'translate-x-[0.1875rem]'
+                }`}
+              />
+            </span>
+            <span className="hidden sm:inline">{t.autoPlay}</span>
+          </button>
 
-      {/* Global play/pause button — shown in top-left when the current page has audio */}
-      {hasAudio && currentPageAudioUrl && (
-        <button
-          onClick={handleGlobalPlayPause}
-          className="absolute top-4 left-[13rem] sm:left-[16.5rem] z-50 bg-black/40 hover:bg-black/60 backdrop-blur-sm text-white w-10 h-10 rounded-full flex items-center justify-center transition-colors"
-          aria-label={playingPage === currentPageNumber ? t.pauseNarration : t.playNarration}
-        >
-          {audioLoading === currentPageNumber ? (
-            <div className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
-          ) : playingPage === currentPageNumber ? (
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
-              <rect x="6" y="4" width="4" height="16" rx="1" />
-              <rect x="14" y="4" width="4" height="16" rx="1" />
-            </svg>
-          ) : (
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 ml-0.5" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M8 5v14l11-7z" />
-            </svg>
+          {/* Global play/pause button */}
+          {currentPageAudioUrl && (
+            <button
+              onClick={handleGlobalPlayPause}
+              className="bg-black/40 hover:bg-black/60 backdrop-blur-sm text-white w-10 h-10 rounded-full flex items-center justify-center transition-colors"
+              aria-label={playingPage === currentPageNumber ? t.pauseNarration : t.playNarration}
+            >
+              {audioLoading === currentPageNumber ? (
+                <div className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+              ) : playingPage === currentPageNumber ? (
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
+                  <rect x="6" y="4" width="4" height="16" rx="1" />
+                  <rect x="14" y="4" width="4" height="16" rx="1" />
+                </svg>
+              ) : (
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 ml-0.5" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M8 5v14l11-7z" />
+                </svg>
+              )}
+            </button>
           )}
-        </button>
+
+          {/* Playback speed */}
+          <button
+            onClick={cyclePlaybackRate}
+            className="bg-black/40 hover:bg-black/60 backdrop-blur-sm text-white h-10 px-3 rounded-full flex items-center justify-center transition-colors text-sm font-medium"
+            aria-label={t.narrationSpeed}
+          >
+            {playbackRate}x
+          </button>
+        </div>
       )}
 
       {/* Story title + tools button */}
       <div className="absolute top-4 right-4 z-50 flex items-center gap-2">
-        <div className="bg-black/40 backdrop-blur-sm text-white px-4 py-2 rounded-full text-sm font-semibold max-w-[40vw] truncate">
+        <div className="hidden sm:block bg-black/40 backdrop-blur-sm text-white px-4 py-2 rounded-full text-sm font-semibold max-w-[40vw] truncate">
           {scenario.title}
         </div>
         <button
