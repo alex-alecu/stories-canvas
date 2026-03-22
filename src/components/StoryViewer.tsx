@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Swiper, SwiperSlide } from 'swiper/react';
 import { Navigation, Keyboard } from 'swiper/modules';
 import type { Swiper as SwiperType } from 'swiper';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import type { Scenario, GenerationProgress } from '../types';
 import { useLanguage } from '../i18n/LanguageContext';
 import { useFontSize, type FontSize } from '../contexts/FontSizeContext';
@@ -13,7 +13,7 @@ import 'swiper/css/navigation';
 
 const AUTOPLAY_STORAGE_KEY = 'stories-canvas:auto-play';
 const PLAYBACK_RATE_KEY = 'stories-canvas:playback-rate';
-const PLAYBACK_RATES = [0.75, 1, 1.25] as const;
+const PLAYBACK_RATES = [0.8, 0.9, 1] as const;
 
 function getStoredAutoPlay(): boolean {
   try {
@@ -54,6 +54,32 @@ export default function StoryViewer({ storyId, scenario, isGenerating, progress,
   const popoverRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const swiperRef = useRef<SwiperType | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Request native fullscreen on first user interaction (browsers require a user gesture)
+  const hasRequestedFullscreen = useRef(false);
+  const requestFullscreen = useCallback(() => {
+    if (hasRequestedFullscreen.current) return;
+    hasRequestedFullscreen.current = true;
+    const el = containerRef.current;
+    if (el && document.fullscreenElement !== el) {
+      el.requestFullscreen?.().catch(() => {/* ignore if blocked by browser */});
+    }
+  }, []);
+
+  // Exit fullscreen on unmount
+  useEffect(() => {
+    return () => {
+      if (document.fullscreenElement) {
+        document.exitFullscreen?.().catch(() => {});
+      }
+    };
+  }, []);
+
+  // Exit animation state — swipe/navigate past last page returns to story list
+  const [isExiting, setIsExiting] = useState(false);
+  const isExitingRef = useRef(false);
+  const navigate = useNavigate();
 
   // Detect errors for the tools button indicator
   const hasErrors = useMemo(() => {
@@ -127,6 +153,85 @@ export default function StoryViewer({ storyId, scenario, isGenerating, progress,
     setPlayingPage(null);
     setAudioLoading(null);
   }, []);
+
+  // Animate exit: swipe/navigate past last page returns to story list
+  const exitTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const handleExitAnimation = useCallback(() => {
+    if (isExitingRef.current) return;
+    isExitingRef.current = true;
+    setIsExiting(true);
+    stopAudio();
+    if (document.fullscreenElement) {
+      document.exitFullscreen?.().catch(() => {});
+    }
+    exitTimeoutRef.current = setTimeout(() => navigate('/'), 500);
+  }, [navigate, stopAudio]);
+
+  // Clean up exit timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (exitTimeoutRef.current) clearTimeout(exitTimeoutRef.current);
+    };
+  }, []);
+
+  // Track whether user already attempted to navigate past the end (for keyboard double-press)
+  const reachedEndRef = useRef(false);
+  useEffect(() => {
+    if (activeSlideIndex !== scenario.pages.length - 1) {
+      reachedEndRef.current = false;
+    }
+  }, [activeSlideIndex, scenario.pages.length]);
+
+  // Only enable swipe/keyboard exit for multi-page stories on the last slide
+  const isLastSlide = scenario.pages.length > 1 && activeSlideIndex === scenario.pages.length - 1;
+
+  // Detect swipe past end on last slide (touch)
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container || !isLastSlide) return;
+
+    let startX = 0;
+    let startY = 0;
+
+    const onTouchStart = (e: TouchEvent) => {
+      startX = e.touches[0].clientX;
+      startY = e.touches[0].clientY;
+    };
+
+    const onTouchEnd = (e: TouchEvent) => {
+      const diffX = startX - e.changedTouches[0].clientX;
+      const diffY = Math.abs(startY - e.changedTouches[0].clientY);
+      // Horizontal swipe left (forward) by >80px and more horizontal than vertical
+      if (diffX > 80 && diffX > diffY) {
+        handleExitAnimation();
+      }
+    };
+
+    container.addEventListener('touchstart', onTouchStart, { passive: true });
+    container.addEventListener('touchend', onTouchEnd, { passive: true });
+    return () => {
+      container.removeEventListener('touchstart', onTouchStart);
+      container.removeEventListener('touchend', onTouchEnd);
+    };
+  }, [isLastSlide, handleExitAnimation]);
+
+  // Detect ArrowRight on last slide (keyboard — requires double-press)
+  useEffect(() => {
+    if (!isLastSlide) return;
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowRight') {
+        if (reachedEndRef.current) {
+          handleExitAnimation();
+        } else {
+          reachedEndRef.current = true;
+        }
+      }
+    };
+
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [isLastSlide, handleExitAnimation]);
 
   // Play audio for a specific page
   const playPageAudio = useCallback((pageNumber: number, audioUrl: string) => {
@@ -249,7 +354,13 @@ export default function StoryViewer({ storyId, scenario, isGenerating, progress,
   }, [showFontSize]);
 
   return (
-    <div className="fixed inset-0 bg-black z-50">
+    <div
+      ref={containerRef}
+      onClick={requestFullscreen}
+      className={`fixed inset-0 bg-black z-50 transition-all duration-500 ease-out ${
+        isExiting ? 'opacity-0 scale-95' : 'opacity-100 scale-100'
+      }`}
+    >
       {/* Back button */}
       <Link
         to="/"
