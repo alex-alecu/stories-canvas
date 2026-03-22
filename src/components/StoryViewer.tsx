@@ -134,6 +134,25 @@ export default function StoryViewer({ storyId, scenario, isGenerating, progress,
       });
   }, [playingPage, stopAudio]);
 
+  // Auto-play the first slide's audio when autoplay is already enabled on mount
+  const firstSlideAutoPlayed = useRef(false);
+  useEffect(() => {
+    if (
+      !firstSlideAutoPlayed.current &&
+      autoPlay &&
+      activeSlideIndex === 0 &&
+      scenario.pages[0]?.audioUrl
+    ) {
+      const timer = setTimeout(() => {
+        if (autoPlayRef.current && scenario.pages[0]?.audioUrl) {
+          firstSlideAutoPlayed.current = true;
+          playPageAudio(scenario.pages[0].pageNumber, scenario.pages[0].audioUrl);
+        }
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [autoPlay, activeSlideIndex, scenario.pages, playPageAudio]);
+
   // Handle slide change — stop current audio, and auto-play next if enabled
   const handleSlideChange = useCallback((swiper: SwiperType) => {
     stopAudio();
@@ -285,7 +304,7 @@ export default function StoryViewer({ storyId, scenario, isGenerating, progress,
 
       {/* Story title + tools button */}
       <div className="absolute top-4 right-4 z-50 flex items-center gap-2">
-        <div className="bg-black/40 backdrop-blur-sm text-white px-4 py-2 rounded-full text-sm font-semibold max-w-[40vw] truncate">
+        <div className="hidden sm:block bg-black/40 backdrop-blur-sm text-white px-4 py-2 rounded-full text-sm font-semibold max-w-[40vw] truncate">
           {scenario.title}
         </div>
         <button
