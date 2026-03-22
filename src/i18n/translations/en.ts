@@ -132,6 +132,7 @@ const en: Translations = {
   playNarration: 'Play narration',
   pauseNarration: 'Pause narration',
   autoPlay: 'Auto-play',
+  narrationSpeed: 'Speed',
 
   storyTools: 'Story Tools',
   retry: 'Retry',

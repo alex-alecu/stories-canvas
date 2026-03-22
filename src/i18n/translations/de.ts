@@ -132,6 +132,7 @@ const de: Translations = {
   playNarration: 'Erzahlung abspielen',
   pauseNarration: 'Erzahlung pausieren',
   autoPlay: 'Automatisch abspielen',
+  narrationSpeed: 'Geschwindigkeit',
 
   storyTools: 'Story-Werkzeuge',
   retry: 'Wiederholen',

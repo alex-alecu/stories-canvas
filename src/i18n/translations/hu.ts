@@ -132,6 +132,7 @@ const hu: Translations = {
   playNarration: 'Narracio lejatszasa',
   pauseNarration: 'Narracio szuneteltetese',
   autoPlay: 'Automatikus lejatszas',
+  narrationSpeed: 'Sebesség',
 
   storyTools: 'Történet eszközök',
   retry: 'Újrapróbálás',

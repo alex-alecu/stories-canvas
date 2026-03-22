@@ -650,48 +650,52 @@ async function runRetryPipeline(
     // Phase 2: Retry missing audio
     if (needsAudioRetry && isElevenLabsConfigured()) {
       if (signal.aborted) throw new Error('Generation cancelled');
-      await updateStoryStatus(storyId, 'generating_audio');
 
       // We need to re-fetch the story to get updated page data after image retry
       const updatedStory = await getStory(storyId);
       const updatedPages = updatedStory?.scenario?.pages || scenario.pages;
       const pagesNeedingAudio = updatedPages.filter(p => !p.audioUrl);
 
-      await sendProgressUpdate(storyId, {
-        storyId,
-        status: 'generating_audio',
-        currentPhase: 'Retrying narration...',
-        completedPages: 0,
-        totalPages: pagesNeedingAudio.length,
-        failedPages: [],
-        message: `Retrying narration for ${pagesNeedingAudio.length} page(s)...`,
-      });
+      // Use voice from freshest DB data, falling back to original story object
+      const voiceKey: VoiceKey | undefined = updatedStory?.voice || story.voice;
+      if (!voiceKey) {
+        console.warn(`[retry] Story ${storyId} needs audio retry but has no voice set — skipping audio`);
+      } else {
+        await updateStoryStatus(storyId, 'generating_audio');
 
-      // Use voice from story object (now threaded through StoryMeta), fall back to default
-      const voiceKey: VoiceKey = story.voice || 'grandma';
+        await sendProgressUpdate(storyId, {
+          storyId,
+          status: 'generating_audio',
+          currentPhase: 'Retrying narration...',
+          completedPages: 0,
+          totalPages: pagesNeedingAudio.length,
+          failedPages: [],
+          message: `Retrying narration for ${pagesNeedingAudio.length} page(s)...`,
+        });
 
-      let audioCompletedPages = 0;
-      await retryMissingAudio(
-        storyId,
-        updatedPages,
-        voiceKey,
-        userId,
-        signal,
-        (progress) => {
-          if (progress.pageStatus === 'completed') audioCompletedPages++;
-          sendProgressUpdate(storyId, {
-            storyId,
-            status: 'generating_audio',
-            currentPhase: 'Retrying narration...',
-            completedPages: audioCompletedPages,
-            totalPages: pagesNeedingAudio.length,
-            failedPages: [],
-            message: progress.message || '',
-            pageNumber: progress.pageNumber,
-            pageStatus: progress.pageStatus,
-          }).catch(() => {});
-        },
-      );
+        let audioCompletedPages = 0;
+        await retryMissingAudio(
+          storyId,
+          updatedPages,
+          voiceKey,
+          userId,
+          signal,
+          (progress) => {
+            if (progress.pageStatus === 'completed') audioCompletedPages++;
+            sendProgressUpdate(storyId, {
+              storyId,
+              status: 'generating_audio',
+              currentPhase: 'Retrying narration...',
+              completedPages: audioCompletedPages,
+              totalPages: pagesNeedingAudio.length,
+              failedPages: [],
+              message: progress.message || '',
+              pageNumber: progress.pageNumber,
+              pageStatus: progress.pageStatus,
+            }).catch(() => {});
+          },
+        );
+      }
     }
 
     // Complete

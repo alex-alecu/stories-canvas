@@ -132,6 +132,7 @@ const sv: Translations = {
   playNarration: 'Spela upp berattelse',
   pauseNarration: 'Pausa berattelse',
   autoPlay: 'Automatisk uppspelning',
+  narrationSpeed: 'Hastighet',
 
   storyTools: 'Berättelseverktyg',
   retry: 'Försök igen',

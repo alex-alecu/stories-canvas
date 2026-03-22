@@ -132,6 +132,7 @@ const zh: Translations = {
   playNarration: '播放旁白',
   pauseNarration: '暂停旁白',
   autoPlay: '自动播放',
+  narrationSpeed: '速度',
 
   storyTools: '故事工具',
   retry: '重试',

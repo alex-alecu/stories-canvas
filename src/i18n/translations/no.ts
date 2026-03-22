@@ -132,6 +132,7 @@ const no: Translations = {
   playNarration: 'Spill av fortelling',
   pauseNarration: 'Pause fortelling',
   autoPlay: 'Automatisk avspilling',
+  narrationSpeed: 'Hastighet',
 
   storyTools: 'Historieverktøy',
   retry: 'Prøv igjen',

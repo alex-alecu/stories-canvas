@@ -132,6 +132,7 @@ const es: Translations = {
   playNarration: 'Reproducir narracion',
   pauseNarration: 'Pausar narracion',
   autoPlay: 'Reproduccion automatica',
+  narrationSpeed: 'Velocidad',
 
   storyTools: 'Herramientas de historia',
   retry: 'Reintentar',

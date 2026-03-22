@@ -132,6 +132,7 @@ const fi: Translations = {
   playNarration: 'Toista kerronta',
   pauseNarration: 'Keskeyta kerronta',
   autoPlay: 'Automaattinen toisto',
+  narrationSpeed: 'Nopeus',
 
   storyTools: 'Tarinatyökalut',
   retry: 'Yritä uudelleen',
