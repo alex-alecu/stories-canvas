@@ -13,7 +13,7 @@ import 'swiper/css/navigation';
 
 const AUTOPLAY_STORAGE_KEY = 'stories-canvas:auto-play';
 const PLAYBACK_RATE_KEY = 'stories-canvas:playback-rate';
-const PLAYBACK_RATES = [0.75, 1, 1.25] as const;
+const PLAYBACK_RATES = [0.8, 0.9, 1] as const;
 
 function getStoredAutoPlay(): boolean {
   try {
@@ -54,6 +54,20 @@ export default function StoryViewer({ storyId, scenario, isGenerating, progress,
   const popoverRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const swiperRef = useRef<SwiperType | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Request native fullscreen on mount, exit on unmount
+  useEffect(() => {
+    const el = containerRef.current;
+    if (el && document.fullscreenElement !== el) {
+      el.requestFullscreen?.().catch(() => {/* ignore if blocked by browser */});
+    }
+    return () => {
+      if (document.fullscreenElement) {
+        document.exitFullscreen?.().catch(() => {});
+      }
+    };
+  }, []);
 
   // Detect errors for the tools button indicator
   const hasErrors = useMemo(() => {
@@ -249,7 +263,7 @@ export default function StoryViewer({ storyId, scenario, isGenerating, progress,
   }, [showFontSize]);
 
   return (
-    <div className="fixed inset-0 bg-black z-50">
+    <div ref={containerRef} className="fixed inset-0 bg-black z-50">
       {/* Back button */}
       <Link
         to="/"
