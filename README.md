@@ -23,12 +23,11 @@ These sheets are the **single source of truth** for what each character looks li
 Pages are drawn one at a time, in order. For each page, the image model receives:
 
 1. **Character reference sheets** — for every character that appears in that scene. These always come first and are treated as the highest authority on character appearance.
-2. **The first scene image** (from page 3 onward) — used as a **style anchor** so the art style, color saturation, and lighting stay consistent across the whole story.
-3. **The previous scene image** — used for **environment continuity** so furniture, objects, and spatial layout stay in the same positions when the location hasn't changed.
+2. **The previous scene image** — used for **style and environment continuity** so the art style, lighting, furniture, objects, and spatial layout stay consistent between consecutive pages.
 
 The text prompt that accompanies these reference images re-describes each character's full appearance, instructs the model to treat the character sheets as absolute truth (overriding any drift visible in earlier scenes), and asks for a richly detailed background. If a generation is rejected by a safety filter, the prompt is automatically softened and retried.
 
-This layered approach — character sheets for identity, first scene for style, previous scene for environment — is what keeps the story visually consistent from the first page to the last.
+This layered approach — character sheets for identity, previous scene for style and environment — is what keeps the story visually consistent from the first page to the last.
 
 ### Step 4 — Record Narration
 

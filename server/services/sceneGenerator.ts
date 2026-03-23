@@ -37,7 +37,6 @@ async function downloadImageForRetry(storyId: string, filename: string, userId?:
 function buildScenePrompt(
   page: Page,
   characters: Character[],
-  hasFirstScene: boolean,
   hasPreviousScene: boolean,
   includedCharNames: string[],
   styleDescription?: string,
@@ -51,7 +50,7 @@ function buildScenePrompt(
     .filter(Boolean)
     .join('\n');
 
-  // Build image labels matching the new order: character sheets FIRST, then scene references
+  // Build image labels: character sheets FIRST, then scene references
   let imageIndex = 1;
   const preambleParts: string[] = [];
 
@@ -64,18 +63,8 @@ function buildScenePrompt(
     .join('\n');
   imageIndex += includedCharNames.length;
 
-  // Scene reference labels come after character sheets
-  if (hasFirstScene && hasPreviousScene) {
-    preambleParts.push(
-      `Image ${imageIndex}: STYLE REFERENCE — This is the first scene of the story. Match its art style, rendering quality, color saturation, and lighting approach. Do NOT use this image for character appearance — use the character reference sheets above instead.`,
-    );
-    imageIndex++;
-    preambleParts.push(
-      `Image ${imageIndex}: ENVIRONMENT CONTINUITY REFERENCE — This is the previous scene. Use it ONLY for environment layout, background details, and camera angle continuity. If the location is the same, keep ALL objects and furniture in the EXACT same positions. Do NOT use this image for character appearance — use the character reference sheets above instead.`,
-    );
-    imageIndex++;
-  } else if (hasPreviousScene) {
-    // Only previous scene (page 2, where first === previous)
+  // Scene reference label comes after character sheets
+  if (hasPreviousScene) {
     preambleParts.push(
       `Image ${imageIndex}: STYLE & ENVIRONMENT CONTINUITY REFERENCE — This is the previous scene. Match its art style, color palette, and lighting quality. If the location is the same, keep ALL objects and furniture in the EXACT same positions. For character appearance, ALWAYS defer to the character reference sheets above.`,
     );
@@ -134,7 +123,6 @@ export async function generateSceneImage(
   onProgress?: (progress: Partial<GenerationProgress>) => void,
   userId?: string,
   previousSceneBase64?: string | null,
-  firstSceneBase64?: string | null,
   pro?: boolean,
 ): Promise<string | null> {
   const pageFilename = `page-${String(page.pageNumber).padStart(2, '0')}.png`;
@@ -145,13 +133,11 @@ export async function generateSceneImage(
   const referenceImages: Array<{ data: string; mimeType: string }> = [];
 
   // Determine which scene references we have
-  const hasFirstScene = !!firstSceneBase64 && firstSceneBase64 !== previousSceneBase64;
   const hasPreviousScene = !!previousSceneBase64;
-  const sceneRefCount = (hasFirstScene ? 1 : 0) + (hasPreviousScene ? 1 : 0);
 
   // 1. Character reference sheets FIRST (authoritative source for character appearance)
   //    This primes the model on correct character appearance before seeing any drifted scenes
-  const maxCharSheets = 5 - sceneRefCount;
+  const maxCharSheets = hasPreviousScene ? 4 : 5;
   const includedCharNames: string[] = [];
   for (const charName of page.characters) {
     if (includedCharNames.length >= maxCharSheets) break;
@@ -162,17 +148,12 @@ export async function generateSceneImage(
     }
   }
 
-  // 2. First scene as style reference (only when it differs from previous scene)
-  if (hasFirstScene) {
-    referenceImages.push({ data: firstSceneBase64!, mimeType: 'image/png' });
-  }
-
-  // 3. Previous scene as environment/layout continuity reference
+  // 2. Previous scene as environment/layout continuity reference
   if (hasPreviousScene) {
     referenceImages.push({ data: previousSceneBase64!, mimeType: 'image/png' });
   }
 
-  const prompt = buildScenePrompt(page, characters, hasFirstScene, hasPreviousScene, includedCharNames, styleDescription);
+  const prompt = buildScenePrompt(page, characters, hasPreviousScene, includedCharNames, styleDescription);
 
   try {
     const base64 = await pRetry(
@@ -237,7 +218,6 @@ export async function generateAllSceneImages(
   pro?: boolean,
 ): Promise<void> {
   let previousSceneBase64: string | null = null;
-  let firstSceneBase64: string | null = null;
 
   // Generate scenes sequentially so each can reference the previous scene
   for (const page of pages) {
@@ -248,16 +228,12 @@ export async function generateAllSceneImages(
     const result = await imageGenerationLimiter(() =>
       generateSceneImage(
         storyId, page, characters, characterSheets, styleDescription,
-        onProgress, userId, previousSceneBase64, firstSceneBase64, pro,
+        onProgress, userId, previousSceneBase64, pro,
       ),
     );
 
     if (result) {
       previousSceneBase64 = result;
-      // Store the first successfully generated scene as a style reference
-      if (firstSceneBase64 === null) {
-        firstSceneBase64 = result;
-      }
     }
   }
 }
@@ -295,18 +271,6 @@ export async function retryFailedSceneImages(
   // Sort failed pages so we process them in order
   const sortedFailed = [...failedPageNumbers].sort((a, b) => a - b);
 
-  // Download first completed page image once as style reference (reused across all retries)
-  let firstSceneBase64: string | null = null;
-  const firstCompleted = pages.find(p => p.status === 'completed');
-  if (firstCompleted) {
-    try {
-      const filename = `page-${String(firstCompleted.pageNumber).padStart(2, '0')}.png`;
-      firstSceneBase64 = await downloadImageForRetry(storyId, filename, userId);
-    } catch {
-      console.warn(`Could not download first scene for style reference`);
-    }
-  }
-
   for (const failedPageNum of sortedFailed) {
     if (signal?.aborted) throw new Error('Generation cancelled');
 
@@ -331,7 +295,7 @@ export async function retryFailedSceneImages(
     const result = await imageGenerationLimiter(() =>
       generateSceneImage(
         storyId, page, characters, characterSheets, styleDescription,
-        onProgress, userId, previousSceneBase64, firstSceneBase64, pro,
+        onProgress, userId, previousSceneBase64, pro,
       ),
     );
 
