@@ -99,21 +99,33 @@ const storyIdeasByLanguage: Partial<Record<Language, string[]>> = {
   ],
 };
 
-/** Tracks the last returned index per language to avoid consecutive duplicates. */
-const lastIndex: Partial<Record<Language, number>> = {};
+/**
+ * Shuffled queues per language. We pop from the queue until empty,
+ * then reshuffle and refill — guaranteeing every idea is shown
+ * before any repeats.
+ */
+const queues: Partial<Record<Language, string[]>> = {};
+
+function shuffled(arr: string[]): string[] {
+  const copy = [...arr];
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy;
+}
 
 /**
  * Returns a random story idea for the given language.
  * Falls back to English for languages without specific ideas.
- * Avoids returning the same idea on consecutive calls for the same language.
+ * Cycles through all ideas in a shuffled order before repeating.
  */
 export function getRandomStoryIdea(language: Language): string {
   const ideas = storyIdeasByLanguage[language] ?? storyIdeasByLanguage.en!;
-  const prev = lastIndex[language];
-  let index: number;
-  do {
-    index = Math.floor(Math.random() * ideas.length);
-  } while (index === prev && ideas.length > 1);
-  lastIndex[language] = index;
-  return ideas[index];
+  let queue = queues[language];
+  if (!queue || queue.length === 0) {
+    queue = shuffled(ideas);
+    queues[language] = queue;
+  }
+  return queue.pop()!;
 }
