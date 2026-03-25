@@ -154,6 +154,8 @@ const ja: Translations = {
   generatingNarration: 'ナレーションを生成中...',
   narrationSuccess: 'ナレーションが正常に生成されました！',
   narrationGenerationFailed: 'ナレーションの生成に失敗しました。もう一度お試しください。',
+
+  storyIdeaButton: 'アイデアをくれ',
 };
 
 export default ja;

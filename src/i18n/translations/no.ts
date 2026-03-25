@@ -154,6 +154,8 @@ const no: Translations = {
   generatingNarration: 'Genererer fortelling...',
   narrationSuccess: 'Fortelling generert!',
   narrationGenerationFailed: 'Generering av fortelling mislyktes. Prøv igjen.',
+
+  storyIdeaButton: 'Inspirer meg',
 };
 
 export default no;

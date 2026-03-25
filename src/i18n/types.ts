@@ -173,4 +173,7 @@ export interface Translations {
   generatingNarration: string;
   narrationSuccess: string;
   narrationGenerationFailed: string;
+
+  // Story ideas
+  storyIdeaButton: string;
 }

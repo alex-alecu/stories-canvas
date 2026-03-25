@@ -154,6 +154,8 @@ const zh: Translations = {
   generatingNarration: '正在生成旁白...',
   narrationSuccess: '旁白生成成功！',
   narrationGenerationFailed: '旁白生成失败，请重试。',
+
+  storyIdeaButton: '给我灵感',
 };
 
 export default zh;

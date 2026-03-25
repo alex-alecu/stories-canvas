@@ -167,6 +167,8 @@ const ro: Translations = {
   generatingNarration: 'Se generează narațiunea...',
   narrationSuccess: 'Narațiunea a fost generată cu succes!',
   narrationGenerationFailed: 'Generarea narațiunii a eșuat. Încearcă din nou.',
+
+  storyIdeaButton: 'Inspiră-mă',
 };
 
 export default ro;

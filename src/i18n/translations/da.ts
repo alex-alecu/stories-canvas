@@ -154,6 +154,8 @@ const da: Translations = {
   generatingNarration: 'Genererer fortælling...',
   narrationSuccess: 'Fortælling genereret!',
   narrationGenerationFailed: 'Generering af fortælling mislykkedes. Prøv igen.',
+
+  storyIdeaButton: 'Inspirer mig',
 };
 
 export default da;

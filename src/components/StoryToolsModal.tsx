@@ -133,20 +133,18 @@ export default function StoryToolsModal({
 
   // Any background operation running?
   const isBusy = isRetrying || isGeneratingAudio;
-  const isBusyRef = useRef(isBusy);
-  isBusyRef.current = isBusy;
 
   // Character sheets that are NOT page images (the "intermediate" images)
   const characterSheets = assets?.characterSheets ?? [];
 
-  // Close on Escape (uses ref to avoid re-registering on every isBusy change)
+  // Close on Escape — generation continues in the background on the server
   useEffect(() => {
     if (!isOpen) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         if (lightboxUrl) {
           setLightboxUrl(null);
-        } else if (!isBusyRef.current) {
+        } else {
           onClose();
         }
       }
@@ -194,7 +192,7 @@ export default function StoryToolsModal({
       <div
         className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
         onClick={(e) => {
-          if (e.target === e.currentTarget && !isBusy) onClose();
+          if (e.target === e.currentTarget) onClose();
         }}
       >
         {/* Modal card */}
@@ -204,8 +202,7 @@ export default function StoryToolsModal({
             <h2 className="text-white text-lg font-bold">{t.storyTools}</h2>
             <button
               onClick={onClose}
-              disabled={isBusy}
-              className="text-white/50 hover:text-white w-8 h-8 rounded-full flex items-center justify-center hover:bg-white/10 transition-colors disabled:opacity-30"
+              className="text-white/50 hover:text-white w-8 h-8 rounded-full flex items-center justify-center hover:bg-white/10 transition-colors"
               aria-label="Close"
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -300,8 +297,7 @@ export default function StoryToolsModal({
                   </button>
                   <button
                     onClick={onClose}
-                    disabled={isBusy}
-                    className="bg-white/10 hover:bg-white/20 disabled:opacity-50 text-white py-2 px-6 rounded-xl transition-colors text-sm"
+                    className="bg-white/10 hover:bg-white/20 text-white py-2 px-6 rounded-xl transition-colors text-sm"
                   >
                     {t.back}
                   </button>

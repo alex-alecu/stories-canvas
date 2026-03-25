@@ -154,6 +154,8 @@ const nl: Translations = {
   generatingNarration: 'Vertelling wordt gegenereerd...',
   narrationSuccess: 'Vertelling succesvol gegenereerd!',
   narrationGenerationFailed: 'Genereren van vertelling mislukt. Probeer het opnieuw.',
+
+  storyIdeaButton: 'Inspireer me',
 };
 
 export default nl;

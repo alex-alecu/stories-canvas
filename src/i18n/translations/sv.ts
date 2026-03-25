@@ -154,6 +154,8 @@ const sv: Translations = {
   generatingNarration: 'Genererar berättelse...',
   narrationSuccess: 'Berättelse genererad!',
   narrationGenerationFailed: 'Berättelsen kunde inte genereras. Försök igen.',
+
+  storyIdeaButton: 'Inspirera mig',
 };
 
 export default sv;

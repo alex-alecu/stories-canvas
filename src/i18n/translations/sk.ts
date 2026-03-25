@@ -154,6 +154,8 @@ const sk: Translations = {
   generatingNarration: 'Generovanie rozprávania...',
   narrationSuccess: 'Rozprávanie úspešne vygenerované!',
   narrationGenerationFailed: 'Generovanie rozprávania zlyhalo. Skúste to znova.',
+
+  storyIdeaButton: 'Inšpiruj ma',
 };
 
 export default sk;
