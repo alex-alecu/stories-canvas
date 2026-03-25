@@ -21,89 +21,99 @@ const storyIdeasByLanguage: Partial<Record<Language, string[]>> = {
   ],
 
   ro: [
-    'Un fecior de imparat pleaca in lume sa gaseasca Tinerete fara Batranete si Viata fara de Moarte. Calatoreste prin taramuri fermecate, invinge zmei si descopera ca timpul este cel mai de pret dar al vietii.',
-    'Harap-Alb, fiul unui imparat, porneste intr-o calatorie plina de incercari. Ajutat de Sfanta Duminica si de prieteni magici, trebuie sa invinga pe Span si sa dovedeasca ca este demn de tronul tatalui sau.',
-    'Greuceanu, un viteaz nascut din puteri magice, se lupta cu zmeii care au furat soarele si luna de pe cer. Cu curaj si iscusinta, el aduce lumina inapoi in lume si salveaza pe toti din intuneric.',
-    'Fat-Frumos pleaca sa o salveze pe Ileana Cosanzeana, rapita de un zmeu cu sapte capete. Calare pe un cal nazdravanul, traverseaza paduri fermecate si infrange raul cu puterea dragostei si a curajului.',
-    'Praslea cel Voinic si Merele de Aur porneste sa afle cine fura merele fermecate din gradina tatalui sau. Coboara in adancul pamantului si descopera un taram ascuns unde trebuie sa invinga trei zmei.',
-    'O capra cu trei iezi ii invata pe micuti sa nu deschida usa strainilor. Lupul cel viclean reuseste sa ii pacaleasca, dar mama capra face totul pentru a-si salva copiii dintr-o situatie periculoasa.',
-    'Pacala, cel mai destept si mai poznas taran din sat, isi pacaleste vecinii cu glume si smecherii. Dar lectiile lui sunt mereu despre dreptate, generozitate si cum sa razi de prostia celor lacomi.',
-    'Un pescar sarac gaseste un peste de aur care ii indeplineste orice dorinta. Dar nevasta lui lacomie cere din ce in ce mai mult, pana cand totul se intoarce de unde a plecat.',
-    'Doi copii se ratacesc in Padurea Fermecata si gasesc o casuta facuta din turta dulce. Vrajitoarea care locuieste acolo ii ademaneste, dar cu istemine si curaj, copiii reusesc sa scape si sa se intoarca acasa.',
-    'Un cioban intelept rezolva ghicitorile unui imparat si castiga jumatate din imparatie. Povestea arata ca mintea ascutita si bunatatea sufletului sunt mai valoroase decat orice comoara de aur sau pietre pretioase.',
+    'Un fecior de împărat pleacă în lume să găsească Tinerețe fără Bătrânețe și Viață fără de Moarte. Călătorește prin tărâmuri fermecate, învinge zmei și descoperă că timpul este cel mai de preț dar al vieții.',
+    'Harap-Alb, fiul unui împărat, pornește într-o călătorie plină de încercări. Ajutat de Sfânta Duminică și de prieteni magici, trebuie să învingă pe Spân și să dovedească că este demn de tronul tatălui său.',
+    'Greuceanu, un viteaz născut din puteri magice, se luptă cu zmeii care au furat soarele și luna de pe cer. Cu curaj și iscusință, el aduce lumina înapoi în lume și salvează pe toți din întuneric.',
+    'Făt-Frumos pleacă să o salveze pe Ileana Cosânzeana, răpită de un zmeu cu șapte capete. Călare pe un cal năzdrăvan, traversează păduri fermecate și înfrânge răul cu puterea dragostei și a curajului.',
+    'Prâslea cel Voinic și Merele de Aur pornește să afle cine fură merele fermecate din grădina tatălui său. Coboară în adâncul pământului și descoperă un tărâm ascuns unde trebuie să învingă trei zmei.',
+    'O capră cu trei iezi îi învață pe micuți să nu deschidă ușa străinilor. Lupul cel viclean reușește să îi păcălească, dar mama capră face totul pentru a-și salva copiii dintr-o situație periculoasă.',
+    'Păcală, cel mai deștept și mai poznș țăran din sat, își păcălește vecinii cu glume și șmecherii. Dar lecțiile lui sunt mereu despre dreptate, generozitate și cum să râzi de prostia celor lacomi.',
+    'Un pescar sărac găsește un pește de aur care îi îndeplinește orice dorință. Dar nevasta lui lacomă cere din ce în ce mai mult, până când totul se întoarce de unde a plecat.',
+    'Doi copii se rătăcesc în Pădurea Fermecată și găsesc o căsuță făcută din turtă dulce. Vrăjitoarea care locuiește acolo îi ademănește, dar cu istețime și curaj, copiii reușesc să scape și să se întoarcă acasă.',
+    'Un cioban înțelept rezolvă ghicitorile unui împărat și câștigă jumătate din împărăție. Povestea arată că mintea ascuțită și bunătatea sufletului sunt mai valoroase decât orice comoară de aur sau pietre prețioase.',
   ],
 
   fr: [
-    'Un petit prince quitte sa minuscule planete et sa rose capricieuse pour explorer l\'univers. Sur Terre, il rencontre un aviateur et un renard qui lui apprend que l\'essentiel est invisible pour les yeux.',
-    'Un chat malin chausse des bottes et, par la ruse, transforme son maitre pauvre en marquis. Il affronte un ogre terrible et prouve que l\'intelligence et l\'audace valent plus que la naissance et la richesse.',
-    'Une jeune fille courageuse accepte de vivre dans le chateau d\'une bete terrifiante pour sauver son pere. Peu a peu, elle decouvre la bonte cachee sous l\'apparence monstrueuse et brise la malediction par l\'amour.',
-    'Une petite fille au chaperon rouge traverse la foret pour rendre visite a sa grand-mere. En chemin, un loup ruse tente de la devorer, mais un chasseur courageux arrive juste a temps pour la sauver.',
-    'Un petit garcon minuscule, pas plus grand qu\'un pouce, part a l\'aventure dans un monde geant. Il affronte des dangers enormes avec courage et astuce, prouvant que la taille ne fait pas la valeur.',
-    'Cendrillon, maltraitee par sa maratre, recoit l\'aide d\'une fee qui la transforme pour le bal du prince. A minuit, la magie disparait, mais une pantoufle de verre guide le prince vers son veritable amour.',
-    'Un homme a la barbe bleue cache un terrible secret dans une chambre interdite de son chateau. Sa nouvelle epouse, poussee par la curiosite, decouvre l\'horreur et doit trouver un moyen de s\'echapper.',
-    'Un jeune garcon vole les bottes de sept lieues d\'un ogre endormi et devient le messager le plus rapide du royaume. Grace a son courage, il sauve sa famille de la pauvrete et gagne la faveur du roi.',
-    'Une fee offre un don merveilleux a une princesse: chaque mot qu\'elle prononce se transforme en fleur ou en pierre precieuse. Sa soeur jalouse recoit le don inverse et doit apprendre l\'humilite.',
-    'Un gentil bucheron et sa femme, trop pauvres pour nourrir leurs enfants, les abandonnent dans la foret. Le petit Poucet, le plus malin, seme des cailloux et guide ses freres vers la maison et la securite.',
+    'Un petit prince quitte sa minuscule planète et sa rose capricieuse pour explorer l\'univers. Sur Terre, il rencontre un aviateur et un renard qui lui apprend que l\'essentiel est invisible pour les yeux.',
+    'Un chat malin chausse des bottes et, par la ruse, transforme son maître pauvre en marquis. Il affronte un ogre terrible et prouve que l\'intelligence et l\'audace valent plus que la naissance et la richesse.',
+    'Une jeune fille courageuse accepte de vivre dans le château d\'une bête terrifiante pour sauver son père. Peu à peu, elle découvre la bonté cachée sous l\'apparence monstrueuse et brise la malédiction par l\'amour.',
+    'Une petite fille au chaperon rouge traverse la forêt pour rendre visite à sa grand-mère. En chemin, un loup rusé tente de la dévorer, mais un chasseur courageux arrive juste à temps pour la sauver.',
+    'Un petit garçon minuscule, pas plus grand qu\'un pouce, part à l\'aventure dans un monde géant. Il affronte des dangers énormes avec courage et astuce, prouvant que la taille ne fait pas la valeur.',
+    'Cendrillon, maltraitée par sa marâtre, reçoit l\'aide d\'une fée qui la transforme pour le bal du prince. À minuit, la magie disparaît, mais une pantoufle de verre guide le prince vers son véritable amour.',
+    'Un homme à la barbe bleue cache un terrible secret dans une chambre interdite de son château. Sa nouvelle épouse, poussée par la curiosité, découvre l\'horreur et doit trouver un moyen de s\'échapper.',
+    'Un jeune garçon vole les bottes de sept lieues d\'un ogre endormi et devient le messager le plus rapide du royaume. Grâce à son courage, il sauve sa famille de la pauvreté et gagne la faveur du roi.',
+    'Une fée offre un don merveilleux à une princesse: chaque mot qu\'elle prononce se transforme en fleur ou en pierre précieuse. Sa sœur jalouse reçoit le don inverse et doit apprendre l\'humilité.',
+    'Un gentil bûcheron et sa femme, trop pauvres pour nourrir leurs enfants, les abandonnent dans la forêt. Le petit Poucet, le plus malin, sème des cailloux et guide ses frères vers la maison et la sécurité.',
   ],
 
   de: [
-    'Zwei Kinder verirren sich im Wald und finden ein Haus aus Lebkuchen und Sussigkeiten. Eine bose Hexe lockt sie hinein, aber mit Mut und Klugheit uberlisten die Geschwister die Hexe und finden den Weg nach Hause.',
-    'Ein kleines Madchen bekommt einen Nussknacker zu Weihnachten. In der Nacht erwacht er zum Leben und fuhrt sie in ein magisches Reich voller tanzender Schneeflocken und Zuckerfeen im Kampf gegen den Mausekonig.',
-    'Ein kleines Mannchen hilft einer jungen Frau, Stroh zu Gold zu spinnen. Als Preis verlangt es ihr erstgeborenes Kind. Nur wenn sie seinen Namen erraten kann, darf sie ihr Kind behalten.',
-    'Zwolf Bruder werden in Schwane verwandelt und ihre kleine Schwester muss sechs Jahre schweigen und Hemden aus Brennnesseln nahen, um den Fluch zu brechen und ihre Bruder zu retten.',
-    'Ein tapferer Junge zieht in die Welt, um das Furchten zu lernen. Er ubernachtet in einem verwunschenen Schloss voller Geister und besteht drei gruselige Nachte, bis er endlich das Gruseln lernt.',
-    'Ein Fischer fangt einen sprechenden Fisch, der ihm Wunsche erfullt. Seine gierige Frau verlangt immer mehr, bis sie Kaiserin und sogar Papst werden will, und am Ende alles verloren geht.',
-    'Ein kleines Madchen mit roten Schuhen kann nicht aufhoren zu tanzen. Sie tanzt durch Dorfer und Walder, bis ein freundlicher Engel ihr hilft, den Fluch zu brechen und Demut zu lernen.',
-    'Die Bremer Stadtmusikanten, ein Esel, ein Hund, eine Katze und ein Hahn, ziehen gemeinsam los. Sie vertreiben Rauber aus einem Waldhaus und finden dort ein neues Zuhause voller Freundschaft und Musik.',
-    'Ein Konig verspricht seiner sterbenden Frau, nur eine Frau zu heiraten, die ebenso schon ist. Als er seine eigene Tochter wahlt, flieht sie verkleidet in einem Mantel aus tausend Pelzen in die weite Welt.',
-    'Ein mutiger Schneider erschlagt sieben Fliegen auf einen Streich und zieht prahlend in die Welt. Durch List und Cleverness besiegt er Riesen und gewinnt am Ende ein halbes Konigreich und die Prinzessin.',
+    'Zwei Kinder verirren sich im Wald und finden ein Haus aus Lebkuchen und Süßigkeiten. Eine böse Hexe lockt sie hinein, aber mit Mut und Klugheit überlisten die Geschwister die Hexe und finden den Weg nach Hause.',
+    'Ein kleines Mädchen bekommt einen Nussknacker zu Weihnachten. In der Nacht erwacht er zum Leben und führt sie in ein magisches Reich voller tanzender Schneeflocken und Zuckerfeen im Kampf gegen den Mäusekönig.',
+    'Ein kleines Männchen hilft einer jungen Frau, Stroh zu Gold zu spinnen. Als Preis verlangt es ihr erstgeborenes Kind. Nur wenn sie seinen Namen erraten kann, darf sie ihr Kind behalten.',
+    'Zwölf Brüder werden in Schwäne verwandelt und ihre kleine Schwester muss sechs Jahre schweigen und Hemden aus Brennnesseln nähen, um den Fluch zu brechen und ihre Brüder zu retten.',
+    'Ein tapferer Junge zieht in die Welt, um das Fürchten zu lernen. Er übernachtet in einem verwunschenen Schloss voller Geister und besteht drei gruselige Nächte, bis er endlich das Gruseln lernt.',
+    'Ein Fischer fängt einen sprechenden Fisch, der ihm Wünsche erfüllt. Seine gierige Frau verlangt immer mehr, bis sie Kaiserin und sogar Papst werden will, und am Ende alles verloren geht.',
+    'Ein kleines Mädchen mit roten Schuhen kann nicht aufhören zu tanzen. Sie tanzt durch Dörfer und Wälder, bis ein freundlicher Engel ihr hilft, den Fluch zu brechen und Demut zu lernen.',
+    'Die Bremer Stadtmusikanten, ein Esel, ein Hund, eine Katze und ein Hahn, ziehen gemeinsam los. Sie vertreiben Räuber aus einem Waldhaus und finden dort ein neues Zuhause voller Freundschaft und Musik.',
+    'Ein König verspricht seiner sterbenden Frau, nur eine Frau zu heiraten, die ebenso schön ist. Als er seine eigene Tochter wählt, flieht sie verkleidet in einem Mantel aus tausend Pelzen in die weite Welt.',
+    'Ein mutiger Schneider erschlägt sieben Fliegen auf einen Streich und zieht prahlend in die Welt. Durch List und Cleverness besiegt er Riesen und gewinnt am Ende ein halbes Königreich und die Prinzessin.',
   ],
 
   it: [
-    'Un burattino di legno prende vita e sogna di diventare un bambino vero. Con il suo grillo parlante, affronta tentazioni e pericoli, imparando che il coraggio e la bonta rendono vivi davvero.',
-    'Un ragazzo povero scopre una lampada magica con un genio potentissimo. Con tre desideri, deve sconfiggere un malvagio stregone e conquistare il cuore della principessa, imparando il vero valore dell\'onesta.',
+    'Un burattino di legno prende vita e sogna di diventare un bambino vero. Con il suo grillo parlante, affronta tentazioni e pericoli, imparando che il coraggio e la bontà rendono vivi davvero.',
+    'Un ragazzo povero scopre una lampada magica con un genio potentissimo. Con tre desideri, deve sconfiggere un malvagio stregone e conquistare il cuore della principessa, imparando il vero valore dell\'onestà.',
     'Una bambina piccola come un pollice nasce da un fiore magico e vive avventure incredibili. Attraversa stagni su foglie di ninfea e vola con le rondini, cercando un posto dove essere finalmente felice.',
-    'Un vecchio falegname scolpisce un burattino che parla e cammina. Il burattino fugge, incontra un gatto e una volpe truffaldini, e impara a proprie spese che le scorciatoie non portano mai alla felicita.',
+    'Un vecchio falegname scolpisce un burattino che parla e cammina. Il burattino fugge, incontra un gatto e una volpe truffaldini, e impara a proprie spese che le scorciatoie non portano mai alla felicità.',
     'Arlecchino, un servo furbo e colorato, si mette nei guai con il suo padrone avaro. Con battute argute e travestimenti, risolve ogni problema e fa ridere tutti, dimostrando che l\'astuzia batte la ricchezza.',
     'Un giovane marinaio veneziano salpa verso terre sconosciute e scopre un palazzo di ghiaccio abitato da un re gentile. Impara che i veri tesori non sono oro e gioielli, ma le storie da raccontare.',
-    'Tre fratelli partono alla ricerca di una fonte magica che guarisce ogni male. Solo il piu giovane e umile riesce a trovarla, perche ascolta i consigli degli animali della foresta lungo la strada.',
-    'Una principessa coraggiosa sfida un drago che terrorizza il suo villaggio in Sicilia. Senza armatura ne spada, usa l\'intelligenza e la gentilezza per trasformare il drago in un protettore del regno.',
+    'Tre fratelli partono alla ricerca di una fonte magica che guarisce ogni male. Solo il più giovane e umile riesce a trovarla, perché ascolta i consigli degli animali della foresta lungo la strada.',
+    'Una principessa coraggiosa sfida un drago che terrorizza il suo villaggio in Sicilia. Senza armatura né spada, usa l\'intelligenza e la gentilezza per trasformare il drago in un protettore del regno.',
     'Un pescatore sardo trova una conchiglia che canta melodie incantate. La musica attira creature marine magiche che lo guidano verso un\'isola nascosta dove i sogni dei bambini prendono forma e colore.',
-    'Una nonna napoletana racconta ai nipoti la storia di un re trasformato in gatto. Solo l\'amore di una bambina gentile puo spezzare l\'incantesimo e riportare la pace nel piccolo regno sul golfo.',
+    'Una nonna napoletana racconta ai nipoti la storia di un re trasformato in gatto. Solo l\'amore di una bambina gentile può spezzare l\'incantesimo e riportare la pace nel piccolo regno sul golfo.',
   ],
 
   hu: [
-    'Ludas Matyi, egy ravasz parasztfiu, haromszor veri el a gonog foldesurat, aki igazsagtalanul bant vele. Eszevel es batorasagaval bizonyitja, hogy a szegeny ember is legyozheti az igazsagtalansagot.',
-    'A Pal utcai fiuk csapata megvedi szeretett grundjukat a Voros Ingekkel szemben. Nemecsek, a legkisebb fiu, hosies batorsaggal kuld a csapataert, megmutatva, hogy a valosdi hosiesseget nem a meret hatarozza meg.',
-    'Janos vitez, egy arva parasztlegeny, elindul, hogy megtalja szerelmet, Iluskajat. Orias tunden, botorikon es tongerenken at utazik, hogy eljusson Tunderorszagba, ahol az orok szerelem var ra.',
-    'Matyas kiraly alruhaban jarja az orszagot es meglatogatja az egyszeru embereket. Igazsagot szolgaltat a szegenyeknek es leckeket ad az onzo gazdagoknak, megmutatva, hogy a jo kiraly a nepet szolgalja.',
-    'Egy kis kacsa, akit mindenki csufnak tart, szomoruan vandorol a tavon. Amikor eljion a tavasz, gyonyoru hattyuva valik, es mindenki racsodalkozik, bizonyitva, hogy a szepseg belurol fakad.',
-    'Egy szegeny fiu egy aranyszoru baranyra bukkan az erdoben. A barany varazslatos gyapja gazdagga teszi, de meg kell tanulnia, hogy a valosdi kincs a josag es a baratsag, nem az arany.',
-    'Egy bator kislany behatol a sarkany barlangjaba, hogy visszaszerezze a faluja ellopott napfenyet. Nem karddal, hanem egy dallal es egy mosolyukkal gyozi le a szornyet es hozza vissza a fenyt.',
-    'Het kisgerda varazslatos feladatokat kap egy bolcs tundertol. Mindegyik kihivas mas-mas erenyt tanit meg nekik: batorsagot, kedvesseget es csapatmunkat, mire elnyerik a varazslatos konyvet.',
-    'Egy oreg halasz kifog egy aranyhalat, amely harom kivanasagot teljesit. Felesege egyre tobbet kovetel, amig minden varazslat szertefoszlik, megtanitva oket, hogy a megelegedes a legfobb boldogsag.',
-    'Egy kicsi tucsok egyedul indul el a nagyvilagba, hogy megtalja a helyet, ahova tartozik. Utja soran baratsagot kot egy bogarral, egy csinaval, es megtanulja, hogy az otthon az, ahol szeretnek.',
+    'Lúdas Matyi, egy ravasz parasztfiú, háromszor veri el a gonosz földesurat, aki igazságtalanul bánt vele. Eszével és bátorságával bizonyítja, hogy a szegény ember is legyőzheti az igazságtalanságot.',
+    'A Pál utcai fiúk csapata megvédi szeretett grundjukat a Vörös Ingekkel szemben. Nemecsek, a legkisebb fiú, hősies bátorsággal küzd a csapatáért, megmutatva, hogy a valódi hősiességet nem a méret határozza meg.',
+    'János vitéz, egy árva parasztlegény, elindul, hogy megtalálja szerelmét, Iluskáját. Óriásokon, boszorkányokon és tengereken át utazik, hogy eljusson Tündérországba, ahol az örök szerelem vár rá.',
+    'Mátyás király álruhában járja az országot és meglátogatja az egyszerű embereket. Igazságot szolgáltat a szegényeknek és leckéket ad az önző gazdagoknak, megmutatva, hogy a jó király a népét szolgálja.',
+    'Egy kis kacsa, akit mindenki csúfnak tart, szomorúan vándorol a tavon. Amikor eljön a tavasz, gyönyörű hattyúvá válik, és mindenki rácsodálkozik, bizonyítva, hogy a szépség belülről fakad.',
+    'Egy szegény fiú egy aranyszőrű bárányra bukkan az erdőben. A bárány varázslatos gyapja gazdaggá teszi, de meg kell tanulnia, hogy a valódi kincs a jóság és a barátság, nem az arany.',
+    'Egy bátor kislány behatol a sárkány barlangjába, hogy visszaszerezze a faluja ellopott napfényét. Nem karddal, hanem egy dallal és egy mosollyal győzi le a szörnyet és hozza vissza a fényt.',
+    'Hét kisgyerek varázslatos feladatokat kap egy bölcs tündértől. Mindegyik kihívás más-más erényt tanít meg nekik: bátorságot, kedvességet és csapatmunkát, mire elnyerik a varázslatos könyvet.',
+    'Egy öreg halász kifog egy aranyhalat, amely három kívánságot teljesít. Felesége egyre többet követel, amíg minden varázslat szertefoszlik, megtanítva őket, hogy a megelégedés a legfőbb boldogság.',
+    'Egy kicsi tücsök egyedül indul el a nagyvilágba, hogy megtalálja a helyét, ahová tartozik. Útja során barátságot köt egy bogárral, egy csigával, és megtanulja, hogy az otthon az, ahol szeretnek.',
   ],
 
   zh: [
-    'Yi zhi xiao houzi cong shitouli bengchulai, xuexi le qishier ban bianhua he jingdou yun. Ta gen yige seng ren qu xitian qu jing, luxhang yudao yaogui he monan, zuizhong chengwei le zhenzheng de yingxiong.',
-    'Yi ge yonggan de nühai Mulan nüban nanzhuang, daitie fuqin shang zhanchang. Ta yingde le zhanzheng he tongban de zunzhong, zhengming le yongqi he zhongcheng bu fen xingbie.',
-    'Yi ge xiao nanhai Nezha cong huo yan jingjing li chusheng, yongyou qiangda de shenli. Ta fan kang longwang baohu jiaren he cunmin, xuehuile zeren he xisheng de yiyi.',
-    'Chang\'e chi le xiangyao fei shang yueqiu, yongyuan he zhangfu fenli. Meinian zhongqiu jie, renmen wangzhe yueliang, xiangqi ta de gushi, ganshou ai he xisheng de meixue.',
-    'Yi ge fangniu wa yongyou yizhi shenniu, ta bang ta bian chu yifu he shiwu. Meinian qixi jie, xiqueniao jiecheng qiao, rang fangniu he zhinü zai yinheshang xiangju.',
-    'Yi ge xiao nanhai yongyou yizhi shenbi, hua de dongxi dou hui biancheng zhenshi de. Ta yong shenbi bang qiongren, dui fu tanlan de guanyuan, zhengming le shangliang he zhihui de liliang.',
-    'Sange xiongdi qu xunzhao changsheng bu lao de mishu. Zhiyou zuixiao zuishan de didi chenggong le, yinwei ta bangzhu le lu shang yudao de mei yige xu yao bangzhu de ren.',
-    'Yi zhi xiao liyu yongli tiaoguole longmen, biancheng le yitiao jinlong. Zhe ge gushi jiaoyu haizimen, zhiyao nuli he jiancheng, jiu neng shixian zuida de mengxiang.',
-    'Yi ge congming de xiao guniang yong zhihui he shangliang zhifu le yaoguai, jiuzhu le beikunzhu de cunmin. Ta de gushi gaosu women, zhihui bi liliang geng qiangda.',
-    'Hou Yi shexia le jiuge taiyang, zhengjiule renmen. Dan ta de qi zi Chang\'e wule xiangyao fei shang le tian. Zhe ge gushi jiangshule yongqi, ai he yongheng de xisheng.',
+    '一只小猴子从石头里蹦出来，学会了七十二般变化和筋斗云。他跟一个僧人去西天取经，路上遇到妖怪和磨难，最终成为了真正的英雄。',
+    '一个勇敢的女孩花木兰女扮男装，替父亲上战场。她赢得了战争和同伴们的尊重，证明了勇气和忠诚不分性别。',
+    '一个小男孩哪吒从火焰中诞生，拥有强大的神力。他反抗龙王保护家人和村民，学会了责任和牺牲的意义。',
+    '嫦娥吃了仙药飞上月球，永远和丈夫分离。每年中秋节，人们望着月亮，想起她的故事，感受爱和牺牲的美丽。',
+    '一个放牛娃拥有一只神牛，它帮他变出衣服和食物。每年七夕节，喜鹊搭成桥，让牛郎和织女在银河上相聚。',
+    '一个小男孩拥有一支神笔，画的东西都会变成真实的。他用神笔帮穷人，对付贪婪的官员，证明了善良和智慧的力量。',
+    '三个兄弟去寻找长生不老的秘术。只有最小最善良的弟弟成功了，因为他帮助了路上遇到的每一个需要帮助的人。',
+    '一只小鲤鱼用力跳过了龙门，变成了一条金龙。这个故事教育孩子们，只要努力和坚持，就能实现最大的梦想。',
+    '一个聪明的小姑娘用智慧和善良制伏了妖怪，救出了被困住的村民。她的故事告诉我们，智慧比力量更强大。',
+    '后羿射下了九个太阳，拯救了人们。但他的妻子嫦娥误吃了仙药飞上了天。这个故事讲述了勇气、爱和永恒的牺牲。',
   ],
 };
+
+/** Tracks the last returned index per language to avoid consecutive duplicates. */
+const lastIndex: Partial<Record<Language, number>> = {};
 
 /**
  * Returns a random story idea for the given language.
  * Falls back to English for languages without specific ideas.
+ * Avoids returning the same idea on consecutive calls for the same language.
  */
 export function getRandomStoryIdea(language: Language): string {
   const ideas = storyIdeasByLanguage[language] ?? storyIdeasByLanguage.en!;
-  return ideas[Math.floor(Math.random() * ideas.length)];
+  const prev = lastIndex[language];
+  let index: number;
+  do {
+    index = Math.floor(Math.random() * ideas.length);
+  } while (index === prev && ideas.length > 1);
+  lastIndex[language] = index;
+  return ideas[index];
 }
