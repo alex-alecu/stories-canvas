@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../i18n/LanguageContext';
 import { AGE_RANGES, DEFAULT_AGE, DEFAULT_ART_STYLE, getAgeGroup, VOICE_OPTIONS, type ArtStyleKey, type VoiceKey } from '../../shared/types';
+import { getRandomStoryIdea } from '../data/storyIdeas';
 
 const STYLE_KEYS: ArtStyleKey[] = ['disney-pixar', 'watercolor', 'storybook', 'anime', 'colored-pencil', 'paper-cutout'];
 
@@ -28,7 +29,7 @@ export default function StoryInput({ onSubmit, isLoading }: StoryInputProps) {
   const [voice, setVoice] = useState<VoiceKey | ''>('');
   const maxLength = 500;
   const { user, loading } = useAuth();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -57,6 +58,10 @@ export default function StoryInput({ onSubmit, isLoading }: StoryInputProps) {
       onSubmit(trimmed, age, style, pro, voice || undefined);
       setPrompt('');
     }
+  };
+
+  const handleIdeaClick = () => {
+    setPrompt(getRandomStoryIdea(language));
   };
 
   const isGuest = !loading && !user;
@@ -95,6 +100,23 @@ export default function StoryInput({ onSubmit, isLoading }: StoryInputProps) {
             readOnly={isGuest}
             className="w-full px-6 pt-5 pb-2 text-gray-700 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500 bg-transparent resize-none focus:outline-none disabled:opacity-50 text-lg"
           />
+
+          {/* Inspire me button - only for authenticated users */}
+          {!isGuest && (
+            <div className="px-6 pb-1">
+              <button
+                type="button"
+                onClick={handleIdeaClick}
+                disabled={isLoading}
+                className="inline-flex items-center gap-1.5 text-sm text-primary-500 dark:text-primary-400 hover:text-primary-600 dark:hover:text-primary-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+                  <path fillRule="evenodd" d="M9 4.5a.75.75 0 01.721.544l.813 2.846a3.75 3.75 0 002.576 2.576l2.846.813a.75.75 0 010 1.442l-2.846.813a3.75 3.75 0 00-2.576 2.576l-.813 2.846a.75.75 0 01-1.442 0l-.813-2.846a3.75 3.75 0 00-2.576-2.576l-2.846-.813a.75.75 0 010-1.442l2.846-.813A3.75 3.75 0 007.466 7.89l.813-2.846A.75.75 0 019 4.5zM18 1.5a.75.75 0 01.728.568l.258 1.036c.236.94.97 1.674 1.91 1.91l1.036.258a.75.75 0 010 1.456l-1.036.258c-.94.236-1.674.97-1.91 1.91l-.258 1.036a.75.75 0 01-1.456 0l-.258-1.036a2.625 2.625 0 00-1.91-1.91l-1.036-.258a.75.75 0 010-1.456l1.036-.258a2.625 2.625 0 001.91-1.91l.258-1.036A.75.75 0 0118 1.5z" clipRule="evenodd" />
+                </svg>
+                {t.storyIdeaButton}
+              </button>
+            </div>
+          )}
 
           {/* Age & Style selectors - only for authenticated users */}
           {!isGuest && (
