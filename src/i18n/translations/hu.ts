@@ -154,6 +154,8 @@ const hu: Translations = {
   generatingNarration: 'Narráció generálása...',
   narrationSuccess: 'Narráció sikeresen generálva!',
   narrationGenerationFailed: 'A narráció generálása sikertelen. Próbáld újra.',
+
+  storyIdeaButton: 'Ihless meg',
 };
 
 export default hu;

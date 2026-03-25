@@ -154,6 +154,8 @@ const pt: Translations = {
   generatingNarration: 'Gerando narração...',
   narrationSuccess: 'Narração gerada com sucesso!',
   narrationGenerationFailed: 'Falha ao gerar narração. Tente novamente.',
+
+  storyIdeaButton: 'Inspire-me',
 };
 
 export default pt;

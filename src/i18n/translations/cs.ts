@@ -154,6 +154,8 @@ const cs: Translations = {
   generatingNarration: 'Generování vyprávění...',
   narrationSuccess: 'Vyprávění úspěšně vygenerováno!',
   narrationGenerationFailed: 'Generování vyprávění se nezdařilo. Zkuste to znovu.',
+
+  storyIdeaButton: 'Inspiruj mě',
 };
 
 export default cs;

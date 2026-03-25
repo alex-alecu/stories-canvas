@@ -154,6 +154,8 @@ const fi: Translations = {
   generatingNarration: 'Luodaan kerrontaa...',
   narrationSuccess: 'Kerronta luotu onnistuneesti!',
   narrationGenerationFailed: 'Kerronnan luominen epäonnistui. Yritä uudelleen.',
+
+  storyIdeaButton: 'Inspiroi minua',
 };
 
 export default fi;
