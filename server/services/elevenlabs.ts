@@ -90,6 +90,9 @@ export async function generatePageAudio(
           similarityBoost: settings.similarityBoost,
           style: settings.style,
         },
+      }, {
+        timeoutInSeconds: 60,
+        maxRetries: 0,
       });
       return response;
     },
