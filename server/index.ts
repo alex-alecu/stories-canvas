@@ -47,5 +47,12 @@ app.listen(config.port, () => {
         if (count > 0) console.log(`Recovered ${count} stuck story(ies)`);
       })
       .catch(err => console.error('Failed to recover stuck stories:', err));
+
+    // Periodic watchdog: recover stories that get stuck during normal operation
+    setInterval(() => {
+      recoverStuckStories().catch(err =>
+        console.error('Watchdog recovery failed:', err)
+      );
+    }, 5 * 60 * 1000);
   }
 });
