@@ -61,15 +61,27 @@ function getVoiceSettings(voiceKey: VoiceKey): VoiceSettings {
   return baseSettings[voiceKey];
 }
 
-async function streamToBuffer(stream: ReadableStream<Uint8Array>): Promise<Buffer> {
+async function streamToBuffer(stream: ReadableStream<Uint8Array>, timeoutMs = 60_000): Promise<Buffer> {
   const reader = stream.getReader();
   const chunks: Uint8Array[] = [];
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    if (value) chunks.push(value);
-  }
-  return Buffer.concat(chunks);
+
+  const readAll = async (): Promise<Buffer> => {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (value) chunks.push(value);
+    }
+    return Buffer.concat(chunks);
+  };
+
+  const timeout = new Promise<never>((_, reject) => {
+    setTimeout(() => {
+      reader.cancel().catch(() => {});
+      reject(new Error('Stream read timed out'));
+    }, timeoutMs);
+  });
+
+  return Promise.race([readAll(), timeout]);
 }
 
 export async function generatePageAudio(
@@ -79,9 +91,9 @@ export async function generatePageAudio(
   const elevenlabs = getClient();
   const settings = getVoiceSettings(voiceKey);
 
-  const audioStream = await pRetry(
+  return pRetry(
     async () => {
-      const response = await elevenlabs.textToSpeech.convert(settings.voiceId, {
+      const audioStream = await elevenlabs.textToSpeech.convert(settings.voiceId, {
         text,
         modelId: config.elevenLabsModel,
         outputFormat: 'mp3_44100_128',
@@ -90,8 +102,11 @@ export async function generatePageAudio(
           similarityBoost: settings.similarityBoost,
           style: settings.style,
         },
+      }, {
+        timeoutInSeconds: 60,
+        maxRetries: 0,
       });
-      return response;
+      return streamToBuffer(audioStream, 60_000);
     },
     {
       retries: 3,
@@ -112,8 +127,6 @@ export async function generatePageAudio(
       },
     },
   );
-
-  return streamToBuffer(audioStream);
 }
 
 async function savePageAudio(storyId: string, filename: string, audioBuffer: Buffer, userId?: string): Promise<string> {
