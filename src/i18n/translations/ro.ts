@@ -3,7 +3,7 @@ import type { Translations } from '../types';
 const ro: Translations = {
   // App
   appTitle: 'Povești Magice',
-  appSubtitle: 'Creează povești ilustrate magice cu ajutorul AI',
+  appSubtitle: 'Creează povești ilustrate magice pentru copiii tăi',
 
   // Navigation
   explore: 'Explorează',
