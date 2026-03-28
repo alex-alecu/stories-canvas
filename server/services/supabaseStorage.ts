@@ -271,25 +271,14 @@ export function getAudioUrl(userId: string | undefined, storyId: string, filenam
   return getImageUrl(userId, storyId, filename);
 }
 
-export async function updatePageImageVersion(id: string, pageNumber: number, imageVersion: string): Promise<void> {
+export async function updatePageAudioUrl(id: string, pageNumber: number, audioUrl: string): Promise<void> {
   const supabase = getSupabase();
-  const { error } = await supabase.rpc('update_page_image_version', {
-    story_id: id,
-    page_number: pageNumber,
-    image_version: imageVersion,
-  });
-  if (error) throw new Error(`Failed to update page image version: ${error.message}`);
-}
-
-export async function updatePageAudioData(id: string, pageNumber: number, audioUrl: string, audioVersion: string): Promise<void> {
-  const supabase = getSupabase();
-  const { error } = await supabase.rpc('update_page_audio_fields', {
+  const { error } = await supabase.rpc('update_page_audio_url', {
     story_id: id,
     page_number: pageNumber,
     audio_url: audioUrl,
-    audio_version: audioVersion,
   });
-  if (error) throw new Error(`Failed to update page audio data: ${error.message}`);
+  if (error) throw new Error(`Failed to update page audio URL: ${error.message}`);
 }
 
 // ---------- Storage Listing & Download ----------

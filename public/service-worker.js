@@ -34,7 +34,7 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(request.url);
   if (isStoryStatusRequest(url)) return;
 
-  if (isVersionedMediaUrl(url)) {
+  if (isMediaUrl(url)) {
     event.respondWith(cacheFirstMedia(request));
     return;
   }
@@ -48,9 +48,7 @@ function isStoryStatusRequest(url) {
   return url.origin === self.location.origin && /^\/api\/stories\/[^/]+\/status$/.test(url.pathname);
 }
 
-function isVersionedMediaUrl(url) {
-  if (!url.searchParams.has('v')) return false;
-
+function isMediaUrl(url) {
   if (url.origin === self.location.origin) {
     return /^\/api\/stories\/[^/]+\/(images|audio)\/[^/]+$/.test(url.pathname);
   }
@@ -82,7 +80,7 @@ async function warmMediaUrls(urls) {
   await Promise.all(urls.map(async (rawUrl) => {
     try {
       const url = new URL(rawUrl, self.location.origin);
-      if (!isVersionedMediaUrl(url)) return;
+      if (!isMediaUrl(url)) return;
 
       const cacheKey = url.toString();
       if (await cache.match(cacheKey)) return;

@@ -11,7 +11,7 @@ import { generateAllPageAudio, retryMissingAudio, isElevenLabsConfigured } from 
 import { optionalAuth } from '../middleware/auth.js';
 import type { GenerationProgress, CreateStoryRequest, StoryStatus, StoryMeta, Scenario, ArtStyleKey, VoiceKey, StoryAssets, RetryStoryResponse } from '../../shared/types.js';
 import { ART_STYLES, DEFAULT_AGE, DEFAULT_ART_STYLE } from '../../shared/types.js';
-import { MEDIA_CACHE_CONTROL, appendAssetVersion, getPageAudioFilename, getPageImageFilename, pageHasAudio, resolveAssetVersion } from '../utils/storyMedia.js';
+import { MEDIA_CACHE_CONTROL, getPageAudioFilename, getPageImageFilename, pageHasAudio } from '../utils/storyMedia.js';
 
 const router = Router();
 
@@ -56,33 +56,30 @@ async function removeStory(storyId: string, userId?: string): Promise<boolean> {
 
 // ---------- Image URL helpers ----------
 
-function getStoryImageUrl(storyId: string, filename: string, userId?: string, version?: string): string {
-  const url = config.useSupabase
+function getStoryImageUrl(storyId: string, filename: string, userId?: string): string {
+  return config.useSupabase
     ? sbStorage.getImageUrl(userId, storyId, filename)
     : `/api/stories/${storyId}/images/${filename}`;
-  return appendAssetVersion(url, version);
 }
 
-function getStoryAudioUrl(storyId: string, filename: string, userId?: string, version?: string): string {
-  const url = config.useSupabase
+function getStoryAudioUrl(storyId: string, filename: string, userId?: string): string {
+  return config.useSupabase
     ? sbStorage.getAudioUrl(userId, storyId, filename)
     : `/api/stories/${storyId}/audio/${filename}`;
-  return appendAssetVersion(url, version);
 }
 
-function getPageImageUrl(storyId: string, pageNumber: number, userId?: string, version?: string): string {
-  return getStoryImageUrl(storyId, getPageImageFilename(pageNumber), userId, version);
+function getPageImageUrl(storyId: string, pageNumber: number, userId?: string): string {
+  return getStoryImageUrl(storyId, getPageImageFilename(pageNumber), userId);
 }
 
-function getPageAudioUrl(storyId: string, pageNumber: number, userId?: string, version?: string): string {
-  return getStoryAudioUrl(storyId, getPageAudioFilename(pageNumber), userId, version);
+function getPageAudioUrl(storyId: string, pageNumber: number, userId?: string): string {
+  return getStoryAudioUrl(storyId, getPageAudioFilename(pageNumber), userId);
 }
 
 function getCoverImageUrl(story: StoryMeta): string | undefined {
   if (!story.scenario?.pages?.[0]) return undefined;
   if (story.scenario.pages[0].status !== 'completed') return undefined;
-  const version = resolveAssetVersion(story.scenario.pages[0].imageVersion, story.createdAt);
-  return getPageImageUrl(story.id, story.scenario.pages[0].pageNumber, story.userId, version);
+  return getPageImageUrl(story.id, story.scenario.pages[0].pageNumber, story.userId);
 }
 
 function storyHasAudio(story: StoryMeta): boolean {
@@ -370,8 +367,7 @@ async function runGenerationPipeline(storyId: string, prompt: string, userId?: s
 
     // Update cover image URL
     if (config.useSupabase) {
-      const coverVersion = resolveAssetVersion(scenario.pages[0]?.imageVersion, undefined);
-      const coverUrl = getPageImageUrl(storyId, 1, userId, coverVersion);
+      const coverUrl = getPageImageUrl(storyId, 1, userId);
       try {
         await sbStorage.updateStoryProgress(storyId, {
           status: voice && isElevenLabsConfigured() ? 'generating_audio' : 'completed',
@@ -660,8 +656,7 @@ async function runRetryPipeline(
 
       // Update cover image if page 1 was retried and succeeded
       if (failedImagePages.includes(1) && !failedPages.includes(1) && config.useSupabase) {
-        const coverVersion = resolveAssetVersion(scenario.pages[0]?.imageVersion, undefined);
-        const coverUrl = getPageImageUrl(storyId, 1, userId, coverVersion);
+        const coverUrl = getPageImageUrl(storyId, 1, userId);
         try {
           const { getSupabase } = await import('../services/supabase.js');
           await getSupabase().from('stories').update({ cover_image_url: coverUrl }).eq('id', storyId);
@@ -976,24 +971,18 @@ router.get('/:id/assets', optionalAuth, async (req: Request, res: Response) => {
     if (!config.useSupabase) {
       // Filesystem mode: construct asset list from scenario data
       const assets: StoryAssets = { characterSheets: [], pageImages: [] };
-      const storyVersion = resolveAssetVersion(undefined, story.createdAt);
       if (story.scenario) {
         for (const char of story.scenario.characters) {
           const filename = getCharacterSheetFilename(char.name);
           assets.characterSheets.push({
             name: char.name,
-            url: getStoryImageUrl(storyId, filename, story.userId, storyVersion),
+            url: getStoryImageUrl(storyId, filename, story.userId),
           });
         }
         for (const page of story.scenario.pages) {
           assets.pageImages.push({
             pageNumber: page.pageNumber,
-            url: getPageImageUrl(
-              storyId,
-              page.pageNumber,
-              story.userId,
-              resolveAssetVersion(page.imageVersion, story.createdAt),
-            ),
+            url: getPageImageUrl(storyId, page.pageNumber, story.userId),
           });
         }
       }
@@ -1004,7 +993,6 @@ router.get('/:id/assets', optionalAuth, async (req: Request, res: Response) => {
     // Supabase mode: list actual files in storage
     const files = await sbStorage.listStoryFiles(storyId, story.userId);
     const assets: StoryAssets = { characterSheets: [], pageImages: [] };
-    const storyVersion = resolveAssetVersion(undefined, story.createdAt);
 
     for (const filename of files) {
       if (filename.startsWith('character-sheet-') && filename.endsWith('.png')) {
@@ -1016,19 +1004,15 @@ router.get('/:id/assets', optionalAuth, async (req: Request, res: Response) => {
         );
         assets.characterSheets.push({
           name: matchedChar?.name || rawName,
-          url: getStoryImageUrl(storyId, filename, story.userId, storyVersion),
+          url: getStoryImageUrl(storyId, filename, story.userId),
         });
       } else if (filename.startsWith('page-') && filename.endsWith('.png')) {
         const numStr = filename.replace('page-', '').replace('.png', '');
         const pageNumber = parseInt(numStr, 10);
         if (!isNaN(pageNumber)) {
-          const pageVersion = resolveAssetVersion(
-            story.scenario?.pages.find(page => page.pageNumber === pageNumber)?.imageVersion,
-            story.createdAt,
-          );
           assets.pageImages.push({
             pageNumber,
-            url: getPageImageUrl(storyId, pageNumber, story.userId, pageVersion),
+            url: getPageImageUrl(storyId, pageNumber, story.userId),
           });
         }
       }
@@ -1066,14 +1050,11 @@ router.get('/:id', optionalAuth, async (req: Request, res: Response) => {
     // Enrich pages with image URLs
     if (story.scenario?.pages) {
       for (const page of story.scenario.pages) {
-        const imageVersion = resolveAssetVersion(page.imageVersion, story.createdAt);
-        const audioVersion = resolveAssetVersion(page.audioVersion, story.createdAt);
         if (page.status === 'completed') {
-          page.imageUrl = getPageImageUrl(story.id, page.pageNumber, story.userId, imageVersion);
+          page.imageUrl = getPageImageUrl(story.id, page.pageNumber, story.userId);
         }
         if (pageHasAudio(page)) {
-          const audioUrl = page.audioUrl ?? getPageAudioUrl(story.id, page.pageNumber, story.userId);
-          page.audioUrl = appendAssetVersion(audioUrl, audioVersion);
+          page.audioUrl = getPageAudioUrl(story.id, page.pageNumber, story.userId);
         }
       }
     }

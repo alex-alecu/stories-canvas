@@ -1,9 +1,9 @@
 import { ElevenLabsClient } from '@elevenlabs/elevenlabs-js';
 import pRetry, { AbortError } from 'p-retry';
 import { config } from '../config.js';
-import { uploadAudio, updatePageAudioData as sbUpdatePageAudioData } from './supabaseStorage.js';
-import { saveAudio, updatePageAudioData as fsUpdatePageAudioData } from '../utils/storage.js';
-import { appendAssetVersion, createAssetVersion, getPageAudioFilename } from '../utils/storyMedia.js';
+import { uploadAudio, updatePageAudioUrl as sbUpdatePageAudioUrl } from './supabaseStorage.js';
+import { saveAudio, updatePageAudioUrl as fsUpdatePageAudioUrl } from '../utils/storage.js';
+import { getPageAudioFilename } from '../utils/storyMedia.js';
 import type { Page, VoiceKey, GenerationProgress } from '../../shared/types.js';
 
 let client: ElevenLabsClient | null = null;
@@ -139,11 +139,11 @@ async function savePageAudio(storyId: string, filename: string, audioBuffer: Buf
   }
 }
 
-async function updatePageAudioDataBoth(storyId: string, pageNumber: number, audioUrl: string, audioVersion: string): Promise<void> {
+async function updatePageAudioUrlBoth(storyId: string, pageNumber: number, audioUrl: string): Promise<void> {
   if (config.useSupabase) {
-    await sbUpdatePageAudioData(storyId, pageNumber, audioUrl, audioVersion);
+    await sbUpdatePageAudioUrl(storyId, pageNumber, audioUrl);
   } else {
-    await fsUpdatePageAudioData(storyId, pageNumber, audioUrl, audioVersion);
+    await fsUpdatePageAudioUrl(storyId, pageNumber, audioUrl);
   }
 }
 
@@ -184,12 +184,9 @@ export async function generateAllPageAudio(
       });
 
       const audioBuffer = await generatePageAudio(page.text, voiceKey);
-      const storedAudioUrl = await savePageAudio(storyId, filename, audioBuffer, userId);
-      const audioVersion = createAssetVersion();
-      const audioUrl = appendAssetVersion(storedAudioUrl, audioVersion);
-      await updatePageAudioDataBoth(storyId, page.pageNumber, audioUrl, audioVersion);
+      const audioUrl = await savePageAudio(storyId, filename, audioBuffer, userId);
+      await updatePageAudioUrlBoth(storyId, page.pageNumber, audioUrl);
       page.audioUrl = audioUrl;
-      page.audioVersion = audioVersion;
 
       completedCount++;
       onProgress?.({
@@ -261,12 +258,9 @@ export async function retryMissingAudio(
       });
 
       const audioBuffer = await generatePageAudio(page.text, voiceKey);
-      const storedAudioUrl = await savePageAudio(storyId, filename, audioBuffer, userId);
-      const audioVersion = createAssetVersion();
-      const audioUrl = appendAssetVersion(storedAudioUrl, audioVersion);
-      await updatePageAudioDataBoth(storyId, page.pageNumber, audioUrl, audioVersion);
+      const audioUrl = await savePageAudio(storyId, filename, audioBuffer, userId);
+      await updatePageAudioUrlBoth(storyId, page.pageNumber, audioUrl);
       page.audioUrl = audioUrl;
-      page.audioVersion = audioVersion;
 
       completedCount++;
       onProgress?.({

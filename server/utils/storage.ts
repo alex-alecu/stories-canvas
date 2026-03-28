@@ -1,7 +1,7 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { config } from '../config.js';
-import type { StoryMeta, Scenario, StoryStatus, VoiceKey, Page } from '../../shared/types.js';
+import type { StoryMeta, Scenario, StoryStatus, VoiceKey } from '../../shared/types.js';
 
 const storiesDir = config.dataDir;
 
@@ -71,7 +71,7 @@ export async function updatePageStatus(storyId: string, pageNumber: number, stat
   });
 }
 
-async function updatePageFields(storyId: string, pageNumber: number, updates: Partial<Pick<Page, 'audioUrl' | 'audioVersion' | 'imageVersion'>>): Promise<void> {
+export async function updatePageAudioUrl(storyId: string, pageNumber: number, audioUrl: string): Promise<void> {
   await withLock(storyId, async () => {
     const dir = path.join(storiesDir, storyId);
     const filePath = path.join(dir, 'scenario.json');
@@ -80,7 +80,7 @@ async function updatePageFields(storyId: string, pageNumber: number, updates: Pa
     if (data.scenario) {
       const page = data.scenario.pages.find(p => p.pageNumber === pageNumber);
       if (page) {
-        Object.assign(page, updates);
+        page.audioUrl = audioUrl;
       }
     }
 
@@ -107,14 +107,6 @@ export async function getImagePath(storyId: string, filename: string): Promise<s
 export async function saveAudio(storyId: string, filename: string, audioBuffer: Buffer): Promise<void> {
   const dir = await getStoryDir(storyId);
   await fs.writeFile(path.join(dir, filename), audioBuffer);
-}
-
-export async function updatePageImageVersion(storyId: string, pageNumber: number, imageVersion: string): Promise<void> {
-  await updatePageFields(storyId, pageNumber, { imageVersion });
-}
-
-export async function updatePageAudioData(storyId: string, pageNumber: number, audioUrl: string, audioVersion: string): Promise<void> {
-  await updatePageFields(storyId, pageNumber, { audioUrl, audioVersion });
 }
 
 export async function updateStoryVoice(storyId: string, voice: VoiceKey): Promise<void> {
