@@ -1,7 +1,7 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { config } from '../config.js';
-import type { StoryMeta, Scenario, StoryStatus, VoiceKey } from '../../shared/types.js';
+import type { StoryMeta, Scenario, StoryStatus, VoiceKey, Page } from '../../shared/types.js';
 
 const storiesDir = config.dataDir;
 
@@ -71,6 +71,23 @@ export async function updatePageStatus(storyId: string, pageNumber: number, stat
   });
 }
 
+async function updatePageFields(storyId: string, pageNumber: number, updates: Partial<Pick<Page, 'audioUrl' | 'audioVersion' | 'imageVersion'>>): Promise<void> {
+  await withLock(storyId, async () => {
+    const dir = path.join(storiesDir, storyId);
+    const filePath = path.join(dir, 'scenario.json');
+    const data = JSON.parse(await fs.readFile(filePath, 'utf-8')) as StoryMeta;
+
+    if (data.scenario) {
+      const page = data.scenario.pages.find(p => p.pageNumber === pageNumber);
+      if (page) {
+        Object.assign(page, updates);
+      }
+    }
+
+    await fs.writeFile(filePath, JSON.stringify(data, null, 2));
+  });
+}
+
 export async function saveImage(storyId: string, filename: string, base64Data: string): Promise<void> {
   const dir = await getStoryDir(storyId);
   const buffer = Buffer.from(base64Data, 'base64');
@@ -92,19 +109,12 @@ export async function saveAudio(storyId: string, filename: string, audioBuffer: 
   await fs.writeFile(path.join(dir, filename), audioBuffer);
 }
 
-export async function updatePageAudioUrl(storyId: string, pageNumber: number, audioUrl: string): Promise<void> {
-  await withLock(storyId, async () => {
-    const dir = path.join(storiesDir, storyId);
-    const filePath = path.join(dir, 'scenario.json');
-    const data = JSON.parse(await fs.readFile(filePath, 'utf-8')) as StoryMeta;
-    if (data.scenario) {
-      const page = data.scenario.pages.find(p => p.pageNumber === pageNumber);
-      if (page) {
-        page.audioUrl = audioUrl;
-      }
-    }
-    await fs.writeFile(filePath, JSON.stringify(data, null, 2));
-  });
+export async function updatePageImageVersion(storyId: string, pageNumber: number, imageVersion: string): Promise<void> {
+  await updatePageFields(storyId, pageNumber, { imageVersion });
+}
+
+export async function updatePageAudioData(storyId: string, pageNumber: number, audioUrl: string, audioVersion: string): Promise<void> {
+  await updatePageFields(storyId, pageNumber, { audioUrl, audioVersion });
 }
 
 export async function updateStoryVoice(storyId: string, voice: VoiceKey): Promise<void> {

@@ -1,11 +1,12 @@
 import pRetry, { AbortError } from 'p-retry';
 import fs from 'fs/promises';
 import { generateImage } from './gemini.js';
-import { saveImage, updatePageStatus as fsUpdatePageStatus, getImagePath } from '../utils/storage.js';
-import { uploadImage, updatePageStatus as sbUpdatePageStatus, downloadImage } from './supabaseStorage.js';
+import { saveImage, updatePageStatus as fsUpdatePageStatus, getImagePath, updatePageImageVersion as fsUpdatePageImageVersion } from '../utils/storage.js';
+import { uploadImage, updatePageStatus as sbUpdatePageStatus, downloadImage, updatePageImageVersion as sbUpdatePageImageVersion } from './supabaseStorage.js';
 import { getCharacterSheetFilename } from './characterSheet.js';
 import { config } from '../config.js';
 import { imageGenerationLimiter } from '../utils/rateLimiter.js';
+import { createAssetVersion, getPageImageFilename } from '../utils/storyMedia.js';
 import type { Page, Character, GenerationProgress } from '../../shared/types.js';
 
 async function saveSceneImage(storyId: string, filename: string, base64: string, userId?: string): Promise<void> {
@@ -21,6 +22,14 @@ async function updatePageStatusBoth(storyId: string, pageNumber: number, status:
     await sbUpdatePageStatus(storyId, pageNumber, status);
   } else {
     await fsUpdatePageStatus(storyId, pageNumber, status);
+  }
+}
+
+async function updatePageImageVersionBoth(storyId: string, pageNumber: number, imageVersion: string): Promise<void> {
+  if (config.useSupabase) {
+    await sbUpdatePageImageVersion(storyId, pageNumber, imageVersion);
+  } else {
+    await fsUpdatePageImageVersion(storyId, pageNumber, imageVersion);
   }
 }
 
@@ -125,7 +134,7 @@ export async function generateSceneImage(
   previousSceneBase64?: string | null,
   pro?: boolean,
 ): Promise<string | null> {
-  const pageFilename = `page-${String(page.pageNumber).padStart(2, '0')}.png`;
+  const pageFilename = getPageImageFilename(page.pageNumber);
 
   await updatePageStatusBoth(storyId, page.pageNumber, 'generating');
     onProgress?.({ message: `Generating image for page ${page.pageNumber}...`, pageNumber: page.pageNumber, pageStatus: 'generating' });
@@ -193,8 +202,11 @@ export async function generateSceneImage(
       },
     );
 
+    const imageVersion = createAssetVersion();
     await saveSceneImage(storyId, pageFilename, base64, userId);
+    await updatePageImageVersionBoth(storyId, page.pageNumber, imageVersion);
     await updatePageStatusBoth(storyId, page.pageNumber, 'completed');
+    page.imageVersion = imageVersion;
 
     onProgress?.({ message: `Page ${page.pageNumber} completed`, pageNumber: page.pageNumber, pageStatus: 'completed' });
     return base64;
@@ -283,7 +295,7 @@ export async function retryFailedSceneImages(
       const prevPage = pages.find(p => p.pageNumber === i && p.status === 'completed');
       if (prevPage) {
         try {
-          const filename = `page-${String(i).padStart(2, '0')}.png`;
+          const filename = getPageImageFilename(i);
           previousSceneBase64 = await downloadImageForRetry(storyId, filename, userId);
           break;
         } catch {

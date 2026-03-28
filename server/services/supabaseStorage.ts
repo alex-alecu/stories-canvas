@@ -1,6 +1,7 @@
 import { getSupabase } from './supabase.js';
 import { config } from '../config.js';
 import type { StoryMeta, StoryStatus, Scenario, PageStatus, VoiceKey } from '../../shared/types.js';
+import { MEDIA_CACHE_MAX_AGE_SECONDS } from '../utils/storyMedia.js';
 
 const BUCKET = 'story-images';
 
@@ -231,6 +232,7 @@ export async function uploadImage(userId: string | undefined, storyId: string, f
   const { error } = await supabase.storage
     .from(BUCKET)
     .upload(storagePath, buffer, {
+      cacheControl: String(MEDIA_CACHE_MAX_AGE_SECONDS),
       contentType: 'image/png',
       upsert: true,
     });
@@ -255,6 +257,7 @@ export async function uploadAudio(userId: string | undefined, storyId: string, f
   const { error } = await supabase.storage
     .from(BUCKET)
     .upload(storagePath, audioBuffer, {
+      cacheControl: String(MEDIA_CACHE_MAX_AGE_SECONDS),
       contentType: 'audio/mpeg',
       upsert: true,
     });
@@ -266,6 +269,27 @@ export async function uploadAudio(userId: string | undefined, storyId: string, f
 export function getAudioUrl(userId: string | undefined, storyId: string, filename: string): string {
   // Uses same bucket and URL pattern as images
   return getImageUrl(userId, storyId, filename);
+}
+
+export async function updatePageImageVersion(id: string, pageNumber: number, imageVersion: string): Promise<void> {
+  const supabase = getSupabase();
+  const { error } = await supabase.rpc('update_page_image_version', {
+    story_id: id,
+    page_number: pageNumber,
+    image_version: imageVersion,
+  });
+  if (error) throw new Error(`Failed to update page image version: ${error.message}`);
+}
+
+export async function updatePageAudioData(id: string, pageNumber: number, audioUrl: string, audioVersion: string): Promise<void> {
+  const supabase = getSupabase();
+  const { error } = await supabase.rpc('update_page_audio_fields', {
+    story_id: id,
+    page_number: pageNumber,
+    audio_url: audioUrl,
+    audio_version: audioVersion,
+  });
+  if (error) throw new Error(`Failed to update page audio data: ${error.message}`);
 }
 
 // ---------- Storage Listing & Download ----------

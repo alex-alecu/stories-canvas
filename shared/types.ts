@@ -66,7 +66,9 @@ export interface Page {
   characters: string[];
   status: PageStatus;
   imageUrl?: string;
+  imageVersion?: string;
   audioUrl?: string;
+  audioVersion?: string;
 }
 
 export interface Scenario {
