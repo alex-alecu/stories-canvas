@@ -1,10 +1,11 @@
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { useStory, useCancelStory } from '../hooks/useStories';
+import { useStory, useCancelStory, useStoryAssets } from '../hooks/useStories';
 import { useStoryGeneration } from '../hooks/useStoryGeneration';
 import StoryViewer from '../components/StoryViewer';
 import GenerationProgress from '../components/GenerationProgress';
 import { useLanguage } from '../i18n/LanguageContext';
+import { warmMediaCache } from '../lib/serviceWorker';
 
 export default function StoryPage() {
   const { id } = useParams<{ id: string }>();
@@ -17,11 +18,44 @@ export default function StoryPage() {
     };
   }, []);
   const { data: story, isLoading, error } = useStory(id);
+  const shouldWarmMediaCache = import.meta.env.PROD && story?.status === 'completed';
+  const { data: storyAssets } = useStoryAssets(id, shouldWarmMediaCache);
   const isGenerating = story?.status !== 'completed' && story?.status !== 'failed' && story?.status !== 'cancelled';
   const { progress } = useStoryGeneration(isGenerating ? id ?? null : null);
   const cancelStory = useCancelStory();
   const navigate = useNavigate();
   const { t } = useLanguage();
+  const lastWarmupKeyRef = useRef<string | null>(null);
+
+  const warmupUrls = useMemo(() => {
+    if (story?.status !== 'completed' || !story.scenario) return [];
+
+    const urls = new Set<string>();
+    for (const page of story.scenario.pages) {
+      if (page.status === 'completed' && page.imageUrl) {
+        urls.add(page.imageUrl);
+      }
+      if (page.audioUrl) {
+        urls.add(page.audioUrl);
+      }
+    }
+
+    for (const sheet of storyAssets?.characterSheets ?? []) {
+      urls.add(sheet.url);
+    }
+
+    return [...urls];
+  }, [story, storyAssets]);
+
+  useEffect(() => {
+    if (warmupUrls.length === 0) return;
+
+    const warmupKey = warmupUrls.join('|');
+    if (lastWarmupKeyRef.current === warmupKey) return;
+
+    lastWarmupKeyRef.current = warmupKey;
+    warmMediaCache(warmupUrls);
+  }, [warmupUrls]);
 
   const handleCancelStory = useCallback(async () => {
     if (!id) return;

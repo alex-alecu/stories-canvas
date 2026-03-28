@@ -6,6 +6,7 @@ import { uploadImage, updatePageStatus as sbUpdatePageStatus, downloadImage } fr
 import { getCharacterSheetFilename } from './characterSheet.js';
 import { config } from '../config.js';
 import { imageGenerationLimiter } from '../utils/rateLimiter.js';
+import { getPageImageFilename } from '../utils/storyMedia.js';
 import type { Page, Character, GenerationProgress } from '../../shared/types.js';
 
 async function saveSceneImage(storyId: string, filename: string, base64: string, userId?: string): Promise<void> {
@@ -125,7 +126,7 @@ export async function generateSceneImage(
   previousSceneBase64?: string | null,
   pro?: boolean,
 ): Promise<string | null> {
-  const pageFilename = `page-${String(page.pageNumber).padStart(2, '0')}.png`;
+  const pageFilename = getPageImageFilename(page.pageNumber);
 
   await updatePageStatusBoth(storyId, page.pageNumber, 'generating');
     onProgress?.({ message: `Generating image for page ${page.pageNumber}...`, pageNumber: page.pageNumber, pageStatus: 'generating' });
@@ -283,7 +284,7 @@ export async function retryFailedSceneImages(
       const prevPage = pages.find(p => p.pageNumber === i && p.status === 'completed');
       if (prevPage) {
         try {
-          const filename = `page-${String(i).padStart(2, '0')}.png`;
+          const filename = getPageImageFilename(i);
           previousSceneBase64 = await downloadImageForRetry(storyId, filename, userId);
           break;
         } catch {

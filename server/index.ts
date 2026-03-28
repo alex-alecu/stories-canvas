@@ -11,6 +11,13 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 
 app.use(express.json());
+app.use('/api', (req, res, next) => {
+  if (req.method === 'GET' && !/^\/stories\/[^/]+\/(images|audio)\//.test(req.path)) {
+    res.setHeader('Cache-Control', 'private, no-cache, max-age=0, must-revalidate');
+    res.vary('Authorization');
+  }
+  next();
+});
 
 // API routes
 app.use('/api/stories', storiesRouter);

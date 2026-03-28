@@ -7,6 +7,7 @@ import { ThemeProvider } from './contexts/ThemeContext';
 import { FontSizeProvider } from './contexts/FontSizeContext';
 import { LanguageProvider } from './i18n/LanguageContext';
 import App from './App';
+import { registerServiceWorker } from './lib/serviceWorker';
 import './index.css';
 
 const queryClient = new QueryClient({
@@ -17,6 +18,8 @@ const queryClient = new QueryClient({
     },
   },
 });
+
+registerServiceWorker();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

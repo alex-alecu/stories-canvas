@@ -1,8 +1,9 @@
 import { ElevenLabsClient } from '@elevenlabs/elevenlabs-js';
 import pRetry, { AbortError } from 'p-retry';
 import { config } from '../config.js';
-import { uploadAudio } from './supabaseStorage.js';
-import { saveAudio } from '../utils/storage.js';
+import { uploadAudio, updatePageAudioUrl as sbUpdatePageAudioUrl } from './supabaseStorage.js';
+import { saveAudio, updatePageAudioUrl as fsUpdatePageAudioUrl } from '../utils/storage.js';
+import { getPageAudioFilename } from '../utils/storyMedia.js';
 import type { Page, VoiceKey, GenerationProgress } from '../../shared/types.js';
 
 let client: ElevenLabsClient | null = null;
@@ -138,6 +139,14 @@ async function savePageAudio(storyId: string, filename: string, audioBuffer: Buf
   }
 }
 
+async function updatePageAudioUrlBoth(storyId: string, pageNumber: number, audioUrl: string): Promise<void> {
+  if (config.useSupabase) {
+    await sbUpdatePageAudioUrl(storyId, pageNumber, audioUrl);
+  } else {
+    await fsUpdatePageAudioUrl(storyId, pageNumber, audioUrl);
+  }
+}
+
 type AudioProgressCallback = (progress: Partial<GenerationProgress>) => void;
 
 export interface AudioGenerationResult {
@@ -165,8 +174,7 @@ export async function generateAllPageAudio(
     // On unrecoverable error (auth/quota), skip remaining pages
     if (fatalError) break;
 
-    const pageNum = String(page.pageNumber).padStart(2, '0');
-    const filename = `page-${pageNum}.mp3`;
+    const filename = getPageAudioFilename(page.pageNumber);
 
     try {
       onProgress?.({
@@ -177,21 +185,8 @@ export async function generateAllPageAudio(
 
       const audioBuffer = await generatePageAudio(page.text, voiceKey);
       const audioUrl = await savePageAudio(storyId, filename, audioBuffer, userId);
-
-      // Update the page object's audioUrl in the scenario (persisted to DB or filesystem)
-      if (config.useSupabase) {
-        const { getSupabase } = await import('./supabase.js');
-        const supabase = getSupabase();
-        // Update the audioUrl in the JSONB scenario
-        await supabase.rpc('update_page_audio_url', {
-          story_id: storyId,
-          page_number: page.pageNumber,
-          audio_url: audioUrl,
-        });
-      } else {
-        const { updatePageAudioUrl } = await import('../utils/storage.js');
-        await updatePageAudioUrl(storyId, page.pageNumber, audioUrl);
-      }
+      await updatePageAudioUrlBoth(storyId, page.pageNumber, audioUrl);
+      page.audioUrl = audioUrl;
 
       completedCount++;
       onProgress?.({
@@ -253,8 +248,7 @@ export async function retryMissingAudio(
     if (signal.aborted) throw new Error('Generation cancelled');
     if (fatalError) break;
 
-    const pageNum = String(page.pageNumber).padStart(2, '0');
-    const filename = `page-${pageNum}.mp3`;
+    const filename = getPageAudioFilename(page.pageNumber);
 
     try {
       onProgress?.({
@@ -265,20 +259,8 @@ export async function retryMissingAudio(
 
       const audioBuffer = await generatePageAudio(page.text, voiceKey);
       const audioUrl = await savePageAudio(storyId, filename, audioBuffer, userId);
-
-      // Update the page's audioUrl in DB
-      if (config.useSupabase) {
-        const { getSupabase } = await import('./supabase.js');
-        const supabase = getSupabase();
-        await supabase.rpc('update_page_audio_url', {
-          story_id: storyId,
-          page_number: page.pageNumber,
-          audio_url: audioUrl,
-        });
-      } else {
-        const { updatePageAudioUrl } = await import('../utils/storage.js');
-        await updatePageAudioUrl(storyId, page.pageNumber, audioUrl);
-      }
+      await updatePageAudioUrlBoth(storyId, page.pageNumber, audioUrl);
+      page.audioUrl = audioUrl;
 
       completedCount++;
       onProgress?.({

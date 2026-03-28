@@ -11,6 +11,7 @@ import { generateAllPageAudio, retryMissingAudio, isElevenLabsConfigured } from 
 import { optionalAuth } from '../middleware/auth.js';
 import type { GenerationProgress, CreateStoryRequest, StoryStatus, StoryMeta, Scenario, ArtStyleKey, VoiceKey, StoryAssets, RetryStoryResponse } from '../../shared/types.js';
 import { ART_STYLES, DEFAULT_AGE, DEFAULT_ART_STYLE } from '../../shared/types.js';
+import { MEDIA_CACHE_CONTROL, getPageAudioFilename, getPageImageFilename, pageHasAudio } from '../utils/storyMedia.js';
 
 const router = Router();
 
@@ -55,18 +56,34 @@ async function removeStory(storyId: string, userId?: string): Promise<boolean> {
 
 // ---------- Image URL helpers ----------
 
+function getStoryImageUrl(storyId: string, filename: string, userId?: string): string {
+  return config.useSupabase
+    ? sbStorage.getImageUrl(userId, storyId, filename)
+    : `/api/stories/${storyId}/images/${filename}`;
+}
+
+function getStoryAudioUrl(storyId: string, filename: string, userId?: string): string {
+  return config.useSupabase
+    ? sbStorage.getAudioUrl(userId, storyId, filename)
+    : `/api/stories/${storyId}/audio/${filename}`;
+}
+
 function getPageImageUrl(storyId: string, pageNumber: number, userId?: string): string {
-  const filename = `page-${String(pageNumber).padStart(2, '0')}.png`;
-  if (config.useSupabase) {
-    return sbStorage.getImageUrl(userId, storyId, filename);
-  }
-  return `/api/stories/${storyId}/images/${filename}`;
+  return getStoryImageUrl(storyId, getPageImageFilename(pageNumber), userId);
+}
+
+function getPageAudioUrl(storyId: string, pageNumber: number, userId?: string): string {
+  return getStoryAudioUrl(storyId, getPageAudioFilename(pageNumber), userId);
 }
 
 function getCoverImageUrl(story: StoryMeta): string | undefined {
   if (!story.scenario?.pages?.[0]) return undefined;
   if (story.scenario.pages[0].status !== 'completed') return undefined;
   return getPageImageUrl(story.id, story.scenario.pages[0].pageNumber, story.userId);
+}
+
+function storyHasAudio(story: StoryMeta): boolean {
+  return story.scenario?.pages?.some(pageHasAudio) ?? false;
 }
 
 // ---------- Active generation abort controllers ----------
@@ -134,7 +151,7 @@ router.get('/public', async (req: Request, res: Response) => {
       totalPages: s.scenario?.pages?.length ?? 0,
       completedPages: s.scenario?.pages?.filter(p => p.status === 'completed').length ?? 0,
       isPublic: s.isPublic,
-      hasAudio: s.scenario?.pages?.some(p => !!p.audioUrl) ?? false,
+      hasAudio: storyHasAudio(s),
     }));
     res.json(summaries);
   } catch (error) {
@@ -163,7 +180,7 @@ router.get('/mine', optionalAuth, async (req: Request, res: Response) => {
         totalPages: s.scenario?.pages?.length ?? 0,
         completedPages: s.scenario?.pages?.filter(p => p.status === 'completed').length ?? 0,
         isPublic: s.isPublic,
-        hasAudio: s.scenario?.pages?.some(p => !!p.audioUrl) ?? false,
+        hasAudio: storyHasAudio(s),
       }));
       res.json(summaries);
     } else {
@@ -201,7 +218,7 @@ router.get('/', optionalAuth, async (req: Request, res: Response) => {
       totalPages: s.scenario?.pages?.length ?? 0,
       completedPages: s.scenario?.pages?.filter(p => p.status === 'completed').length ?? 0,
       isPublic: s.isPublic,
-      hasAudio: s.scenario?.pages?.some(p => !!p.audioUrl) ?? false,
+      hasAudio: storyHasAudio(s),
     }));
     res.json(summaries);
   } catch (error) {
@@ -538,8 +555,8 @@ router.post('/:id/retry', optionalAuth, async (req: Request, res: Response) => {
 
     const pages = story.scenario.pages;
     const failedImagePages = pages.filter(p => p.status === 'failed').map(p => p.pageNumber);
-    const hasAudioPages = pages.some(p => !!p.audioUrl);
-    const missingAudioPages = pages.filter(p => !p.audioUrl);
+    const hasAudioPages = pages.some(pageHasAudio);
+    const missingAudioPages = pages.filter(p => !pageHasAudio(p));
     // Story should have audio if it has a voice setting OR some pages already have audio
     const shouldHaveAudio = !!story.voice || hasAudioPages;
     const needsAudioRetry = shouldHaveAudio && missingAudioPages.length > 0;
@@ -654,7 +671,7 @@ async function runRetryPipeline(
       // We need to re-fetch the story to get updated page data after image retry
       const updatedStory = await getStory(storyId);
       const updatedPages = updatedStory?.scenario?.pages || scenario.pages;
-      const pagesNeedingAudio = updatedPages.filter(p => !p.audioUrl);
+      const pagesNeedingAudio = updatedPages.filter(p => !pageHasAudio(p));
 
       // Use voice from freshest DB data, falling back to original story object
       const voiceKey: VoiceKey | undefined = updatedStory?.voice || story.voice;
@@ -776,7 +793,7 @@ router.post('/:id/generate-audio', optionalAuth, async (req: Request, res: Respo
     }
 
     // Reject if story already has narration (voice set or any page has audio)
-    const alreadyHasAudio = story.scenario.pages.some(p => !!p.audioUrl);
+    const alreadyHasAudio = story.scenario.pages.some(pageHasAudio);
     if (story.voice || alreadyHasAudio) {
       res.status(400).json({ error: 'Story already has narration. Use retry to fix missing pages.' });
       return;
@@ -839,7 +856,7 @@ async function runAudioGenerationPipeline(
     await updateStoryStatus(storyId, 'generating_audio');
 
     // Only generate audio for pages that don't already have it (defense in depth)
-    const pagesNeedingAudio = scenario.pages.filter(p => !p.audioUrl);
+    const pagesNeedingAudio = scenario.pages.filter(p => !pageHasAudio(p));
     const totalToGenerate = pagesNeedingAudio.length;
 
     await sendProgressUpdate(storyId, {
@@ -959,14 +976,13 @@ router.get('/:id/assets', optionalAuth, async (req: Request, res: Response) => {
           const filename = getCharacterSheetFilename(char.name);
           assets.characterSheets.push({
             name: char.name,
-            url: `/api/stories/${storyId}/images/${filename}`,
+            url: getStoryImageUrl(storyId, filename, story.userId),
           });
         }
         for (const page of story.scenario.pages) {
-          const filename = `page-${String(page.pageNumber).padStart(2, '0')}.png`;
           assets.pageImages.push({
             pageNumber: page.pageNumber,
-            url: `/api/stories/${storyId}/images/${filename}`,
+            url: getPageImageUrl(storyId, page.pageNumber, story.userId),
           });
         }
       }
@@ -979,8 +995,6 @@ router.get('/:id/assets', optionalAuth, async (req: Request, res: Response) => {
     const assets: StoryAssets = { characterSheets: [], pageImages: [] };
 
     for (const filename of files) {
-      const url = sbStorage.getImageUrl(story.userId, storyId, filename);
-
       if (filename.startsWith('character-sheet-') && filename.endsWith('.png')) {
         // Extract character name from filename: character-sheet-{name}.png
         const rawName = filename.replace('character-sheet-', '').replace('.png', '');
@@ -990,13 +1004,16 @@ router.get('/:id/assets', optionalAuth, async (req: Request, res: Response) => {
         );
         assets.characterSheets.push({
           name: matchedChar?.name || rawName,
-          url,
+          url: getStoryImageUrl(storyId, filename, story.userId),
         });
       } else if (filename.startsWith('page-') && filename.endsWith('.png')) {
         const numStr = filename.replace('page-', '').replace('.png', '');
         const pageNumber = parseInt(numStr, 10);
         if (!isNaN(pageNumber)) {
-          assets.pageImages.push({ pageNumber, url });
+          assets.pageImages.push({
+            pageNumber,
+            url: getPageImageUrl(storyId, pageNumber, story.userId),
+          });
         }
       }
     }
@@ -1035,6 +1052,9 @@ router.get('/:id', optionalAuth, async (req: Request, res: Response) => {
       for (const page of story.scenario.pages) {
         if (page.status === 'completed') {
           page.imageUrl = getPageImageUrl(story.id, page.pageNumber, story.userId);
+        }
+        if (pageHasAudio(page)) {
+          page.audioUrl = getPageAudioUrl(story.id, page.pageNumber, story.userId);
         }
       }
     }
@@ -1263,6 +1283,7 @@ router.get('/:id/images/:filename', async (req: Request, res: Response) => {
       return;
     }
 
+    res.setHeader('Cache-Control', MEDIA_CACHE_CONTROL);
     res.sendFile(imagePath);
   } catch (error) {
     console.error('Failed to serve image:', error);
@@ -1297,6 +1318,7 @@ router.get('/:id/audio/:filename', async (req: Request, res: Response) => {
     }
 
     res.setHeader('Content-Type', 'audio/mpeg');
+    res.setHeader('Cache-Control', MEDIA_CACHE_CONTROL);
     res.sendFile(audioPath);
   } catch (error) {
     console.error('Failed to serve audio:', error);
