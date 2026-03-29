@@ -8,9 +8,10 @@ import { generateScenario } from '../services/scenario.js';
 import { generateAllCharacterSheets } from '../services/characterSheet.js';
 import { generateAllSceneImages, retryFailedSceneImages } from '../services/sceneGenerator.js';
 import { generateAllPageAudio, retryMissingAudio, isElevenLabsConfigured } from '../services/elevenlabs.js';
+import { getArtStyleDescription, getStoryArtStyleDescription, resolveArtStyle } from '../services/storyStyle.js';
 import { optionalAuth } from '../middleware/auth.js';
 import type { GenerationProgress, CreateStoryRequest, StoryStatus, StoryMeta, Scenario, ArtStyleKey, VoiceKey, StoryAssets, RetryStoryResponse } from '../../shared/types.js';
-import { ART_STYLES, DEFAULT_AGE, DEFAULT_ART_STYLE, VOICE_OPTIONS } from '../../shared/types.js';
+import { DEFAULT_AGE, VOICE_OPTIONS } from '../../shared/types.js';
 import { MEDIA_CACHE_CONTROL, getPageAudioFilename, getPageImageFilename, pageHasAudio } from '../utils/storyMedia.js';
 
 const router = Router();
@@ -19,11 +20,18 @@ const SSE_CLOSE_DELAY_MS = 2_000;
 
 // ---------- Storage adapter (delegates to Supabase or filesystem) ----------
 
-async function saveScenario(storyId: string, scenario: Scenario, status: StoryStatus, prompt: string, voice?: VoiceKey): Promise<void> {
+async function saveScenario(
+  storyId: string,
+  scenario: Scenario,
+  status: StoryStatus,
+  prompt: string,
+  voice?: VoiceKey,
+  artStyle?: ArtStyleKey,
+): Promise<void> {
   if (config.useSupabase) {
-    await sbStorage.updateStoryScenario(storyId, scenario, status, prompt);
+    await sbStorage.updateStoryScenario(storyId, scenario, status, prompt, artStyle);
   } else {
-    await fsStorage.saveScenario(storyId, scenario, status, prompt, voice);
+    await fsStorage.saveScenario(storyId, scenario, status, prompt, voice, artStyle);
   }
 }
 
@@ -321,7 +329,7 @@ router.post('/', optionalAuth, async (req: Request, res: Response) => {
 
     const storyLanguage = typeof language === 'string' ? language : 'ro';
     const storyAge = typeof age === 'number' && age > 0 && age <= 12 ? age : DEFAULT_AGE;
-    const storyStyle: ArtStyleKey = (typeof style === 'string' && style in ART_STYLES) ? style as ArtStyleKey : DEFAULT_ART_STYLE;
+    const storyStyle = resolveArtStyle(typeof style === 'string' ? style : undefined);
     const storyVoice: VoiceKey | undefined = (typeof voice === 'string' && VALID_VOICE_KEYS.has(voice as VoiceKey))
       ? voice as VoiceKey
       : undefined;
@@ -330,7 +338,7 @@ router.post('/', optionalAuth, async (req: Request, res: Response) => {
 
     // Create the story in DB IMMEDIATELY so it's available for SSE and refresh
     if (config.useSupabase) {
-      await sbStorage.createStory(storyId, trimmedPrompt, 'generating_scenario', userId, storyLanguage, storyVoice);
+      await sbStorage.createStory(storyId, trimmedPrompt, 'generating_scenario', userId, storyLanguage, storyVoice, storyStyle);
     }
 
     // Return immediately, generation happens in background
@@ -365,7 +373,7 @@ async function runGenerationPipeline(storyId: string, prompt: string, userId?: s
 
     if (signal.aborted) throw new Error('Generation cancelled');
     const scenario = await generateScenario(prompt, language, age, style);
-    await saveScenario(storyId, scenario, 'generating_characters', prompt, voice);
+    await saveScenario(storyId, scenario, 'generating_characters', prompt, voice, style);
 
     if (signal.aborted) throw new Error('Generation cancelled');
     await sendProgressUpdate(storyId, {
@@ -379,7 +387,7 @@ async function runGenerationPipeline(storyId: string, prompt: string, userId?: s
     });
 
     // Phase 2: Generate character sheets (sequential)
-    const styleDescription = style ? ART_STYLES[style] : ART_STYLES[DEFAULT_ART_STYLE];
+    const styleDescription = getArtStyleDescription(style);
     const characterSheets = await generateAllCharacterSheets(storyId, scenario.characters, userId, signal, styleDescription, pro);
 
     if (signal.aborted) throw new Error('Generation cancelled');
@@ -678,9 +686,7 @@ async function runRetryPipeline(
         message: `Retrying ${failedImagePages.length} failed illustration(s)...`,
       });
 
-      // TODO: Art style is not stored on StoryMeta — retried images use the default
-      // style, which may mismatch the original. Thread `artStyle` similarly to `voice` to fix.
-      const styleDescription = ART_STYLES[DEFAULT_ART_STYLE];
+      const styleDescription = getStoryArtStyleDescription(story);
       const failedPages: number[] = [];
 
       await retryFailedSceneImages(

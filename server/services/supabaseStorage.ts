@@ -1,13 +1,22 @@
 import { getSupabase } from './supabase.js';
 import { config } from '../config.js';
-import type { StoryMeta, StoryStatus, Scenario, PageStatus, VoiceKey } from '../../shared/types.js';
+import type { ArtStyleKey, StoryMeta, StoryStatus, Scenario, PageStatus, VoiceKey } from '../../shared/types.js';
 import { MEDIA_CACHE_MAX_AGE_SECONDS } from '../utils/storyMedia.js';
+import { parseArtStyle } from './storyStyle.js';
 
 const BUCKET = 'story-images';
 
 // ---------- Story CRUD ----------
 
-export async function createStory(id: string, prompt: string, status: StoryStatus, userId?: string, language?: string, voice?: string): Promise<void> {
+export async function createStory(
+  id: string,
+  prompt: string,
+  status: StoryStatus,
+  userId?: string,
+  language?: string,
+  voice?: VoiceKey,
+  artStyle?: ArtStyleKey,
+): Promise<void> {
   const supabase = getSupabase();
   const { error } = await supabase.from('stories').insert({
     id,
@@ -16,6 +25,7 @@ export async function createStory(id: string, prompt: string, status: StoryStatu
     user_id: userId ?? null,
     language: language ?? 'ro',
     voice: voice ?? null,
+    art_style: artStyle ?? null,
     current_phase: 'Generating story scenario...',
     progress_message: 'Creating your story...',
   });
@@ -47,6 +57,7 @@ export async function updateStoryScenario(
   scenario: Scenario,
   status: StoryStatus,
   prompt: string,
+  artStyle?: ArtStyleKey,
 ): Promise<void> {
   const supabase = getSupabase();
   const { error } = await supabase
@@ -58,6 +69,7 @@ export async function updateStoryScenario(
       total_pages: scenario.pages.length,
       status,
       prompt,
+      art_style: artStyle ?? null,
     })
     .eq('id', id);
   if (error) throw new Error(`Failed to update story scenario: ${error.message}`);
@@ -89,6 +101,7 @@ interface StoryRow {
   progress_message: string | null;
   user_id: string | null;
   is_public: boolean;
+  art_style: string | null;
   voice: string | null;
 }
 
@@ -102,6 +115,7 @@ function rowToStoryMeta(row: StoryRow): StoryMeta {
     coverImage: row.cover_image_url ?? undefined,
     userId: row.user_id ?? undefined,
     isPublic: row.is_public ?? false,
+    artStyle: parseArtStyle(row.art_style),
     voice: (row.voice as VoiceKey) ?? undefined,
   };
 }
