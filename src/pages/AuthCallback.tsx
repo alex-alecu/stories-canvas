@@ -22,7 +22,6 @@ export default function AuthCallback() {
 
     if (errorParam) {
       console.error('[AuthCallback] OAuth error:', errorParam, errorDescription);
-      clearReturnToPath();
       setError(errorDescription || errorParam);
       return;
     }
@@ -70,8 +69,7 @@ export default function AuthCallback() {
           return;
         }
         console.warn('[AuthCallback] Timed out waiting for session');
-        clearReturnToPath();
-        navigate('/', { replace: true });
+        navigate(`/login?returnTo=${encodeURIComponent(returnTo)}`, { replace: true });
       }, 10_000);
     }
 
@@ -102,7 +100,7 @@ export default function AuthCallback() {
           <p className="text-red-600 dark:text-red-400 text-lg font-medium mb-2">{t.authError}</p>
           <p className="text-gray-500 dark:text-gray-400 text-sm mb-4">{error}</p>
           <button
-            onClick={() => navigate('/login', { replace: true })}
+            onClick={() => navigate(`/login?returnTo=${encodeURIComponent(getReturnToPath('/'))}`, { replace: true })}
             className="text-primary-600 dark:text-primary-400 hover:underline text-sm"
           >
             {t.backToLogin}
