@@ -1,32 +1,18 @@
-import fs from 'fs/promises';
-import path from 'path';
-import { generateJSON } from './gemini.js';
+import { config } from '../config.js';
+import * as gemini from './gemini.js';
+import {
+  buildDraftScenarioPrompt,
+  buildRepairScenarioPrompt,
+  buildStoryPromptContext,
+  buildStorySystemInstruction,
+  type StoryPromptContext,
+} from './storyPrompt.js';
+import {
+  formatScenarioValidationIssues,
+  normalizeScenarioWhitespace,
+  validateScenario,
+} from './scenarioValidation.js';
 import type { Scenario, ArtStyleKey } from '../../shared/types.js';
-import { ART_STYLES, DEFAULT_ART_STYLE, DEFAULT_AGE } from '../../shared/types.js';
-
-const STORY_PROMPTS_DIR = path.join(process.cwd(), 'story-prompts');
-
-const VALID_LANGUAGES = new Set([
-  'ro',
-  'de',
-  'es',
-  'en',
-  'fr',
-  'it',
-  'pt',
-  'nl',
-  'hu',
-  'pl',
-  'cs',
-  'sk',
-  'sv',
-  'no',
-  'da',
-  'fi',
-  'ja',
-  'zh',
-  'ko',
-]);
 
 const scenarioSchema = {
   type: 'OBJECT',
@@ -83,7 +69,7 @@ const scenarioSchema = {
           },
           text: {
             type: 'STRING',
-            description: 'Story text for this page (1-2 paragraphs)',
+            description: 'Story text for this page (one short paragraph)',
           },
           imagePrompt: {
             type: 'STRING',
@@ -97,25 +83,110 @@ const scenarioSchema = {
         },
         required: ['pageNumber', 'text', 'imagePrompt', 'characters'],
       },
-      description: 'Story pages (6-20 pages, aim for longer stories)',
+      description: 'Story pages (6-20 pages)',
     },
   },
   required: ['title', 'targetAge', 'characters', 'pages'],
 };
 
-async function getStoryPrompt(language: string): Promise<string> {
-  // Try language-specific prompt first
-  if (VALID_LANGUAGES.has(language)) {
-    const langPath = path.join(STORY_PROMPTS_DIR, `${language}.md`);
-    try {
-      return await fs.readFile(langPath, 'utf-8');
-    } catch {
-      // Fall through to fallback
-    }
+type GenerateJSONFn = typeof gemini.generateJSON;
+
+function finalizeScenario(scenario: Scenario): Scenario {
+  const normalized = normalizeScenarioWhitespace(scenario);
+
+  return {
+    ...normalized,
+    pages: normalized.pages.map(page => ({
+      ...page,
+      status: 'pending',
+    })),
+  };
+}
+
+async function generateDraftScenario(
+  context: StoryPromptContext,
+  systemInstruction: string,
+  generateJSON: GenerateJSONFn,
+): Promise<Scenario> {
+  return generateJSON<Scenario>(
+    buildDraftScenarioPrompt(context),
+    systemInstruction,
+    scenarioSchema,
+    {
+      temperature: config.scenarioTemperature,
+      thinkingConfig: {
+        thinkingBudget: config.scenarioThinkingBudget,
+      },
+    },
+  );
+}
+
+async function generateRepairScenario(
+  context: StoryPromptContext,
+  systemInstruction: string,
+  draftScenario: Scenario,
+  repairPass: number,
+  generateJSON: GenerateJSONFn,
+): Promise<Scenario> {
+  const issues = validateScenario(draftScenario, context.targetAge);
+
+  return generateJSON<Scenario>(
+    buildRepairScenarioPrompt(context, normalizeScenarioWhitespace(draftScenario), issues, repairPass),
+    systemInstruction,
+    scenarioSchema,
+    {
+      temperature: config.scenarioReviewTemperature,
+      thinkingConfig: {
+        thinkingBudget: config.scenarioReviewThinkingBudget,
+      },
+    },
+  );
+}
+
+export async function generateScenarioWithModel(
+  userPrompt: string,
+  language: string | undefined,
+  age: number | undefined,
+  style: ArtStyleKey | undefined,
+  generateJSON: GenerateJSONFn,
+): Promise<Scenario> {
+  const context = buildStoryPromptContext(userPrompt, language, age, style);
+  const systemInstruction = buildStorySystemInstruction(context);
+
+  const draftScenario = await generateDraftScenario(context, systemInstruction, generateJSON);
+  const repairedScenario = await generateRepairScenario(
+    context,
+    systemInstruction,
+    draftScenario,
+    1,
+    generateJSON,
+  );
+
+  const repairIssues = validateScenario(repairedScenario, context.targetAge);
+  if (repairIssues.length === 0) {
+    return finalizeScenario(repairedScenario);
   }
 
-  // Fallback to Romanian
-  return fs.readFile(path.join(STORY_PROMPTS_DIR, `ro.md`), 'utf-8');
+  const secondRepairScenario = await generateJSON<Scenario>(
+    buildRepairScenarioPrompt(context, normalizeScenarioWhitespace(repairedScenario), repairIssues, 2),
+    systemInstruction,
+    scenarioSchema,
+    {
+      temperature: config.scenarioReviewTemperature,
+      thinkingConfig: {
+        thinkingBudget: config.scenarioReviewThinkingBudget,
+      },
+    },
+  );
+
+  const secondRepairIssues = validateScenario(secondRepairScenario, context.targetAge);
+  if (secondRepairIssues.length > 0) {
+    throw new Error(
+      `Scenario failed validation after repair: ${formatScenarioValidationIssues(secondRepairIssues)}`,
+    );
+  }
+
+  return finalizeScenario(secondRepairScenario);
 }
 
 export async function generateScenario(
@@ -124,41 +195,5 @@ export async function generateScenario(
   age?: number,
   style?: ArtStyleKey,
 ): Promise<Scenario> {
-  const lang = language && VALID_LANGUAGES.has(language) ? language : 'ro';
-  let systemInstruction = await getStoryPrompt(lang);
-
-  // Replace the default Disney/Pixar style in the system prompt with the user-selected style
-  const styleDesc = style ? ART_STYLES[style] : ART_STYLES[DEFAULT_ART_STYLE];
-  systemInstruction = systemInstruction.replace(
-    /Disney\/Pixar 3D animation style with warm, round, and friendly character designs/g,
-    styleDesc,
-  );
-
-  // Build enhanced prompt with age context
-  const targetAge = age ?? DEFAULT_AGE;
-  const enhancedPrompt = `[Target age: ${targetAge} years old]\n[Art style: ${styleDesc}]\n\n${userPrompt}`;
-
-  const scenario = await generateJSON<Scenario>(
-    enhancedPrompt,
-    systemInstruction,
-    scenarioSchema,
-  );
-
-  // Ensure all pages have pending status
-  scenario.pages = scenario.pages.map((page) => ({
-    ...page,
-    status: page.status ?? 'pending',
-  }));
-
-  // Enforce max 3 characters
-  if (scenario.characters.length > 3) {
-    scenario.characters = scenario.characters.slice(0, 3);
-  }
-
-  // Enforce max 20 pages
-  if (scenario.pages.length > 20) {
-    scenario.pages = scenario.pages.slice(0, 20);
-  }
-
-  return scenario;
+  return generateScenarioWithModel(userPrompt, language, age, style, gemini.generateJSON);
 }
