@@ -12,13 +12,14 @@
     "dev:client": "vite",
     "test:server": "tsx --test server/**/*.test.ts",
     "build": "vite build && tsup",
-    "migrate:railway": "sh -c 'test -n \"$SUPABASE_ACCESS_TOKEN\" || { echo \"SUPABASE_ACCESS_TOKEN is required\"; exit 1; }; test -n \"$SUPABASE_DB_PASSWORD\" || { echo \"SUPABASE_DB_PASSWORD is required\"; exit 1; }; npx supabase db push --linked --password \"$SUPABASE_DB_PASSWORD\" --yes'",
+    "migrate:railway": "sh -c 'test -n \"$SUPABASE_ACCESS_TOKEN\" || { echo \"SUPABASE_ACCESS_TOKEN is required\"; exit 1; }; test -n \"$SUPABASE_PROJECT_REF\" || { echo \"SUPABASE_PROJECT_REF is required\"; exit 1; }; test -n \"$SUPABASE_DB_PASSWORD\" || { echo \"SUPABASE_DB_PASSWORD is required\"; exit 1; }; supabase link --project-ref \"$SUPABASE_PROJECT_REF\" --password \"$SUPABASE_DB_PASSWORD\" --yes && supabase db push --password \"$SUPABASE_DB_PASSWORD\" --yes'",
     "start": "node dist-server/index.js",
     "preview": "vite preview"
   },
   "dependencies": {
     "@elevenlabs/elevenlabs-js": "^2.37.0",
     "@google/genai": "^0.14.0",
+    "supabase": "2.84.4",
     "@supabase/supabase-js": "^2.97.0",
     "@tanstack/react-query": "^5.62.0",
     "express": "^4.21.0",
