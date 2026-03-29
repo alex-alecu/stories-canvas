@@ -2,7 +2,7 @@ import { createContext, useContext, useState, useEffect, useCallback, type React
 import type { Language, Translations } from './types';
 import { translations, languageList } from './translations';
 import { useAuth } from '../contexts/AuthContext';
-import { supabase } from '../lib/supabase';
+import { readStorageItem, writeStorageItem } from '../lib/browserStorage';
 
 const LANGUAGE_STORAGE_KEY = 'stories-canvas:language';
 const VALID_LANGUAGES = new Set<string>(Object.keys(translations));
@@ -31,23 +31,15 @@ function detectBrowserLanguage(): Language {
 }
 
 function getStoredLanguage(): Language | null {
-  try {
-    const stored = localStorage.getItem(LANGUAGE_STORAGE_KEY);
-    if (stored && isValidLanguage(stored)) {
-      return stored;
-    }
-  } catch {
-    // localStorage unavailable
+  const stored = readStorageItem(LANGUAGE_STORAGE_KEY);
+  if (stored && isValidLanguage(stored)) {
+    return stored;
   }
   return null;
 }
 
 function storeLanguage(lang: Language): void {
-  try {
-    localStorage.setItem(LANGUAGE_STORAGE_KEY, lang);
-  } catch {
-    // localStorage unavailable
-  }
+  writeStorageItem(LANGUAGE_STORAGE_KEY, lang);
 }
 
 interface LanguageContextValue {
@@ -64,12 +56,10 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   const [language, setLanguageState] = useState<Language>(() => {
     return getStoredLanguage() || detectBrowserLanguage();
   });
-  const [loadedFromServer, setLoadedFromServer] = useState(false);
 
   // On mount / user change, try to load language preference from Supabase
   useEffect(() => {
     if (!user || !session) {
-      setLoadedFromServer(false);
       return;
     }
 
@@ -91,8 +81,6 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
         }
       } catch {
         // Silently fail - will use localStorage/browser default
-      } finally {
-        if (!cancelled) setLoadedFromServer(true);
       }
     }
 

@@ -3,8 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '../i18n/LanguageContext';
-
-const RETURN_TO_KEY = 'stories-canvas:returnTo';
+import { normalizeReturnToPath, saveReturnToPath } from '../lib/authRedirect';
 
 type Mode = 'signIn' | 'signUp' | 'forgotPassword';
 
@@ -12,7 +11,7 @@ export default function Login() {
   const { user, loading, signInWithGoogle, signInWithEmail, signUpWithEmail, resetPassword } = useAuth();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const returnTo = searchParams.get('returnTo') || '/';
+  const returnTo = normalizeReturnToPath(searchParams.get('returnTo'), '/');
   const { t } = useLanguage();
 
   const [mode, setMode] = useState<Mode>('signIn');
@@ -24,7 +23,7 @@ export default function Login() {
 
   // Save returnTo so it persists through OAuth redirect
   useEffect(() => {
-    localStorage.setItem(RETURN_TO_KEY, returnTo);
+    saveReturnToPath(returnTo);
   }, [returnTo]);
 
   // Redirect if already logged in

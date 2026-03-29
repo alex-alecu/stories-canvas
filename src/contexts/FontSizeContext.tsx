@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useCallback, type ReactNode } from 'react';
+import { readStoredEnum, writeStorageItem } from '../lib/browserStorage';
 
 export type FontSize = 'small' | 'medium' | 'large';
 
@@ -8,6 +9,7 @@ interface FontSizeContextValue {
 }
 
 const STORAGE_KEY = 'stories-canvas:font-size';
+const FONT_SIZES = ['small', 'medium', 'large'] as const;
 
 const FontSizeContext = createContext<FontSizeContextValue>({
   fontSize: 'medium',
@@ -15,15 +17,7 @@ const FontSizeContext = createContext<FontSizeContextValue>({
 });
 
 function getStoredFontSize(): FontSize {
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored === 'small' || stored === 'medium' || stored === 'large') {
-      return stored;
-    }
-  } catch {
-    // localStorage unavailable
-  }
-  return 'medium';
+  return readStoredEnum(STORAGE_KEY, FONT_SIZES) ?? 'medium';
 }
 
 export function FontSizeProvider({ children }: { children: ReactNode }) {
@@ -31,11 +25,7 @@ export function FontSizeProvider({ children }: { children: ReactNode }) {
 
   const setFontSize = useCallback((newSize: FontSize) => {
     setFontSizeState(newSize);
-    try {
-      localStorage.setItem(STORAGE_KEY, newSize);
-    } catch {
-      // localStorage unavailable
-    }
+    writeStorageItem(STORAGE_KEY, newSize);
   }, []);
 
   return (

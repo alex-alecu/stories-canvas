@@ -1,6 +1,7 @@
 import { Component, type ReactNode, type ErrorInfo } from 'react';
 import { translations } from '../i18n/translations';
 import type { Language, Translations } from '../i18n/types';
+import { readStorageItem } from '../lib/browserStorage';
 
 interface Props {
   children: ReactNode;
@@ -12,26 +13,18 @@ interface State {
 }
 
 function getErrorTranslations(): Translations {
-  try {
-    const stored = localStorage.getItem('stories-canvas:language');
-    if (stored && stored in translations) {
-      return translations[stored as Language];
-    }
-  } catch {
-    // localStorage unavailable
+  const stored = readStorageItem('stories-canvas:language');
+  if (stored && stored in translations) {
+    return translations[stored as Language];
   }
   return translations.en;
 }
 
 function isDarkMode(): boolean {
-  try {
-    const theme = localStorage.getItem('stories-canvas:theme') || 'system';
-    if (theme === 'dark') return true;
-    if (theme === 'light') return false;
-    return window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false;
-  } catch {
-    return false;
-  }
+  const theme = readStorageItem('stories-canvas:theme') || 'system';
+  if (theme === 'dark') return true;
+  if (theme === 'light') return false;
+  return window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false;
 }
 
 export default class ErrorBoundary extends Component<Props, State> {
