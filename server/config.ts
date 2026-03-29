@@ -12,6 +12,18 @@ function optionalEnv(key: string): string | undefined {
   return process.env[key] || undefined;
 }
 
+function numberEnv(
+  key: string,
+  fallback: number,
+  parser: (raw: string) => number,
+): number {
+  const raw = process.env[key];
+  if (!raw) return fallback;
+
+  const parsed = parser(raw);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
 const supabaseUrl = optionalEnv('SUPABASE_URL');
 const supabaseServiceKey = optionalEnv('SUPABASE_SERVICE_KEY');
 
@@ -25,6 +37,10 @@ export const config = {
   dataDir: process.env.DATA_DIR || path.join(process.cwd(), 'data', 'stories'),
   maxPromptLength: 500,
   maxRetries: 3,
+  scenarioTemperature: numberEnv('SCENARIO_TEMPERATURE', 0.6, Number.parseFloat),
+  scenarioReviewTemperature: numberEnv('SCENARIO_REVIEW_TEMPERATURE', 0.2, Number.parseFloat),
+  scenarioThinkingBudget: numberEnv('SCENARIO_THINKING_BUDGET', 1024, raw => Number.parseInt(raw, 10)),
+  scenarioReviewThinkingBudget: numberEnv('SCENARIO_REVIEW_THINKING_BUDGET', 1024, raw => Number.parseInt(raw, 10)),
 
   // Supabase configuration
   supabaseUrl,
