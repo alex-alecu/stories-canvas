@@ -2,20 +2,38 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { GenerationProgress } from '../types';
 
+function isTerminalStatus(status?: GenerationProgress['status']): boolean {
+  return status === 'completed' || status === 'failed' || status === 'cancelled';
+}
+
 export function useStoryGeneration(storyId: string | null) {
   const [progress, setProgress] = useState<GenerationProgress | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const eventSourceRef = useRef<EventSource | null>(null);
   const progressRef = useRef<GenerationProgress | null>(null);
+  const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const queryClient = useQueryClient();
+
+  const clearReconnectTimeout = useCallback(() => {
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
+    }
+  }, []);
+
+  const closeConnection = useCallback(() => {
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close();
+      eventSourceRef.current = null;
+    }
+    setIsConnected(false);
+  }, []);
 
   const connect = useCallback(() => {
     if (!storyId) return;
 
-    // Close existing connection
-    if (eventSourceRef.current) {
-      eventSourceRef.current.close();
-    }
+    clearReconnectTimeout();
+    closeConnection();
 
     const es = new EventSource(`/api/stories/${storyId}/status`);
     eventSourceRef.current = es;
@@ -36,13 +54,15 @@ export function useStoryGeneration(storyId: string | null) {
         }
 
         // Invalidate queries when generation completes, fails, or is cancelled
-        if (data.status === 'completed' || data.status === 'failed' || data.status === 'cancelled') {
+        if (isTerminalStatus(data.status)) {
           queryClient.invalidateQueries({ queryKey: ['stories'] });
           queryClient.invalidateQueries({ queryKey: ['story', storyId] });
-          // Close connection after final event
-          setTimeout(() => {
-            es.close();
-            setIsConnected(false);
+          clearReconnectTimeout();
+          reconnectTimeoutRef.current = setTimeout(() => {
+            reconnectTimeoutRef.current = null;
+            if (eventSourceRef.current === es) {
+              closeConnection();
+            }
           }, 500);
         }
       } catch (e) {
@@ -53,24 +73,40 @@ export function useStoryGeneration(storyId: string | null) {
     es.onerror = () => {
       setIsConnected(false);
       es.close();
+      if (eventSourceRef.current === es) {
+        eventSourceRef.current = null;
+      }
+
       // Attempt reconnect after 3 seconds for non-terminal states
       const currentStatus = progressRef.current?.status;
-      if (currentStatus !== 'completed' && currentStatus !== 'failed' && currentStatus !== 'cancelled') {
-        setTimeout(connect, 3000);
+      if (!isTerminalStatus(currentStatus)) {
+        clearReconnectTimeout();
+        reconnectTimeoutRef.current = setTimeout(() => {
+          reconnectTimeoutRef.current = null;
+          connect();
+        }, 3000);
       }
     };
-  }, [storyId, queryClient]);
+  }, [storyId, queryClient, clearReconnectTimeout, closeConnection]);
 
   useEffect(() => {
+    if (!storyId) {
+      clearReconnectTimeout();
+      closeConnection();
+      progressRef.current = null;
+      setProgress(null);
+      return;
+    }
+
+    progressRef.current = null;
+    setProgress(null);
     connect();
 
     return () => {
-      if (eventSourceRef.current) {
-        eventSourceRef.current.close();
-        setIsConnected(false);
-      }
+      clearReconnectTimeout();
+      closeConnection();
     };
-  }, [storyId]); // Only reconnect when storyId changes, not when connect changes
+  }, [storyId, connect, clearReconnectTimeout, closeConnection]);
 
   return { progress, isConnected };
 }

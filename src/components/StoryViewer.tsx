@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { lazy, Suspense, useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Swiper, SwiperSlide } from 'swiper/react';
 import { Navigation, Keyboard } from 'swiper/modules';
 import type { Swiper as SwiperType } from 'swiper';
@@ -7,29 +7,25 @@ import type { Scenario, GenerationProgress } from '../types';
 import { useLanguage } from '../i18n/LanguageContext';
 import { useFontSize, type FontSize } from '../contexts/FontSizeContext';
 import FontSizeControl from './FontSizeControl';
-import StoryToolsModal from './StoryToolsModal';
+import { readStoredBoolean, readStoredNumber, writeStorageItem } from '../lib/browserStorage';
 import 'swiper/css';
 import 'swiper/css/navigation';
 
 const AUTOPLAY_STORAGE_KEY = 'stories-canvas:auto-play';
 const PLAYBACK_RATE_KEY = 'stories-canvas:playback-rate';
 const PLAYBACK_RATES = [0.8, 0.9, 1] as const;
+const StoryToolsModal = lazy(() => import('./StoryToolsModal'));
 
 function getStoredAutoPlay(): boolean {
-  try {
-    return localStorage.getItem(AUTOPLAY_STORAGE_KEY) === 'true';
-  } catch {
-    return false;
-  }
+  return readStoredBoolean(AUTOPLAY_STORAGE_KEY);
 }
 
 function getStoredPlaybackRate(): number {
-  try {
-    const val = parseFloat(localStorage.getItem(PLAYBACK_RATE_KEY) || '1');
-    return (PLAYBACK_RATES as readonly number[]).includes(val) ? val : 1;
-  } catch {
-    return 1;
-  }
+  return readStoredNumber(
+    PLAYBACK_RATE_KEY,
+    1,
+    value => (PLAYBACK_RATES as readonly number[]).includes(value),
+  );
 }
 
 interface StoryViewerProps {
@@ -97,7 +93,7 @@ export default function StoryViewer({ storyId, scenario, isGenerating, progress,
   const toggleAutoPlay = useCallback(() => {
     setAutoPlay(prev => {
       const next = !prev;
-      try { localStorage.setItem(AUTOPLAY_STORAGE_KEY, String(next)); } catch {}
+      writeStorageItem(AUTOPLAY_STORAGE_KEY, String(next));
       return next;
     });
   }, []);
@@ -116,7 +112,7 @@ export default function StoryViewer({ storyId, scenario, isGenerating, progress,
     setPlaybackRate(prev => {
       const idx = (PLAYBACK_RATES as readonly number[]).indexOf(prev);
       const next = PLAYBACK_RATES[(idx + 1) % PLAYBACK_RATES.length];
-      try { localStorage.setItem(PLAYBACK_RATE_KEY, String(next)); } catch {}
+      writeStorageItem(PLAYBACK_RATE_KEY, String(next));
       return next;
     });
   }, []);
@@ -544,15 +540,19 @@ export default function StoryViewer({ storyId, scenario, isGenerating, progress,
       </Swiper>
 
       {/* Story Tools modal */}
-      <StoryToolsModal
-        isOpen={showTools}
-        onClose={() => setShowTools(false)}
-        storyId={storyId}
-        scenario={scenario}
-        progress={progress}
-        isGenerating={isGenerating}
-        voice={voice}
-      />
+      {showTools && (
+        <Suspense fallback={null}>
+          <StoryToolsModal
+            isOpen={showTools}
+            onClose={() => setShowTools(false)}
+            storyId={storyId}
+            scenario={scenario}
+            progress={progress}
+            isGenerating={isGenerating}
+            voice={voice}
+          />
+        </Suspense>
+      )}
 
       <style>{`
         .story-swiper .swiper-button-next,

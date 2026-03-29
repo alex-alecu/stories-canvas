@@ -1,7 +1,7 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { config } from '../config.js';
-import type { StoryMeta, Scenario, StoryStatus, VoiceKey } from '../../shared/types.js';
+import type { ArtStyleKey, StoryMeta, Scenario, StoryStatus, VoiceKey } from '../../shared/types.js';
 
 const storiesDir = config.dataDir;
 
@@ -33,7 +33,14 @@ export async function getStoryDir(storyId: string): Promise<string> {
   return dir;
 }
 
-export async function saveScenario(storyId: string, scenario: Scenario, status: StoryStatus, prompt: string, voice?: VoiceKey): Promise<void> {
+export async function saveScenario(
+  storyId: string,
+  scenario: Scenario,
+  status: StoryStatus,
+  prompt: string,
+  voice?: VoiceKey,
+  artStyle?: ArtStyleKey,
+): Promise<void> {
   const dir = await getStoryDir(storyId);
   const meta: StoryMeta = {
     id: storyId,
@@ -41,6 +48,7 @@ export async function saveScenario(storyId: string, scenario: Scenario, status: 
     status,
     createdAt: new Date().toISOString(),
     scenario,
+    artStyle,
     voice,
   };
   await fs.writeFile(path.join(dir, 'scenario.json'), JSON.stringify(meta, null, 2));

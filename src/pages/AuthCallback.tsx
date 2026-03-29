@@ -2,8 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useLanguage } from '../i18n/LanguageContext';
-
-const RETURN_TO_KEY = 'stories-canvas:returnTo';
+import { clearReturnToPath, getReturnToPath } from '../lib/authRedirect';
 
 export default function AuthCallback() {
   const navigate = useNavigate();
@@ -11,6 +10,10 @@ export default function AuthCallback() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    let unsubscribe: (() => void) | null = null;
+
     // Check for OAuth error in URL params (Supabase returns errors as query params)
     const params = new URLSearchParams(window.location.search);
     const hashParams = new URLSearchParams(window.location.hash.substring(1));
@@ -23,42 +26,66 @@ export default function AuthCallback() {
       return;
     }
 
-    supabase.auth.getSession().then(({ data: { session }, error: sessionError }) => {
+    async function finalizeAuth() {
+      const returnTo = getReturnToPath('/');
+
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      if (cancelled) {
+        return;
+      }
+
       if (sessionError) {
         console.error('[AuthCallback] getSession error:', sessionError.message);
         setError(sessionError.message);
         return;
       }
 
-      const returnTo = localStorage.getItem(RETURN_TO_KEY) || '/';
-      localStorage.removeItem(RETURN_TO_KEY);
-
       if (session) {
+        clearReturnToPath();
         navigate(returnTo, { replace: true });
-      } else {
-        // If no session yet, listen for auth state change (OAuth flow may still be completing)
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, newSession) => {
-          if (event === 'SIGNED_IN' && newSession) {
-            subscription.unsubscribe();
-            const savedReturnTo = localStorage.getItem(RETURN_TO_KEY) || returnTo;
-            localStorage.removeItem(RETURN_TO_KEY);
-            navigate(savedReturnTo, { replace: true });
-          }
-        });
+        return;
+      }
 
-        // Timeout fallback - redirect home after 10s if nothing happens
-        const timeout = setTimeout(() => {
-          subscription.unsubscribe();
-          console.warn('[AuthCallback] Timed out waiting for session');
-          navigate('/', { replace: true });
-        }, 10_000);
+      // If no session yet, listen for auth state change (OAuth flow may still be completing)
+      const { data: { subscription } } = supabase.auth.onAuthStateChange((event, newSession) => {
+        if (cancelled) {
+          return;
+        }
 
-        return () => {
-          clearTimeout(timeout);
-          subscription.unsubscribe();
-        };
+        if (event === 'SIGNED_IN' && newSession) {
+          unsubscribe?.();
+          unsubscribe = null;
+          clearReturnToPath();
+          navigate(returnTo, { replace: true });
+        }
+      });
+      unsubscribe = () => subscription.unsubscribe();
+
+      // Timeout fallback - redirect home after 10s if nothing happens
+      timeoutId = setTimeout(() => {
+        unsubscribe?.();
+        unsubscribe = null;
+        if (cancelled) {
+          return;
+        }
+        console.warn('[AuthCallback] Timed out waiting for session');
+        navigate(`/login?returnTo=${encodeURIComponent(returnTo)}`, { replace: true });
+      }, 10_000);
+    }
+
+    finalizeAuth().catch((authError: unknown) => {
+      if (!cancelled) {
+        setError(authError instanceof Error ? authError.message : 'Authentication failed');
       }
     });
+
+    return () => {
+      cancelled = true;
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+      unsubscribe?.();
+    };
   }, [navigate]);
 
   if (error) {
@@ -73,7 +100,7 @@ export default function AuthCallback() {
           <p className="text-red-600 dark:text-red-400 text-lg font-medium mb-2">{t.authError}</p>
           <p className="text-gray-500 dark:text-gray-400 text-sm mb-4">{error}</p>
           <button
-            onClick={() => navigate('/login', { replace: true })}
+            onClick={() => navigate(`/login?returnTo=${encodeURIComponent(getReturnToPath('/'))}`, { replace: true })}
             className="text-primary-600 dark:text-primary-400 hover:underline text-sm"
           >
             {t.backToLogin}

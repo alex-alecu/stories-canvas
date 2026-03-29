@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from 'react';
+import { readStoredEnum, writeStorageItem } from '../lib/browserStorage';
 
 export type ThemePreference = 'system' | 'light' | 'dark';
 
@@ -9,6 +10,7 @@ interface ThemeContextValue {
 }
 
 const STORAGE_KEY = 'stories-canvas:theme';
+const THEME_PREFERENCES = ['system', 'light', 'dark'] as const;
 
 const ThemeContext = createContext<ThemeContextValue>({
   theme: 'system',
@@ -17,15 +19,7 @@ const ThemeContext = createContext<ThemeContextValue>({
 });
 
 function getStoredTheme(): ThemePreference {
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored === 'light' || stored === 'dark' || stored === 'system') {
-      return stored;
-    }
-  } catch {
-    // localStorage unavailable
-  }
-  return 'system';
+  return readStoredEnum(STORAGE_KEY, THEME_PREFERENCES) ?? 'system';
 }
 
 function getSystemPreference(): 'light' | 'dark' {
@@ -57,11 +51,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   const setTheme = useCallback((newTheme: ThemePreference) => {
     setThemeState(newTheme);
-    try {
-      localStorage.setItem(STORAGE_KEY, newTheme);
-    } catch {
-      // localStorage unavailable
-    }
+    writeStorageItem(STORAGE_KEY, newTheme);
     const resolved = resolveTheme(newTheme);
     setResolvedTheme(resolved);
     applyTheme(resolved);

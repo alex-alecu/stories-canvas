@@ -9,25 +9,20 @@ import { useStoryGeneration } from '../hooks/useStoryGeneration';
 import { useNotification } from '../hooks/useNotification';
 import { useLanguage } from '../i18n/LanguageContext';
 import type { ArtStyleKey, VoiceKey } from '../../shared/types';
+import { readStorageItem, removeStorageItem, writeStorageItem } from '../lib/browserStorage';
 
 const GENERATING_STORY_KEY = 'stories-canvas:generatingStoryId';
 
 function getStoredGeneratingId(): string | null {
-  try {
-    return localStorage.getItem(GENERATING_STORY_KEY);
-  } catch {
-    return null;
-  }
+  return readStorageItem(GENERATING_STORY_KEY);
 }
 
 function setStoredGeneratingId(id: string | null): void {
-  try {
-    if (id) {
-      localStorage.setItem(GENERATING_STORY_KEY, id);
-    } else {
-      localStorage.removeItem(GENERATING_STORY_KEY);
-    }
-  } catch {}
+  if (id) {
+    writeStorageItem(GENERATING_STORY_KEY, id);
+  } else {
+    removeStorageItem(GENERATING_STORY_KEY);
+  }
 }
 
 export default function Home() {

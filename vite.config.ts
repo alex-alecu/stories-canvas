@@ -14,6 +14,37 @@ export default defineConfig(({ mode }) => {
         '@shared': path.resolve(__dirname, 'shared'),
       },
     },
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            if (!id.includes('node_modules')) {
+              return;
+            }
+
+            if (id.includes('@supabase/')) {
+              return 'supabase';
+            }
+
+            if (id.includes('@tanstack/')) {
+              return 'react-query';
+            }
+
+            if (id.includes('react-router')) {
+              return 'router';
+            }
+
+            if (
+              id.includes('/react/') ||
+              id.includes('/react-dom/') ||
+              id.includes('/scheduler/')
+            ) {
+              return 'react-vendor';
+            }
+          },
+        },
+      },
+    },
     server: {
       proxy: {
         '/api': {
