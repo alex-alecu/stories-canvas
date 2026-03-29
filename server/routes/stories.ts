@@ -10,10 +10,12 @@ import { generateAllSceneImages, retryFailedSceneImages } from '../services/scen
 import { generateAllPageAudio, retryMissingAudio, isElevenLabsConfigured } from '../services/elevenlabs.js';
 import { optionalAuth } from '../middleware/auth.js';
 import type { GenerationProgress, CreateStoryRequest, StoryStatus, StoryMeta, Scenario, ArtStyleKey, VoiceKey, StoryAssets, RetryStoryResponse } from '../../shared/types.js';
-import { ART_STYLES, DEFAULT_AGE, DEFAULT_ART_STYLE } from '../../shared/types.js';
+import { ART_STYLES, DEFAULT_AGE, DEFAULT_ART_STYLE, VOICE_OPTIONS } from '../../shared/types.js';
 import { MEDIA_CACHE_CONTROL, getPageAudioFilename, getPageImageFilename, pageHasAudio } from '../utils/storyMedia.js';
 
 const router = Router();
+const VALID_VOICE_KEYS = new Set<VoiceKey>(VOICE_OPTIONS.map(option => option.key));
+const SSE_CLOSE_DELAY_MS = 2_000;
 
 // ---------- Storage adapter (delegates to Supabase or filesystem) ----------
 
@@ -86,6 +88,77 @@ function storyHasAudio(story: StoryMeta): boolean {
   return story.scenario?.pages?.some(pageHasAudio) ?? false;
 }
 
+function toStorySummary(story: StoryMeta) {
+  return {
+    id: story.id,
+    prompt: story.prompt,
+    status: story.status,
+    createdAt: story.createdAt,
+    title: story.scenario?.title,
+    coverImage: getCoverImageUrl(story),
+    totalPages: story.scenario?.pages?.length ?? 0,
+    completedPages: story.scenario?.pages?.filter(p => p.status === 'completed').length ?? 0,
+    isPublic: story.isPublic,
+    hasAudio: storyHasAudio(story),
+  };
+}
+
+function isTerminalStoryStatus(status: StoryStatus): boolean {
+  return status === 'completed' || status === 'failed' || status === 'cancelled';
+}
+
+function getStatusPhase(status: StoryStatus): string {
+  switch (status) {
+    case 'completed':
+      return 'Done!';
+    case 'failed':
+      return 'Failed';
+    case 'cancelled':
+      return 'Cancelled';
+    default:
+      return 'In progress...';
+  }
+}
+
+function getStatusMessage(status: StoryStatus): string {
+  switch (status) {
+    case 'completed':
+      return 'Story generated successfully!';
+    case 'failed':
+      return 'Generation failed';
+    case 'cancelled':
+      return 'Generation cancelled';
+    default:
+      return 'Reconnected to generation progress...';
+  }
+}
+
+function buildInitialProgress(storyId: string, story: StoryMeta | null): GenerationProgress {
+  if (!story) {
+    return {
+      storyId,
+      status: 'generating_scenario',
+      currentPhase: 'Generating story scenario...',
+      completedPages: 0,
+      totalPages: 0,
+      failedPages: [],
+      message: 'Creating your story...',
+    };
+  }
+
+  return {
+    storyId,
+    status: story.status,
+    currentPhase: getStatusPhase(story.status),
+    completedPages: story.scenario?.pages?.filter(p => p.status === 'completed').length ?? 0,
+    totalPages: story.scenario?.pages?.length ?? 0,
+    failedPages: story.scenario?.pages
+      ?.filter(p => p.status === 'failed')
+      .map(p => p.pageNumber) ?? [],
+    message: getStatusMessage(story.status),
+  };
+}
+
 // ---------- Active generation abort controllers ----------
 
 const activeGenerations = new Map<string, AbortController>();
@@ -105,6 +178,31 @@ function sendSSE(storyId: string, data: Partial<GenerationProgress>): void {
       connections.delete(res);
     }
   }
+
+  if (connections.size === 0) {
+    sseConnections.delete(storyId);
+  }
+}
+
+function closeStoryConnections(storyId: string): void {
+  const connections = sseConnections.get(storyId);
+  if (!connections) return;
+
+  for (const res of connections) {
+    try {
+      res.end();
+    } catch {
+      // Ignore already-closed connections.
+    }
+  }
+
+  sseConnections.delete(storyId);
+}
+
+function scheduleStoryConnectionCleanup(storyId: string): void {
+  setTimeout(() => {
+    closeStoryConnections(storyId);
+  }, SSE_CLOSE_DELAY_MS);
 }
 
 // ---------- Persist progress to DB alongside SSE ----------
@@ -141,18 +239,7 @@ router.get('/public', async (req: Request, res: Response) => {
 
     const search = typeof req.query.search === 'string' ? req.query.search : undefined;
     const stories = await sbStorage.listPublicStories(search);
-    const summaries = stories.map(s => ({
-      id: s.id,
-      prompt: s.prompt,
-      status: s.status,
-      createdAt: s.createdAt,
-      title: s.scenario?.title,
-      coverImage: getCoverImageUrl(s),
-      totalPages: s.scenario?.pages?.length ?? 0,
-      completedPages: s.scenario?.pages?.filter(p => p.status === 'completed').length ?? 0,
-      isPublic: s.isPublic,
-      hasAudio: storyHasAudio(s),
-    }));
+    const summaries = stories.map(toStorySummary);
     res.json(summaries);
   } catch (error) {
     console.error('Failed to list public stories:', error);
@@ -170,18 +257,7 @@ router.get('/mine', optionalAuth, async (req: Request, res: Response) => {
 
     if (config.useSupabase) {
       const stories = await sbStorage.listStoriesByUser(req.authUser.id);
-      const summaries = stories.map(s => ({
-        id: s.id,
-        prompt: s.prompt,
-        status: s.status,
-        createdAt: s.createdAt,
-        title: s.scenario?.title,
-        coverImage: getCoverImageUrl(s),
-        totalPages: s.scenario?.pages?.length ?? 0,
-        completedPages: s.scenario?.pages?.filter(p => p.status === 'completed').length ?? 0,
-        isPublic: s.isPublic,
-        hasAudio: storyHasAudio(s),
-      }));
+      const summaries = stories.map(toStorySummary);
       res.json(summaries);
     } else {
       res.json([]);
@@ -208,18 +284,7 @@ router.get('/', optionalAuth, async (req: Request, res: Response) => {
       stories = await listAllStories();
     }
 
-    const summaries = stories.map(s => ({
-      id: s.id,
-      prompt: s.prompt,
-      status: s.status,
-      createdAt: s.createdAt,
-      title: s.scenario?.title,
-      coverImage: getCoverImageUrl(s),
-      totalPages: s.scenario?.pages?.length ?? 0,
-      completedPages: s.scenario?.pages?.filter(p => p.status === 'completed').length ?? 0,
-      isPublic: s.isPublic,
-      hasAudio: storyHasAudio(s),
-    }));
+    const summaries = stories.map(toStorySummary);
     res.json(summaries);
   } catch (error) {
     console.error('Failed to list stories:', error);
@@ -257,8 +322,9 @@ router.post('/', optionalAuth, async (req: Request, res: Response) => {
     const storyLanguage = typeof language === 'string' ? language : 'ro';
     const storyAge = typeof age === 'number' && age > 0 && age <= 12 ? age : DEFAULT_AGE;
     const storyStyle: ArtStyleKey = (typeof style === 'string' && style in ART_STYLES) ? style as ArtStyleKey : DEFAULT_ART_STYLE;
-    const validVoices: VoiceKey[] = ['grandma', 'grandpa', 'dad', 'mom', 'whisper'];
-    const storyVoice: VoiceKey | undefined = (typeof voice === 'string' && validVoices.includes(voice as VoiceKey)) ? voice as VoiceKey : undefined;
+    const storyVoice: VoiceKey | undefined = (typeof voice === 'string' && VALID_VOICE_KEYS.has(voice as VoiceKey))
+      ? voice as VoiceKey
+      : undefined;
     const storyId = crypto.randomUUID();
     const userId = req.authUser?.id;
 
@@ -448,7 +514,7 @@ async function runGenerationPipeline(storyId: string, prompt: string, userId?: s
       }
     }
 
-    // Complete â story is viewable even if audio failed
+    // Complete - story is viewable even if audio failed
     await updateStoryStatus(storyId, 'completed');
     sendSSE(storyId, {
       storyId,
@@ -481,16 +547,7 @@ async function runGenerationPipeline(storyId: string, prompt: string, userId?: s
     });
   } finally {
     activeGenerations.delete(storyId);
-    // Close SSE connections after a short delay
-    setTimeout(() => {
-      const connections = sseConnections.get(storyId);
-      if (connections) {
-        for (const res of connections) {
-          try { res.end(); } catch {}
-        }
-        sseConnections.delete(storyId);
-      }
-    }, 2000);
+    scheduleStoryConnectionCleanup(storyId);
   }
 }
 
@@ -746,15 +803,7 @@ async function runRetryPipeline(
     });
   } finally {
     activeGenerations.delete(storyId);
-    setTimeout(() => {
-      const connections = sseConnections.get(storyId);
-      if (connections) {
-        for (const res of connections) {
-          try { res.end(); } catch {}
-        }
-        sseConnections.delete(storyId);
-      }
-    }, 2000);
+    scheduleStoryConnectionCleanup(storyId);
   }
 }
 
@@ -813,8 +862,7 @@ router.post('/:id/generate-audio', optionalAuth, async (req: Request, res: Respo
 
     // Validate voice
     const { voice } = req.body as { voice?: string };
-    const validVoices: VoiceKey[] = ['grandma', 'grandpa', 'dad', 'mom', 'whisper'];
-    if (!voice || !validVoices.includes(voice as VoiceKey)) {
+    if (!voice || !VALID_VOICE_KEYS.has(voice as VoiceKey)) {
       res.status(400).json({ error: 'Invalid voice selection' });
       return;
     }
@@ -937,15 +985,7 @@ async function runAudioGenerationPipeline(
     });
   } finally {
     activeGenerations.delete(storyId);
-    setTimeout(() => {
-      const connections = sseConnections.get(storyId);
-      if (connections) {
-        for (const res of connections) {
-          try { res.end(); } catch {}
-        }
-        sseConnections.delete(storyId);
-      }
-    }, 2000);
+    scheduleStoryConnectionCleanup(storyId);
   }
 }
 
@@ -1070,76 +1110,74 @@ router.get('/:id', optionalAuth, async (req: Request, res: Response) => {
 router.get('/:id/status', async (req: Request, res: Response) => {
   const storyId = req.params.id as string;
 
-  res.writeHead(200, {
-    'Content-Type': 'text/event-stream',
-    'Cache-Control': 'no-cache',
-    'Connection': 'keep-alive',
-    'X-Accel-Buffering': 'no',
-  });
+  try {
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+      'X-Accel-Buffering': 'no',
+    });
 
-  // Send initial status from DB (works on refresh with Supabase)
-  const story = await getStory(storyId);
-  if (story) {
-    const completedPages = story.scenario?.pages?.filter(p => p.status === 'completed').length ?? 0;
-    const totalPages = story.scenario?.pages?.length ?? 0;
-    const failedPages = story.scenario?.pages
-      ?.filter(p => p.status === 'failed')
-      .map(p => p.pageNumber) ?? [];
-
-    res.write(`data: ${JSON.stringify({
-      storyId,
-      status: story.status,
-      currentPhase: story.status === 'completed' ? 'Done!' : 'In progress...',
-      completedPages,
-      totalPages,
-      failedPages,
-      message: story.status === 'completed' ? 'Story generated successfully!' : 'Reconnected to generation progress...',
-    })}\n\n`);
+    const story = await getStory(storyId);
+    const initialProgress = buildInitialProgress(storyId, story);
+    res.write(`data: ${JSON.stringify(initialProgress)}\n\n`);
 
     // If already completed, failed, or cancelled, close after sending status
-    if (story.status === 'completed' || story.status === 'failed' || story.status === 'cancelled') {
+    if (story && isTerminalStoryStatus(story.status)) {
       res.end();
       return;
     }
-  } else {
-    // Story not yet in DB (race condition) - send initial generating status
-    res.write(`data: ${JSON.stringify({
-      storyId,
-      status: 'generating_scenario',
-      currentPhase: 'Generating story scenario...',
-      completedPages: 0,
-      totalPages: 0,
-      failedPages: [],
-      message: 'Creating your story...',
-    })}\n\n`);
-  }
 
-  // Register SSE connection
-  if (!sseConnections.has(storyId)) {
-    sseConnections.set(storyId, new Set());
-  }
-  sseConnections.get(storyId)!.add(res);
-
-  // Keep-alive ping
-  const pingInterval = setInterval(() => {
-    try {
-      res.write(':ping\n\n');
-    } catch {
-      clearInterval(pingInterval);
+    // Register SSE connection
+    if (!sseConnections.has(storyId)) {
+      sseConnections.set(storyId, new Set());
     }
-  }, 15000);
+    sseConnections.get(storyId)!.add(res);
 
-  // Cleanup on close
-  req.on('close', () => {
-    clearInterval(pingInterval);
-    const connections = sseConnections.get(storyId);
-    if (connections) {
-      connections.delete(res);
-      if (connections.size === 0) {
-        sseConnections.delete(storyId);
+    // Keep-alive ping
+    const pingInterval = setInterval(() => {
+      try {
+        res.write(':ping\n\n');
+      } catch {
+        clearInterval(pingInterval);
       }
+    }, 15000);
+
+    // Cleanup on close
+    req.on('close', () => {
+      clearInterval(pingInterval);
+      const connections = sseConnections.get(storyId);
+      if (connections) {
+        connections.delete(res);
+        if (connections.size === 0) {
+          sseConnections.delete(storyId);
+        }
+      }
+    });
+  } catch (error) {
+    console.error(`Failed to stream story status for ${storyId}:`, error);
+
+    try {
+      if (!res.headersSent) {
+        res.status(500).json({ error: 'Failed to stream story status' });
+        return;
+      }
+
+      res.write(`data: ${JSON.stringify({
+        storyId,
+        status: 'failed',
+        currentPhase: 'Failed',
+        completedPages: 0,
+        totalPages: 0,
+        failedPages: [],
+        message: 'Failed to stream story status',
+      } satisfies GenerationProgress)}\n\n`);
+    } catch {
+      // Ignore write failures on broken SSE connections.
     }
-  });
+
+    res.end();
+  }
 });
 
 // PATCH /api/stories/:id/visibility - Toggle story visibility (requires auth + ownership)
