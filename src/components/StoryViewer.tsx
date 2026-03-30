@@ -52,26 +52,6 @@ export default function StoryViewer({ storyId, scenario, isGenerating, progress,
   const swiperRef = useRef<SwiperType | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Request native fullscreen on first user interaction (browsers require a user gesture)
-  const hasRequestedFullscreen = useRef(false);
-  const requestFullscreen = useCallback(() => {
-    if (hasRequestedFullscreen.current) return;
-    hasRequestedFullscreen.current = true;
-    const el = containerRef.current;
-    if (el && document.fullscreenElement !== el) {
-      el.requestFullscreen?.().catch(() => {/* ignore if blocked by browser */});
-    }
-  }, []);
-
-  // Exit fullscreen on unmount
-  useEffect(() => {
-    return () => {
-      if (document.fullscreenElement) {
-        document.exitFullscreen?.().catch(() => {});
-      }
-    };
-  }, []);
-
   // Exit animation state — swipe/navigate past last page returns to story list
   const [isExiting, setIsExiting] = useState(false);
   const isExitingRef = useRef(false);
@@ -157,9 +137,6 @@ export default function StoryViewer({ storyId, scenario, isGenerating, progress,
     isExitingRef.current = true;
     setIsExiting(true);
     stopAudio();
-    if (document.fullscreenElement) {
-      document.exitFullscreen?.().catch(() => {});
-    }
     exitTimeoutRef.current = setTimeout(() => navigate('/'), 500);
   }, [navigate, stopAudio]);
 
@@ -352,7 +329,6 @@ export default function StoryViewer({ storyId, scenario, isGenerating, progress,
   return (
     <div
       ref={containerRef}
-      onClick={requestFullscreen}
       className={`fixed inset-0 bg-black z-50 transition-all duration-500 ease-out ${
         isExiting ? 'opacity-0 scale-95' : 'opacity-100 scale-100'
       }`}
