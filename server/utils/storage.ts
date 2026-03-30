@@ -1,11 +1,13 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { config } from '../config.js';
-import type { ArtStyleKey, StoryMeta, Scenario, StoryStatus, VoiceKey } from '../../shared/types.js';
-
-const storiesDir = config.dataDir;
+import { normalizeVoiceKey, type ArtStyleKey, type StoryMeta, type Scenario, type StoryStatus, type VoiceKey } from '../../shared/types.js';
 
 const writeLocks = new Map<string, Promise<void>>();
+
+function getStoriesDir(): string {
+  return config.dataDir;
+}
 
 async function withLock<T>(storyId: string, fn: () => Promise<T>): Promise<T> {
   const existing = writeLocks.get(storyId) ?? Promise.resolve();
@@ -27,8 +29,15 @@ async function ensureDir(dir: string): Promise<void> {
   await fs.mkdir(dir, { recursive: true });
 }
 
+function normalizeStoryMetaVoice(story: StoryMeta): StoryMeta {
+  return {
+    ...story,
+    voice: normalizeVoiceKey(story.voice),
+  };
+}
+
 export async function getStoryDir(storyId: string): Promise<string> {
-  const dir = path.join(storiesDir, storyId);
+  const dir = path.join(getStoriesDir(), storyId);
   await ensureDir(dir);
   return dir;
 }
@@ -56,7 +65,7 @@ export async function saveScenario(
 
 export async function updateStoryStatus(storyId: string, status: StoryStatus): Promise<void> {
   await withLock(storyId, async () => {
-    const dir = path.join(storiesDir, storyId);
+    const dir = path.join(getStoriesDir(), storyId);
     const filePath = path.join(dir, 'scenario.json');
     const data = JSON.parse(await fs.readFile(filePath, 'utf-8')) as StoryMeta;
     data.status = status;
@@ -66,7 +75,7 @@ export async function updateStoryStatus(storyId: string, status: StoryStatus): P
 
 export async function updatePageStatus(storyId: string, pageNumber: number, status: 'pending' | 'generating' | 'completed' | 'failed'): Promise<void> {
   await withLock(storyId, async () => {
-    const dir = path.join(storiesDir, storyId);
+    const dir = path.join(getStoriesDir(), storyId);
     const filePath = path.join(dir, 'scenario.json');
     const data = JSON.parse(await fs.readFile(filePath, 'utf-8')) as StoryMeta;
     if (data.scenario) {
@@ -81,7 +90,7 @@ export async function updatePageStatus(storyId: string, pageNumber: number, stat
 
 export async function updatePageAudioUrl(storyId: string, pageNumber: number, audioUrl: string): Promise<void> {
   await withLock(storyId, async () => {
-    const dir = path.join(storiesDir, storyId);
+    const dir = path.join(getStoriesDir(), storyId);
     const filePath = path.join(dir, 'scenario.json');
     const data = JSON.parse(await fs.readFile(filePath, 'utf-8')) as StoryMeta;
 
@@ -103,7 +112,7 @@ export async function saveImage(storyId: string, filename: string, base64Data: s
 }
 
 export async function getImagePath(storyId: string, filename: string): Promise<string | null> {
-  const filePath = path.join(storiesDir, storyId, filename);
+  const filePath = path.join(getStoriesDir(), storyId, filename);
   try {
     await fs.access(filePath);
     return filePath;
@@ -119,7 +128,7 @@ export async function saveAudio(storyId: string, filename: string, audioBuffer: 
 
 export async function updateStoryVoice(storyId: string, voice: VoiceKey): Promise<void> {
   await withLock(storyId, async () => {
-    const dir = path.join(storiesDir, storyId);
+    const dir = path.join(getStoriesDir(), storyId);
     const filePath = path.join(dir, 'scenario.json');
     const data = JSON.parse(await fs.readFile(filePath, 'utf-8')) as StoryMeta;
     data.voice = voice;
@@ -128,7 +137,7 @@ export async function updateStoryVoice(storyId: string, voice: VoiceKey): Promis
 }
 
 export async function getAudioPath(storyId: string, filename: string): Promise<string | null> {
-  const filePath = path.join(storiesDir, storyId, filename);
+  const filePath = path.join(getStoriesDir(), storyId, filename);
   try {
     await fs.access(filePath);
     return filePath;
@@ -138,10 +147,10 @@ export async function getAudioPath(storyId: string, filename: string): Promise<s
 }
 
 export async function getStory(storyId: string): Promise<StoryMeta | null> {
-  const filePath = path.join(storiesDir, storyId, 'scenario.json');
+  const filePath = path.join(getStoriesDir(), storyId, 'scenario.json');
   try {
     const data = await fs.readFile(filePath, 'utf-8');
-    return JSON.parse(data) as StoryMeta;
+    return normalizeStoryMetaVoice(JSON.parse(data) as StoryMeta);
   } catch {
     return null;
   }
@@ -149,6 +158,7 @@ export async function getStory(storyId: string): Promise<StoryMeta | null> {
 
 export async function listStories(limit = 27): Promise<StoryMeta[]> {
   try {
+    const storiesDir = getStoriesDir();
     await ensureDir(storiesDir);
     const entries = await fs.readdir(storiesDir, { withFileTypes: true });
     const stories: StoryMeta[] = [];
@@ -170,7 +180,7 @@ export async function listStories(limit = 27): Promise<StoryMeta[]> {
 }
 
 export async function deleteStory(storyId: string): Promise<boolean> {
-  const dir = path.join(storiesDir, storyId);
+  const dir = path.join(getStoriesDir(), storyId);
   try {
     await fs.access(dir);
     await fs.rm(dir, { recursive: true, force: true });

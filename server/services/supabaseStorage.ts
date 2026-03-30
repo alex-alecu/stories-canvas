@@ -1,6 +1,6 @@
 import { getSupabase } from './supabase.js';
 import { config } from '../config.js';
-import type { ArtStyleKey, StoryMeta, StoryStatus, Scenario, PageStatus, VoiceKey } from '../../shared/types.js';
+import { normalizeVoiceKey, type ArtStyleKey, type StoryMeta, type StoryStatus, type Scenario, type PageStatus, type VoiceKey } from '../../shared/types.js';
 import { MEDIA_CACHE_MAX_AGE_SECONDS } from '../utils/storyMedia.js';
 import { parseArtStyle } from './storyStyle.js';
 
@@ -116,7 +116,7 @@ function rowToStoryMeta(row: StoryRow): StoryMeta {
     userId: row.user_id ?? undefined,
     isPublic: row.is_public ?? false,
     artStyle: parseArtStyle(row.art_style),
-    voice: (row.voice as VoiceKey) ?? undefined,
+    voice: normalizeVoiceKey(row.voice),
   };
 }
 

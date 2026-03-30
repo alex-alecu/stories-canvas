@@ -22,40 +22,28 @@ interface VoiceSettings {
   voiceId: string;
   stability: number;
   similarityBoost: number;
-  style?: number;
+  style: number;
 }
 
-function getVoiceSettings(voiceKey: VoiceKey): VoiceSettings {
+const NARRATION_SETTINGS = {
+  stability: 0.7,
+  similarityBoost: 0.8,
+  style: 0.4,
+} as const;
+
+export function getVoiceSettings(voiceKey: VoiceKey): VoiceSettings {
   const baseSettings: Record<VoiceKey, VoiceSettings> = {
-    grandma: {
-      voiceId: config.voiceIds.grandma,
-      stability: 0.7,
-      similarityBoost: 0.8,
-      style: 0.4,
+    jora: {
+      voiceId: config.voiceIds.jora,
+      ...NARRATION_SETTINGS,
     },
-    grandpa: {
-      voiceId: config.voiceIds.grandpa,
-      stability: 0.7,
-      similarityBoost: 0.8,
-      style: 0.4,
+    serban: {
+      voiceId: config.voiceIds.serban,
+      ...NARRATION_SETTINGS,
     },
-    dad: {
-      voiceId: config.voiceIds.dad,
-      stability: 0.65,
-      similarityBoost: 0.75,
-      style: 0.3,
-    },
-    mom: {
-      voiceId: config.voiceIds.mom,
-      stability: 0.65,
-      similarityBoost: 0.75,
-      style: 0.3,
-    },
-    whisper: {
-      voiceId: config.voiceIds.whisper,
-      stability: 0.3,
-      similarityBoost: 0.85,
-      style: 0.8,
+    corina: {
+      voiceId: config.voiceIds.corina,
+      ...NARRATION_SETTINGS,
     },
   };
 

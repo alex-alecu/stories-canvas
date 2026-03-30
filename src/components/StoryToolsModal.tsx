@@ -3,7 +3,7 @@ import type { Scenario, GenerationProgress } from '../types';
 import { useRetryStory, useStoryAssets, useGenerateAudio } from '../hooks/useStories';
 import { useStoryGeneration } from '../hooks/useStoryGeneration';
 import { useLanguage } from '../i18n/LanguageContext';
-import { VOICE_OPTIONS, type VoiceKey } from '../../shared/types';
+import { DEFAULT_VOICE_KEY, VOICE_OPTIONS, type VoiceKey } from '../../shared/types';
 
 interface StoryToolsModalProps {
   isOpen: boolean;
@@ -37,7 +37,7 @@ export default function StoryToolsModal({
   const { data: assets, isLoading: assetsLoading } = useStoryAssets(storyId, isOpen);
 
   // --- Audio generation state ---
-  const [selectedVoice, setSelectedVoice] = useState<VoiceKey>('grandma');
+  const [selectedVoice, setSelectedVoice] = useState<VoiceKey>(DEFAULT_VOICE_KEY);
   const [audioGenTriggered, setAudioGenTriggered] = useState(false);
   const [audioGenResult, setAudioGenResult] = useState<'success' | 'failed' | null>(null);
   const [audioGenStarting, setAudioGenStarting] = useState(false);
