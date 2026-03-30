@@ -92,25 +92,14 @@ test('generateJSON retries once without thinkingConfig when the model rejects it
 
 test('generateImage keeps story-specific controls out of image requests', async () => {
   const gemini = await import('./gemini.js');
+  const { config } = await import('../config.js');
   const calls: GenerateContentCall[] = [];
   const original = gemini.ai.models.generateContent;
 
   (gemini.ai.models as { generateContent: typeof original }).generateContent = (async (request) => {
     calls.push(request as GenerateContentCall);
     return {
-      candidates: [
-        {
-          content: {
-            parts: [
-              {
-                inlineData: {
-                  data: 'image-data',
-                },
-              },
-            ],
-          },
-        },
-      ],
+      data: 'image-data',
     } as never;
   }) as typeof original;
 
@@ -119,9 +108,75 @@ test('generateImage keeps story-specific controls out of image requests', async 
 
     assert.equal(image, 'image-data');
     assert.equal(calls.length, 1);
+    assert.equal(calls[0].model, config.imageModel);
     assert.equal(calls[0].config.temperature, undefined);
     assert.equal(calls[0].config.thinkingConfig, undefined);
     assert.deepEqual(calls[0].config.responseModalities, ['IMAGE']);
+  } finally {
+    (gemini.ai.models as { generateContent: typeof original }).generateContent = original;
+  }
+});
+
+test('generateImage falls back to the pro image model after an empty flash response', async () => {
+  const gemini = await import('./gemini.js');
+  const { config } = await import('../config.js');
+  const calls: GenerateContentCall[] = [];
+  const original = gemini.ai.models.generateContent;
+  let attempt = 0;
+
+  (gemini.ai.models as { generateContent: typeof original }).generateContent = (async (request) => {
+    calls.push(request as GenerateContentCall);
+    attempt++;
+
+    if (attempt === 1) {
+      return {
+        candidates: [
+          {
+            finishReason: 'STOP',
+          },
+        ],
+      } as never;
+    }
+
+    return {
+      data: 'fallback-image-data',
+    } as never;
+  }) as typeof original;
+
+  try {
+    const image = await gemini.generateImage('draw a castle');
+
+    assert.equal(image, 'fallback-image-data');
+    assert.equal(calls.length, 2);
+    assert.equal(calls[0].model, config.imageModel);
+    assert.equal(calls[1].model, config.imageModelPro);
+  } finally {
+    (gemini.ai.models as { generateContent: typeof original }).generateContent = original;
+  }
+});
+
+test('generateImage surfaces safety blocks without falling back to the pro model', async () => {
+  const gemini = await import('./gemini.js');
+  const calls: GenerateContentCall[] = [];
+  const original = gemini.ai.models.generateContent;
+
+  (gemini.ai.models as { generateContent: typeof original }).generateContent = (async (request) => {
+    calls.push(request as GenerateContentCall);
+    return {
+      promptFeedback: {
+        blockReason: 'SAFETY',
+        blockReasonMessage: 'image prompt was blocked',
+      },
+    } as never;
+  }) as typeof original;
+
+  try {
+    await assert.rejects(
+      () => gemini.generateImage('draw something unsafe'),
+      /SAFETY|safety/,
+    );
+
+    assert.equal(calls.length, 1);
   } finally {
     (gemini.ai.models as { generateContent: typeof original }).generateContent = original;
   }

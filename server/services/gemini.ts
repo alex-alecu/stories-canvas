@@ -11,6 +11,31 @@ export interface JSONGenerationOptions {
   maxRetries?: number;
 }
 
+interface ImageGenerationResponse {
+  data?: unknown;
+  generatedImages?: Array<{
+    image?: {
+      imageBytes?: unknown;
+    };
+    raiFilteredReason?: unknown;
+  }>;
+  promptFeedback?: {
+    blockReason?: unknown;
+    blockReasonMessage?: unknown;
+  };
+  candidates?: Array<{
+    finishReason?: unknown;
+    finishMessage?: unknown;
+    content?: {
+      parts?: Array<{
+        inlineData?: {
+          data?: unknown;
+        };
+      }>;
+    };
+  }>;
+}
+
 function shouldRetryWithoutThinking(error: Error): boolean {
   const message = error.message.toLowerCase();
   const mentionsThinking = message.includes('thinking')
@@ -28,6 +53,100 @@ function shouldRetryWithoutThinking(error: Error): boolean {
     || message.includes('cannot find field')
     || message.includes('invalid argument')
     || message.includes('not available');
+}
+
+function extractImageData(response: ImageGenerationResponse): string | undefined {
+  if (typeof response.data === 'string' && response.data.length > 0) {
+    return response.data;
+  }
+
+  for (const generatedImage of response.generatedImages ?? []) {
+    if (typeof generatedImage.image?.imageBytes === 'string' && generatedImage.image.imageBytes.length > 0) {
+      return generatedImage.image.imageBytes;
+    }
+  }
+
+  for (const candidate of response.candidates ?? []) {
+    for (const part of candidate.content?.parts ?? []) {
+      if (typeof part.inlineData?.data === 'string' && part.inlineData.data.length > 0) {
+        return part.inlineData.data;
+      }
+    }
+  }
+
+  return undefined;
+}
+
+function isSafetyImageFailure(response: ImageGenerationResponse): boolean {
+  const blockReason = String(response.promptFeedback?.blockReason ?? '').toUpperCase();
+  if (blockReason.includes('SAFETY') || blockReason.includes('BLOCKLIST') || blockReason.includes('PROHIBITED_CONTENT')) {
+    return true;
+  }
+
+  return (response.candidates ?? []).some(candidate => {
+    const finishReason = String(candidate.finishReason ?? '').toUpperCase();
+    return finishReason.includes('SAFETY')
+      || finishReason.includes('BLOCKLIST')
+      || finishReason.includes('PROHIBITED_CONTENT');
+  });
+}
+
+function describeImageFailure(response: ImageGenerationResponse, model: string): string {
+  const details: string[] = [];
+
+  if (response.promptFeedback?.blockReason) {
+    const blockReason = String(response.promptFeedback.blockReason);
+    const blockMessage = typeof response.promptFeedback.blockReasonMessage === 'string'
+      ? response.promptFeedback.blockReasonMessage
+      : undefined;
+    details.push(
+      blockMessage
+        ? `prompt blocked (${blockReason}: ${blockMessage})`
+        : `prompt blocked (${blockReason})`,
+    );
+  }
+
+  const candidateSummaries = (response.candidates ?? [])
+    .map((candidate, index) => {
+      const parts: string[] = [`candidate ${index + 1}`];
+
+      if (candidate.finishReason) {
+        parts.push(`finishReason=${String(candidate.finishReason)}`);
+      }
+
+      if (typeof candidate.finishMessage === 'string' && candidate.finishMessage.length > 0) {
+        parts.push(`finishMessage=${candidate.finishMessage}`);
+      }
+
+      const partCount = candidate.content?.parts?.length;
+      if (typeof partCount === 'number') {
+        parts.push(`parts=${partCount}`);
+      } else {
+        parts.push('parts=missing');
+      }
+
+      return parts.join(', ');
+    });
+
+  if (candidateSummaries.length > 0) {
+    details.push(candidateSummaries.join('; '));
+  } else {
+    details.push('no candidates returned');
+  }
+
+  const filteredReasons = (response.generatedImages ?? [])
+    .map(image => image.raiFilteredReason)
+    .filter((reason): reason is string => typeof reason === 'string' && reason.length > 0);
+
+  if (filteredReasons.length > 0) {
+    details.push(`filtered=${filteredReasons.join(', ')}`);
+  }
+
+  const baseMessage = isSafetyImageFailure(response)
+    ? `Image generation blocked by safety filters on model ${model}`
+    : `Image generation returned no image data on model ${model}`;
+
+  return `${baseMessage}: ${details.join('; ')}`;
 }
 
 export async function generateJSON<T>(
@@ -98,26 +217,40 @@ export async function generateImage(
     contents.push({ inlineData: { data: img.data, mimeType: img.mimeType } });
   }
   contents.push({ text: prompt });
+  const primaryModel = pro ? config.imageModelPro : config.imageModel;
+  const fallbackModel = !pro && config.imageModelPro !== primaryModel
+    ? config.imageModelPro
+    : undefined;
 
-  const response = await ai.models.generateContent({
-    model: pro ? config.imageModelPro : config.imageModel,
-    contents,
-    config: {
-      responseModalities: ['IMAGE'],
-      imageGenerationConfig: { aspectRatio: '4:3' },
-    } as any,
-  });
+  const modelsToTry = fallbackModel ? [primaryModel, fallbackModel] : [primaryModel];
 
-  const parts = response.candidates?.[0]?.content?.parts;
-  if (!parts) {
-    throw new Error('No parts in image generation response');
-  }
+  for (let index = 0; index < modelsToTry.length; index++) {
+    const model = modelsToTry[index];
+    const response = await ai.models.generateContent({
+      model,
+      contents,
+      config: {
+        responseModalities: ['IMAGE'],
+        imageGenerationConfig: { aspectRatio: '4:3' },
+      } as any,
+    }) as ImageGenerationResponse;
 
-  for (const part of parts) {
-    if (part.inlineData?.data) {
-      return part.inlineData.data;
+    const imageData = extractImageData(response);
+    if (imageData) {
+      return imageData;
     }
+
+    const error = new Error(describeImageFailure(response, model));
+
+    if (fallbackModel && index === 0 && !isSafetyImageFailure(response)) {
+      console.warn(
+        `Image generation returned no image data from ${primaryModel}. Retrying once with ${fallbackModel}.`,
+      );
+      continue;
+    }
+
+    throw error;
   }
 
-  throw new Error('No image data in response');
+  throw new Error(`Image generation failed on model ${primaryModel}`);
 }
