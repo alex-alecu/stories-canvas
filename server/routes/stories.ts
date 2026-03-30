@@ -11,12 +11,34 @@ import { generateAllPageAudio, retryMissingAudio, isElevenLabsConfigured } from 
 import { getArtStyleDescription, getStoryArtStyleDescription, resolveArtStyle } from '../services/storyStyle.js';
 import { optionalAuth } from '../middleware/auth.js';
 import type { GenerationProgress, CreateStoryRequest, StoryStatus, StoryMeta, Scenario, ArtStyleKey, VoiceKey, StoryAssets, RetryStoryResponse } from '../../shared/types.js';
-import { DEFAULT_AGE, VOICE_OPTIONS } from '../../shared/types.js';
+import { DEFAULT_AGE, getVoiceName, normalizeVoiceKey } from '../../shared/types.js';
 import { MEDIA_CACHE_CONTROL, getPageAudioFilename, getPageImageFilename, pageHasAudio } from '../utils/storyMedia.js';
 
 const router = Router();
-const VALID_VOICE_KEYS = new Set<VoiceKey>(VOICE_OPTIONS.map(option => option.key));
 const SSE_CLOSE_DELAY_MS = 2_000;
+
+export const scenarioOps = {
+  generateScenario,
+};
+
+export const illustrationOps = {
+  getCharacterSheetFilename,
+  generateAllCharacterSheets,
+  generateAllSceneImages,
+  retryFailedSceneImages,
+};
+
+export const audioOps = {
+  generateAllPageAudio,
+  retryMissingAudio,
+  isElevenLabsConfigured,
+};
+
+export const storyStyleOps = {
+  getArtStyleDescription,
+  getStoryArtStyleDescription,
+  resolveArtStyle,
+};
 
 // ---------- Storage adapter (delegates to Supabase or filesystem) ----------
 
@@ -141,19 +163,7 @@ function getStatusMessage(status: StoryStatus): string {
   }
 }
 
-function buildInitialProgress(storyId: string, story: StoryMeta | null): GenerationProgress {
-  if (!story) {
-    return {
-      storyId,
-      status: 'generating_scenario',
-      currentPhase: 'Generating story scenario...',
-      completedPages: 0,
-      totalPages: 0,
-      failedPages: [],
-      message: 'Creating your story...',
-    };
-  }
-
+function buildInitialProgress(storyId: string, story: StoryMeta): GenerationProgress {
   return {
     storyId,
     status: story.status,
@@ -329,10 +339,8 @@ router.post('/', optionalAuth, async (req: Request, res: Response) => {
 
     const storyLanguage = typeof language === 'string' ? language : 'ro';
     const storyAge = typeof age === 'number' && age > 0 && age <= 12 ? age : DEFAULT_AGE;
-    const storyStyle = resolveArtStyle(typeof style === 'string' ? style : undefined);
-    const storyVoice: VoiceKey | undefined = (typeof voice === 'string' && VALID_VOICE_KEYS.has(voice as VoiceKey))
-      ? voice as VoiceKey
-      : undefined;
+    const storyStyle = storyStyleOps.resolveArtStyle(typeof style === 'string' ? style : undefined);
+    const storyVoice = normalizeVoiceKey(typeof voice === 'string' ? voice : undefined);
     const storyId = crypto.randomUUID();
     const userId = req.authUser?.id;
 
@@ -372,7 +380,7 @@ async function runGenerationPipeline(storyId: string, prompt: string, userId?: s
     });
 
     if (signal.aborted) throw new Error('Generation cancelled');
-    const scenario = await generateScenario(prompt, language, age, style);
+    const scenario = await scenarioOps.generateScenario(prompt, language, age, style);
     await saveScenario(storyId, scenario, 'generating_characters', prompt, voice, style);
 
     if (signal.aborted) throw new Error('Generation cancelled');
@@ -387,8 +395,8 @@ async function runGenerationPipeline(storyId: string, prompt: string, userId?: s
     });
 
     // Phase 2: Generate character sheets (sequential)
-    const styleDescription = getArtStyleDescription(style);
-    const characterSheets = await generateAllCharacterSheets(storyId, scenario.characters, userId, signal, styleDescription, pro);
+    const styleDescription = storyStyleOps.getArtStyleDescription(style);
+    const characterSheets = await illustrationOps.generateAllCharacterSheets(storyId, scenario.characters, userId, signal, styleDescription, pro);
 
     if (signal.aborted) throw new Error('Generation cancelled');
     await updateStoryStatus(storyId, 'generating_images');
@@ -407,7 +415,7 @@ async function runGenerationPipeline(storyId: string, prompt: string, userId?: s
     let completedPages = 0;
     const failedPages: number[] = [];
 
-    await generateAllSceneImages(
+    await illustrationOps.generateAllSceneImages(
       storyId,
       scenario.pages,
       scenario.characters,
@@ -444,7 +452,7 @@ async function runGenerationPipeline(storyId: string, prompt: string, userId?: s
       const coverUrl = getPageImageUrl(storyId, 1, userId);
       try {
         await sbStorage.updateStoryProgress(storyId, {
-          status: voice && isElevenLabsConfigured() ? 'generating_audio' : 'completed',
+          status: voice && audioOps.isElevenLabsConfigured() ? 'generating_audio' : 'completed',
           completed_pages: completedPages,
           failed_pages: failedPages,
         });
@@ -460,7 +468,7 @@ async function runGenerationPipeline(storyId: string, prompt: string, userId?: s
     let audioFailed = false;
     let audioError: string | undefined;
 
-    if (voice && isElevenLabsConfigured()) {
+    if (voice && audioOps.isElevenLabsConfigured()) {
       if (signal.aborted) throw new Error('Generation cancelled');
       await updateStoryStatus(storyId, 'generating_audio');
 
@@ -471,12 +479,12 @@ async function runGenerationPipeline(storyId: string, prompt: string, userId?: s
         completedPages: 0,
         totalPages: scenario.pages.length,
         failedPages: [],
-        message: `Illustrations complete. Recording narration with ${voice} voice...`,
+        message: `Illustrations complete. Recording narration with ${getVoiceName(voice)}...`,
       });
 
       let audioCompletedPages = 0;
 
-      const audioResult = await generateAllPageAudio(
+      const audioResult = await audioOps.generateAllPageAudio(
         storyId,
         scenario.pages,
         voice,
@@ -686,10 +694,10 @@ async function runRetryPipeline(
         message: `Retrying ${failedImagePages.length} failed illustration(s)...`,
       });
 
-      const styleDescription = getStoryArtStyleDescription(story);
+      const styleDescription = storyStyleOps.getStoryArtStyleDescription(story);
       const failedPages: number[] = [];
 
-      await retryFailedSceneImages(
+      await illustrationOps.retryFailedSceneImages(
         storyId,
         scenario.pages,
         scenario.characters,
@@ -728,7 +736,7 @@ async function runRetryPipeline(
     }
 
     // Phase 2: Retry missing audio
-    if (needsAudioRetry && isElevenLabsConfigured()) {
+    if (needsAudioRetry && audioOps.isElevenLabsConfigured()) {
       if (signal.aborted) throw new Error('Generation cancelled');
 
       // We need to re-fetch the story to get updated page data after image retry
@@ -737,7 +745,7 @@ async function runRetryPipeline(
       const pagesNeedingAudio = updatedPages.filter(p => !pageHasAudio(p));
 
       // Use voice from freshest DB data, falling back to original story object
-      const voiceKey: VoiceKey | undefined = updatedStory?.voice || story.voice;
+      const voiceKey = normalizeVoiceKey(updatedStory?.voice || story.voice);
       if (!voiceKey) {
         console.warn(`[retry] Story ${storyId} needs audio retry but has no voice set — skipping audio`);
       } else {
@@ -754,7 +762,7 @@ async function runRetryPipeline(
         });
 
         let audioCompletedPages = 0;
-        await retryMissingAudio(
+        await audioOps.retryMissingAudio(
           storyId,
           updatedPages,
           voiceKey,
@@ -855,7 +863,7 @@ router.post('/:id/generate-audio', optionalAuth, async (req: Request, res: Respo
     }
 
     // Check ElevenLabs is configured
-    if (!isElevenLabsConfigured()) {
+    if (!audioOps.isElevenLabsConfigured()) {
       res.status(503).json({ error: 'Audio generation service is not configured' });
       return;
     }
@@ -868,11 +876,11 @@ router.post('/:id/generate-audio', optionalAuth, async (req: Request, res: Respo
 
     // Validate voice
     const { voice } = req.body as { voice?: string };
-    if (!voice || !VALID_VOICE_KEYS.has(voice as VoiceKey)) {
+    const voiceKey = normalizeVoiceKey(voice);
+    if (!voiceKey) {
       res.status(400).json({ error: 'Invalid voice selection' });
       return;
     }
-    const voiceKey = voice as VoiceKey;
 
     // Persist the voice choice
     if (config.useSupabase) {
@@ -920,12 +928,12 @@ async function runAudioGenerationPipeline(
       completedPages: 0,
       totalPages: totalToGenerate,
       failedPages: [],
-      message: `Recording narration with ${voiceKey} voice...`,
+      message: `Recording narration with ${getVoiceName(voiceKey)}...`,
     });
 
     let audioCompletedPages = 0;
 
-    const audioResult = await retryMissingAudio(
+    const audioResult = await audioOps.retryMissingAudio(
       storyId,
       scenario.pages,
       voiceKey,
@@ -1019,7 +1027,7 @@ router.get('/:id/assets', optionalAuth, async (req: Request, res: Response) => {
       const assets: StoryAssets = { characterSheets: [], pageImages: [] };
       if (story.scenario) {
         for (const char of story.scenario.characters) {
-          const filename = getCharacterSheetFilename(char.name);
+          const filename = illustrationOps.getCharacterSheetFilename(char.name);
           assets.characterSheets.push({
             name: char.name,
             url: getStoryImageUrl(storyId, filename, story.userId),
@@ -1117,6 +1125,12 @@ router.get('/:id/status', async (req: Request, res: Response) => {
   const storyId = req.params.id as string;
 
   try {
+    const story = await getStory(storyId);
+    if (!story) {
+      res.status(404).json({ error: 'Story not found' });
+      return;
+    }
+
     res.writeHead(200, {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache',
@@ -1124,7 +1138,6 @@ router.get('/:id/status', async (req: Request, res: Response) => {
       'X-Accel-Buffering': 'no',
     });
 
-    const story = await getStory(storyId);
     const initialProgress = buildInitialProgress(storyId, story);
     res.write(`data: ${JSON.stringify(initialProgress)}\n\n`);
 

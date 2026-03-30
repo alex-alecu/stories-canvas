@@ -134,16 +134,12 @@ export interface Translations {
   // Voice narration
   narratorVoice: string;
   noVoice: string;
-  voiceGrandma: string;
-  voiceGrandpa: string;
-  voiceDad: string;
-  voiceMom: string;
-  voiceWhisper: string;
-  voiceGrandmaDesc: string;
-  voiceGrandpaDesc: string;
-  voiceDadDesc: string;
-  voiceMomDesc: string;
-  voiceWhisperDesc: string;
+  voiceJora: string;
+  voiceSerban: string;
+  voiceCorina: string;
+  voiceJoraDesc: string;
+  voiceSerbanDesc: string;
+  voiceCorinaDesc: string;
   recordingNarration: string;
   narrationFailed: string;
   playNarration: string;

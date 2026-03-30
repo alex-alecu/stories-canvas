@@ -31,6 +31,6 @@ This layered approach — character sheets for identity, previous scene for styl
 
 ### Step 4 — Record Narration
 
-If the user selected a narrator voice, each page's text is sent to a text-to-speech model one page at a time. The app offers several narrator voices (grandma, grandpa, mom, dad, whisper), each with its own tuned speech settings. The resulting audio clips are saved so the story can be played back like an audiobook.
+If the user selected a narrator voice, each page's text is sent to a text-to-speech model one page at a time. The app offers three family-role narrator options backed by the curated Romanian shortlist: Grandpa (Jora Slobod), Dad (Serban Popescu), and Mom (Corina Capuccina). All three use the same narration-oriented speech settings, and the resulting audio clips are saved so the story can be played back like an audiobook.
 
 Audio generation is optional and can also be triggered later on an already-finished story.

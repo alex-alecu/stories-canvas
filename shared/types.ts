@@ -4,15 +4,50 @@ export type StoryStatus = 'generating_scenario' | 'generating_characters' | 'gen
 
 export type ArtStyleKey = 'disney-pixar' | 'watercolor' | 'storybook' | 'anime' | 'colored-pencil' | 'paper-cutout';
 
-export type VoiceKey = 'grandma' | 'grandpa' | 'dad' | 'mom' | 'whisper';
+export type VoiceKey = 'jora' | 'serban' | 'corina';
 
-export const VOICE_OPTIONS: { key: VoiceKey; labelKey: string; descKey: string }[] = [
-  { key: 'grandma', labelKey: 'voiceGrandma', descKey: 'voiceGrandmaDesc' },
-  { key: 'grandpa', labelKey: 'voiceGrandpa', descKey: 'voiceGrandpaDesc' },
-  { key: 'dad', labelKey: 'voiceDad', descKey: 'voiceDadDesc' },
-  { key: 'mom', labelKey: 'voiceMom', descKey: 'voiceMomDesc' },
-  { key: 'whisper', labelKey: 'voiceWhisper', descKey: 'voiceWhisperDesc' },
-];
+export type LegacyVoiceKey = 'grandma' | 'grandpa' | 'dad' | 'mom' | 'whisper';
+
+export const DEFAULT_VOICE_KEY: VoiceKey = 'jora';
+
+export const LEGACY_VOICE_KEY_ALIASES: Record<LegacyVoiceKey, VoiceKey> = {
+  grandma: 'corina',
+  mom: 'corina',
+  grandpa: 'jora',
+  dad: 'serban',
+  whisper: 'jora',
+};
+
+export const VOICE_OPTIONS = [
+  { key: 'jora', name: 'Grandpa', labelKey: 'voiceJora', descKey: 'voiceJoraDesc' },
+  { key: 'serban', name: 'Dad', labelKey: 'voiceSerban', descKey: 'voiceSerbanDesc' },
+  { key: 'corina', name: 'Mom', labelKey: 'voiceCorina', descKey: 'voiceCorinaDesc' },
+] as const satisfies ReadonlyArray<{ key: VoiceKey; name: string; labelKey: string; descKey: string }>;
+
+const VOICE_OPTION_MAP = new Map<VoiceKey, (typeof VOICE_OPTIONS)[number]>(
+  VOICE_OPTIONS.map(option => [option.key, option]),
+);
+
+export function isVoiceKey(value: string): value is VoiceKey {
+  return VOICE_OPTION_MAP.has(value as VoiceKey);
+}
+
+export function normalizeVoiceKey(value: string | null | undefined): VoiceKey | undefined {
+  if (!value) return undefined;
+  const trimmedValue = value.trim();
+  if (!trimmedValue) return undefined;
+  if (isVoiceKey(trimmedValue)) {
+    return trimmedValue;
+  }
+  if (trimmedValue in LEGACY_VOICE_KEY_ALIASES) {
+    return LEGACY_VOICE_KEY_ALIASES[trimmedValue as LegacyVoiceKey];
+  }
+  return undefined;
+}
+
+export function getVoiceName(voiceKey: VoiceKey): string {
+  return VOICE_OPTION_MAP.get(voiceKey)?.name ?? voiceKey;
+}
 
 export const ART_STYLES: Record<ArtStyleKey, string> = {
   'disney-pixar': 'Disney/Pixar 3D animation style with warm, vibrant colors, round and friendly character designs',

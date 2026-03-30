@@ -8,7 +8,7 @@ import { useStories, useCreateStory, useCancelStory, useToggleVisibility } from 
 import { useStoryGeneration } from '../hooks/useStoryGeneration';
 import { useNotification } from '../hooks/useNotification';
 import { useLanguage } from '../i18n/LanguageContext';
-import type { ArtStyleKey, VoiceKey } from '../../shared/types';
+import type { ArtStyleKey, StoryStatus, VoiceKey } from '../../shared/types';
 import { readStorageItem, removeStorageItem, writeStorageItem } from '../lib/browserStorage';
 
 const GENERATING_STORY_KEY = 'stories-canvas:generatingStoryId';
@@ -25,9 +25,13 @@ function setStoredGeneratingId(id: string | null): void {
   }
 }
 
+function isTerminalStoryStatus(status: StoryStatus): boolean {
+  return status === 'completed' || status === 'failed' || status === 'cancelled';
+}
+
 export default function Home() {
   const [generatingStoryId, setGeneratingStoryId] = useState<string | null>(getStoredGeneratingId);
-  const { data: stories = [], isLoading } = useStories();
+  const { data: stories = [], isLoading, isSuccess: hasLoadedStories } = useStories();
   const createStory = useCreateStory();
   const cancelStory = useCancelStory();
   const toggleVisibility = useToggleVisibility();
@@ -40,6 +44,18 @@ export default function Home() {
   useEffect(() => {
     setStoredGeneratingId(generatingStoryId);
   }, [generatingStoryId]);
+
+  useEffect(() => {
+    if (!generatingStoryId || !hasLoadedStories) {
+      return;
+    }
+
+    const matchingStory = stories.find(story => story.id === generatingStoryId);
+    if (!matchingStory || isTerminalStoryStatus(matchingStory.status)) {
+      setGeneratingStoryId(null);
+      setStoredGeneratingId(null);
+    }
+  }, [generatingStoryId, hasLoadedStories, stories]);
 
   const handleCreateStory = useCallback(async (prompt: string, age: number, style: ArtStyleKey, pro: boolean, voice?: VoiceKey) => {
     try {
