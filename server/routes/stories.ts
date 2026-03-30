@@ -163,19 +163,7 @@ function getStatusMessage(status: StoryStatus): string {
   }
 }
 
-function buildInitialProgress(storyId: string, story: StoryMeta | null): GenerationProgress {
-  if (!story) {
-    return {
-      storyId,
-      status: 'generating_scenario',
-      currentPhase: 'Generating story scenario...',
-      completedPages: 0,
-      totalPages: 0,
-      failedPages: [],
-      message: 'Creating your story...',
-    };
-  }
-
+function buildInitialProgress(storyId: string, story: StoryMeta): GenerationProgress {
   return {
     storyId,
     status: story.status,
@@ -1137,6 +1125,12 @@ router.get('/:id/status', async (req: Request, res: Response) => {
   const storyId = req.params.id as string;
 
   try {
+    const story = await getStory(storyId);
+    if (!story) {
+      res.status(404).json({ error: 'Story not found' });
+      return;
+    }
+
     res.writeHead(200, {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache',
@@ -1144,7 +1138,6 @@ router.get('/:id/status', async (req: Request, res: Response) => {
       'X-Accel-Buffering': 'no',
     });
 
-    const story = await getStory(storyId);
     const initialProgress = buildInitialProgress(storyId, story);
     res.write(`data: ${JSON.stringify(initialProgress)}\n\n`);
 

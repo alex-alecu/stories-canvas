@@ -267,3 +267,21 @@ test('POST /api/stories/:id/retry resolves stored legacy voice keys for missing 
 
   assert.equal(resolvedVoice, 'jora');
 });
+
+test('GET /api/stories/:id/status returns 404 when the story does not exist', async (t) => {
+  const dataDir = mkdtempSync(path.join(os.tmpdir(), 'stories-status-missing-'));
+  const harness = await createStoriesHarness(dataDir);
+  t.after(async () => {
+    await harness.close();
+    await fs.rm(dataDir, { recursive: true, force: true });
+  });
+
+  const response = await fetch(`${harness.baseUrl}/api/stories/missing-story/status`, {
+    headers: {
+      Accept: 'text/event-stream',
+    },
+  });
+
+  assert.equal(response.status, 404);
+  assert.deepEqual(await response.json(), { error: 'Story not found' });
+});
