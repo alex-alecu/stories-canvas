@@ -30,7 +30,18 @@ function makePage(overrides: Partial<Page> = {}): Page {
   };
 }
 
-async function createStoriesHarness(dataDir: string) {
+function makeStoryMeta(overrides: Partial<StoryMeta> = {}): StoryMeta {
+  return {
+    id: 'story-test',
+    prompt: 'A calm bedtime story.',
+    status: 'generating_images',
+    createdAt: '2026-03-29T00:00:00.000Z',
+    scenario: makeScenario([makePage()]),
+    ...overrides,
+  };
+}
+
+async function createStoriesHarness(dataDir: string, configOverrides: Record<string, unknown> = {}) {
   const express = (await import('express')).default;
   const { config } = await import('../config.js');
   const storiesModule = await import('./stories.js');
@@ -39,6 +50,7 @@ async function createStoriesHarness(dataDir: string) {
     dataDir,
     useSupabase: false,
     elevenLabsApiKey: undefined,
+    ...configOverrides,
   });
 
   const app = express();
@@ -284,4 +296,70 @@ test('GET /api/stories/:id/status returns 404 when the story does not exist', as
 
   assert.equal(response.status, 404);
   assert.deepEqual(await response.json(), { error: 'Story not found' });
+});
+
+test('GET /api/stories/active/generations returns Supabase story ids', async (t) => {
+  const dataDir = mkdtempSync(path.join(os.tmpdir(), 'stories-active-generations-ok-'));
+  const harness = await createStoriesHarness(dataDir, { useSupabase: true });
+
+  t.after(async () => {
+    await harness.close();
+    await fs.rm(dataDir, { recursive: true, force: true });
+  });
+
+  t.mock.method(harness.storiesModule.storageOps, 'getActiveGenerations', async () => [
+    makeStoryMeta({ id: 'story-1' }),
+    makeStoryMeta({ id: 'story-2', status: 'generating_audio' }),
+  ]);
+
+  const response = await fetch(`${harness.baseUrl}/api/stories/active/generations`);
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), ['story-1', 'story-2']);
+});
+
+test('GET /api/stories/active/generations returns 503 for transient Supabase outages', async (t) => {
+  const dataDir = mkdtempSync(path.join(os.tmpdir(), 'stories-active-generations-transient-'));
+  const harness = await createStoriesHarness(dataDir, { useSupabase: true });
+  const supabaseStorage = await import('../services/supabaseStorage.js');
+
+  t.after(async () => {
+    await harness.close();
+    await fs.rm(dataDir, { recursive: true, force: true });
+  });
+
+  t.mock.method(harness.storiesModule.storageOps, 'getActiveGenerations', async () => {
+    throw new supabaseStorage.TransientDependencyError(
+      'Supabase',
+      'active generation lookup',
+      'upstream returned an HTML bad gateway response',
+      { status: 502 },
+    );
+  });
+
+  const response = await fetch(`${harness.baseUrl}/api/stories/active/generations`);
+
+  assert.equal(response.status, 503);
+  assert.deepEqual(await response.json(), {
+    error: 'Story generation status is temporarily unavailable. Please retry shortly.',
+  });
+});
+
+test('GET /api/stories/active/generations returns 500 for non-transient errors', async (t) => {
+  const dataDir = mkdtempSync(path.join(os.tmpdir(), 'stories-active-generations-error-'));
+  const harness = await createStoriesHarness(dataDir, { useSupabase: true });
+
+  t.after(async () => {
+    await harness.close();
+    await fs.rm(dataDir, { recursive: true, force: true });
+  });
+
+  t.mock.method(harness.storiesModule.storageOps, 'getActiveGenerations', async () => {
+    throw new Error('database permissions misconfigured');
+  });
+
+  const response = await fetch(`${harness.baseUrl}/api/stories/active/generations`);
+
+  assert.equal(response.status, 500);
+  assert.deepEqual(await response.json(), { error: 'Failed to get active generations' });
 });

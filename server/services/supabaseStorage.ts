@@ -5,6 +5,153 @@ import { MEDIA_CACHE_MAX_AGE_SECONDS } from '../utils/storyMedia.js';
 import { parseArtStyle } from './storyStyle.js';
 
 const BUCKET = 'story-images';
+const TRANSIENT_HTTP_STATUSES = new Set([502, 503, 504]);
+
+interface SupabaseErrorLike {
+  code?: unknown;
+  details?: unknown;
+  hint?: unknown;
+  message?: unknown;
+  status?: unknown;
+  statusCode?: unknown;
+}
+
+export class TransientDependencyError extends Error {
+  readonly dependency: string;
+  readonly operation: string;
+  readonly status?: number;
+  readonly detail: string;
+
+  constructor(
+    dependency: string,
+    operation: string,
+    detail: string,
+    options: { cause?: unknown; status?: number } = {},
+  ) {
+    const parts = [
+      typeof options.status === 'number' ? `HTTP ${options.status}` : undefined,
+      detail,
+    ].filter(Boolean);
+
+    super(
+      `${dependency} temporarily unavailable during ${operation}${parts.length > 0 ? ` (${parts.join(', ')})` : ''}`,
+    );
+    this.name = 'TransientDependencyError';
+    this.dependency = dependency;
+    this.operation = operation;
+    this.status = options.status;
+    this.detail = detail;
+
+    if (options.cause !== undefined) {
+      (this as Error & { cause?: unknown }).cause = options.cause;
+    }
+  }
+}
+
+export function isTransientDependencyError(error: unknown): error is TransientDependencyError {
+  return error instanceof TransientDependencyError;
+}
+
+function parseStatusCode(value: unknown): number | undefined {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) return undefined;
+
+    const parsed = Number.parseInt(trimmed, 10);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+
+  return undefined;
+}
+
+function collectErrorText(error: SupabaseErrorLike): string {
+  return [error.message, error.details, error.hint]
+    .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+    .join(' ');
+}
+
+function looksLikeHtmlErrorBody(text: string): boolean {
+  return /<!doctype html|<html[\s>]|<head[\s>]|<body[\s>]|cloudflare ray id/i.test(text);
+}
+
+function isTransientUpstreamSupabaseFailure(status: number | undefined, text: string): boolean {
+  if (status !== undefined && TRANSIENT_HTTP_STATUSES.has(status)) {
+    return true;
+  }
+
+  return /\bbad gateway\b|\bgateway timeout\b|\bservice unavailable\b|\bcloudflare\b|\btimed out\b|\btimeout\b/i.test(text)
+    || looksLikeHtmlErrorBody(text);
+}
+
+function describeTransientSupabaseFailure(status: number | undefined, text: string): string {
+  const normalized = text.toLowerCase();
+  const htmlResponse = looksLikeHtmlErrorBody(text);
+
+  if (status === 502 || normalized.includes('bad gateway')) {
+    return htmlResponse ? 'upstream returned an HTML bad gateway response' : 'upstream bad gateway';
+  }
+
+  if (status === 503 || normalized.includes('service unavailable')) {
+    return htmlResponse ? 'upstream returned an HTML service unavailable response' : 'upstream service unavailable';
+  }
+
+  if (status === 504 || normalized.includes('gateway timeout')) {
+    return htmlResponse ? 'upstream returned an HTML gateway timeout response' : 'upstream gateway timeout';
+  }
+
+  if (normalized.includes('cloudflare')) {
+    return htmlResponse ? 'upstream returned an HTML Cloudflare error response' : 'upstream Cloudflare error';
+  }
+
+  if (normalized.includes('timed out') || normalized.includes('timeout')) {
+    return 'upstream timeout';
+  }
+
+  if (htmlResponse) {
+    return 'upstream returned an HTML error response';
+  }
+
+  return 'temporary upstream failure';
+}
+
+function classifySupabaseOperationError(operation: string, error: unknown): Error {
+  if (isTransientDependencyError(error)) {
+    return error;
+  }
+
+  if (error instanceof Error && error.message.startsWith(`Failed during ${operation}:`)) {
+    return error;
+  }
+
+  if (error && typeof error === 'object') {
+    const supabaseError = error as SupabaseErrorLike;
+    const status = parseStatusCode(supabaseError.status ?? supabaseError.statusCode);
+    const text = collectErrorText(supabaseError);
+
+    if (isTransientUpstreamSupabaseFailure(status, text)) {
+      return new TransientDependencyError(
+        'Supabase',
+        operation,
+        describeTransientSupabaseFailure(status, text),
+        { cause: error, status },
+      );
+    }
+
+    if (text) {
+      return new Error(`Failed during ${operation}: ${text}`);
+    }
+  }
+
+  if (error instanceof Error) {
+    return new Error(`Failed during ${operation}: ${error.message}`);
+  }
+
+  return new Error(`Failed during ${operation}: ${String(error)}`);
+}
 
 // ---------- Story CRUD ----------
 
@@ -182,15 +329,24 @@ export async function deleteStory(id: string, userId?: string): Promise<boolean>
   return true;
 }
 
-export async function getActiveGenerations(): Promise<StoryMeta[]> {
-  const supabase = getSupabase();
-  const { data, error } = await supabase
-    .from('stories')
-    .select('*')
-    .not('status', 'in', '("completed","failed","cancelled")')
-    .order('created_at', { ascending: false });
-  if (error) throw new Error(`Failed to get active generations: ${error.message}`);
-  return (data as StoryRow[]).map(rowToStoryMeta);
+export async function getActiveGenerations(
+  supabase = getSupabase(),
+): Promise<StoryMeta[]> {
+  try {
+    const { data, error } = await supabase
+      .from('stories')
+      .select('*')
+      .not('status', 'in', '("completed","failed","cancelled")')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      throw classifySupabaseOperationError('active generation lookup', error);
+    }
+
+    return (data as StoryRow[]).map(rowToStoryMeta);
+  } catch (error) {
+    throw classifySupabaseOperationError('active generation lookup', error);
+  }
 }
 
 // ---------- Update Voice ----------
@@ -335,20 +491,31 @@ export async function downloadImage(storyId: string, filename: string, userId?: 
  * Recover stories stuck in generating states after a server crash or restart.
  * Determines the correct status based on actual page data and updates accordingly.
  */
-export async function recoverStuckStories(): Promise<number> {
-  const stuck = await getActiveGenerations();
+export interface RecoveryDeps {
+  loadActiveGenerations?: () => Promise<StoryMeta[]>;
+  log?: Pick<Console, 'log'>;
+  now?: () => number;
+  updateStatus?: (id: string, status: StoryStatus) => Promise<void>;
+}
+
+export async function recoverStuckStories(deps: RecoveryDeps = {}): Promise<number> {
+  const loadActiveGenerations = deps.loadActiveGenerations ?? (() => getActiveGenerations());
+  const logger = deps.log ?? console;
+  const persistStatus = deps.updateStatus ?? updateStoryStatus;
+
+  const stuck = await loadActiveGenerations();
   if (stuck.length === 0) return 0;
 
   // Only recover stories older than 5 minutes to avoid interfering with
   // genuinely in-progress generations (e.g. during rolling deploys).
   const STUCK_THRESHOLD_MS = 5 * 60 * 1000;
-  const now = Date.now();
+  const now = deps.now?.() ?? Date.now();
 
   let recovered = 0;
   for (const story of stuck) {
     const age = now - new Date(story.createdAt).getTime();
     if (age < STUCK_THRESHOLD_MS) {
-      console.log(`  [recovery] ${story.id}: still fresh (${Math.round(age / 1000)}s old), skipping`);
+      logger.log(`  [recovery] ${story.id}: still fresh (${Math.round(age / 1000)}s old), skipping`);
       continue;
     }
 
@@ -356,8 +523,8 @@ export async function recoverStuckStories(): Promise<number> {
 
     // No scenario data yet — story was in very early generation, mark failed
     if (pages.length === 0) {
-      await updateStoryStatus(story.id, 'failed');
-      console.log(`  [recovery] ${story.id}: no pages → failed`);
+      await persistStatus(story.id, 'failed');
+      logger.log(`  [recovery] ${story.id}: no pages → failed`);
       recovered++;
       continue;
     }
@@ -369,18 +536,18 @@ export async function recoverStuckStories(): Promise<number> {
 
     if (allImagesComplete && allAudioPresent) {
       // Everything is done — mark completed
-      await updateStoryStatus(story.id, 'completed');
-      console.log(`  [recovery] ${story.id}: all content present → completed`);
+      await persistStatus(story.id, 'completed');
+      logger.log(`  [recovery] ${story.id}: all content present → completed`);
     } else if (hasFailedImages || (shouldHaveAudio && pages.some(p => !p.audioUrl))) {
       // Has failures or missing audio — mark completed (retry can fix the rest)
       // We use 'completed' rather than 'failed' so the story is viewable,
       // and the retry button will appear for the missing content.
-      await updateStoryStatus(story.id, 'completed');
-      console.log(`  [recovery] ${story.id}: partial content (failed images: ${hasFailedImages}, missing audio: ${shouldHaveAudio && pages.some(p => !p.audioUrl)}) → completed`);
+      await persistStatus(story.id, 'completed');
+      logger.log(`  [recovery] ${story.id}: partial content (failed images: ${hasFailedImages}, missing audio: ${shouldHaveAudio && pages.some(p => !p.audioUrl)}) → completed`);
     } else {
       // Images still pending/generating — mark failed since pipeline is dead
-      await updateStoryStatus(story.id, 'failed');
-      console.log(`  [recovery] ${story.id}: images incomplete → failed`);
+      await persistStatus(story.id, 'failed');
+      logger.log(`  [recovery] ${story.id}: images incomplete → failed`);
     }
     recovered++;
   }
