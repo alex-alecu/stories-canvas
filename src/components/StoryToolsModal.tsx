@@ -12,6 +12,7 @@ interface StoryToolsModalProps {
   scenario: Scenario;
   progress?: GenerationProgress | null;
   isGenerating?: boolean;
+  storyMessage?: string;
   voice?: string;
 }
 
@@ -22,6 +23,7 @@ export default function StoryToolsModal({
   scenario,
   progress,
   isGenerating,
+  storyMessage,
   voice,
 }: StoryToolsModalProps) {
   const { t } = useLanguage();
@@ -226,6 +228,9 @@ export default function StoryToolsModal({
                   <div className="flex-1">
                     <h3 className="text-white font-semibold text-sm mb-1">{t.storyStatus}</h3>
                     <p className="text-white/60 text-sm">{t.retryDescription}</p>
+                    {storyMessage && (
+                      <p className="text-amber-300 text-sm mt-2">{storyMessage}</p>
+                    )}
                   </div>
                 </div>
 

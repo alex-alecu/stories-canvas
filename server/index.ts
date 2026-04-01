@@ -4,7 +4,9 @@ import { fileURLToPath } from 'url';
 import { config } from './config.js';
 import storiesRouter from './routes/stories.js';
 import userRouter from './routes/user.js';
+import { isGenerationActive } from './services/generationRegistry.js';
 import { runRecoveryPass } from './services/recoveryRunner.js';
+import { recoverStuckStories } from './services/supabaseStorage.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -49,11 +51,17 @@ app.listen(config.port, () => {
 
   // Recover stories stuck in generating states from a previous crash/restart
   if (config.useSupabase) {
-    void runRecoveryPass('startup');
+    void runRecoveryPass(
+      'startup',
+      () => recoverStuckStories({ isGenerationActive }),
+    );
 
     // Periodic watchdog: recover stories that get stuck during normal operation
     setInterval(() => {
-      void runRecoveryPass('watchdog');
+      void runRecoveryPass(
+        'watchdog',
+        () => recoverStuckStories({ isGenerationActive }),
+      );
     }, 5 * 60 * 1000);
   }
 });

@@ -29,7 +29,7 @@ Pure white background. Clean, professional character model sheet layout.
 CRITICAL: Show the EXACT same character in all views - same colors, same proportions, same clothing.
 Label at the bottom: "${character.name.toUpperCase()} CHARACTER SHEET"`;
 
-  console.log(`Generating character sheet for ${character.name}...`);
+  console.log(`[character-sheet:${storyId}] Generating character sheet for ${character.name}...`);
   const base64 = await generateImage(prompt, [], pro);
   const filename = getCharacterSheetFilename(character.name);
 
@@ -38,7 +38,7 @@ Label at the bottom: "${character.name.toUpperCase()} CHARACTER SHEET"`;
   } else {
     await saveImage(storyId, filename, base64);
   }
-  console.log(`Character sheet saved: ${filename}`);
+  console.log(`[character-sheet:${storyId}] Character sheet saved: ${filename}`);
 
   return { name: character.name, filename, base64 };
 }
@@ -61,7 +61,7 @@ export async function generateAllCharacterSheets(
       const result = await generateCharacterSheet(storyId, character, userId, styleDescription, pro);
       characterSheets.set(result.name, result.base64);
     } catch (error) {
-      console.error(`Failed to generate character sheet for ${character.name}:`, error);
+      console.error(`[character-sheet:${storyId}] Failed to generate character sheet for ${character.name}:`, error);
       // Continue with other characters - scenes will work without reference sheets
     }
   }

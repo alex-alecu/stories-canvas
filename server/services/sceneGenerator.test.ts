@@ -39,6 +39,7 @@ test('generateSceneImage marks safety-blocked pages as failed without logging an
   const sceneGenerator = await import('./sceneGenerator.js');
   const gemini = await import('./gemini.js');
   const { entries, logger } = createLogger();
+  const progressMessages: string[] = [];
   const statuses: string[] = [];
   let attempts = 0;
   let savedImage = false;
@@ -49,7 +50,11 @@ test('generateSceneImage marks safety-blocked pages as failed without logging an
     [] as Character[],
     new Map(),
     'Storybook illustration style',
-    undefined,
+    progress => {
+      if (progress.message) {
+        progressMessages.push(progress.message);
+      }
+    },
     undefined,
     undefined,
     false,
@@ -85,11 +90,13 @@ test('generateSceneImage marks safety-blocked pages as failed without logging an
   assert.equal(entries.warn.length, 2);
   assert.match(entries.warn[0], /Safety filter hit on page 2, attempt 1/);
   assert.match(entries.warn[1], /blocked by image safety filters after prompt softening/);
+  assert.match(progressMessages.at(-1) ?? '', /image provider blocked it with safety filters/i);
 });
 
 test('generateSceneImage keeps non-safety generation failures on the error path', async () => {
   const sceneGenerator = await import('./sceneGenerator.js');
   const { entries, logger } = createLogger();
+  const progressMessages: string[] = [];
   const statuses: string[] = [];
 
   const result = await sceneGenerator.generateSceneImage(
@@ -98,7 +105,11 @@ test('generateSceneImage keeps non-safety generation failures on the error path'
     [] as Character[],
     new Map(),
     'Storybook illustration style',
-    undefined,
+    progress => {
+      if (progress.message) {
+        progressMessages.push(progress.message);
+      }
+    },
     undefined,
     undefined,
     false,
@@ -128,4 +139,5 @@ test('generateSceneImage keeps non-safety generation failures on the error path'
   assert.match(entries.warn[0], /Page 4 attempt 1 failed: upstream connection reset/);
   assert.equal(entries.error.length, 1);
   assert.match(entries.error[0], /Failed to generate page 4:/);
+  assert.match(progressMessages.at(-1) ?? '', /image provider returned an error/i);
 });

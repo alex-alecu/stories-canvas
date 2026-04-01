@@ -162,3 +162,31 @@ test('recoverStuckStories keeps successful recovery behavior unchanged for stale
   assert.equal(recoveredCount, 1);
   assert.deepEqual(updates, [{ id: 'story-stale', status: 'completed' }]);
 });
+
+test('recoverStuckStories skips stories that are still active on this server', async () => {
+  const supabaseStorage = await import('./supabaseStorage.js');
+  const updates: Array<{ id: string; status: string }> = [];
+
+  const recoveredCount = await supabaseStorage.recoverStuckStories({
+    isGenerationActive: storyId => storyId === 'story-live',
+    loadActiveGenerations: async () => [
+      makeStoryMeta({
+        id: 'story-live',
+        createdAt: '2026-03-30T00:00:00.000Z',
+        scenario: makeScenario({
+          pages: [
+            makePage({ pageNumber: 1, status: 'failed' }),
+          ],
+        }),
+      }),
+    ],
+    now: () => Date.parse('2026-03-31T00:10:00.000Z'),
+    updateStatus: async (id, status) => {
+      updates.push({ id, status });
+    },
+    log: { log() {} },
+  });
+
+  assert.equal(recoveredCount, 0);
+  assert.deepEqual(updates, []);
+});

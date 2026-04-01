@@ -123,6 +123,7 @@ export default function StoryPage() {
         scenario={story.scenario}
         isGenerating={isGenerating}
         progress={progress}
+        storyMessage={story.progressMessage}
         voice={story.voice}
       />
     );
