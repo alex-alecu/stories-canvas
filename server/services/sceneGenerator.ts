@@ -1,6 +1,6 @@
 import pRetry, { AbortError } from 'p-retry';
 import fs from 'fs/promises';
-import { generateImage } from './gemini.js';
+import { generateImage, isImageSafetyBlockedError } from './gemini.js';
 import { saveImage, updatePageStatus as fsUpdatePageStatus, getImagePath } from '../utils/storage.js';
 import { uploadImage, updatePageStatus as sbUpdatePageStatus, downloadImage } from './supabaseStorage.js';
 import { getCharacterSheetFilename } from './characterSheet.js';
@@ -115,6 +115,20 @@ function softenPrompt(prompt: string): string {
     + '\n\nNote: This is a wholesome, gentle children\'s story illustration. Keep it bright, cheerful, and child-friendly.';
 }
 
+interface SceneGenerationDeps {
+  generateImage?: typeof generateImage;
+  log?: Pick<Console, 'error' | 'warn'>;
+  retryOptions?: Partial<{
+    factor: number;
+    maxTimeout: number;
+    minTimeout: number;
+    randomize: boolean;
+    retries: number;
+  }>;
+  saveSceneImage?: typeof saveSceneImage;
+  updatePageStatus?: typeof updatePageStatusBoth;
+}
+
 export async function generateSceneImage(
   storyId: string,
   page: Page,
@@ -125,10 +139,15 @@ export async function generateSceneImage(
   userId?: string,
   previousSceneBase64?: string | null,
   pro?: boolean,
+  deps: SceneGenerationDeps = {},
 ): Promise<string | null> {
   const pageFilename = getPageImageFilename(page.pageNumber);
+  const runGenerateImage = deps.generateImage ?? generateImage;
+  const persistSceneImage = deps.saveSceneImage ?? saveSceneImage;
+  const setPageStatus = deps.updatePageStatus ?? updatePageStatusBoth;
+  const logger = deps.log ?? console;
 
-  await updatePageStatusBoth(storyId, page.pageNumber, 'generating');
+  await setPageStatus(storyId, page.pageNumber, 'generating');
     onProgress?.({ message: `Generating image for page ${page.pageNumber}...`, pageNumber: page.pageNumber, pageStatus: 'generating' });
 
   const referenceImages: Array<{ data: string; mimeType: string }> = [];
@@ -160,23 +179,25 @@ export async function generateSceneImage(
     const base64 = await pRetry(
       async (attemptNumber) => {
         try {
-          return await generateImage(
+          return await runGenerateImage(
             attemptNumber > 1 ? softenPrompt(prompt) : prompt,
             referenceImages,
             pro,
           );
         } catch (error: any) {
           // Check for safety filter
-          if (error?.message?.includes('SAFETY') || error?.message?.includes('safety')) {
-            console.warn(`Safety filter hit on page ${page.pageNumber}, attempt ${attemptNumber}. Softening prompt...`);
+          if (isImageSafetyBlockedError(error)) {
+            if (attemptNumber === 1) {
+              logger.warn(`Safety filter hit on page ${page.pageNumber}, attempt ${attemptNumber}. Softening prompt...`);
+            }
             if (attemptNumber >= 2) {
-              throw new AbortError(`Safety filter rejected page ${page.pageNumber} after softening`);
+              throw new AbortError(error);
             }
             throw error; // retry with softened prompt
           }
           // Check for rate limit (429)
           if (error?.status === 429 || error?.message?.includes('429') || error?.message?.includes('RESOURCE_EXHAUSTED')) {
-            console.warn(`Rate limited on page ${page.pageNumber}, attempt ${attemptNumber}. Retrying...`);
+            logger.warn(`Rate limited on page ${page.pageNumber}, attempt ${attemptNumber}. Retrying...`);
             throw error; // p-retry handles backoff
           }
           throw error;
@@ -189,19 +210,27 @@ export async function generateSceneImage(
         factor: 2,
         randomize: true,
         onFailedAttempt: (error) => {
-          console.warn(`Page ${page.pageNumber} attempt ${error.attemptNumber} failed: ${error.message}`);
+          if (isImageSafetyBlockedError(error)) {
+            return;
+          }
+          logger.warn(`Page ${page.pageNumber} attempt ${error.attemptNumber} failed: ${error.message}`);
         },
+        ...deps.retryOptions,
       },
     );
 
-    await saveSceneImage(storyId, pageFilename, base64, userId);
-    await updatePageStatusBoth(storyId, page.pageNumber, 'completed');
+    await persistSceneImage(storyId, pageFilename, base64, userId);
+    await setPageStatus(storyId, page.pageNumber, 'completed');
 
     onProgress?.({ message: `Page ${page.pageNumber} completed`, pageNumber: page.pageNumber, pageStatus: 'completed' });
     return base64;
   } catch (error) {
-    console.error(`Failed to generate page ${page.pageNumber}:`, error);
-    await updatePageStatusBoth(storyId, page.pageNumber, 'failed');
+    if (isImageSafetyBlockedError(error)) {
+      logger.warn(`Page ${page.pageNumber} was blocked by image safety filters after prompt softening. Marking it failed and leaving it retryable.`);
+    } else {
+      logger.error(`Failed to generate page ${page.pageNumber}:`, error);
+    }
+    await setPageStatus(storyId, page.pageNumber, 'failed');
     onProgress?.({ message: `Page ${page.pageNumber} failed`, pageNumber: page.pageNumber, pageStatus: 'failed' });
     return null;
   }

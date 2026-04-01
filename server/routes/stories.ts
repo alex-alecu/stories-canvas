@@ -40,6 +40,10 @@ export const storyStyleOps = {
   resolveArtStyle,
 };
 
+export const storageOps = {
+  getActiveGenerations: sbStorage.getActiveGenerations,
+};
+
 // ---------- Storage adapter (delegates to Supabase or filesystem) ----------
 
 async function saveScenario(
@@ -571,12 +575,18 @@ async function runGenerationPipeline(storyId: string, prompt: string, userId?: s
 router.get('/active/generations', async (_req: Request, res: Response) => {
   try {
     if (config.useSupabase) {
-      const active = await sbStorage.getActiveGenerations();
+      const active = await storageOps.getActiveGenerations();
       res.json(active.map(s => s.id));
     } else {
       res.json([]);
     }
   } catch (error) {
+    if (sbStorage.isTransientDependencyError(error)) {
+      console.warn('Active generation lookup temporarily unavailable:', error.message);
+      res.status(503).json({ error: 'Story generation status is temporarily unavailable. Please retry shortly.' });
+      return;
+    }
+
     console.error('Failed to get active generations:', error);
     res.status(500).json({ error: 'Failed to get active generations' });
   }

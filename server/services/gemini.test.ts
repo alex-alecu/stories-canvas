@@ -173,7 +173,11 @@ test('generateImage surfaces safety blocks without falling back to the pro model
   try {
     await assert.rejects(
       () => gemini.generateImage('draw something unsafe'),
-      /SAFETY|safety/,
+      error => {
+        assert.ok(error instanceof gemini.ImageSafetyBlockedError);
+        assert.match(String(error.message), /SAFETY|safety/);
+        return true;
+      },
     );
 
     assert.equal(calls.length, 1);

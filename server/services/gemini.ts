@@ -36,6 +36,20 @@ interface ImageGenerationResponse {
   }>;
 }
 
+export class ImageSafetyBlockedError extends Error {
+  readonly model: string;
+
+  constructor(model: string, message: string) {
+    super(message);
+    this.name = 'ImageSafetyBlockedError';
+    this.model = model;
+  }
+}
+
+export function isImageSafetyBlockedError(error: unknown): error is ImageSafetyBlockedError {
+  return error instanceof ImageSafetyBlockedError;
+}
+
 function shouldRetryWithoutThinking(error: Error): boolean {
   const message = error.message.toLowerCase();
   const mentionsThinking = message.includes('thinking')
@@ -240,7 +254,9 @@ export async function generateImage(
       return imageData;
     }
 
-    const error = new Error(describeImageFailure(response, model));
+    const error = isSafetyImageFailure(response)
+      ? new ImageSafetyBlockedError(model, describeImageFailure(response, model))
+      : new Error(describeImageFailure(response, model));
 
     if (fallbackModel && index === 0 && !isSafetyImageFailure(response)) {
       console.warn(
