@@ -57,9 +57,11 @@ test('story prompt assembly keeps shared rubric and language-specific rules toge
   const draftPrompt = storyPrompt.buildDraftScenarioPrompt(context);
 
   assert.match(systemInstruction, /Required Story Shape/);
+  assert.match(systemInstruction, /Build around one clear central problem, quest, or test\./);
   assert.match(systemInstruction, /Write every field in English unless it is explicitly listed below as English-only/);
   assert.match(draftPrompt, /Target age: 6/);
   assert.match(draftPrompt, /Classic hand-drawn storybook illustration/);
+  assert.match(draftPrompt, /Write an original story unless the user explicitly asks for a retelling\./);
   assert.match(draftPrompt, /A brave bunny follows a lantern through the rain\./);
 });
 
@@ -93,11 +95,23 @@ test('story prompt assembly keeps the stronger story-shape and age-band rubric r
   const systemInstruction = storyPrompt.buildStorySystemInstruction(context);
 
   assert.match(systemInstruction, /Trigger an inciting problem within the first third of the pages/);
-  assert.match(systemInstruction, /Give the hero at least one meaningful failed attempt, setback, or misunderstanding/);
+  assert.match(systemInstruction, /give the hero at least one meaningful failed attempt, setback, or misunderstanding/i);
   assert.match(systemInstruction, /Use the final page as the warm resolution/);
   assert.match(systemInstruction, /Ages 6-8: use 3-5 concise sentences/);
   assert.match(systemInstruction, /Character actions, emotions, and goals must stay logically consistent from page to page/);
   assert.match(systemInstruction, /If page text changes during revision, keep `imagePrompt` and `characters` aligned/);
+  assert.match(systemInstruction, /Tension should feel exciting, but safe enough for bedtime or repeat reading\./);
+  assert.match(systemInstruction, /Open on a picture a child can draw from memory after one hearing\./);
+  assert.match(systemInstruction, /Avoid cruelty overload, body horror, lingering terror, sadistic punishment, or bleak endings\./);
+});
+
+test('story generator template keeps the reusable under-10 prompt guidance', async () => {
+  const storyPrompt = await import('./storyPrompt.js');
+
+  assert.match(storyPrompt.STORY_GENERATOR_TEMPLATE, /Write an original \{\{language\}\} story for children age \{\{age\}\}\./);
+  assert.match(storyPrompt.STORY_GENERATOR_TEMPLATE, /Center it on one clear problem, quest, or test\./);
+  assert.match(storyPrompt.STORY_GENERATOR_TEMPLATE, /Keep danger gentle and non-graphic/);
+  assert.match(storyPrompt.STORY_GENERATOR_TEMPLATE, /\{\{user_prompt\}\}/);
 });
 
 test('generateScenarioWithModel uses draft, repair, and review settings in order', async () => {

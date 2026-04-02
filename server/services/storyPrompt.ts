@@ -61,6 +61,23 @@ const LANGUAGE_PROMPT_CONFIG: Record<SupportedStoryLanguage, LanguagePromptConfi
   ko: { label: 'Korean', sampleNames: '토끼 미미, 꼬마 곰 올리' },
 };
 
+export const STORY_GENERATOR_TEMPLATE = [
+  'Write an original {{language}} story for children age {{age}}.',
+  'Center it on one clear problem, quest, or test.',
+  'Use a small, lovable protagonist with a child-readable motivation.',
+  'Keep the cast small, the plot linear, and the scenes easy to picture.',
+  'Open on a memorable image, use repetition or a rule-of-three pattern, and make the emotional arc easy to follow.',
+  'Let the hero solve the problem actively through kindness, courage, honesty, teamwork, or cleverness.',
+  'Keep danger gentle and non-graphic, preserve wonder with one or two magical elements, and end with comfort, fairness, or belonging.',
+  'Use concrete language, visible action, and a read-aloud rhythm children will want to hear again.',
+  '',
+  'Story premise:',
+  '{{user_prompt}}',
+  '',
+  'Output contract:',
+  '{{output_contract}}',
+].join('\n');
+
 export interface StoryPromptContext {
   language: SupportedStoryLanguage;
   targetAge: number;
@@ -137,6 +154,9 @@ export function buildDraftScenarioPrompt(context: StoryPromptContext): string {
     'Mode: Draft the first complete scenario.',
     `Target age: ${context.targetAge}`,
     `Art style for illustrations: ${context.styleDescription}`,
+    'Write an original story unless the user explicitly asks for a retelling.',
+    'Prioritize one clear goal, a small cast, visible action, gentle tension, and a comforting ending.',
+    'Open on a memorable image, use repetition or a rule-of-three pattern, and let the hero solve the problem actively.',
     'Before answering, silently plan the beat sheet page by page so the arc lands cleanly.',
     'Make the inciting problem happen early, include at least one failed attempt, and reserve the last page for the emotional resolution.',
     'Output only the final JSON.',
@@ -161,6 +181,7 @@ export function buildRepairScenarioPrompt(
     `Target age: ${context.targetAge}`,
     `Art style for illustrations: ${context.styleDescription}`,
     'Preserve the core idea from the user request while improving structure and clarity.',
+    'Keep the cast small, the problem clear, the tension gentle, and the ending emotionally complete.',
     'If you rewrite any page text, you must also update that page\'s imagePrompt and characters array so they stay aligned.',
     'Do not explain the fixes. Output only the corrected full JSON object.',
     '',
@@ -191,6 +212,7 @@ export function buildScenarioReviewPrompt(
     `Art style for illustrations: ${context.styleDescription}`,
     'Judge the scenario against the user prompt and the full story-writing rubric.',
     'Only ask for a rewrite when the scenario materially misses prompt fidelity, story arc, continuity, emotional payoff, or page alignment.',
+    'Flag moral muddle, passive protagonists, cruelty spikes, or cluttered subplots when they materially weaken the story.',
     'Changed page numbers should include only the pages that would need rewritten text or imagePrompt updates.',
     '',
     'Original user story request:',
@@ -222,6 +244,7 @@ export function buildScenarioRewritePrompt(
     `Art style for illustrations: ${context.styleDescription}`,
     'Preserve the prompt\'s core idea and keep revisions conservative.',
     'Preserve page count, page numbers, and the main character set unless a change is truly required to fix prompt fidelity or validation.',
+    'Keep scenes vivid, the conflict child-readable, the danger gentle, and the ending comforting.',
     'If you rewrite any page text, you must also update that page\'s imagePrompt and characters array so they stay aligned.',
     'Return the full corrected scenario JSON only.',
     '',
