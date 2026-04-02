@@ -131,6 +131,12 @@ const nl: Translations = {
   narrationSpeed: 'Snelheid',
 
   storyTools: 'Verhaalgereedschap',
+  reviewScript: 'Review script',
+  reviewingScript: 'Reviewing script...',
+  reviewingScriptStatus: 'Reviewing script...',
+  reviewScriptDescription: 'Run an editorial review on the story script and auto-fix issues before you render again.',
+  reviewScriptSuccess: 'Script review completed.',
+  reviewScriptFailed: 'Script review failed. Please try again.',
   retry: 'Opnieuw proberen',
   back: 'Terug',
   retryDescription: 'Sommige inhoud kon niet worden gegenereerd. Probeer opnieuw om je verhaal te voltooien.',
@@ -151,6 +157,11 @@ const nl: Translations = {
   narrationSuccess: 'Vertelling succesvol gegenereerd!',
   narrationGenerationFailed: 'Genereren van vertelling mislukt. Probeer het opnieuw.',
 
+  assetsNeedRefresh: 'Assets need regeneration',
+  regenerateAssets: 'Regenerate assets',
+  regeneratingAssets: 'Regenerating assets...',
+  regenerateAssetsDescription: 'The story script was updated after review. Regenerate the illustrations and narration so they match the latest version.',
+  regenerateAssetsFailed: 'Asset regeneration failed. Please try again.',
   storyIdeaButton: 'Inspireer me',
 };
 

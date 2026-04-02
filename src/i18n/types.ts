@@ -149,6 +149,12 @@ export interface Translations {
 
   // Story tools modal
   storyTools: string;
+  reviewScript: string;
+  reviewingScript: string;
+  reviewingScriptStatus: string;
+  reviewScriptDescription: string;
+  reviewScriptSuccess: string;
+  reviewScriptFailed: string;
   retry: string;
   back: string;
   retryDescription: string;
@@ -169,6 +175,11 @@ export interface Translations {
   generatingNarration: string;
   narrationSuccess: string;
   narrationGenerationFailed: string;
+  assetsNeedRefresh: string;
+  regenerateAssets: string;
+  regeneratingAssets: string;
+  regenerateAssetsDescription: string;
+  regenerateAssetsFailed: string;
 
   // Story ideas
   storyIdeaButton: string;

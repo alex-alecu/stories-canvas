@@ -71,6 +71,7 @@ export default function GenerationProgress({ progress, onCancel, isCancelling = 
 
   const allPhases = [
     { key: 'generating_scenario', label: t.writingStory },
+    { key: 'reviewing_scenario', label: t.reviewingScript },
     { key: 'generating_characters', label: t.drawingCharacters },
     { key: 'generating_images', label: t.illustratingPages },
     { key: 'generating_audio', label: t.recordingNarration },
@@ -78,7 +79,7 @@ export default function GenerationProgress({ progress, onCancel, isCancelling = 
 
   // Only show the audio phase if we actually entered it
   const hasAudioPhase = progress?.status === 'generating_audio' || progress?.audioFailed;
-  const phases = hasAudioPhase ? allPhases : allPhases.slice(0, 3);
+  const phases = hasAudioPhase ? allPhases : allPhases.slice(0, 4);
   const isAudioFailed = !!progress?.audioFailed;
 
   // When progress is null (waiting for SSE to connect), default to first phase

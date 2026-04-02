@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import type { StorySummary, StoryMeta, CreateStoryResponse, StoryAssets, RetryStoryResponse } from '../types';
+import type { StorySummary, StoryMeta, CreateStoryResponse, StoryAssets, RetryStoryResponse, ReviewStoryResponse, RegenerateAssetsResponse } from '../types';
 import { supabase } from '../lib/supabase';
 
 async function getAuthHeaders(): Promise<Record<string, string>> {
@@ -174,6 +174,32 @@ async function retryStory(id: string): Promise<RetryStoryResponse> {
   return res.json();
 }
 
+async function reviewStoryScript(id: string): Promise<ReviewStoryResponse> {
+  const authHeaders = await getAuthHeaders();
+  const res = await fetch(`/api/stories/${id}/review-script`, {
+    method: 'POST',
+    headers: authHeaders,
+  });
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({ error: 'Failed to review story script' }));
+    throw new Error(error.error || 'Failed to review story script');
+  }
+  return res.json();
+}
+
+async function regenerateStoryAssets(id: string): Promise<RegenerateAssetsResponse> {
+  const authHeaders = await getAuthHeaders();
+  const res = await fetch(`/api/stories/${id}/regenerate-assets`, {
+    method: 'POST',
+    headers: authHeaders,
+  });
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({ error: 'Failed to regenerate story assets' }));
+    throw new Error(error.error || 'Failed to regenerate story assets');
+  }
+  return res.json();
+}
+
 async function fetchStoryAssets(id: string): Promise<StoryAssets> {
   const authHeaders = await getAuthHeaders();
   const res = await fetch(`/api/stories/${id}/assets`, {
@@ -189,6 +215,30 @@ export function useRetryStory() {
     mutationFn: retryStory,
     onSuccess: (_data, id) => {
       queryClient.invalidateQueries({ queryKey: ['story', id] });
+      queryClient.invalidateQueries({ queryKey: ['stories'] });
+    },
+  });
+}
+
+export function useReviewStoryScript() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: reviewStoryScript,
+    onSuccess: (_data, id) => {
+      queryClient.invalidateQueries({ queryKey: ['story', id] });
+      queryClient.invalidateQueries({ queryKey: ['story-assets', id] });
+      queryClient.invalidateQueries({ queryKey: ['stories'] });
+    },
+  });
+}
+
+export function useRegenerateStoryAssets() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: regenerateStoryAssets,
+    onSuccess: (_data, id) => {
+      queryClient.invalidateQueries({ queryKey: ['story', id] });
+      queryClient.invalidateQueries({ queryKey: ['story-assets', id] });
       queryClient.invalidateQueries({ queryKey: ['stories'] });
     },
   });

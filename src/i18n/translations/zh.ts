@@ -131,6 +131,12 @@ const zh: Translations = {
   narrationSpeed: '速度',
 
   storyTools: '故事工具',
+  reviewScript: 'Review script',
+  reviewingScript: 'Reviewing script...',
+  reviewingScriptStatus: 'Reviewing script...',
+  reviewScriptDescription: 'Run an editorial review on the story script and auto-fix issues before you render again.',
+  reviewScriptSuccess: 'Script review completed.',
+  reviewScriptFailed: 'Script review failed. Please try again.',
   retry: '重试',
   back: '返回',
   retryDescription: '部分内容生成失败。请重试以完成您的故事。',
@@ -151,6 +157,11 @@ const zh: Translations = {
   narrationSuccess: '旁白生成成功！',
   narrationGenerationFailed: '旁白生成失败，请重试。',
 
+  assetsNeedRefresh: 'Assets need regeneration',
+  regenerateAssets: 'Regenerate assets',
+  regeneratingAssets: 'Regenerating assets...',
+  regenerateAssetsDescription: 'The story script was updated after review. Regenerate the illustrations and narration so they match the latest version.',
+  regenerateAssetsFailed: 'Asset regeneration failed. Please try again.',
   storyIdeaButton: '给我灵感',
 };
 

@@ -131,6 +131,12 @@ const ja: Translations = {
   narrationSpeed: '速度',
 
   storyTools: 'ストーリーツール',
+  reviewScript: 'Review script',
+  reviewingScript: 'Reviewing script...',
+  reviewingScriptStatus: 'Reviewing script...',
+  reviewScriptDescription: 'Run an editorial review on the story script and auto-fix issues before you render again.',
+  reviewScriptSuccess: 'Script review completed.',
+  reviewScriptFailed: 'Script review failed. Please try again.',
   retry: '再試行',
   back: '戻る',
   retryDescription: '一部のコンテンツの生成に失敗しました。再試行してストーリーを完成させましょう。',
@@ -151,6 +157,11 @@ const ja: Translations = {
   narrationSuccess: 'ナレーションが正常に生成されました！',
   narrationGenerationFailed: 'ナレーションの生成に失敗しました。もう一度お試しください。',
 
+  assetsNeedRefresh: 'Assets need regeneration',
+  regenerateAssets: 'Regenerate assets',
+  regeneratingAssets: 'Regenerating assets...',
+  regenerateAssetsDescription: 'The story script was updated after review. Regenerate the illustrations and narration so they match the latest version.',
+  regenerateAssetsFailed: 'Asset regeneration failed. Please try again.',
   storyIdeaButton: 'アイデアをくれ',
 };
 

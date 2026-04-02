@@ -131,6 +131,12 @@ const sv: Translations = {
   narrationSpeed: 'Hastighet',
 
   storyTools: 'Berättelseverktyg',
+  reviewScript: 'Review script',
+  reviewingScript: 'Reviewing script...',
+  reviewingScriptStatus: 'Reviewing script...',
+  reviewScriptDescription: 'Run an editorial review on the story script and auto-fix issues before you render again.',
+  reviewScriptSuccess: 'Script review completed.',
+  reviewScriptFailed: 'Script review failed. Please try again.',
   retry: 'Försök igen',
   back: 'Tillbaka',
   retryDescription: 'Visst innehåll kunde inte genereras. Försök igen för att slutföra din berättelse.',
@@ -151,6 +157,11 @@ const sv: Translations = {
   narrationSuccess: 'Berättelse genererad!',
   narrationGenerationFailed: 'Berättelsen kunde inte genereras. Försök igen.',
 
+  assetsNeedRefresh: 'Assets need regeneration',
+  regenerateAssets: 'Regenerate assets',
+  regeneratingAssets: 'Regenerating assets...',
+  regenerateAssetsDescription: 'The story script was updated after review. Regenerate the illustrations and narration so they match the latest version.',
+  regenerateAssetsFailed: 'Asset regeneration failed. Please try again.',
   storyIdeaButton: 'Inspirera mig',
 };
 

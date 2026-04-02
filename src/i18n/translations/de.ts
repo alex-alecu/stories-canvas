@@ -131,6 +131,12 @@ const de: Translations = {
   narrationSpeed: 'Geschwindigkeit',
 
   storyTools: 'Story-Werkzeuge',
+  reviewScript: 'Review script',
+  reviewingScript: 'Reviewing script...',
+  reviewingScriptStatus: 'Reviewing script...',
+  reviewScriptDescription: 'Run an editorial review on the story script and auto-fix issues before you render again.',
+  reviewScriptSuccess: 'Script review completed.',
+  reviewScriptFailed: 'Script review failed. Please try again.',
   retry: 'Wiederholen',
   back: 'Zurück',
   retryDescription: 'Einige Inhalte konnten nicht generiert werden. Versuche es erneut, um deine Geschichte zu vervollständigen.',
@@ -151,6 +157,11 @@ const de: Translations = {
   narrationSuccess: 'Erzählung erfolgreich generiert!',
   narrationGenerationFailed: 'Erzählung konnte nicht generiert werden. Bitte versuche es erneut.',
 
+  assetsNeedRefresh: 'Assets need regeneration',
+  regenerateAssets: 'Regenerate assets',
+  regeneratingAssets: 'Regenerating assets...',
+  regenerateAssetsDescription: 'The story script was updated after review. Regenerate the illustrations and narration so they match the latest version.',
+  regenerateAssetsFailed: 'Asset regeneration failed. Please try again.',
   storyIdeaButton: 'Inspiriere mich',
 };
 
