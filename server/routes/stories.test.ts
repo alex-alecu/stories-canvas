@@ -45,6 +45,11 @@ async function createStoriesHarness(dataDir: string, configOverrides: Record<str
   const express = (await import('express')).default;
   const { config } = await import('../config.js');
   const storiesModule = await import('./stories.js');
+  const authUser = configOverrides.__testAuthUser as { id: string; email?: string } | undefined;
+
+  if ('__testAuthUser' in configOverrides) {
+    delete configOverrides.__testAuthUser;
+  }
 
   Object.assign(config, {
     dataDir,
@@ -55,6 +60,12 @@ async function createStoriesHarness(dataDir: string, configOverrides: Record<str
 
   const app = express();
   app.use(express.json());
+  if (authUser) {
+    app.use((req, _res, next) => {
+      req.authUser = authUser;
+      next();
+    });
+  }
   app.use('/api/stories', storiesModule.default);
 
   const server = app.listen(0);
@@ -278,6 +289,275 @@ test('POST /api/stories/:id/retry resolves stored legacy voice keys for missing 
   );
 
   assert.equal(resolvedVoice, 'jora');
+});
+
+test('POST /api/stories/:id/review-script keeps revisions unchanged when no rewrite is needed', async (t) => {
+  const dataDir = mkdtempSync(path.join(os.tmpdir(), 'stories-review-noop-'));
+  const harness = await createStoriesHarness(dataDir);
+  t.after(async () => {
+    await harness.close();
+    await fs.rm(dataDir, { recursive: true, force: true });
+  });
+
+  t.mock.method(harness.storiesModule.scenarioOps, 'reviewScenario', async (_prompt, _language, _age, _style, scenario) => ({
+    scenario,
+    rewritten: false,
+    review: {
+      needsRewrite: false,
+      summary: 'No changes needed.',
+      changedPageNumbers: [],
+      issues: [],
+    },
+  }));
+
+  await writeStoryMeta(dataDir, {
+    id: 'story-review-noop',
+    prompt: 'A story ready for review.',
+    status: 'completed',
+    createdAt: '2026-03-29T00:00:00.000Z',
+    language: 'en',
+    artStyle: 'storybook',
+    scenarioRevision: 1,
+    renderedScenarioRevision: 1,
+    scenario: makeScenario([makePage()]),
+  });
+
+  const response = await fetch(`${harness.baseUrl}/api/stories/story-review-noop/review-script`, {
+    method: 'POST',
+  });
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), {
+    status: 'reviewing_scenario',
+    rewritten: false,
+    assetsStale: false,
+  });
+
+  const savedStory = await waitFor(
+    () => readStoryMeta(dataDir, 'story-review-noop'),
+    story => story.status === 'completed',
+  );
+
+  assert.equal(savedStory.scenarioRevision, 1);
+  assert.equal(savedStory.renderedScenarioRevision, 1);
+});
+
+test('POST /api/stories/:id/review-script increments the scenario revision when the script is rewritten', async (t) => {
+  const dataDir = mkdtempSync(path.join(os.tmpdir(), 'stories-review-rewrite-'));
+  const harness = await createStoriesHarness(dataDir);
+  t.after(async () => {
+    await harness.close();
+    await fs.rm(dataDir, { recursive: true, force: true });
+  });
+
+  t.mock.method(harness.storiesModule.scenarioOps, 'reviewScenario', async () => ({
+    scenario: makeScenario([{ ...makePage(), status: 'pending', text: 'A brighter revised opening.' }]),
+    rewritten: true,
+    review: {
+      needsRewrite: true,
+      summary: 'The opening page needs a stronger setup.',
+      changedPageNumbers: [1],
+      issues: [{ code: 'story_arc', summary: 'The opening page needs a stronger setup.', pageNumbers: [1] }],
+    },
+  }));
+
+  await writeStoryMeta(dataDir, {
+    id: 'story-review-rewrite',
+    prompt: 'A story ready for review.',
+    status: 'completed',
+    createdAt: '2026-03-29T00:00:00.000Z',
+    language: 'en',
+    artStyle: 'storybook',
+    scenarioRevision: 1,
+    renderedScenarioRevision: 1,
+    scenario: makeScenario([makePage()]),
+  });
+
+  const response = await fetch(`${harness.baseUrl}/api/stories/story-review-rewrite/review-script`, {
+    method: 'POST',
+  });
+
+  assert.equal(response.status, 200);
+
+  const savedStory = await waitFor(
+    () => readStoryMeta(dataDir, 'story-review-rewrite'),
+    story => story.scenarioRevision === 2,
+  );
+
+  assert.equal(savedStory.status, 'completed');
+  assert.equal(savedStory.scenarioRevision, 2);
+  assert.equal(savedStory.renderedScenarioRevision, 1);
+  assert.equal(savedStory.scenario?.pages[0]?.status, 'completed');
+});
+
+test('POST /api/stories/:id/review-script persists reviewing_scenario before the background review finishes', async (t) => {
+  const dataDir = mkdtempSync(path.join(os.tmpdir(), 'stories-review-progress-'));
+  const harness = await createStoriesHarness(dataDir);
+  let releaseReview: (() => void) | null = null;
+  const reviewFinished = new Promise<void>(resolve => {
+    releaseReview = resolve;
+  });
+
+  t.after(async () => {
+    releaseReview?.();
+    await harness.close();
+    await fs.rm(dataDir, { recursive: true, force: true });
+  });
+
+  t.mock.method(harness.storiesModule.scenarioOps, 'reviewScenario', async (_prompt, _language, _age, _style, scenario) => {
+    await reviewFinished;
+    return {
+      scenario,
+      rewritten: false,
+      review: {
+        needsRewrite: false,
+        summary: 'No changes needed.',
+        changedPageNumbers: [],
+        issues: [],
+      },
+    };
+  });
+
+  await writeStoryMeta(dataDir, {
+    id: 'story-review-progress',
+    prompt: 'A story ready for review.',
+    status: 'completed',
+    createdAt: '2026-03-29T00:00:00.000Z',
+    language: 'en',
+    artStyle: 'storybook',
+    scenarioRevision: 1,
+    renderedScenarioRevision: 1,
+    scenario: makeScenario([makePage()]),
+  });
+
+  const response = await fetch(`${harness.baseUrl}/api/stories/story-review-progress/review-script`, {
+    method: 'POST',
+  });
+
+  assert.equal(response.status, 200);
+
+  const inProgressStory = await waitFor(
+    () => readStoryMeta(dataDir, 'story-review-progress'),
+    story => story.status === 'reviewing_scenario',
+  );
+
+  assert.equal(inProgressStory.status, 'reviewing_scenario');
+
+  releaseReview?.();
+
+  const completedStory = await waitFor(
+    () => readStoryMeta(dataDir, 'story-review-progress'),
+    story => story.status === 'completed',
+  );
+
+  assert.equal(completedStory.status, 'completed');
+});
+
+test('POST /api/stories/:id/review-script requires auth when Supabase is enabled', async (t) => {
+  const dataDir = mkdtempSync(path.join(os.tmpdir(), 'stories-review-auth-'));
+  const harness = await createStoriesHarness(dataDir, { useSupabase: true });
+
+  t.after(async () => {
+    await harness.close();
+    await fs.rm(dataDir, { recursive: true, force: true });
+  });
+
+  const response = await fetch(`${harness.baseUrl}/api/stories/story-review-auth/review-script`, {
+    method: 'POST',
+  });
+
+  assert.equal(response.status, 401);
+  assert.deepEqual(await response.json(), { error: 'Authentication required' });
+});
+
+test('POST /api/stories/:id/review-script rejects non-owners when Supabase is enabled', async (t) => {
+  const dataDir = mkdtempSync(path.join(os.tmpdir(), 'stories-review-owner-'));
+  const harness = await createStoriesHarness(dataDir, {
+    useSupabase: true,
+    __testAuthUser: { id: 'someone-else', email: 'user@example.com' },
+  });
+
+  t.after(async () => {
+    await harness.close();
+    await fs.rm(dataDir, { recursive: true, force: true });
+  });
+
+  t.mock.method(harness.storiesModule.storageOps, 'getStory', async () => makeStoryMeta({
+    id: 'story-review-owner',
+    status: 'completed',
+    userId: 'story-owner',
+    isPublic: false,
+  }));
+
+  const response = await fetch(`${harness.baseUrl}/api/stories/story-review-owner/review-script`, {
+    method: 'POST',
+  });
+
+  assert.equal(response.status, 403);
+  assert.deepEqual(await response.json(), { error: 'Forbidden' });
+});
+
+test('POST /api/stories/:id/regenerate-assets syncs renderedScenarioRevision to the latest scenario revision', async (t) => {
+  const dataDir = mkdtempSync(path.join(os.tmpdir(), 'stories-regenerate-assets-'));
+  const harness = await createStoriesHarness(dataDir);
+  t.after(async () => {
+    await harness.close();
+    await fs.rm(dataDir, { recursive: true, force: true });
+  });
+
+  t.mock.method(harness.storiesModule.illustrationOps, 'generateAllCharacterSheets', async () => new Map());
+  t.mock.method(harness.storiesModule.illustrationOps, 'generateAllSceneImages', async (_storyId, pages, _characters, _sheets, _style, onProgress) => {
+    for (const page of pages) {
+      page.status = 'completed';
+      onProgress?.({ pageNumber: page.pageNumber, pageStatus: 'completed', message: `Page ${page.pageNumber} complete` });
+    }
+  });
+  t.mock.method(harness.storiesModule.audioOps, 'isElevenLabsConfigured', () => false);
+
+  await writeStoryMeta(dataDir, {
+    id: 'story-regenerate-assets',
+    prompt: 'A story ready for regeneration.',
+    status: 'completed',
+    createdAt: '2026-03-29T00:00:00.000Z',
+    language: 'en',
+    artStyle: 'storybook',
+    scenarioRevision: 2,
+    renderedScenarioRevision: 1,
+    scenario: makeScenario([makePage()]),
+  });
+
+  const response = await fetch(`${harness.baseUrl}/api/stories/story-regenerate-assets/regenerate-assets`, {
+    method: 'POST',
+  });
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), { status: 'generating_characters' });
+
+  const savedStory = await waitFor(
+    () => readStoryMeta(dataDir, 'story-regenerate-assets'),
+    story => story.renderedScenarioRevision === 2,
+  );
+
+  assert.equal(savedStory.status, 'completed');
+  assert.equal(savedStory.scenarioRevision, 2);
+  assert.equal(savedStory.renderedScenarioRevision, 2);
+});
+
+test('POST /api/stories/:id/regenerate-assets requires auth when Supabase is enabled', async (t) => {
+  const dataDir = mkdtempSync(path.join(os.tmpdir(), 'stories-regenerate-auth-'));
+  const harness = await createStoriesHarness(dataDir, { useSupabase: true });
+
+  t.after(async () => {
+    await harness.close();
+    await fs.rm(dataDir, { recursive: true, force: true });
+  });
+
+  const response = await fetch(`${harness.baseUrl}/api/stories/story-regenerate-auth/regenerate-assets`, {
+    method: 'POST',
+  });
+
+  assert.equal(response.status, 401);
+  assert.deepEqual(await response.json(), { error: 'Authentication required' });
 });
 
 test('GET /api/stories/:id/status returns 404 when the story does not exist', async (t) => {

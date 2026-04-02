@@ -173,6 +173,8 @@ export async function createStory(
     language: language ?? 'ro',
     voice: voice ?? null,
     art_style: artStyle ?? null,
+    scenario_revision: 0,
+    rendered_scenario_revision: 0,
     current_phase: 'Generating story scenario...',
     progress_message: 'Creating your story...',
   });
@@ -204,7 +206,12 @@ export async function updateStoryScenario(
   scenario: Scenario,
   status: StoryStatus,
   prompt: string,
-  artStyle?: ArtStyleKey,
+  options: {
+    artStyle?: ArtStyleKey;
+    language?: string;
+    scenarioRevision?: number;
+    renderedScenarioRevision?: number;
+  } = {},
 ): Promise<void> {
   const supabase = getSupabase();
   const { error } = await supabase
@@ -216,10 +223,25 @@ export async function updateStoryScenario(
       total_pages: scenario.pages.length,
       status,
       prompt,
-      art_style: artStyle ?? null,
+      art_style: options.artStyle ?? null,
+      language: options.language ?? 'ro',
+      scenario_revision: options.scenarioRevision,
+      rendered_scenario_revision: options.renderedScenarioRevision,
     })
     .eq('id', id);
   if (error) throw new Error(`Failed to update story scenario: ${error.message}`);
+}
+
+export async function updateStoryRenderedScenarioRevision(
+  id: string,
+  renderedScenarioRevision: number,
+): Promise<void> {
+  const supabase = getSupabase();
+  const { error } = await supabase
+    .from('stories')
+    .update({ rendered_scenario_revision: renderedScenarioRevision })
+    .eq('id', id);
+  if (error) throw new Error(`Failed to update story rendered scenario revision: ${error.message}`);
 }
 
 export async function updatePageStatus(id: string, pageNumber: number, status: PageStatus): Promise<void> {
@@ -248,11 +270,23 @@ interface StoryRow {
   progress_message: string | null;
   user_id: string | null;
   is_public: boolean;
+  language: string | null;
   art_style: string | null;
   voice: string | null;
+  scenario_revision: number | null;
+  rendered_scenario_revision: number | null;
 }
 
 function rowToStoryMeta(row: StoryRow): StoryMeta {
+  const scenarioRevision = Number.isInteger(row.scenario_revision)
+    ? Math.max(0, row.scenario_revision ?? 0)
+    : row.scenario
+      ? 1
+      : 0;
+  const renderedScenarioRevision = Number.isInteger(row.rendered_scenario_revision)
+    ? Math.max(0, row.rendered_scenario_revision ?? 0)
+    : scenarioRevision;
+
   return {
     id: row.id,
     prompt: row.prompt,
@@ -262,10 +296,14 @@ function rowToStoryMeta(row: StoryRow): StoryMeta {
     coverImage: row.cover_image_url ?? undefined,
     userId: row.user_id ?? undefined,
     isPublic: row.is_public ?? false,
+    language: row.language ?? 'ro',
     artStyle: parseArtStyle(row.art_style),
     voice: normalizeVoiceKey(row.voice),
     currentPhase: row.current_phase ?? undefined,
     progressMessage: row.progress_message ?? undefined,
+    scenarioRevision,
+    renderedScenarioRevision,
+    assetsStale: scenarioRevision > renderedScenarioRevision,
   };
 }
 

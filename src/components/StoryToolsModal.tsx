@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import type { Scenario, GenerationProgress } from '../types';
-import { useRetryStory, useStoryAssets, useGenerateAudio } from '../hooks/useStories';
+import { useRetryStory, useStoryAssets, useGenerateAudio, useReviewStoryScript } from '../hooks/useStories';
 import { useStoryGeneration } from '../hooks/useStoryGeneration';
 import { useLanguage } from '../i18n/LanguageContext';
 import { DEFAULT_VOICE_KEY, VOICE_OPTIONS, type VoiceKey } from '../../shared/types';
@@ -33,8 +33,13 @@ export default function StoryToolsModal({
   // Grace period: when true, ignores stale terminal statuses from the SSE's initial DB read
   const [retryStarting, setRetryStarting] = useState(false);
   const retryStartingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [reviewTriggered, setReviewTriggered] = useState(false);
+  const [reviewResult, setReviewResult] = useState<'success' | 'failed' | null>(null);
+  const [reviewStarting, setReviewStarting] = useState(false);
+  const reviewStartingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const retryStory = useRetryStory();
+  const reviewStoryScript = useReviewStoryScript();
   const generateAudio = useGenerateAudio();
   const { data: assets, isLoading: assetsLoading } = useStoryAssets(storyId, isOpen);
 
@@ -48,15 +53,18 @@ export default function StoryToolsModal({
   // Connect to SSE for retry progress — delay until grace period ends to avoid
   // the stale 'completed' status that the SSE endpoint reads from DB before the
   // retry pipeline has a chance to update it.
-  const sseActive = (retryTriggered && !retryStarting) || (audioGenTriggered && !audioGenStarting);
+  const sseActive = (retryTriggered && !retryStarting)
+    || (audioGenTriggered && !audioGenStarting)
+    || (reviewTriggered && !reviewStarting);
   const { progress: sseProgress } = useStoryGeneration(sseActive ? storyId : null);
-  const activeProgress = (retryTriggered || audioGenTriggered) ? sseProgress : progress;
+  const activeProgress = (retryTriggered || audioGenTriggered || reviewTriggered) ? sseProgress : progress;
 
   // Clear the grace period timers on unmount
   useEffect(() => {
     return () => {
       if (retryStartingTimerRef.current) clearTimeout(retryStartingTimerRef.current);
       if (audioGenStartingTimerRef.current) clearTimeout(audioGenStartingTimerRef.current);
+      if (reviewStartingTimerRef.current) clearTimeout(reviewStartingTimerRef.current);
     };
   }, []);
 
@@ -80,6 +88,14 @@ export default function StoryToolsModal({
     }
   }, [audioGenTriggered, audioGenStarting, sseProgress?.status]);
 
+  useEffect(() => {
+    if (!reviewTriggered || reviewStarting) return;
+    if (sseProgress?.status === 'completed' || sseProgress?.status === 'failed') {
+      setReviewResult(sseProgress.status === 'completed' ? 'success' : 'failed');
+      setReviewTriggered(false);
+    }
+  }, [reviewTriggered, reviewStarting, sseProgress?.status]);
+
   // Auto-dismiss retry result after 5 seconds
   useEffect(() => {
     if (!retryResult) return;
@@ -93,6 +109,12 @@ export default function StoryToolsModal({
     const timer = setTimeout(() => setAudioGenResult(null), 5000);
     return () => clearTimeout(timer);
   }, [audioGenResult]);
+
+  useEffect(() => {
+    if (!reviewResult) return;
+    const timer = setTimeout(() => setReviewResult(null), 5000);
+    return () => clearTimeout(timer);
+  }, [reviewResult]);
 
   // Error detection
   const failedImageCount = useMemo(
@@ -118,6 +140,8 @@ export default function StoryToolsModal({
     [voice, isGenerating, scenario.pages],
   );
 
+  const canReviewScript = !isGenerating;
+
   // Is the retry currently running?
   // During the grace period (retryStarting), we show retrying state even though the SSE
   // may not yet reflect the pipeline's in-progress status.
@@ -133,8 +157,13 @@ export default function StoryToolsModal({
     activeProgress?.status === 'generating_audio'
   );
 
+  const isReviewingScript = reviewTriggered && (
+    reviewStarting ||
+    activeProgress?.status === 'reviewing_scenario'
+  );
+
   // Any background operation running?
-  const isBusy = isRetrying || isGeneratingAudio;
+  const isBusy = isRetrying || isGeneratingAudio || isReviewingScript;
 
   // Character sheets that are NOT page images (the "intermediate" images)
   const characterSheets = assets?.characterSheets ?? [];
@@ -186,6 +215,20 @@ export default function StoryToolsModal({
     }
   }, [generateAudio, storyId, selectedVoice]);
 
+  const handleReviewScript = useCallback(async () => {
+    setReviewTriggered(true);
+    setReviewStarting(true);
+    if (reviewStartingTimerRef.current) clearTimeout(reviewStartingTimerRef.current);
+    reviewStartingTimerRef.current = setTimeout(() => setReviewStarting(false), 5000);
+    try {
+      await reviewStoryScript.mutateAsync(storyId);
+    } catch {
+      setReviewTriggered(false);
+      setReviewStarting(false);
+      if (reviewStartingTimerRef.current) clearTimeout(reviewStartingTimerRef.current);
+    }
+  }, [reviewStoryScript, storyId]);
+
   if (!isOpen) return null;
 
   return (
@@ -215,6 +258,64 @@ export default function StoryToolsModal({
 
           {/* Scrollable content */}
           <div className="overflow-y-auto flex-1 px-6 py-5 space-y-6">
+            {canReviewScript && (
+              <div className="bg-white/5 border border-white/10 rounded-xl p-5">
+                <div className="flex items-start gap-3 mb-4">
+                  <div className="w-8 h-8 rounded-full bg-primary-500/20 flex items-center justify-center shrink-0 mt-0.5">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-primary-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h3m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-white font-semibold text-sm mb-1">{t.reviewScript}</h3>
+                    <p className="text-white/60 text-sm">{t.reviewScriptDescription}</p>
+                    {storyMessage && !reviewTriggered && (
+                      <p className="text-white/40 text-xs mt-2">{storyMessage}</p>
+                    )}
+                  </div>
+                </div>
+
+                {isReviewingScript && activeProgress && (
+                  <div className="mb-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-4 h-4 rounded-full border-2 border-primary-400/30 border-t-primary-400 animate-spin" />
+                      <span className="text-white/70 text-sm">{t.reviewingScript}</span>
+                    </div>
+                    {activeProgress.message && (
+                      <p className="text-white/40 text-xs mt-1.5">{activeProgress.message}</p>
+                    )}
+                  </div>
+                )}
+
+                {reviewResult && (
+                  <div className={`flex items-center gap-2 mb-4 px-3 py-2 rounded-lg text-sm ${
+                    reviewResult === 'success'
+                      ? 'bg-green-500/15 text-green-300'
+                      : 'bg-red-500/15 text-red-300'
+                  }`}>
+                    {reviewResult === 'success' ? (
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                      </svg>
+                    ) : (
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    )}
+                    <span>{reviewResult === 'success' ? t.reviewScriptSuccess : t.reviewScriptFailed}</span>
+                  </div>
+                )}
+
+                <button
+                  onClick={handleReviewScript}
+                  disabled={isBusy}
+                  className="bg-primary-500 hover:bg-primary-600 disabled:bg-primary-500/50 disabled:cursor-not-allowed text-white font-bold py-2 px-6 rounded-xl transition-colors text-sm"
+                >
+                  {isReviewingScript ? t.reviewingScript : t.reviewScript}
+                </button>
+              </div>
+            )}
+
             {/* Retry section — only shown when errors exist */}
             {hasErrors && (
               <div className="bg-white/5 border border-white/10 rounded-xl p-5">

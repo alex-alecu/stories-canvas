@@ -144,6 +144,12 @@ const ro: Translations = {
   narrationSpeed: 'Viteză',
 
   storyTools: 'Instrumente poveste',
+  reviewScript: 'Review script',
+  reviewingScript: 'Reviewing script...',
+  reviewingScriptStatus: 'Reviewing script...',
+  reviewScriptDescription: 'Run an editorial review on the story script and auto-fix issues before you render again.',
+  reviewScriptSuccess: 'Script review completed.',
+  reviewScriptFailed: 'Script review failed. Please try again.',
   retry: 'Reîncearcă',
   back: 'Înapoi',
   retryDescription: 'Unele conținuturi nu au fost generate. Reîncearcă pentru a completa povestea.',
@@ -164,6 +170,11 @@ const ro: Translations = {
   narrationSuccess: 'Narațiunea a fost generată cu succes!',
   narrationGenerationFailed: 'Generarea narațiunii a eșuat. Încearcă din nou.',
 
+  assetsNeedRefresh: 'Assets need regeneration',
+  regenerateAssets: 'Regenerate assets',
+  regeneratingAssets: 'Regenerating assets...',
+  regenerateAssetsDescription: 'The story script was updated after review. Regenerate the illustrations and narration so they match the latest version.',
+  regenerateAssetsFailed: 'Asset regeneration failed. Please try again.',
   storyIdeaButton: 'Inspiră-mă',
 };
 

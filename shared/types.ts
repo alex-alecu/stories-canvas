@@ -1,6 +1,6 @@
 export type PageStatus = 'pending' | 'generating' | 'completed' | 'failed';
 
-export type StoryStatus = 'generating_scenario' | 'generating_characters' | 'generating_images' | 'generating_audio' | 'completed' | 'failed' | 'cancelled';
+export type StoryStatus = 'generating_scenario' | 'reviewing_scenario' | 'generating_characters' | 'generating_images' | 'generating_audio' | 'completed' | 'failed' | 'cancelled';
 
 export type ArtStyleKey = 'disney-pixar' | 'watercolor' | 'storybook' | 'anime' | 'colored-pencil' | 'paper-cutout';
 
@@ -120,10 +120,14 @@ export interface StoryMeta {
   coverImage?: string;
   userId?: string;
   isPublic?: boolean;
+  language?: string;
   artStyle?: ArtStyleKey;
   voice?: VoiceKey;
   currentPhase?: string;
   progressMessage?: string;
+  scenarioRevision?: number;
+  renderedScenarioRevision?: number;
+  assetsStale?: boolean;
 }
 
 export interface StoryDetail extends StoryMeta {
@@ -167,4 +171,14 @@ export interface RetryStoryResponse {
   status: StoryStatus;
   retriedImages: number;
   retriedAudio: number;
+}
+
+export interface ReviewStoryResponse {
+  status: StoryStatus;
+  rewritten: boolean;
+  assetsStale: boolean;
+}
+
+export interface RegenerateAssetsResponse {
+  status: StoryStatus;
 }

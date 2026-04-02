@@ -80,7 +80,27 @@ test('story prompt assembly preserves the selected illustration style in system 
   assert.match(systemInstruction, /Do not put text, letters, symbols, or readable words inside the image description/);
 });
 
-test('generateScenarioWithModel uses draft settings first and repair settings second', async () => {
+test('story prompt assembly keeps the stronger story-shape and age-band rubric rules', async () => {
+  const storyPrompt = await import('./storyPrompt.js');
+
+  const context = storyPrompt.buildStoryPromptContext(
+    'Retell a cozy lost-and-found story about a lantern and a shy fox.',
+    'en',
+    7,
+    'storybook',
+  );
+
+  const systemInstruction = storyPrompt.buildStorySystemInstruction(context);
+
+  assert.match(systemInstruction, /Trigger an inciting problem within the first third of the pages/);
+  assert.match(systemInstruction, /Give the hero at least one meaningful failed attempt, setback, or misunderstanding/);
+  assert.match(systemInstruction, /Use the final page as the warm resolution/);
+  assert.match(systemInstruction, /Ages 6-8: use 3-5 concise sentences/);
+  assert.match(systemInstruction, /Character actions, emotions, and goals must stay logically consistent from page to page/);
+  assert.match(systemInstruction, /If page text changes during revision, keep `imagePrompt` and `characters` aligned/);
+});
+
+test('generateScenarioWithModel uses draft, repair, and review settings in order', async () => {
   const scenarioModule = await import('./scenario.js');
   const { config } = await import('../config.js');
   const calls: Array<{ prompt: string; options?: { temperature?: number; thinkingConfig?: { thinkingBudget?: number } } }> = [];
@@ -100,9 +120,16 @@ test('generateScenarioWithModel uses draft settings first and repair settings se
     _systemInstruction: string,
     _schema: Record<string, unknown>,
     options?: { temperature?: number; thinkingConfig?: { thinkingBudget?: number } },
-  ): Promise<Scenario> => {
+  ): Promise<any> => {
     calls.push({ prompt, options });
-    return calls.length === 1 ? invalidDraft : repairedScenario;
+    if (calls.length === 1) return invalidDraft;
+    if (calls.length === 2) return repairedScenario;
+    return {
+      needsRewrite: false,
+      summary: 'Scenario is already strong.',
+      changedPageNumbers: [],
+      issues: [],
+    };
   };
 
   const scenario = await scenarioModule.generateScenarioWithModel(
@@ -113,7 +140,7 @@ test('generateScenarioWithModel uses draft settings first and repair settings se
     generateJSON as never,
   );
 
-  assert.equal(calls.length, 2);
+  assert.equal(calls.length, 3);
   assert.equal(calls[0].options?.temperature, config.scenarioTemperature);
   assert.deepEqual(calls[0].options?.thinkingConfig, { thinkingBudget: config.scenarioThinkingBudget });
   assert.equal(calls[1].options?.temperature, config.scenarioReviewTemperature);
@@ -121,6 +148,9 @@ test('generateScenarioWithModel uses draft settings first and repair settings se
   assert.match(calls[1].prompt, /Validation issues to fix:/);
   assert.match(calls[1].prompt, /targetAge must match the requested age of 3/);
   assert.match(calls[1].prompt, /pageNumber must be 2/);
+  assert.equal(calls[2].options?.temperature, config.scenarioReviewTemperature);
+  assert.deepEqual(calls[2].options?.thinkingConfig, { thinkingBudget: config.scenarioReviewThinkingBudget });
+  assert.match(calls[2].prompt, /Mode: Review this scenario before illustration generation\./);
   assert.ok(scenario.pages.every(page => page.status === 'pending'));
 });
 
@@ -144,11 +174,61 @@ test('generateScenarioWithModel performs one additional repair when the first re
 
   const validSecondRepair = makeScenario();
 
-  const generateJSON = async (prompt: string): Promise<Scenario> => {
+  const generateJSON = async (prompt: string): Promise<any> => {
     calls.push(prompt);
     if (calls.length === 1) return draftScenario;
     if (calls.length === 2) return stillInvalidRepair;
-    return validSecondRepair;
+    if (calls.length === 3) return validSecondRepair;
+    return {
+      needsRewrite: false,
+      summary: 'Scenario is already strong.',
+      changedPageNumbers: [],
+      issues: [],
+    };
+  };
+
+  const scenario = await scenarioModule.generateScenarioWithModel(
+    'Tell a warm story about Mia and a kite.',
+    'en',
+    3,
+    'storybook',
+    generateJSON as never,
+  );
+
+  assert.equal(calls.length, 4);
+  assert.match(calls[2], /Repair pass 2/);
+  assert.match(calls[2], /page text is too long for age 3/);
+  assert.match(calls[3], /Mode: Review this scenario before illustration generation\./);
+  assert.ok(scenario.pages.every(page => page.status === 'pending'));
+});
+
+test('generateScenarioWithModel rewrites after editorial review when the reviewer requests changes', async () => {
+  const scenarioModule = await import('./scenario.js');
+  const calls: string[] = [];
+
+  const draftScenario = makeScenario();
+  const rewrittenScenario = makeScenario({
+    title: 'Mia and the Brave Kite',
+  });
+
+  const generateJSON = async (prompt: string): Promise<any> => {
+    calls.push(prompt);
+    if (calls.length === 1) return draftScenario;
+    if (calls.length === 2) {
+      return {
+        needsRewrite: true,
+        summary: 'The middle pages drift away from the prompt.',
+        changedPageNumbers: [3, 4],
+        issues: [
+          {
+            code: 'prompt_fidelity',
+            summary: 'Pages 3 and 4 drift from Mia solving the kite problem.',
+            pageNumbers: [3, 4],
+          },
+        ],
+      };
+    }
+    return rewrittenScenario;
   };
 
   const scenario = await scenarioModule.generateScenarioWithModel(
@@ -160,8 +240,10 @@ test('generateScenarioWithModel performs one additional repair when the first re
   );
 
   assert.equal(calls.length, 3);
-  assert.match(calls[2], /Repair pass 2/);
-  assert.match(calls[2], /page text is too long for age 3/);
+  assert.match(calls[1], /Mode: Review this scenario before illustration generation\./);
+  assert.match(calls[2], /Mode: Rewrite the full scenario JSON after editorial review\./);
+  assert.match(calls[2], /prompt_fidelity/);
+  assert.equal(scenario.title, 'Mia and the Brave Kite');
   assert.ok(scenario.pages.every(page => page.status === 'pending'));
 });
 

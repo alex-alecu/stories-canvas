@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { useStory, useCancelStory, useStoryAssets } from '../hooks/useStories';
+import { useStory, useCancelStory, useStoryAssets, useRegenerateStoryAssets } from '../hooks/useStories';
 import { useStoryGeneration } from '../hooks/useStoryGeneration';
 import StoryViewer from '../components/StoryViewer';
 import GenerationProgress from '../components/GenerationProgress';
@@ -18,17 +18,18 @@ export default function StoryPage() {
     };
   }, []);
   const { data: story, isLoading, error } = useStory(id);
-  const shouldWarmMediaCache = import.meta.env.PROD && story?.status === 'completed';
+  const shouldWarmMediaCache = import.meta.env.PROD && story?.status === 'completed' && !story?.assetsStale;
   const { data: storyAssets } = useStoryAssets(id, shouldWarmMediaCache);
   const isGenerating = story?.status !== 'completed' && story?.status !== 'failed' && story?.status !== 'cancelled';
   const { progress } = useStoryGeneration(isGenerating ? id ?? null : null);
   const cancelStory = useCancelStory();
+  const regenerateAssets = useRegenerateStoryAssets();
   const navigate = useNavigate();
   const { t } = useLanguage();
   const lastWarmupKeyRef = useRef<string | null>(null);
 
   const warmupUrls = useMemo(() => {
-    if (story?.status !== 'completed' || !story.scenario) return [];
+    if (story?.status !== 'completed' || story.assetsStale || !story.scenario) return [];
 
     const urls = new Set<string>();
     for (const page of story.scenario.pages) {
@@ -67,6 +68,15 @@ export default function StoryPage() {
     navigate('/');
   }, [id, cancelStory, navigate]);
 
+  const handleRegenerateAssets = useCallback(async () => {
+    if (!id) return;
+    try {
+      await regenerateAssets.mutateAsync(id);
+    } catch (error) {
+      console.error('Failed to regenerate story assets:', error);
+    }
+  }, [id, regenerateAssets]);
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -94,6 +104,39 @@ export default function StoryPage() {
 
   // Check if any pages have completed images
   const hasCompletedPages = story.scenario?.pages?.some(p => p.status === 'completed');
+
+  if (story.assetsStale && story.scenario && !isGenerating) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <div className="bg-white dark:bg-surface-dark-elevated rounded-2xl shadow-lg dark:shadow-primary-900/30 p-8 max-w-lg w-full text-center">
+          <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-100 mb-2">{t.assetsNeedRefresh}</h1>
+          <p className="text-gray-500 dark:text-gray-400 mb-6">{t.regenerateAssetsDescription}</p>
+
+          {regenerateAssets.isError && (
+            <p className="text-sm text-red-500 dark:text-red-400 mb-4">
+              {regenerateAssets.error?.message || t.regenerateAssetsFailed}
+            </p>
+          )}
+
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <button
+              onClick={handleRegenerateAssets}
+              disabled={regenerateAssets.isPending}
+              className="bg-primary-500 hover:bg-primary-600 disabled:bg-primary-500/50 disabled:cursor-not-allowed text-white font-bold py-3 px-6 rounded-xl transition-colors"
+            >
+              {regenerateAssets.isPending ? t.regeneratingAssets : t.regenerateAssets}
+            </button>
+            <Link
+              to="/"
+              className="inline-flex items-center justify-center bg-white/10 hover:bg-white/20 dark:bg-surface-dark-accent dark:hover:bg-surface-dark text-gray-700 dark:text-gray-200 font-semibold py-3 px-6 rounded-xl transition-colors"
+            >
+              {t.backHome}
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // If still generating but no pages ready yet, show progress only
   if (isGenerating && !hasCompletedPages) {

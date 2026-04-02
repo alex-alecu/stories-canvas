@@ -131,6 +131,12 @@ const no: Translations = {
   narrationSpeed: 'Hastighet',
 
   storyTools: 'Historieverktøy',
+  reviewScript: 'Review script',
+  reviewingScript: 'Reviewing script...',
+  reviewingScriptStatus: 'Reviewing script...',
+  reviewScriptDescription: 'Run an editorial review on the story script and auto-fix issues before you render again.',
+  reviewScriptSuccess: 'Script review completed.',
+  reviewScriptFailed: 'Script review failed. Please try again.',
   retry: 'Prøv igjen',
   back: 'Tilbake',
   retryDescription: 'Noe innhold kunne ikke genereres. Prøv igjen for å fullføre historien din.',
@@ -151,6 +157,11 @@ const no: Translations = {
   narrationSuccess: 'Fortelling generert!',
   narrationGenerationFailed: 'Generering av fortelling mislyktes. Prøv igjen.',
 
+  assetsNeedRefresh: 'Assets need regeneration',
+  regenerateAssets: 'Regenerate assets',
+  regeneratingAssets: 'Regenerating assets...',
+  regenerateAssetsDescription: 'The story script was updated after review. Regenerate the illustrations and narration so they match the latest version.',
+  regenerateAssetsFailed: 'Asset regeneration failed. Please try again.',
   storyIdeaButton: 'Inspirer meg',
 };
 

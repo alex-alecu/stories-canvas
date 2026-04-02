@@ -131,6 +131,12 @@ const ko: Translations = {
   narrationSpeed: '속도',
 
   storyTools: '스토리 도구',
+  reviewScript: 'Review script',
+  reviewingScript: 'Reviewing script...',
+  reviewingScriptStatus: 'Reviewing script...',
+  reviewScriptDescription: 'Run an editorial review on the story script and auto-fix issues before you render again.',
+  reviewScriptSuccess: 'Script review completed.',
+  reviewScriptFailed: 'Script review failed. Please try again.',
   retry: '다시 시도',
   back: '뒤로',
   retryDescription: '일부 콘텐츠를 생성하지 못했습니다. 다시 시도하여 스토리를 완성하세요.',
@@ -151,6 +157,11 @@ const ko: Translations = {
   narrationSuccess: '내레이션이 성공적으로 생성되었습니다!',
   narrationGenerationFailed: '내레이션 생성에 실패했습니다. 다시 시도해 주세요.',
 
+  assetsNeedRefresh: 'Assets need regeneration',
+  regenerateAssets: 'Regenerate assets',
+  regeneratingAssets: 'Regenerating assets...',
+  regenerateAssetsDescription: 'The story script was updated after review. Regenerate the illustrations and narration so they match the latest version.',
+  regenerateAssetsFailed: 'Asset regeneration failed. Please try again.',
   storyIdeaButton: '영감을 주세요',
 };
 

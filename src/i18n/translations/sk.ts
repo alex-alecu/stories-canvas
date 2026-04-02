@@ -131,6 +131,12 @@ const sk: Translations = {
   narrationSpeed: 'Rýchlosť',
 
   storyTools: 'Nástroje príbehu',
+  reviewScript: 'Review script',
+  reviewingScript: 'Reviewing script...',
+  reviewingScriptStatus: 'Reviewing script...',
+  reviewScriptDescription: 'Run an editorial review on the story script and auto-fix issues before you render again.',
+  reviewScriptSuccess: 'Script review completed.',
+  reviewScriptFailed: 'Script review failed. Please try again.',
   retry: 'Skúsiť znova',
   back: 'Späť',
   retryDescription: 'Niektorý obsah sa nepodarilo vygenerovať. Skúste to znova na dokončenie príbehu.',
@@ -151,6 +157,11 @@ const sk: Translations = {
   narrationSuccess: 'Rozprávanie úspešne vygenerované!',
   narrationGenerationFailed: 'Generovanie rozprávania zlyhalo. Skúste to znova.',
 
+  assetsNeedRefresh: 'Assets need regeneration',
+  regenerateAssets: 'Regenerate assets',
+  regeneratingAssets: 'Regenerating assets...',
+  regenerateAssetsDescription: 'The story script was updated after review. Regenerate the illustrations and narration so they match the latest version.',
+  regenerateAssetsFailed: 'Asset regeneration failed. Please try again.',
   storyIdeaButton: 'Inšpiruj ma',
 };
 

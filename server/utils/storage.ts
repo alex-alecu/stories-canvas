@@ -30,10 +30,41 @@ async function ensureDir(dir: string): Promise<void> {
 }
 
 function normalizeStoryMetaVoice(story: StoryMeta): StoryMeta {
+  const scenarioRevision = Number.isInteger(story.scenarioRevision)
+    ? Math.max(0, story.scenarioRevision!)
+    : story.scenario
+      ? 1
+      : 0;
+  const renderedScenarioRevision = Number.isInteger(story.renderedScenarioRevision)
+    ? Math.max(0, story.renderedScenarioRevision!)
+    : scenarioRevision;
+
   return {
     ...story,
     voice: normalizeVoiceKey(story.voice),
+    language: story.language ?? 'ro',
+    scenarioRevision,
+    renderedScenarioRevision,
+    assetsStale: scenarioRevision > renderedScenarioRevision,
   };
+}
+
+async function readRawStory(storyId: string): Promise<StoryMeta | null> {
+  const filePath = path.join(getStoriesDir(), storyId, 'scenario.json');
+  try {
+    const data = await fs.readFile(filePath, 'utf-8');
+    return JSON.parse(data) as StoryMeta;
+  } catch {
+    return null;
+  }
+}
+
+export interface SaveScenarioOptions {
+  voice?: VoiceKey;
+  artStyle?: ArtStyleKey;
+  language?: string;
+  scenarioRevision?: number;
+  renderedScenarioRevision?: number;
 }
 
 export async function getStoryDir(storyId: string): Promise<string> {
@@ -47,20 +78,34 @@ export async function saveScenario(
   scenario: Scenario,
   status: StoryStatus,
   prompt: string,
-  voice?: VoiceKey,
-  artStyle?: ArtStyleKey,
+  options: SaveScenarioOptions = {},
 ): Promise<void> {
   const dir = await getStoryDir(storyId);
+  const existing = await readRawStory(storyId);
   const meta: StoryMeta = {
+    ...existing,
     id: storyId,
     prompt,
     status,
-    createdAt: new Date().toISOString(),
+    createdAt: existing?.createdAt ?? new Date().toISOString(),
     scenario,
-    artStyle,
-    voice,
+    artStyle: options.artStyle ?? existing?.artStyle,
+    voice: options.voice ?? existing?.voice,
+    language: options.language ?? existing?.language ?? 'ro',
+    scenarioRevision: options.scenarioRevision ?? existing?.scenarioRevision ?? 1,
+    renderedScenarioRevision: options.renderedScenarioRevision ?? existing?.renderedScenarioRevision ?? 1,
   };
   await fs.writeFile(path.join(dir, 'scenario.json'), JSON.stringify(meta, null, 2));
+}
+
+export async function updateStoryScenario(
+  storyId: string,
+  scenario: Scenario,
+  status: StoryStatus,
+  prompt: string,
+  options: SaveScenarioOptions = {},
+): Promise<void> {
+  await saveScenario(storyId, scenario, status, prompt, options);
 }
 
 export async function updateStoryStatus(storyId: string, status: StoryStatus): Promise<void> {
@@ -136,6 +181,19 @@ export async function updateStoryVoice(storyId: string, voice: VoiceKey): Promis
   });
 }
 
+export async function updateStoryRenderedScenarioRevision(
+  storyId: string,
+  renderedScenarioRevision: number,
+): Promise<void> {
+  await withLock(storyId, async () => {
+    const dir = path.join(getStoriesDir(), storyId);
+    const filePath = path.join(dir, 'scenario.json');
+    const data = JSON.parse(await fs.readFile(filePath, 'utf-8')) as StoryMeta;
+    data.renderedScenarioRevision = renderedScenarioRevision;
+    await fs.writeFile(filePath, JSON.stringify(data, null, 2));
+  });
+}
+
 export async function getAudioPath(storyId: string, filename: string): Promise<string | null> {
   const filePath = path.join(getStoriesDir(), storyId, filename);
   try {
@@ -147,13 +205,8 @@ export async function getAudioPath(storyId: string, filename: string): Promise<s
 }
 
 export async function getStory(storyId: string): Promise<StoryMeta | null> {
-  const filePath = path.join(getStoriesDir(), storyId, 'scenario.json');
-  try {
-    const data = await fs.readFile(filePath, 'utf-8');
-    return normalizeStoryMetaVoice(JSON.parse(data) as StoryMeta);
-  } catch {
-    return null;
-  }
+  const story = await readRawStory(storyId);
+  return story ? normalizeStoryMetaVoice(story) : null;
 }
 
 export async function listStories(limit = 27): Promise<StoryMeta[]> {

@@ -13,6 +13,8 @@ export type {
   CreateStoryResponse,
   StoryAssets,
   RetryStoryResponse,
+  ReviewStoryResponse,
+  RegenerateAssetsResponse,
 } from '../../shared/types';
 
 export interface StorySummary {
@@ -26,4 +28,5 @@ export interface StorySummary {
   completedPages: number;
   isPublic?: boolean;
   hasAudio?: boolean;
+  assetsStale?: boolean;
 }
