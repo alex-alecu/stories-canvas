@@ -129,6 +129,14 @@ interface SceneGenerationDeps {
   updatePageStatus?: typeof updatePageStatusBoth;
 }
 
+function buildProviderFailureMessage(pageNumber: number, error: unknown): string {
+  if (isImageSafetyBlockedError(error)) {
+    return `Page ${pageNumber} could not be illustrated because the image provider blocked it with safety filters, even after retrying with a softened prompt. You can retry it from Story Tools.`;
+  }
+
+  return `Page ${pageNumber} could not be illustrated because the image provider returned an error. You can retry it from Story Tools.`;
+}
+
 export async function generateSceneImage(
   storyId: string,
   page: Page,
@@ -188,7 +196,7 @@ export async function generateSceneImage(
           // Check for safety filter
           if (isImageSafetyBlockedError(error)) {
             if (attemptNumber === 1) {
-              logger.warn(`Safety filter hit on page ${page.pageNumber}, attempt ${attemptNumber}. Softening prompt...`);
+              logger.warn(`[scene:${storyId}] Safety filter hit on page ${page.pageNumber}, attempt ${attemptNumber}. Softening prompt...`);
             }
             if (attemptNumber >= 2) {
               throw new AbortError(error);
@@ -197,7 +205,7 @@ export async function generateSceneImage(
           }
           // Check for rate limit (429)
           if (error?.status === 429 || error?.message?.includes('429') || error?.message?.includes('RESOURCE_EXHAUSTED')) {
-            logger.warn(`Rate limited on page ${page.pageNumber}, attempt ${attemptNumber}. Retrying...`);
+            logger.warn(`[scene:${storyId}] Rate limited on page ${page.pageNumber}, attempt ${attemptNumber}. Retrying...`);
             throw error; // p-retry handles backoff
           }
           throw error;
@@ -213,7 +221,7 @@ export async function generateSceneImage(
           if (isImageSafetyBlockedError(error)) {
             return;
           }
-          logger.warn(`Page ${page.pageNumber} attempt ${error.attemptNumber} failed: ${error.message}`);
+          logger.warn(`[scene:${storyId}] Page ${page.pageNumber} attempt ${error.attemptNumber} failed: ${error.message}`);
         },
         ...deps.retryOptions,
       },
@@ -225,13 +233,14 @@ export async function generateSceneImage(
     onProgress?.({ message: `Page ${page.pageNumber} completed`, pageNumber: page.pageNumber, pageStatus: 'completed' });
     return base64;
   } catch (error) {
+    const failureMessage = buildProviderFailureMessage(page.pageNumber, error);
     if (isImageSafetyBlockedError(error)) {
-      logger.warn(`Page ${page.pageNumber} was blocked by image safety filters after prompt softening. Marking it failed and leaving it retryable.`);
+      logger.warn(`[scene:${storyId}] Page ${page.pageNumber} was blocked by image safety filters after prompt softening. Marking it failed and leaving it retryable.`);
     } else {
-      logger.error(`Failed to generate page ${page.pageNumber}:`, error);
+      logger.error(`[scene:${storyId}] Failed to generate page ${page.pageNumber}:`, error);
     }
     await setPageStatus(storyId, page.pageNumber, 'failed');
-    onProgress?.({ message: `Page ${page.pageNumber} failed`, pageNumber: page.pageNumber, pageStatus: 'failed' });
+    onProgress?.({ message: failureMessage, pageNumber: page.pageNumber, pageStatus: 'failed' });
     return null;
   }
 }
@@ -294,7 +303,7 @@ export async function retryFailedSceneImages(
       characterSheets.set(character.name, base64);
     } catch {
       // Character sheet may not exist if it failed during initial generation
-      console.warn(`Could not download character sheet for ${character.name}, continuing without it`);
+      console.warn(`[scene:${storyId}] Could not download character sheet for ${character.name}, continuing without it`);
     }
   }
 

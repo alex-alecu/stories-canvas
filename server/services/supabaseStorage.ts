@@ -264,6 +264,8 @@ function rowToStoryMeta(row: StoryRow): StoryMeta {
     isPublic: row.is_public ?? false,
     artStyle: parseArtStyle(row.art_style),
     voice: normalizeVoiceKey(row.voice),
+    currentPhase: row.current_phase ?? undefined,
+    progressMessage: row.progress_message ?? undefined,
   };
 }
 
@@ -492,6 +494,7 @@ export async function downloadImage(storyId: string, filename: string, userId?: 
  * Determines the correct status based on actual page data and updates accordingly.
  */
 export interface RecoveryDeps {
+  isGenerationActive?: (storyId: string) => boolean;
   loadActiveGenerations?: () => Promise<StoryMeta[]>;
   log?: Pick<Console, 'log'>;
   now?: () => number;
@@ -499,6 +502,7 @@ export interface RecoveryDeps {
 }
 
 export async function recoverStuckStories(deps: RecoveryDeps = {}): Promise<number> {
+  const checkIsGenerationActive = deps.isGenerationActive ?? (() => false);
   const loadActiveGenerations = deps.loadActiveGenerations ?? (() => getActiveGenerations());
   const logger = deps.log ?? console;
   const persistStatus = deps.updateStatus ?? updateStoryStatus;
@@ -513,6 +517,11 @@ export async function recoverStuckStories(deps: RecoveryDeps = {}): Promise<numb
 
   let recovered = 0;
   for (const story of stuck) {
+    if (checkIsGenerationActive(story.id)) {
+      logger.log(`  [recovery] ${story.id}: active on this server, skipping`);
+      continue;
+    }
+
     const age = now - new Date(story.createdAt).getTime();
     if (age < STUCK_THRESHOLD_MS) {
       logger.log(`  [recovery] ${story.id}: still fresh (${Math.round(age / 1000)}s old), skipping`);

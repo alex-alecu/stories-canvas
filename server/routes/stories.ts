@@ -6,6 +6,7 @@ import * as sbStorage from '../services/supabaseStorage.js';
 import { getCharacterSheetFilename } from '../services/characterSheet.js';
 import { generateScenario } from '../services/scenario.js';
 import { generateAllCharacterSheets } from '../services/characterSheet.js';
+import { finishTrackedGeneration, getTrackedGeneration, isGenerationActive, startTrackedGeneration } from '../services/generationRegistry.js';
 import { generateAllSceneImages, retryFailedSceneImages } from '../services/sceneGenerator.js';
 import { generateAllPageAudio, retryMissingAudio, isElevenLabsConfigured } from '../services/elevenlabs.js';
 import { getArtStyleDescription, getStoryArtStyleDescription, resolveArtStyle } from '../services/storyStyle.js';
@@ -167,23 +168,35 @@ function getStatusMessage(status: StoryStatus): string {
   }
 }
 
+function getDisplayProgressMessage(story: StoryMeta): string {
+  return story.progressMessage || getStatusMessage(story.status);
+}
+
+function summarizeImageProviderFailure(failedPages: number[], lastFailureMessage?: string): string {
+  if (failedPages.length === 0) {
+    return 'Story generated successfully!';
+  }
+
+  if (failedPages.length === 1 && lastFailureMessage) {
+    return lastFailureMessage;
+  }
+
+  return `${failedPages.length} illustrations could not be generated because the image provider blocked or rejected them. Open Story Tools to retry those pages.`;
+}
+
 function buildInitialProgress(storyId: string, story: StoryMeta): GenerationProgress {
   return {
     storyId,
     status: story.status,
-    currentPhase: getStatusPhase(story.status),
+    currentPhase: story.currentPhase || getStatusPhase(story.status),
     completedPages: story.scenario?.pages?.filter(p => p.status === 'completed').length ?? 0,
     totalPages: story.scenario?.pages?.length ?? 0,
     failedPages: story.scenario?.pages
       ?.filter(p => p.status === 'failed')
       .map(p => p.pageNumber) ?? [],
-    message: getStatusMessage(story.status),
+    message: getDisplayProgressMessage(story),
   };
 }
-
-// ---------- Active generation abort controllers ----------
-
-const activeGenerations = new Map<string, AbortController>();
 
 // ---------- SSE connections ----------
 
@@ -367,8 +380,7 @@ router.post('/', optionalAuth, async (req: Request, res: Response) => {
 });
 
 async function runGenerationPipeline(storyId: string, prompt: string, userId?: string, language?: string, age?: number, style?: ArtStyleKey, pro?: boolean, voice?: VoiceKey): Promise<void> {
-  const controller = new AbortController();
-  activeGenerations.set(storyId, controller);
+  const controller = startTrackedGeneration(storyId);
   const { signal } = controller;
 
   try {
@@ -418,6 +430,7 @@ async function runGenerationPipeline(storyId: string, prompt: string, userId?: s
     // Phase 3: Generate scene images (sequential with reference chaining for visual consistency)
     let completedPages = 0;
     const failedPages: number[] = [];
+    let lastImageFailureMessage: string | undefined;
 
     await illustrationOps.generateAllSceneImages(
       storyId,
@@ -431,6 +444,9 @@ async function runGenerationPipeline(storyId: string, prompt: string, userId?: s
           completedPages++;
         } else if (progress.pageStatus === 'failed' && progress.pageNumber !== undefined) {
           failedPages.push(progress.pageNumber);
+          if (progress.message) {
+            lastImageFailureMessage = progress.message;
+          }
         }
 
         // Fire-and-forget the async persist, but always sync-send SSE
@@ -535,15 +551,21 @@ async function runGenerationPipeline(storyId: string, prompt: string, userId?: s
     }
 
     // Complete - story is viewable even if audio failed
+    const imageFailureMessage = summarizeImageProviderFailure(failedPages, lastImageFailureMessage);
+    const completionMessage = audioFailed
+      ? failedPages.length > 0
+        ? `${imageFailureMessage} ${audioError!}`
+        : audioError!
+      : imageFailureMessage;
     await updateStoryStatus(storyId, 'completed');
-    sendSSE(storyId, {
+    await sendProgressUpdate(storyId, {
       storyId,
       status: 'completed',
       currentPhase: 'Done!',
       completedPages,
       totalPages: scenario.pages.length,
       failedPages,
-      message: audioFailed ? audioError! : 'Story generated successfully!',
+      message: completionMessage,
       audioFailed,
       audioError,
     });
@@ -566,7 +588,7 @@ async function runGenerationPipeline(storyId: string, prompt: string, userId?: s
       message: isCancelled ? 'Generation cancelled' : (error instanceof Error ? error.message : 'Generation failed'),
     });
   } finally {
-    activeGenerations.delete(storyId);
+    finishTrackedGeneration(storyId);
     scheduleStoryConnectionCleanup(storyId);
   }
 }
@@ -626,7 +648,7 @@ router.post('/:id/retry', optionalAuth, async (req: Request, res: Response) => {
     }
 
     // Prevent concurrent retries
-    if (activeGenerations.has(storyId)) {
+    if (isGenerationActive(storyId)) {
       res.status(409).json({ error: 'A retry is already in progress' });
       return;
     }
@@ -679,8 +701,7 @@ async function runRetryPipeline(
   failedImagePages: number[],
   needsAudioRetry: boolean,
 ): Promise<void> {
-  const controller = new AbortController();
-  activeGenerations.set(storyId, controller);
+  const controller = startTrackedGeneration(storyId);
   const { signal } = controller;
 
   const scenario = story.scenario!;
@@ -689,6 +710,7 @@ async function runRetryPipeline(
   try {
     let completedImages = 0;
     const totalRetries = failedImagePages.length;
+    let lastImageFailureMessage: string | undefined;
 
     // Phase 1: Retry failed images
     if (failedImagePages.length > 0) {
@@ -718,6 +740,9 @@ async function runRetryPipeline(
             completedImages++;
           } else if (progress.pageStatus === 'failed' && progress.pageNumber !== undefined) {
             failedPages.push(progress.pageNumber);
+            if (progress.message) {
+              lastImageFailureMessage = progress.message;
+            }
           }
           sendProgressUpdate(storyId, {
             storyId,
@@ -796,16 +821,23 @@ async function runRetryPipeline(
       }
     }
 
+    const remainingFailedPages = scenario.pages
+      .filter(page => page.status === 'failed')
+      .map(page => page.pageNumber);
+    const retryCompletionMessage = summarizeImageProviderFailure(remainingFailedPages, lastImageFailureMessage);
+
     // Complete
     await updateStoryStatus(storyId, 'completed');
-    sendSSE(storyId, {
+    await sendProgressUpdate(storyId, {
       storyId,
       status: 'completed',
       currentPhase: 'Done!',
       completedPages: 0,
       totalPages: 0,
-      failedPages: [],
-      message: 'Retry completed successfully!',
+      failedPages: remainingFailedPages,
+      message: retryCompletionMessage === 'Story generated successfully!'
+        ? 'Retry completed successfully!'
+        : retryCompletionMessage,
     });
   } catch (error) {
     const isCancelled = signal.aborted;
@@ -826,7 +858,7 @@ async function runRetryPipeline(
       message: isCancelled ? 'Retry cancelled' : (error instanceof Error ? error.message : 'Retry failed'),
     });
   } finally {
-    activeGenerations.delete(storyId);
+    finishTrackedGeneration(storyId);
     scheduleStoryConnectionCleanup(storyId);
   }
 }
@@ -879,7 +911,7 @@ router.post('/:id/generate-audio', optionalAuth, async (req: Request, res: Respo
     }
 
     // Prevent concurrent generations
-    if (activeGenerations.has(storyId)) {
+    if (isGenerationActive(storyId)) {
       res.status(409).json({ error: 'A generation is already in progress' });
       return;
     }
@@ -917,8 +949,7 @@ async function runAudioGenerationPipeline(
   story: StoryMeta,
   voiceKey: VoiceKey,
 ): Promise<void> {
-  const controller = new AbortController();
-  activeGenerations.set(storyId, controller);
+  const controller = startTrackedGeneration(storyId);
   const { signal } = controller;
 
   const scenario = story.scenario!;
@@ -1008,7 +1039,7 @@ async function runAudioGenerationPipeline(
       message: isCancelled ? 'Audio generation cancelled' : (error instanceof Error ? error.message : 'Audio generation failed'),
     });
   } finally {
-    activeGenerations.delete(storyId);
+    finishTrackedGeneration(storyId);
     scheduleStoryConnectionCleanup(storyId);
   }
 }
@@ -1297,7 +1328,7 @@ router.post('/:id/cancel', optionalAuth, async (req: Request, res: Response) => 
     }
 
     // Abort the active generation pipeline if still running
-    const controller = activeGenerations.get(storyId);
+    const controller = getTrackedGeneration(storyId);
     if (controller) {
       controller.abort();
     }

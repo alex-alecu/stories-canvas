@@ -33,6 +33,7 @@ interface StoryViewerProps {
   scenario: Scenario;
   isGenerating?: boolean;
   progress?: GenerationProgress | null;
+  storyMessage?: string;
   voice?: string;
 }
 
@@ -42,7 +43,7 @@ const fontSizeClasses: Record<FontSize, string> = {
   large: 'text-xl md:text-2xl lg:text-3xl',
 };
 
-export default function StoryViewer({ storyId, scenario, isGenerating, progress, voice }: StoryViewerProps) {
+export default function StoryViewer({ storyId, scenario, isGenerating, progress, storyMessage, voice }: StoryViewerProps) {
   const { t } = useLanguage();
   const { fontSize } = useFontSize();
   const [showFontSize, setShowFontSize] = useState(false);
@@ -64,6 +65,12 @@ export default function StoryViewer({ storyId, scenario, isGenerating, progress,
     const hasMissingAudio = shouldHaveAudio && scenario.pages.some(p => !p.audioUrl);
     return hasFailedImages || hasMissingAudio;
   }, [scenario.pages, voice]);
+
+  const issueMessage = useMemo(() => {
+    if (!hasErrors) return null;
+    if (!isGenerating && storyMessage) return storyMessage;
+    return null;
+  }, [hasErrors, isGenerating, storyMessage]);
 
   // Auto-play state (persisted to localStorage)
   const [autoPlay, setAutoPlay] = useState(getStoredAutoPlay);
@@ -456,6 +463,12 @@ export default function StoryViewer({ storyId, scenario, isGenerating, progress,
         </div>
       )}
 
+      {issueMessage && !showAudioFailed && (
+        <div className="absolute bottom-32 right-4 z-50 max-w-sm bg-amber-500/90 backdrop-blur-sm text-black px-3 py-2 rounded-2xl text-xs font-medium shadow-lg">
+          {issueMessage}
+        </div>
+      )}
+
       {/* Progress pill — shown while images are still being generated */}
       {!showAudioFailed && isGenerating && progress && progress.totalPages > 0 && !progress.audioFailed && (
         <div className="absolute bottom-20 right-4 z-50 bg-black/50 backdrop-blur-sm text-white px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-2 animate-pulse">
@@ -525,6 +538,7 @@ export default function StoryViewer({ storyId, scenario, isGenerating, progress,
             scenario={scenario}
             progress={progress}
             isGenerating={isGenerating}
+            storyMessage={storyMessage}
             voice={voice}
           />
         </Suspense>

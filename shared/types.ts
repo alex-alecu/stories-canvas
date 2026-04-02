@@ -122,6 +122,8 @@ export interface StoryMeta {
   isPublic?: boolean;
   artStyle?: ArtStyleKey;
   voice?: VoiceKey;
+  currentPhase?: string;
+  progressMessage?: string;
 }
 
 export interface StoryDetail extends StoryMeta {
