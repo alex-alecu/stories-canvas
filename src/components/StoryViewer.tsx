@@ -8,6 +8,7 @@ import { useLanguage } from '../i18n/LanguageContext';
 import { useFontSize, type FontSize } from '../contexts/FontSizeContext';
 import FontSizeControl from './FontSizeControl';
 import { readStoredBoolean, readStoredNumber, writeStorageItem } from '../lib/browserStorage';
+import { formatStoryStatusMessage } from '../i18n/storyStatusCopy';
 import 'swiper/css';
 import 'swiper/css/navigation';
 
@@ -48,6 +49,7 @@ export default function StoryViewer({ storyId, scenario, isGenerating, progress,
   const { fontSize } = useFontSize();
   const [showFontSize, setShowFontSize] = useState(false);
   const [showTools, setShowTools] = useState(false);
+  const autoOpenedToolsRef = useRef(false);
   const popoverRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const swiperRef = useRef<SwiperType | null>(null);
@@ -68,9 +70,20 @@ export default function StoryViewer({ storyId, scenario, isGenerating, progress,
 
   const issueMessage = useMemo(() => {
     if (!hasErrors) return null;
-    if (!isGenerating && storyMessage) return storyMessage;
+    if (!isGenerating && storyMessage) return formatStoryStatusMessage(storyMessage, t);
     return null;
-  }, [hasErrors, isGenerating, storyMessage]);
+  }, [hasErrors, isGenerating, storyMessage, t]);
+
+  useEffect(() => {
+    autoOpenedToolsRef.current = false;
+  }, [storyId]);
+
+  useEffect(() => {
+    if (hasErrors && !autoOpenedToolsRef.current) {
+      autoOpenedToolsRef.current = true;
+      setShowTools(true);
+    }
+  }, [hasErrors]);
 
   // Auto-play state (persisted to localStorage)
   const [autoPlay, setAutoPlay] = useState(getStoredAutoPlay);

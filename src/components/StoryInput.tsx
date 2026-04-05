@@ -2,8 +2,9 @@ import { useState, useEffect, type FormEvent } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../i18n/LanguageContext';
-import { AGE_RANGES, DEFAULT_AGE, DEFAULT_ART_STYLE, getAgeGroup, VOICE_OPTIONS, type ArtStyleKey, type VoiceKey } from '../../shared/types';
+import { AGE_RANGES, DEFAULT_AGE, DEFAULT_ART_STYLE, DEFAULT_VOICE_KEY, getAgeGroup, VOICE_OPTIONS, type ArtStyleKey, type VoiceKey } from '../../shared/types';
 import { getRandomStoryIdea } from '../data/storyIdeas';
+import { getVoiceOptionText } from '../i18n/storyStatusCopy';
 
 const STYLE_KEYS: ArtStyleKey[] = ['disney-pixar', 'watercolor', 'storybook', 'anime', 'colored-pencil', 'paper-cutout'];
 
@@ -26,7 +27,7 @@ export default function StoryInput({ onSubmit, isLoading }: StoryInputProps) {
   const [age, setAge] = useState<number>(DEFAULT_AGE);
   const [style, setStyle] = useState<ArtStyleKey>(DEFAULT_ART_STYLE);
   const [pro, setPro] = useState(false);
-  const [voice, setVoice] = useState<VoiceKey | ''>('');
+  const [voice, setVoice] = useState<VoiceKey | ''>(DEFAULT_VOICE_KEY);
   const maxLength = 500;
   const { user, loading } = useAuth();
   const { t, language } = useLanguage();
@@ -167,11 +168,14 @@ export default function StoryInput({ onSubmit, isLoading }: StoryInputProps) {
                   className="text-sm bg-gray-50 dark:bg-surface-dark border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1.5 text-gray-700 dark:text-gray-300 focus:outline-none focus:border-primary-300 dark:focus:border-primary-600 disabled:opacity-50 cursor-pointer min-w-0"
                 >
                   <option value="">{t.noVoice}</option>
-                  {VOICE_OPTIONS.map(({ key, labelKey, descKey }) => (
-                    <option key={key} value={key}>
-                      {t[labelKey as keyof typeof t]} - {t[descKey as keyof typeof t]}
-                    </option>
-                  ))}
+                  {VOICE_OPTIONS.map((option) => {
+                    const { label, description } = getVoiceOptionText(option, t);
+                    return (
+                      <option key={option.key} value={option.key}>
+                        {label} - {description}
+                      </option>
+                    );
+                  })}
                 </select>
               </div>
             </div>

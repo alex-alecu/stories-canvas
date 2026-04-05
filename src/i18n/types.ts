@@ -134,9 +134,11 @@ export interface Translations {
   // Voice narration
   narratorVoice: string;
   noVoice: string;
+  voiceBunica: string;
   voiceJora: string;
   voiceSerban: string;
   voiceCorina: string;
+  voiceBunicaDesc: string;
   voiceJoraDesc: string;
   voiceSerbanDesc: string;
   voiceCorinaDesc: string;
@@ -167,6 +169,9 @@ export interface Translations {
   characterSheet: string;
   noReferenceImages: string;
   storyStatus: string;
+  retryingFailedIllustrations: string;
+  generatingImageForPage: string;
+  blockedIllustrationsDescription: string;
 
   // Generate narration
   addNarration: string;
