@@ -191,3 +191,35 @@ test('generateImage surfaces safety blocks without falling back to the pro model
     (gemini.ai.models as { generateContent: typeof original }).generateContent = original;
   }
 });
+
+test('generateImage surfaces prohibited-content policy blocks without falling back to the pro model', async () => {
+  const gemini = await import('./gemini.js');
+  const calls: GenerateContentCall[] = [];
+  const original = gemini.ai.models.generateContent;
+
+  (gemini.ai.models as { generateContent: typeof original }).generateContent = (async (request) => {
+    calls.push(request as GenerateContentCall);
+    return {
+      candidates: [
+        {
+          finishReason: 'PROHIBITED_CONTENT',
+        },
+      ],
+    } as never;
+  }) as typeof original;
+
+  try {
+    await assert.rejects(
+      () => gemini.generateImage('draw cinderella'),
+      error => {
+        assert.ok(error instanceof gemini.ImagePolicyBlockedError);
+        assert.match(String(error.message), /PROHIBITED_CONTENT/);
+        return true;
+      },
+    );
+
+    assert.equal(calls.length, 1);
+  } finally {
+    (gemini.ai.models as { generateContent: typeof original }).generateContent = original;
+  }
+});
