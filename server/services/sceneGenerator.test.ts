@@ -89,7 +89,9 @@ test('generateSceneImage marks safety-blocked pages as failed without logging an
   assert.equal(entries.error.length, 0);
   assert.equal(entries.warn.length, 2);
   assert.match(entries.warn[0], /Safety filter hit on page 2, attempt 1/);
+  assert.match(entries.warn[0], /Image generation blocked by safety filters on model gemini-3.1-flash-image-preview/);
   assert.match(entries.warn[1], /blocked by image safety filters after prompt softening/);
+  assert.match(entries.warn[1], /Image generation blocked by safety filters on model gemini-3.1-flash-image-preview/);
   assert.match(progressMessages.at(-1) ?? '', /image provider blocked it with safety filters/i);
 });
 

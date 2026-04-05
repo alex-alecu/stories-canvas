@@ -1,4 +1,4 @@
-import { generateImage } from './gemini.js';
+import { generateImage, isImageSafetyBlockedError } from './gemini.js';
 import { saveImage } from '../utils/storage.js';
 import { uploadImage } from './supabaseStorage.js';
 import { config } from '../config.js';
@@ -61,7 +61,13 @@ export async function generateAllCharacterSheets(
       const result = await generateCharacterSheet(storyId, character, userId, styleDescription, pro);
       characterSheets.set(result.name, result.base64);
     } catch (error) {
-      console.error(`[character-sheet:${storyId}] Failed to generate character sheet for ${character.name}:`, error);
+      if (isImageSafetyBlockedError(error)) {
+        console.error(
+          `[character-sheet:${storyId}] Failed to generate character sheet for ${character.name}: ${error.message}`,
+        );
+      } else {
+        console.error(`[character-sheet:${storyId}] Failed to generate character sheet for ${character.name}:`, error);
+      }
       // Continue with other characters - scenes will work without reference sheets
     }
   }

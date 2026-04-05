@@ -196,7 +196,10 @@ export async function generateSceneImage(
           // Check for safety filter
           if (isImageSafetyBlockedError(error)) {
             if (attemptNumber === 1) {
-              logger.warn(`[scene:${storyId}] Safety filter hit on page ${page.pageNumber}, attempt ${attemptNumber}. Softening prompt...`);
+              logger.warn(
+                `[scene:${storyId}] Safety filter hit on page ${page.pageNumber}, attempt ${attemptNumber}. `
+                + `Softening prompt... ${error.message}`,
+              );
             }
             if (attemptNumber >= 2) {
               throw new AbortError(error);
@@ -235,7 +238,10 @@ export async function generateSceneImage(
   } catch (error) {
     const failureMessage = buildProviderFailureMessage(page.pageNumber, error);
     if (isImageSafetyBlockedError(error)) {
-      logger.warn(`[scene:${storyId}] Page ${page.pageNumber} was blocked by image safety filters after prompt softening. Marking it failed and leaving it retryable.`);
+      logger.warn(
+        `[scene:${storyId}] Page ${page.pageNumber} was blocked by image safety filters after prompt softening. `
+        + `Marking it failed and leaving it retryable. ${error.message}`,
+      );
     } else {
       logger.error(`[scene:${storyId}] Failed to generate page ${page.pageNumber}:`, error);
     }
