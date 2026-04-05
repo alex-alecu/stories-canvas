@@ -112,6 +112,12 @@ test('generateImage keeps story-specific controls out of image requests', async 
     assert.equal(calls[0].config.temperature, undefined);
     assert.equal(calls[0].config.thinkingConfig, undefined);
     assert.deepEqual(calls[0].config.responseModalities, ['IMAGE']);
+    assert.deepEqual(calls[0].config.safetySettings, [
+      { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'OFF' },
+      { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'OFF' },
+      { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'OFF' },
+      { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'OFF' },
+    ]);
   } finally {
     (gemini.ai.models as { generateContent: typeof original }).generateContent = original;
   }
