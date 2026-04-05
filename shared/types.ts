@@ -4,14 +4,14 @@ export type StoryStatus = 'generating_scenario' | 'reviewing_scenario' | 'genera
 
 export type ArtStyleKey = 'disney-pixar' | 'watercolor' | 'storybook' | 'anime' | 'colored-pencil' | 'paper-cutout';
 
-export type VoiceKey = 'jora' | 'serban' | 'corina';
+export type VoiceKey = 'bunica' | 'jora' | 'serban' | 'corina';
 
 export type LegacyVoiceKey = 'grandma' | 'grandpa' | 'dad' | 'mom' | 'whisper';
 
-export const DEFAULT_VOICE_KEY: VoiceKey = 'jora';
+export const DEFAULT_VOICE_KEY: VoiceKey = 'bunica';
 
 export const LEGACY_VOICE_KEY_ALIASES: Record<LegacyVoiceKey, VoiceKey> = {
-  grandma: 'corina',
+  grandma: 'bunica',
   mom: 'corina',
   grandpa: 'jora',
   dad: 'serban',
@@ -19,9 +19,10 @@ export const LEGACY_VOICE_KEY_ALIASES: Record<LegacyVoiceKey, VoiceKey> = {
 };
 
 export const VOICE_OPTIONS = [
-  { key: 'jora', name: 'Grandpa', labelKey: 'voiceJora', descKey: 'voiceJoraDesc' },
-  { key: 'serban', name: 'Dad', labelKey: 'voiceSerban', descKey: 'voiceSerbanDesc' },
+  { key: 'bunica', name: 'Grandma', labelKey: 'voiceBunica', descKey: 'voiceBunicaDesc' },
   { key: 'corina', name: 'Mom', labelKey: 'voiceCorina', descKey: 'voiceCorinaDesc' },
+  { key: 'serban', name: 'Dad', labelKey: 'voiceSerban', descKey: 'voiceSerbanDesc' },
+  { key: 'jora', name: 'Grandpa', labelKey: 'voiceJora', descKey: 'voiceJoraDesc' },
 ] as const satisfies ReadonlyArray<{ key: VoiceKey; name: string; labelKey: string; descKey: string }>;
 
 const VOICE_OPTION_MAP = new Map<VoiceKey, (typeof VOICE_OPTIONS)[number]>(

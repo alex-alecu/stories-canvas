@@ -23,27 +23,38 @@ interface VoiceSettings {
   stability: number;
   similarityBoost: number;
   style: number;
+  speed: number;
 }
-
-const NARRATION_SETTINGS = {
-  stability: 0.7,
-  similarityBoost: 0.8,
-  style: 0.4,
-} as const;
 
 export function getVoiceSettings(voiceKey: VoiceKey): VoiceSettings {
   const baseSettings: Record<VoiceKey, VoiceSettings> = {
+    bunica: {
+      voiceId: config.voiceIds.corina,
+      stability: 0.82,
+      similarityBoost: 0.8,
+      style: 0.18,
+      speed: 0.82,
+    },
     jora: {
       voiceId: config.voiceIds.jora,
-      ...NARRATION_SETTINGS,
+      stability: 0.8,
+      similarityBoost: 0.8,
+      style: 0.2,
+      speed: 0.84,
     },
     serban: {
       voiceId: config.voiceIds.serban,
-      ...NARRATION_SETTINGS,
+      stability: 0.74,
+      similarityBoost: 0.8,
+      style: 0.38,
+      speed: 0.88,
     },
     corina: {
       voiceId: config.voiceIds.corina,
-      ...NARRATION_SETTINGS,
+      stability: 0.74,
+      similarityBoost: 0.8,
+      style: 0.42,
+      speed: 0.88,
     },
   };
 
@@ -90,6 +101,7 @@ export async function generatePageAudio(
           stability: settings.stability,
           similarityBoost: settings.similarityBoost,
           style: settings.style,
+          speed: settings.speed,
         },
       }, {
         timeoutInSeconds: 60,

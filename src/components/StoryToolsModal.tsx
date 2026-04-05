@@ -4,6 +4,7 @@ import { useRetryStory, useStoryAssets, useGenerateAudio } from '../hooks/useSto
 import { useStoryGeneration } from '../hooks/useStoryGeneration';
 import { useLanguage } from '../i18n/LanguageContext';
 import { DEFAULT_VOICE_KEY, VOICE_OPTIONS, type VoiceKey } from '../../shared/types';
+import { formatStoryStatusMessage, getVoiceOptionText } from '../i18n/storyStatusCopy';
 
 interface StoryToolsModalProps {
   isOpen: boolean;
@@ -267,7 +268,7 @@ export default function StoryToolsModal({
                       </div>
                     )}
                     {activeProgress.message && (
-                      <p className="text-white/40 text-xs mt-1.5">{activeProgress.message}</p>
+                      <p className="text-white/40 text-xs mt-1.5">{formatStoryStatusMessage(activeProgress.message, t)}</p>
                     )}
                   </div>
                 )}
@@ -337,11 +338,14 @@ export default function StoryToolsModal({
                     disabled={isGeneratingAudio}
                     className="w-full bg-white/10 border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-400/50 disabled:opacity-50"
                   >
-                    {VOICE_OPTIONS.map((opt) => (
-                      <option key={opt.key} value={opt.key} className="bg-[#1a1a2e] text-white">
-                        {t[opt.labelKey as keyof typeof t]} — {t[opt.descKey as keyof typeof t]}
-                      </option>
-                    ))}
+                    {VOICE_OPTIONS.map((option) => {
+                      const { label, description } = getVoiceOptionText(option, t);
+                      return (
+                        <option key={option.key} value={option.key} className="bg-[#1a1a2e] text-white">
+                          {label} — {description}
+                        </option>
+                      );
+                    })}
                   </select>
                 </div>
 
@@ -361,7 +365,7 @@ export default function StoryToolsModal({
                       </div>
                     )}
                     {activeProgress.message && (
-                      <p className="text-white/40 text-xs mt-1.5">{activeProgress.message}</p>
+                      <p className="text-white/40 text-xs mt-1.5">{formatStoryStatusMessage(activeProgress.message, t)}</p>
                     )}
                   </div>
                 )}

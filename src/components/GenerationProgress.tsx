@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { GenerationProgress as ProgressType } from '../types';
 import { useLanguage } from '../i18n/LanguageContext';
+import { formatStoryStatusMessage } from '../i18n/storyStatusCopy';
 
 interface GenerationProgressProps {
   progress: ProgressType | null;
@@ -93,7 +94,7 @@ export default function GenerationProgress({ progress, onCancel, isCancelling = 
     : 0;
   const visibleMessage = progress?.status === 'reviewing_scenario'
     ? t.writingStoryStatus
-    : progress?.message;
+    : formatStoryStatusMessage(progress?.message, t);
 
   const isTerminal = progress?.status === 'completed' || progress?.status === 'failed' || progress?.status === 'cancelled';
   const isCancelled = progress?.status === 'cancelled';
