@@ -15,7 +15,7 @@ function StatusBadge({ status, completedPages, totalPages }: { status: string; c
 
   const labels: Record<string, string> = {
     generating_scenario: t.writingStoryStatus,
-    reviewing_scenario: t.reviewingScriptStatus,
+    reviewing_scenario: t.writingStoryStatus,
     generating_characters: t.drawingCharactersStatus,
     generating_images: `${t.illustratingStatus} ${completedPages}/${totalPages}`,
     generating_audio: `${t.recordingNarration}...`,

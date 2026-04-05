@@ -168,6 +168,37 @@ test('generateScenarioWithModel uses draft, repair, and review settings in order
   assert.ok(scenario.pages.every(page => page.status === 'pending'));
 });
 
+test('generateScenarioWithModel keeps editorial review internal to the writing phase', async () => {
+  const scenarioModule = await import('./scenario.js');
+  const progressUpdates: Array<{ status: string; currentPhase: string; message: string }> = [];
+  let callCount = 0;
+
+  const generateJSON = async (): Promise<any> => {
+    callCount += 1;
+    if (callCount === 1) {
+      return makeScenario();
+    }
+
+    return {
+      needsRewrite: false,
+      summary: 'Scenario is already strong.',
+      changedPageNumbers: [],
+      issues: [],
+    };
+  };
+
+  await scenarioModule.generateScenarioWithModel(
+    'Tell a warm story about Mia and a kite.',
+    'en',
+    3,
+    'storybook',
+    generateJSON as never,
+    progress => progressUpdates.push(progress),
+  );
+
+  assert.ok(progressUpdates.every(update => update.status !== 'reviewing_scenario'));
+});
+
 test('generateScenarioWithModel performs one additional repair when the first repair still fails validation', async () => {
   const scenarioModule = await import('./scenario.js');
   const calls: string[] = [];

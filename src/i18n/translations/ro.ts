@@ -173,7 +173,7 @@ const ro: Translations = {
   assetsNeedRefresh: 'Assets need regeneration',
   regenerateAssets: 'Regenerate assets',
   regeneratingAssets: 'Regenerating assets...',
-  regenerateAssetsDescription: 'The story script was updated after review. Regenerate the illustrations and narration so they match the latest version.',
+  regenerateAssetsDescription: 'This story was updated. Regenerate the illustrations and narration so they match the latest version.',
   regenerateAssetsFailed: 'Asset regeneration failed. Please try again.',
   storyIdeaButton: 'Inspiră-mă',
 };

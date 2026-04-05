@@ -71,7 +71,6 @@ export default function GenerationProgress({ progress, onCancel, isCancelling = 
 
   const allPhases = [
     { key: 'generating_scenario', label: t.writingStory },
-    { key: 'reviewing_scenario', label: t.reviewingScript },
     { key: 'generating_characters', label: t.drawingCharacters },
     { key: 'generating_images', label: t.illustratingPages },
     { key: 'generating_audio', label: t.recordingNarration },
@@ -79,16 +78,22 @@ export default function GenerationProgress({ progress, onCancel, isCancelling = 
 
   // Only show the audio phase if we actually entered it
   const hasAudioPhase = progress?.status === 'generating_audio' || progress?.audioFailed;
-  const phases = hasAudioPhase ? allPhases : allPhases.slice(0, 4);
+  const phases = hasAudioPhase ? allPhases : allPhases.slice(0, 3);
   const isAudioFailed = !!progress?.audioFailed;
+  const visibleStatus = progress?.status === 'reviewing_scenario'
+    ? 'generating_scenario'
+    : progress?.status;
 
   // When progress is null (waiting for SSE to connect), default to first phase
   const currentPhaseIndex = progress
-    ? phases.findIndex(p => p.key === progress.status)
+    ? phases.findIndex(p => p.key === visibleStatus)
     : 0;
   const progressPercent = progress?.totalPages
     ? Math.round((progress.completedPages / progress.totalPages) * 100)
     : 0;
+  const visibleMessage = progress?.status === 'reviewing_scenario'
+    ? t.writingStoryStatus
+    : progress?.message;
 
   const isTerminal = progress?.status === 'completed' || progress?.status === 'failed' || progress?.status === 'cancelled';
   const isCancelled = progress?.status === 'cancelled';
@@ -159,8 +164,8 @@ export default function GenerationProgress({ progress, onCancel, isCancelling = 
           <p className="text-sm text-red-500 dark:text-red-400 mb-2">{t.narrationFailed}</p>
         )}
 
-        {progress?.message && !isAudioFailed && (
-          <p className="text-sm text-gray-500 dark:text-gray-400 italic">{progress.message}</p>
+        {visibleMessage && !isAudioFailed && (
+          <p className="text-sm text-gray-500 dark:text-gray-400 italic">{visibleMessage}</p>
         )}
 
         {(isFailed || isCancelled) && (
