@@ -66,6 +66,20 @@ export function isImageSafetyBlockedError(error: unknown): error is ImageSafetyB
   return error instanceof ImageSafetyBlockedError;
 }
 
+export class ImagePolicyBlockedError extends Error {
+  readonly model: string;
+
+  constructor(model: string, message: string) {
+    super(message);
+    this.name = 'ImagePolicyBlockedError';
+    this.model = model;
+  }
+}
+
+export function isImagePolicyBlockedError(error: unknown): error is ImagePolicyBlockedError {
+  return error instanceof ImagePolicyBlockedError;
+}
+
 function shouldRetryWithoutThinking(error: Error): boolean {
   const message = error.message.toLowerCase();
   const mentionsThinking = message.includes('thinking')
@@ -107,18 +121,33 @@ function extractImageData(response: ImageGenerationResponse): string | undefined
   return undefined;
 }
 
-function isSafetyImageFailure(response: ImageGenerationResponse): boolean {
+function matchesPromptOrCandidateReason(
+  response: ImageGenerationResponse,
+  patterns: string[],
+): boolean {
   const blockReason = String(response.promptFeedback?.blockReason ?? '').toUpperCase();
-  if (blockReason.includes('SAFETY') || blockReason.includes('BLOCKLIST') || blockReason.includes('PROHIBITED_CONTENT')) {
+  if (patterns.some(pattern => blockReason.includes(pattern))) {
     return true;
   }
 
   return (response.candidates ?? []).some(candidate => {
     const finishReason = String(candidate.finishReason ?? '').toUpperCase();
-    return finishReason.includes('SAFETY')
-      || finishReason.includes('BLOCKLIST')
-      || finishReason.includes('PROHIBITED_CONTENT');
+    return patterns.some(pattern => finishReason.includes(pattern));
   });
+}
+
+function isSafetyImageFailure(response: ImageGenerationResponse): boolean {
+  return matchesPromptOrCandidateReason(response, ['SAFETY', 'IMAGE_SAFETY']);
+}
+
+function isPolicyImageFailure(response: ImageGenerationResponse): boolean {
+  return matchesPromptOrCandidateReason(response, [
+    'BLOCKLIST',
+    'PROHIBITED_CONTENT',
+    'IMAGE_PROHIBITED_CONTENT',
+    'SPII',
+    'IMAGE_RECITATION',
+  ]);
 }
 
 function describeImageFailure(response: ImageGenerationResponse, model: string): string {
@@ -174,7 +203,9 @@ function describeImageFailure(response: ImageGenerationResponse, model: string):
 
   const baseMessage = isSafetyImageFailure(response)
     ? `Image generation blocked by safety filters on model ${model}`
-    : `Image generation returned no image data on model ${model}`;
+    : isPolicyImageFailure(response)
+      ? `Image generation blocked by provider policy on model ${model}`
+      : `Image generation returned no image data on model ${model}`;
 
   return `${baseMessage}: ${details.join('; ')}`;
 }
@@ -271,11 +302,14 @@ export async function generateImage(
       return imageData;
     }
 
+    const message = describeImageFailure(response, model);
     const error = isSafetyImageFailure(response)
-      ? new ImageSafetyBlockedError(model, describeImageFailure(response, model))
-      : new Error(describeImageFailure(response, model));
+      ? new ImageSafetyBlockedError(model, message)
+      : isPolicyImageFailure(response)
+        ? new ImagePolicyBlockedError(model, message)
+        : new Error(message);
 
-    if (fallbackModel && index === 0 && !isSafetyImageFailure(response)) {
+    if (fallbackModel && index === 0 && !(isSafetyImageFailure(response) || isPolicyImageFailure(response))) {
       console.warn(
         `Image generation returned no image data from ${primaryModel}. Retrying once with ${fallbackModel}.`,
       );

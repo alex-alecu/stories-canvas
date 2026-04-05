@@ -1,6 +1,7 @@
 import pRetry, { AbortError } from 'p-retry';
 import fs from 'fs/promises';
-import { generateImage, isImageSafetyBlockedError } from './gemini.js';
+import { generateImage, isImagePolicyBlockedError, isImageSafetyBlockedError } from './gemini.js';
+import { prepareSceneImagePrompt } from './imagePromptPreparation.js';
 import { saveImage, updatePageStatus as fsUpdatePageStatus, getImagePath } from '../utils/storage.js';
 import { uploadImage, updatePageStatus as sbUpdatePageStatus, downloadImage } from './supabaseStorage.js';
 import { getCharacterSheetFilename } from './characterSheet.js';
@@ -35,76 +36,6 @@ async function downloadImageForRetry(storyId: string, filename: string, userId?:
   return buffer.toString('base64');
 }
 
-function buildScenePrompt(
-  page: Page,
-  characters: Character[],
-  hasPreviousScene: boolean,
-  includedCharNames: string[],
-  styleDescription?: string,
-): string {
-  const charDescriptions = page.characters
-    .map(name => {
-      const char = characters.find(c => c.name === name);
-      if (!char) return '';
-      return `- ${char.name}: ${char.appearance}. ${char.clothing}.`;
-    })
-    .filter(Boolean)
-    .join('\n');
-
-  // Build image labels: character sheets FIRST, then scene references
-  let imageIndex = 1;
-  const preambleParts: string[] = [];
-
-  // Character sheet labels come first (they are first in the referenceImages array)
-  const charImageLabels = includedCharNames
-    .map((name, i) => {
-      const label = `Image ${imageIndex + i}: ⭐ AUTHORITATIVE CHARACTER REFERENCE for ${name} — This reference sheet is the DEFINITIVE source for this character's appearance. Every detail (skin/fur color, eye color, body proportions, clothing, accessories) MUST match this sheet EXACTLY in the generated scene.`;
-      return label;
-    })
-    .join('\n');
-  imageIndex += includedCharNames.length;
-
-  // Scene reference label comes after character sheets
-  if (hasPreviousScene) {
-    preambleParts.push(
-      `Image ${imageIndex}: STYLE & ENVIRONMENT CONTINUITY REFERENCE — This is the previous scene. Match its art style, color palette, and lighting quality. If the location is the same, keep ALL objects and furniture in the EXACT same positions. For character appearance, ALWAYS defer to the character reference sheets above.`,
-    );
-    imageIndex++;
-  }
-
-  const sceneRefLabels = preambleParts.length > 0
-    ? '\n' + preambleParts.join('\n')
-    : '';
-
-  return `${charImageLabels}${sceneRefLabels}
-
-IMPORTANT: Generate a new illustration. The character reference sheets are the SINGLE SOURCE OF TRUTH for how each character looks. Scene references are provided only for art style and environment continuity.
-
-Scene: ${page.imagePrompt}
-
-Characters in scene:
-${charDescriptions}
-
-ENVIRONMENT: This must be a COMPLETE, richly detailed scene — like a frame from a Pixar/Disney animated movie. Render a FULL environment with depth, atmospheric lighting, and environmental storytelling details (weather, time of day, objects that tell a story). Do NOT render characters on a plain or overly simple background. The setting should feel alive and immersive.
-
-BACKGROUND LIFE: Include secondary characters and living details in the background to make the world feel alive — other animals, people, creatures, or environmental activity appropriate to the setting. These background elements should add depth and atmosphere without distracting from the main characters.
-
-COMPOSITION: Position the main characters in the UPPER TWO-THIRDS of the frame. The lower portion of the image will have a text overlay, so keep character faces and critical visual elements out of the bottom third. Place supporting environment details (ground, path, floor, grass) in the lower area instead.
-
-CHARACTER APPEARANCE (HIGHEST PRIORITY):
-- The character reference sheets are the ABSOLUTE AUTHORITY for character appearance. ALWAYS match them exactly.
-- Same exact skin/fur colors, eye colors, hair style and color, body proportions, clothing details, and accessories as shown in the character sheets.
-- If a scene reference shows a character looking even SLIGHTLY different from the character sheet (due to accumulated generation drift), IGNORE the scene reference and follow the character sheet.
-
-STYLE & ENVIRONMENT CONSISTENCY:
-- Maintain the SAME art style across all scenes: same rendering quality, same color saturation, same lighting approach
-- Use the SAME visual language: same line weight, same level of detail, same background style
-${hasPreviousScene ? `- ENVIRONMENT SPATIAL CONTINUITY: If this scene takes place in the same location as the previous scene, ALL furniture, objects, and architectural elements MUST remain in the EXACT same positions. Beds, shelves, windows, doors, trees, rocks — everything must stay where it was. Only the characters' poses and actions should change. Match the camera angle and perspective of the previous scene.
-` : ''}
-Style: ${styleDescription || 'Disney/Pixar 3D animation style with warm, vibrant colors, round and friendly character designs'}.
-4:3 aspect ratio composition. No text or words in the image.`;
-}
-
 function softenPrompt(prompt: string): string {
   return prompt
     .replace(/angry|furious|rage/gi, 'upset')
@@ -132,6 +63,10 @@ interface SceneGenerationDeps {
 function buildProviderFailureMessage(pageNumber: number, error: unknown): string {
   if (isImageSafetyBlockedError(error)) {
     return `Page ${pageNumber} could not be illustrated because the image provider blocked it with safety filters, even after retrying with a softened prompt. You can retry it from Story Tools.`;
+  }
+
+  if (isImagePolicyBlockedError(error)) {
+    return `Page ${pageNumber} could not be illustrated because the image provider rejected the prompt under its prohibited-content policy. You can edit the story details and retry it from Story Tools.`;
   }
 
   return `Page ${pageNumber} could not be illustrated because the image provider returned an error. You can retry it from Story Tools.`;
@@ -181,7 +116,7 @@ export async function generateSceneImage(
     referenceImages.push({ data: previousSceneBase64!, mimeType: 'image/png' });
   }
 
-  const prompt = buildScenePrompt(page, characters, hasPreviousScene, includedCharNames, styleDescription);
+  const prompt = prepareSceneImagePrompt(page, characters, hasPreviousScene, includedCharNames, styleDescription);
 
   try {
     const base64 = await pRetry(
@@ -205,6 +140,9 @@ export async function generateSceneImage(
               throw new AbortError(error);
             }
             throw error; // retry with softened prompt
+          }
+          if (isImagePolicyBlockedError(error)) {
+            throw new AbortError(error);
           }
           // Check for rate limit (429)
           if (error?.status === 429 || error?.message?.includes('429') || error?.message?.includes('RESOURCE_EXHAUSTED')) {
@@ -240,6 +178,11 @@ export async function generateSceneImage(
     if (isImageSafetyBlockedError(error)) {
       logger.warn(
         `[scene:${storyId}] Page ${page.pageNumber} was blocked by image safety filters after prompt softening. `
+        + `Marking it failed and leaving it retryable. ${error.message}`,
+      );
+    } else if (isImagePolicyBlockedError(error)) {
+      logger.warn(
+        `[scene:${storyId}] Page ${page.pageNumber} was rejected by provider policy. `
         + `Marking it failed and leaving it retryable. ${error.message}`,
       );
     } else {
