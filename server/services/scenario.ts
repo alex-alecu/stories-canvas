@@ -248,7 +248,7 @@ export async function generateScenarioWithModel(
   age: number | undefined,
   style: ArtStyleKey | undefined,
   generateJSON: GenerateJSONFn,
-  onProgress?: ScenarioProgressCallback,
+  _onProgress?: ScenarioProgressCallback,
 ): Promise<Scenario> {
   const context = buildStoryPromptContext(userPrompt, language, age, style);
   const systemInstruction = buildStorySystemInstruction(context);
@@ -260,12 +260,6 @@ export async function generateScenarioWithModel(
     draftScenario,
     generateJSON,
   );
-
-  onProgress?.({
-    status: 'reviewing_scenario',
-    currentPhase: 'Reviewing script...',
-    message: 'Reviewing and refining your story...',
-  });
 
   const reviewedScenario = await applyEditorialReview(context, validatedScenario, generateJSON);
 

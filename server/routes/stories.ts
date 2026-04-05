@@ -4,14 +4,14 @@ import { config } from '../config.js';
 import * as fsStorage from '../utils/storage.js';
 import * as sbStorage from '../services/supabaseStorage.js';
 import { getCharacterSheetFilename } from '../services/characterSheet.js';
-import { generateScenario, reviewScenario } from '../services/scenario.js';
+import { generateScenario } from '../services/scenario.js';
 import { generateAllCharacterSheets } from '../services/characterSheet.js';
 import { finishTrackedGeneration, getTrackedGeneration, isGenerationActive, startTrackedGeneration } from '../services/generationRegistry.js';
 import { generateAllSceneImages, retryFailedSceneImages } from '../services/sceneGenerator.js';
 import { generateAllPageAudio, retryMissingAudio, isElevenLabsConfigured } from '../services/elevenlabs.js';
 import { getArtStyleDescription, getStoryArtStyleDescription, resolveArtStyle } from '../services/storyStyle.js';
 import { optionalAuth } from '../middleware/auth.js';
-import type { GenerationProgress, CreateStoryRequest, StoryStatus, StoryMeta, Scenario, ArtStyleKey, VoiceKey, StoryAssets, RetryStoryResponse, ReviewStoryResponse, RegenerateAssetsResponse } from '../../shared/types.js';
+import type { GenerationProgress, CreateStoryRequest, StoryStatus, StoryMeta, Scenario, ArtStyleKey, VoiceKey, StoryAssets, RetryStoryResponse, RegenerateAssetsResponse } from '../../shared/types.js';
 import { DEFAULT_AGE, getVoiceName, normalizeVoiceKey } from '../../shared/types.js';
 import { MEDIA_CACHE_CONTROL, getPageAudioFilename, getPageImageFilename, pageHasAudio } from '../utils/storyMedia.js';
 
@@ -20,7 +20,6 @@ const SSE_CLOSE_DELAY_MS = 2_000;
 
 export const scenarioOps = {
   generateScenario,
-  reviewScenario,
 };
 
 export const illustrationOps = {
@@ -210,7 +209,7 @@ function isTerminalStoryStatus(status: StoryStatus): boolean {
 function getStatusPhase(status: StoryStatus): string {
   switch (status) {
     case 'reviewing_scenario':
-      return 'Reviewing script...';
+      return 'Generating story scenario...';
     case 'completed':
       return 'Done!';
     case 'failed':
@@ -225,7 +224,7 @@ function getStatusPhase(status: StoryStatus): string {
 function getStatusMessage(status: StoryStatus): string {
   switch (status) {
     case 'reviewing_scenario':
-      return 'Reviewing and refining your story...';
+      return 'Creating your story...';
     case 'completed':
       return 'Story generated successfully!';
     case 'failed':
@@ -266,37 +265,23 @@ function cloneScenarioForAssetRefresh(scenario: Scenario): Scenario {
   };
 }
 
-function mergeScenarioAssetState(previousScenario: Scenario, nextScenario: Scenario): Scenario {
-  const previousPages = new Map(previousScenario.pages.map(page => [page.pageNumber, page]));
-
-  return {
-    ...nextScenario,
-    pages: nextScenario.pages.map(page => {
-      const previousPage = previousPages.get(page.pageNumber);
-      if (!previousPage) {
-        return page;
-      }
-
-      return {
-        ...page,
-        status: previousPage.status,
-        audioUrl: previousPage.audioUrl,
-      };
-    }),
-  };
-}
-
 function buildInitialProgress(storyId: string, story: StoryMeta): GenerationProgress {
+  const isHiddenReviewPhase = story.status === 'reviewing_scenario';
+
   return {
     storyId,
     status: story.status,
-    currentPhase: story.currentPhase || getStatusPhase(story.status),
+    currentPhase: isHiddenReviewPhase
+      ? 'Generating story scenario...'
+      : (story.currentPhase || getStatusPhase(story.status)),
     completedPages: story.scenario?.pages?.filter(p => p.status === 'completed').length ?? 0,
     totalPages: story.scenario?.pages?.length ?? 0,
     failedPages: story.scenario?.pages
       ?.filter(p => p.status === 'failed')
       .map(p => p.pageNumber) ?? [],
-    message: getDisplayProgressMessage(story),
+    message: isHiddenReviewPhase
+      ? 'Creating your story...'
+      : getDisplayProgressMessage(story),
   };
 }
 
@@ -739,157 +724,6 @@ router.get('/active/generations', async (_req: Request, res: Response) => {
     res.status(500).json({ error: 'Failed to get active generations' });
   }
 });
-
-// POST /api/stories/:id/review-script - Review and auto-fix the story script
-router.post('/:id/review-script', optionalAuth, async (req: Request, res: Response) => {
-  try {
-    const storyId = req.params.id as string;
-
-    if (config.useSupabase && !req.authUser) {
-      res.status(401).json({ error: 'Authentication required' });
-      return;
-    }
-
-    const story = await getStory(storyId);
-    if (!story) {
-      res.status(404).json({ error: 'Story not found' });
-      return;
-    }
-
-    if (config.useSupabase && story.userId && story.userId !== req.authUser?.id) {
-      res.status(403).json({ error: 'Forbidden' });
-      return;
-    }
-
-    if (story.status !== 'completed') {
-      res.status(400).json({ error: 'Story must be completed to review the script' });
-      return;
-    }
-
-    if (!story.scenario) {
-      res.status(400).json({ error: 'Story has no scenario data' });
-      return;
-    }
-
-    if (isGenerationActive(storyId)) {
-      res.status(409).json({ error: 'A generation is already in progress' });
-      return;
-    }
-
-    await updateStoryStatus(storyId, 'reviewing_scenario');
-    await sendProgressUpdate(storyId, {
-      storyId,
-      status: 'reviewing_scenario',
-      currentPhase: 'Reviewing script...',
-      completedPages: 0,
-      totalPages: story.scenario.pages.length,
-      failedPages: [],
-      message: 'Reviewing and refining your story...',
-    });
-
-    res.json({
-      status: 'reviewing_scenario',
-      rewritten: false,
-      assetsStale: storyAssetsAreStale(story),
-    } as ReviewStoryResponse);
-
-    runScriptReviewPipeline(storyId, story).catch(error => {
-      console.error(`Script review pipeline failed for ${storyId}:`, error);
-    });
-  } catch (error) {
-    console.error('Failed to review story script:', error);
-    res.status(500).json({ error: 'Failed to review story script' });
-  }
-});
-
-async function runScriptReviewPipeline(storyId: string, story: StoryMeta): Promise<void> {
-  const controller = startTrackedGeneration(storyId);
-  const { signal } = controller;
-
-  try {
-    if (!story.scenario) {
-      throw new Error('Story has no scenario data');
-    }
-
-    const reviewResult = await scenarioOps.reviewScenario(
-      story.prompt,
-      story.language,
-      story.scenario.targetAge,
-      story.artStyle,
-      story.scenario,
-      (progress) => {
-        sendProgressUpdate(storyId, {
-          storyId,
-          status: progress.status,
-          currentPhase: progress.currentPhase,
-          completedPages: 0,
-          totalPages: story.scenario?.pages.length ?? 0,
-          failedPages: [],
-          message: progress.message,
-        }).catch(() => {});
-      },
-    );
-
-    if (signal.aborted) {
-      throw new Error('Generation cancelled');
-    }
-
-    if (!reviewResult.rewritten) {
-      await updateStoryStatus(storyId, 'completed');
-      await sendProgressUpdate(storyId, {
-        storyId,
-        status: 'completed',
-        currentPhase: 'Done!',
-        completedPages: story.scenario.pages.filter(page => page.status === 'completed').length,
-        totalPages: story.scenario.pages.length,
-        failedPages: story.scenario.pages.filter(page => page.status === 'failed').map(page => page.pageNumber),
-        message: 'Story script reviewed. No changes were needed.',
-      });
-      return;
-    }
-
-    const nextScenarioRevision = getScenarioRevision(story) + 1;
-    const mergedScenario = mergeScenarioAssetState(story.scenario, reviewResult.scenario);
-    await updateStoryScenario(storyId, mergedScenario, 'completed', story.prompt, {
-      voice: story.voice,
-      artStyle: story.artStyle,
-      language: story.language,
-      scenarioRevision: nextScenarioRevision,
-      renderedScenarioRevision: getRenderedScenarioRevision(story),
-    });
-
-    await sendProgressUpdate(storyId, {
-      storyId,
-      status: 'completed',
-      currentPhase: 'Done!',
-      completedPages: mergedScenario.pages.filter(page => page.status === 'completed').length,
-      totalPages: mergedScenario.pages.length,
-      failedPages: mergedScenario.pages.filter(page => page.status === 'failed').map(page => page.pageNumber),
-      message: 'Story script updated. Regenerate assets to match the revised story.',
-    });
-  } catch (error) {
-    const isCancelled = signal.aborted;
-    const fallbackStatus = 'completed';
-    console.error(`Script review pipeline ${isCancelled ? 'cancelled' : 'failed'} for ${storyId}:`, isCancelled ? 'cancelled by user' : error);
-
-    try {
-      await updateStoryStatus(storyId, fallbackStatus);
-    } catch {}
-
-    sendSSE(storyId, {
-      storyId,
-      status: isCancelled ? 'completed' : 'failed',
-      currentPhase: isCancelled ? 'Done!' : 'Failed',
-      completedPages: story.scenario?.pages.filter(page => page.status === 'completed').length ?? 0,
-      totalPages: story.scenario?.pages.length ?? 0,
-      failedPages: story.scenario?.pages.filter(page => page.status === 'failed').map(page => page.pageNumber) ?? [],
-      message: isCancelled ? 'Story script review cancelled' : (error instanceof Error ? error.message : 'Story script review failed'),
-    });
-  } finally {
-    finishTrackedGeneration(storyId);
-    scheduleStoryConnectionCleanup(storyId);
-  }
-}
 
 // POST /api/stories/:id/regenerate-assets - Regenerate images/audio for the current script revision
 router.post('/:id/regenerate-assets', optionalAuth, async (req: Request, res: Response) => {
