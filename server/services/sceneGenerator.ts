@@ -1,6 +1,6 @@
 import pRetry, { AbortError } from 'p-retry';
 import fs from 'fs/promises';
-import { generateImage, isImageSafetyBlockedError } from './gemini.js';
+import { generateImage, isImagePolicyBlockedError, isImageSafetyBlockedError } from './gemini.js';
 import { saveImage, updatePageStatus as fsUpdatePageStatus, getImagePath } from '../utils/storage.js';
 import { uploadImage, updatePageStatus as sbUpdatePageStatus, downloadImage } from './supabaseStorage.js';
 import { getCharacterSheetFilename } from './characterSheet.js';
@@ -134,6 +134,10 @@ function buildProviderFailureMessage(pageNumber: number, error: unknown): string
     return `Page ${pageNumber} could not be illustrated because the image provider blocked it with safety filters, even after retrying with a softened prompt. You can retry it from Story Tools.`;
   }
 
+  if (isImagePolicyBlockedError(error)) {
+    return `Page ${pageNumber} could not be illustrated because the image provider rejected the prompt under its prohibited-content policy. You can edit the story details and retry it from Story Tools.`;
+  }
+
   return `Page ${pageNumber} could not be illustrated because the image provider returned an error. You can retry it from Story Tools.`;
 }
 
@@ -206,6 +210,9 @@ export async function generateSceneImage(
             }
             throw error; // retry with softened prompt
           }
+          if (isImagePolicyBlockedError(error)) {
+            throw new AbortError(error);
+          }
           // Check for rate limit (429)
           if (error?.status === 429 || error?.message?.includes('429') || error?.message?.includes('RESOURCE_EXHAUSTED')) {
             logger.warn(`[scene:${storyId}] Rate limited on page ${page.pageNumber}, attempt ${attemptNumber}. Retrying...`);
@@ -240,6 +247,11 @@ export async function generateSceneImage(
     if (isImageSafetyBlockedError(error)) {
       logger.warn(
         `[scene:${storyId}] Page ${page.pageNumber} was blocked by image safety filters after prompt softening. `
+        + `Marking it failed and leaving it retryable. ${error.message}`,
+      );
+    } else if (isImagePolicyBlockedError(error)) {
+      logger.warn(
+        `[scene:${storyId}] Page ${page.pageNumber} was rejected by provider policy. `
         + `Marking it failed and leaving it retryable. ${error.message}`,
       );
     } else {

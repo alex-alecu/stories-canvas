@@ -1,4 +1,4 @@
-import { generateImage, isImageSafetyBlockedError } from './gemini.js';
+import { generateImage, isImagePolicyBlockedError, isImageSafetyBlockedError } from './gemini.js';
 import { saveImage } from '../utils/storage.js';
 import { uploadImage } from './supabaseStorage.js';
 import { config } from '../config.js';
@@ -61,7 +61,7 @@ export async function generateAllCharacterSheets(
       const result = await generateCharacterSheet(storyId, character, userId, styleDescription, pro);
       characterSheets.set(result.name, result.base64);
     } catch (error) {
-      if (isImageSafetyBlockedError(error)) {
+      if (isImageSafetyBlockedError(error) || isImagePolicyBlockedError(error)) {
         console.error(
           `[character-sheet:${storyId}] Failed to generate character sheet for ${character.name}: ${error.message}`,
         );
