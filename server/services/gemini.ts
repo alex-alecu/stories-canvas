@@ -1,7 +1,23 @@
-import { GoogleGenAI, type ThinkingConfig } from '@google/genai';
+import {
+  GoogleGenAI,
+  HarmBlockThreshold,
+  HarmCategory,
+  type SafetySetting,
+  type ThinkingConfig,
+} from '@google/genai';
 import { config } from '../config.js';
 
 const ai = new GoogleGenAI({ apiKey: config.geminiApiKey });
+
+const IMAGE_SAFETY_SETTINGS: SafetySetting[] = [
+  HarmCategory.HARM_CATEGORY_HARASSMENT,
+  HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+  HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+  HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+].map(category => ({
+  category,
+  threshold: HarmBlockThreshold.OFF,
+}));
 
 export { ai };
 
@@ -246,6 +262,7 @@ export async function generateImage(
       config: {
         responseModalities: ['IMAGE'],
         imageGenerationConfig: { aspectRatio: '4:3' },
+        safetySettings: IMAGE_SAFETY_SETTINGS,
       } as any,
     }) as ImageGenerationResponse;
 
