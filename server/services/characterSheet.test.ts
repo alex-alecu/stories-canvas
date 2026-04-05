@@ -1,0 +1,63 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+
+import type { Character } from '../../shared/types.js';
+
+process.env.GEMINI_API_KEY ??= 'test-key';
+
+function makeCharacters(): Character[] {
+  return [
+    {
+      name: 'Bambi',
+      role: 'hero',
+      appearance: 'Bambi is a young spotted fawn with bright eyes.',
+      clothing: 'Bambi wears a tiny blue scarf.',
+      personality: 'gentle',
+      characterSheetPrompt: 'Reference sheet for Bambi in Disney/Pixar 3D animation style.',
+    },
+    {
+      name: 'Cenușăreasa',
+      role: 'friend',
+      appearance: 'Cenușăreasa has kind eyes and chestnut hair in a braid.',
+      clothing: 'Cenușăreasa wears a pale blue dress and silver shoes.',
+      personality: 'kind',
+      characterSheetPrompt: 'Reference sheet for Cenușăreasa in Disney/Pixar 3D animation style.',
+    },
+  ];
+}
+
+test('generateAllCharacterSheets sanitizes outbound prompts without mutating stored character data', async () => {
+  const characterSheet = await import('./characterSheet.js');
+  const characters = makeCharacters();
+  const originalCharacters = structuredClone(characters);
+  const prompts: string[] = [];
+
+  const result = await characterSheet.generateAllCharacterSheets(
+    'story-characters',
+    characters,
+    undefined,
+    undefined,
+    'Disney/Pixar 3D animation style with warm, vibrant colors, round and friendly character designs',
+    false,
+    {
+      generateImage: async (prompt) => {
+        prompts.push(prompt);
+        return 'image-base64';
+      },
+      saveImage: async () => {},
+      uploadImage: async () => {},
+    },
+  );
+
+  assert.equal(result.size, 2);
+  assert.deepEqual(characters, originalCharacters);
+  assert.equal(prompts.length, 2);
+  assert.match(prompts[0], /character one/);
+  assert.match(prompts[1], /character two/);
+  assert.doesNotMatch(prompts[0], /Bambi/u);
+  assert.doesNotMatch(prompts[1], /Cenușăreasa/u);
+  assert.doesNotMatch(prompts[0], /Disney|Pixar/u);
+  assert.doesNotMatch(prompts[1], /Disney|Pixar/u);
+  assert.match(prompts[0], /No text or labels in the image\./);
+  assert.match(prompts[1], /No text or labels in the image\./);
+});

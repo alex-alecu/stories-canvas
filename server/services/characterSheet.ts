@@ -1,4 +1,5 @@
-import { generateImage, isImageSafetyBlockedError } from './gemini.js';
+import { generateImage, isImagePolicyBlockedError, isImageSafetyBlockedError } from './gemini.js';
+import { buildCharacterAliasMap, prepareCharacterSheetImagePrompt } from './imagePromptPreparation.js';
 import { saveImage } from '../utils/storage.js';
 import { uploadImage } from './supabaseStorage.js';
 import { config } from '../config.js';
@@ -9,34 +10,35 @@ export function getCharacterSheetFilename(name: string): string {
   return `character-sheet-${safeName}.png`;
 }
 
+interface CharacterSheetDeps {
+  aliasMap?: ReadonlyMap<string, string>;
+  generateImage?: typeof generateImage;
+  saveImage?: typeof saveImage;
+  uploadImage?: typeof uploadImage;
+}
+
 export async function generateCharacterSheet(
   storyId: string,
   character: Character,
   userId?: string,
   styleDescription?: string,
   pro?: boolean,
+  deps: CharacterSheetDeps = {},
 ): Promise<{ name: string; filename: string; base64: string }> {
-  const artStyle = styleDescription || 'Disney/Pixar 3D animation style with warm, round, and friendly character designs';
-  const prompt = `Professional character reference sheet for "${character.name}".
-Layout: Front view (left), 3/4 view (center), Back view (right).
-Below: Close-up face showing key facial features and expressions.
-Color palette swatches at the bottom showing exact colors used for skin/fur, clothing, eyes, and accessories.
-
-${character.appearance}. ${character.clothing}.
-
-${artStyle}.
-Pure white background. Clean, professional character model sheet layout.
-CRITICAL: Show the EXACT same character in all views - same colors, same proportions, same clothing.
-Label at the bottom: "${character.name.toUpperCase()} CHARACTER SHEET"`;
+  const aliasMap = deps.aliasMap ?? buildCharacterAliasMap([character]);
+  const prompt = prepareCharacterSheetImagePrompt(character, aliasMap, styleDescription);
+  const runGenerateImage = deps.generateImage ?? generateImage;
+  const persistLocalImage = deps.saveImage ?? saveImage;
+  const persistSupabaseImage = deps.uploadImage ?? uploadImage;
 
   console.log(`[character-sheet:${storyId}] Generating character sheet for ${character.name}...`);
-  const base64 = await generateImage(prompt, [], pro);
+  const base64 = await runGenerateImage(prompt, [], pro);
   const filename = getCharacterSheetFilename(character.name);
 
   if (config.useSupabase) {
-    await uploadImage(userId, storyId, filename, base64);
+    await persistSupabaseImage(userId, storyId, filename, base64);
   } else {
-    await saveImage(storyId, filename, base64);
+    await persistLocalImage(storyId, filename, base64);
   }
   console.log(`[character-sheet:${storyId}] Character sheet saved: ${filename}`);
 
@@ -50,18 +52,23 @@ export async function generateAllCharacterSheets(
   signal?: AbortSignal,
   styleDescription?: string,
   pro?: boolean,
+  deps: CharacterSheetDeps = {},
 ): Promise<Map<string, string>> {
   const characterSheets = new Map<string, string>();
+  const aliasMap = deps.aliasMap ?? buildCharacterAliasMap(characters);
 
   for (const character of characters) {
     if (signal?.aborted) {
       throw new Error('Generation cancelled');
     }
     try {
-      const result = await generateCharacterSheet(storyId, character, userId, styleDescription, pro);
+      const result = await generateCharacterSheet(storyId, character, userId, styleDescription, pro, {
+        ...deps,
+        aliasMap,
+      });
       characterSheets.set(result.name, result.base64);
     } catch (error) {
-      if (isImageSafetyBlockedError(error)) {
+      if (isImageSafetyBlockedError(error) || isImagePolicyBlockedError(error)) {
         console.error(
           `[character-sheet:${storyId}] Failed to generate character sheet for ${character.name}: ${error.message}`,
         );

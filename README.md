@@ -27,6 +27,10 @@ Pages are drawn one at a time, in order. For each page, the image model receives
 
 The text prompt that accompanies these reference images re-describes each character's full appearance, instructs the model to treat the character sheets as absolute truth (overriding any drift visible in earlier scenes), and asks for a richly detailed background. If a generation is rejected by a safety filter, the prompt is automatically softened and retried.
 
+Before any image request is sent to a provider, the app also sanitizes the outbound prompt: branded animation-style references are originalized and exact character names are replaced with neutral aliases. This keeps the stored story content unchanged while reducing provider policy blocks.
+
+If the current Google-backed image path remains too restrictive for some prompts, the next providers to evaluate are OpenAI GPT Image, Black Forest Labs FLUX, and Ideogram.
+
 This layered approach — character sheets for identity, previous scene for style and environment — is what keeps the story visually consistent from the first page to the last.
 
 ### Step 4 — Record Narration
