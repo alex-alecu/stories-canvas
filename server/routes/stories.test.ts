@@ -291,6 +291,71 @@ test('POST /api/stories/:id/retry resolves stored legacy voice keys for missing 
   assert.equal(resolvedVoice, 'jora');
 });
 
+test('GET /api/stories/public forwards the requested limit and returns that many summaries', async (t) => {
+  const dataDir = mkdtempSync(path.join(os.tmpdir(), 'stories-public-limit-'));
+  const harness = await createStoriesHarness(dataDir, { useSupabase: true });
+
+  t.after(async () => {
+    await harness.close();
+    await fs.rm(dataDir, { recursive: true, force: true });
+  });
+
+  t.mock.method(harness.storiesModule.storageOps, 'listPublicStories', async (_search?: string, limit = 50) => (
+    Array.from({ length: limit }, (_, index) => makeStoryMeta({
+      id: `public-story-${index + 1}`,
+      status: 'completed',
+      isPublic: true,
+      createdAt: `2026-03-${String(29 - index).padStart(2, '0')}T00:00:00.000Z`,
+      scenario: makeScenario([makePage({ pageNumber: 1 })]),
+    }))
+  ));
+
+  const response = await fetch(`${harness.baseUrl}/api/stories/public?limit=4`);
+
+  assert.equal(response.status, 200);
+  const stories = await response.json() as Array<{ id: string }>;
+  assert.equal(stories.length, 4);
+  assert.deepEqual(stories.map(story => story.id), [
+    'public-story-1',
+    'public-story-2',
+    'public-story-3',
+    'public-story-4',
+  ]);
+});
+
+test('GET /api/stories/public keeps search and limit working together', async (t) => {
+  const dataDir = mkdtempSync(path.join(os.tmpdir(), 'stories-public-search-limit-'));
+  const harness = await createStoriesHarness(dataDir, { useSupabase: true });
+
+  t.after(async () => {
+    await harness.close();
+    await fs.rm(dataDir, { recursive: true, force: true });
+  });
+
+  t.mock.method(harness.storiesModule.storageOps, 'listPublicStories', async (search?: string, limit = 50) => {
+    assert.equal(search, 'moon');
+    assert.equal(limit, 3);
+
+    return Array.from({ length: limit }, (_, index) => makeStoryMeta({
+      id: `moon-story-${index + 1}`,
+      status: 'completed',
+      isPublic: true,
+      createdAt: `2026-03-${String(20 - index).padStart(2, '0')}T00:00:00.000Z`,
+    }));
+  });
+
+  const response = await fetch(`${harness.baseUrl}/api/stories/public?search=moon&limit=3`);
+
+  assert.equal(response.status, 200);
+  const stories = await response.json() as Array<{ id: string }>;
+  assert.equal(stories.length, 3);
+  assert.deepEqual(stories.map(story => story.id), [
+    'moon-story-1',
+    'moon-story-2',
+    'moon-story-3',
+  ]);
+});
+
 test('POST /api/stories/:id/review-script is no longer publicly exposed', async (t) => {
   const dataDir = mkdtempSync(path.join(os.tmpdir(), 'stories-review-removed-'));
   const harness = await createStoriesHarness(dataDir);

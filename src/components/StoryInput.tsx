@@ -169,10 +169,10 @@ export default function StoryInput({ onSubmit, isLoading }: StoryInputProps) {
                 >
                   <option value="">{t.noVoice}</option>
                   {VOICE_OPTIONS.map((option) => {
-                    const { label, description } = getVoiceOptionText(option, t);
+                    const { label } = getVoiceOptionText(option, t);
                     return (
                       <option key={option.key} value={option.key}>
-                        {label} - {description}
+                        {label}
                       </option>
                     );
                   })}

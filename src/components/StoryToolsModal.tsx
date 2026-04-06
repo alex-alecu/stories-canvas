@@ -336,13 +336,13 @@ export default function StoryToolsModal({
                     value={selectedVoice}
                     onChange={(e) => setSelectedVoice(e.target.value as VoiceKey)}
                     disabled={isGeneratingAudio}
-                    className="w-full bg-white/10 border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-400/50 disabled:opacity-50"
-                  >
-                    {VOICE_OPTIONS.map((option) => {
-                      const { label, description } = getVoiceOptionText(option, t);
+                  className="w-full bg-white/10 border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-400/50 disabled:opacity-50"
+                >
+                  {VOICE_OPTIONS.map((option) => {
+                      const { label } = getVoiceOptionText(option, t);
                       return (
                         <option key={option.key} value={option.key} className="bg-[#1a1a2e] text-white">
-                          {label} — {description}
+                          {label}
                         </option>
                       );
                     })}
