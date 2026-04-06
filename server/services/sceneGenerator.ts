@@ -91,9 +91,11 @@ function buildProviderPolicyDebugContext(
 ): string {
   const aliasMap = buildCharacterAliasMap(characters);
   const missingCharacterSheets = page.characters.filter(name => !includedCharacterNames.includes(name));
-  const remainingCharacterNames = characters
-    .map(character => character.name)
-    .filter(name => promptContainsExactName(prompt, name));
+  const remainingCharacterNames = [...new Set(
+    [...aliasMap.keys()]
+      .filter(name => !/^character\s+/iu.test(name))
+      .filter(name => promptContainsExactName(prompt, name)),
+  )];
 
   return JSON.stringify({
     pageNumber: page.pageNumber,
