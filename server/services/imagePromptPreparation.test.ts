@@ -22,18 +22,26 @@ function makeCharacters(): Character[] {
     {
       name: 'Cenușăreasa',
       role: 'friend',
-      appearance: 'Cinderella has kind eyes and chestnut hair in a braid.',
-      clothing: 'Cinderella wears a pale blue dress and silver shoes.',
+      appearance: 'Fair skin, rosy cheeks, big expressive blue eyes, blonde hair tied back with a simple ribbon.',
+      clothing: 'Starts in a patched brown dress and white apron. Later wears a sparkling, voluminous light blue ballgown with elegant glass slippers.',
       personality: 'kind',
       characterSheetPrompt: 'Reference sheet for Cinderella in Disney/Pixar 3D animation style.',
     },
     {
       name: 'Zâna Bună',
       role: 'helper',
-      appearance: 'The Fairy Godmother is a plump older lady with white hair and a kind smile.',
-      clothing: 'The Fairy Godmother wears a sparkling light blue hooded cape over a soft pink dress.',
+      appearance: 'Plump, sweet older lady with white hair, a kind smile, and rosy cheeks.',
+      clothing: 'A sparkling light blue hooded cape over a soft pink dress, holding a glowing star-tipped magic wand.',
       personality: 'wise',
       characterSheetPrompt: 'Reference sheet for The Fairy Godmother in Disney/Pixar 3D animation style.',
+    },
+    {
+      name: 'Prințul',
+      role: 'friend',
+      appearance: 'Handsome young man, kind brown eyes, neat brown hair, warm and gentle smile.',
+      clothing: 'Royal white jacket with gold epaulets, a red sash, and dark blue pants.',
+      personality: 'gentle',
+      characterSheetPrompt: 'Reference sheet for The Prince in Disney/Pixar 3D animation style.',
     },
   ];
 }
@@ -53,6 +61,7 @@ test('buildCharacterAliasMap assigns stable aliases from scenario order', () => 
 
   assert.equal(aliasMap.get('Bambi'), 'character one');
   assert.equal(aliasMap.get('Cenușăreasa'), 'character two');
+  assert.equal(aliasMap.has('Later'), false);
 });
 
 test('sanitizeImagePromptText removes Disney/Pixar wording and aliases exact names', () => {
@@ -69,22 +78,8 @@ test('sanitizeImagePromptText removes Disney/Pixar wording and aliases exact nam
   assert.doesNotMatch(sanitized, /Disney|Pixar/u);
 });
 
-test('sanitizeImagePromptText aliases translated canonical names discovered in character metadata', () => {
-  const aliasMap = buildCharacterAliasMap(makeCharacters());
-  const sanitized = sanitizeImagePromptText(
-    'Cinderella twirls while The Fairy Godmother smiles nearby in Disney/Pixar style.',
-    aliasMap,
-  );
-
-  assert.match(sanitized, /character two/);
-  assert.match(sanitized, /character three/);
-  assert.doesNotMatch(sanitized, /Cinderella/u);
-  assert.doesNotMatch(sanitized, /Fairy Godmother/u);
-  assert.doesNotMatch(sanitized, /Disney|Pixar/u);
-});
-
 test('prepareCharacterSheetImagePrompt removes text labels and protected names', () => {
-  const [character] = makeCharacters();
+  const [, character] = makeCharacters();
   const aliasMap = buildCharacterAliasMap(makeCharacters());
   const prompt = prepareCharacterSheetImagePrompt(
     character,
@@ -92,9 +87,9 @@ test('prepareCharacterSheetImagePrompt removes text labels and protected names',
     'Disney/Pixar 3D animation style with warm, vibrant colors, round and friendly character designs',
   );
 
-  assert.match(prompt, /character one/);
+  assert.match(prompt, /character two/);
   assert.match(prompt, /No text or labels in the image\./);
-  assert.doesNotMatch(prompt, /Bambi/u);
+  assert.doesNotMatch(prompt, /Cinderella/u);
   assert.doesNotMatch(prompt, /Disney|Pixar/u);
   assert.doesNotMatch(prompt, /Label at the bottom/u);
 });
@@ -119,4 +114,25 @@ test('prepareSceneImagePrompt sanitizes raw imagePrompt and reference labels', (
   assert.doesNotMatch(prompt, /Cenușăreasa/u);
   assert.doesNotMatch(prompt, /Zâna Bună/u);
   assert.doesNotMatch(prompt, /Disney|Pixar/u);
+});
+
+test('prepareSceneImagePrompt infers repeated legacy names against page character order', () => {
+  const page = makePage();
+  page.pageNumber = 11;
+  page.imagePrompt = 'The Prince is kneeling on the wooden floor of a rustic house, gently sliding the glass slipper onto Cinderella\'s foot. It fits perfectly. Cinderella is smiling brightly.';
+  page.characters = ['Cenușăreasa', 'Prințul'];
+
+  const prompt = prepareSceneImagePrompt(
+    page,
+    makeCharacters(),
+    true,
+    ['Prințul'],
+    'Disney/Pixar 3D animation style with warm, vibrant colors, round and friendly character designs',
+  );
+
+  assert.match(prompt, /character four is kneeling on the wooden floor/iu);
+  assert.match(prompt, /onto character two's foot/iu);
+  assert.match(prompt, /character two is smiling brightly/iu);
+  assert.doesNotMatch(prompt, /Cinderella/u);
+  assert.doesNotMatch(prompt, /The Prince/u);
 });

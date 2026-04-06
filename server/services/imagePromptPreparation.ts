@@ -53,42 +53,21 @@ const DISNEY_PIXAR_STYLE_PATTERNS: Array<[RegExp, string]> = [
     'stylized animated',
   ],
 ];
-
-const NON_CHARACTER_NAME_WORDS = new Set([
-  'back',
-  'background',
-  'below',
-  'clean',
-  'close',
-  'color',
-  'colors',
-  'critical',
-  'exact',
-  'front',
-  'image',
-  'images',
-  'important',
-  'layout',
-  'left',
-  'model',
-  'no',
-  'palette',
-  'professional',
-  'pure',
-  'reference',
-  'right',
-  'same',
-  'scene',
-  'sheet',
-  'style',
-  'swatches',
-  'text',
-  'view',
-  'views',
-  'white',
+const PROMPT_NAME_STOP_WORDS = new Set([
+  'Image',
+  'Later',
 ]) as ReadonlySet<string>;
+const PROMPT_NAME_PATTERNS = [
+  /((?:The\s+)?\p{Lu}[\p{L}'’-]+(?:\s+\p{Lu}[\p{L}'’-]+){0,3})(?=\s+(?:and|,)\s+(?:The\s+)?\p{Lu}[\p{L}'’-]+(?:\s+\p{Lu}[\p{L}'’-]+){0,3}\s+(?:is|are|was|were|smile|smiles|smiling|look|looks|looking|run|runs|running|walk|walks|walking|spin|spins|spinning|kneel|kneels|kneeling|stand|stands|standing|hold|holds|holding|wear|wears|wearing|slide|slides|sliding|touch|touches|touching|sit|sits|sitting|laugh|laughs|laughing|cry|cries|crying|dance|dances|dancing|nearby|towards|toward|into|onto|from|on|at|in|through)\b)/gu,
+  /((?:The\s+)?\p{Lu}[\p{L}'’-]+(?:\s+\p{Lu}[\p{L}'’-]+){0,3})(?=(?:'s)?\s+(?:is|are|was|were|smile|smiles|smiling|look|looks|looking|run|runs|running|walk|walks|walking|spin|spins|spinning|kneel|kneels|kneeling|stand|stands|standing|hold|holds|holding|wear|wears|wearing|slide|slides|sliding|touch|touches|touching|sit|sits|sitting|laugh|laughs|laughing|cry|cries|crying|dance|dances|dancing|nearby|towards|toward|into|onto|from|on|at|in|through)\b|'s)/gu,
+  /\bfor\s+((?:The\s+)?\p{Lu}[\p{L}'’-]+(?:\s+\p{Lu}[\p{L}'’-]+){0,3})(?=$|[,.!?:;]|\s+(?:in|with|on|at|style)\b)/gu,
+] as const;
 
-type CharacterAliasSource = Pick<Character, 'name'> & Partial<Pick<Character, 'appearance' | 'clothing' | 'characterSheetPrompt'>>;
+interface PromptNameMention {
+  count: number;
+  firstIndex: number;
+  name: string;
+}
 
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -116,59 +95,65 @@ function originalizeStyleText(text: string): string {
   return result;
 }
 
-function isLikelyCharacterAliasCandidate(value: string): boolean {
-  const normalized = normalizeAliasCandidate(value);
+function collectPromptNameMentions(
+  text: string,
+  aliasMap: ReadonlyMap<string, string>,
+): PromptNameMention[] {
+  const mentions = new Map<string, PromptNameMention>();
+  const cleanedText = originalizeStyleText(text);
 
-  if (!normalized) {
-    return false;
-  }
+  for (const pattern of PROMPT_NAME_PATTERNS) {
+    for (const match of cleanedText.matchAll(pattern)) {
+      const rawCandidate = match[1] ?? '';
+      const candidate = normalizeAliasCandidate(rawCandidate);
 
-  if (/\b(?:Disney|Pixar)\b/iu.test(normalized)) {
-    return false;
-  }
+      if (!candidate) continue;
+      if (PROMPT_NAME_STOP_WORDS.has(candidate)) continue;
+      if (/\b(?:Disney|Pixar)\b/iu.test(candidate)) continue;
+      if (aliasMap.has(candidate)) continue;
 
-  const words = normalized.split(/\s+/);
-  if (words.length === 0) {
-    return false;
-  }
-
-  return words.some(word => !NON_CHARACTER_NAME_WORDS.has(word.toLowerCase()));
-}
-
-function extractCharacterAliasCandidates(character: CharacterAliasSource): string[] {
-  const candidates = new Set<string>();
-  const fields = [character.appearance, character.clothing, character.characterSheetPrompt];
-  const patterns = [
-    /((?:The\s+)?\p{Lu}[\p{L}'’-]+(?:\s+\p{Lu}[\p{L}'’-]+){0,3})(?=\s+(?:is|has|wears)\b)/gu,
-    /\bfor\s+((?:The\s+)?\p{Lu}[\p{L}'’-]+(?:\s+\p{Lu}[\p{L}'’-]+){0,3})(?=$|[,.!?:;]|\s+(?:in|with|on|at|style)\b)/gu,
-  ] as const;
-
-  for (const field of fields) {
-    if (typeof field !== 'string' || field.length === 0) {
-      continue;
-    }
-
-    const cleanedField = originalizeStyleText(field);
-    for (const pattern of patterns) {
-      for (const match of cleanedField.matchAll(pattern)) {
-        const candidate = normalizeAliasCandidate(match[1] ?? '');
-        if (!isLikelyCharacterAliasCandidate(candidate)) {
-          continue;
-        }
-
-        candidates.add(candidate);
-        if (candidate.startsWith('The ')) {
-          const withoutArticle = normalizeAliasCandidate(candidate.slice(4));
-          if (isLikelyCharacterAliasCandidate(withoutArticle)) {
-            candidates.add(withoutArticle);
-          }
-        }
+      const firstIndex = match.index ?? cleanedText.indexOf(rawCandidate);
+      const existing = mentions.get(candidate);
+      if (existing) {
+        existing.count += 1;
+        existing.firstIndex = Math.min(existing.firstIndex, firstIndex);
+      } else {
+        mentions.set(candidate, { name: candidate, count: 1, firstIndex });
       }
     }
   }
 
-  candidates.delete(character.name);
-  return [...candidates];
+  return [...mentions.values()]
+    .sort((left, right) => right.count - left.count || left.firstIndex - right.firstIndex);
+}
+
+function buildPromptAwareAliasMap(
+  text: string,
+  characterNamesInPriorityOrder: string[],
+  aliasMap: ReadonlyMap<string, string>,
+): Map<string, string> {
+  const promptAwareAliasMap = new Map(aliasMap);
+  const mentions = collectPromptNameMentions(text, promptAwareAliasMap);
+
+  if (mentions.length === 0 || characterNamesInPriorityOrder.length === 0) {
+    return promptAwareAliasMap;
+  }
+
+  mentions.slice(0, characterNamesInPriorityOrder.length).forEach((mention, index) => {
+    const alias = promptAwareAliasMap.get(characterNamesInPriorityOrder[index]);
+    if (!alias) {
+      return;
+    }
+
+    promptAwareAliasMap.set(mention.name, alias);
+    if (mention.name.startsWith('The ')) {
+      promptAwareAliasMap.set(normalizeAliasCandidate(mention.name.slice(4)), alias);
+    } else {
+      promptAwareAliasMap.set(`The ${mention.name}`, alias);
+    }
+  });
+
+  return promptAwareAliasMap;
 }
 
 function replaceCharacterNames(text: string, aliasMap: ReadonlyMap<string, string>): string {
@@ -193,20 +178,13 @@ function normalizePromptWhitespace(text: string): string {
 }
 
 export function buildCharacterAliasMap(
-  characters: ReadonlyArray<CharacterAliasSource>,
+  characters: ReadonlyArray<Pick<Character, 'name'>>,
 ): Map<string, string> {
   const aliasMap = new Map<string, string>();
 
   characters.forEach((character, index) => {
-    const alias = buildCharacterAlias(index);
     if (!aliasMap.has(character.name)) {
-      aliasMap.set(character.name, alias);
-    }
-
-    for (const candidate of extractCharacterAliasCandidates(character)) {
-      if (!aliasMap.has(candidate)) {
-        aliasMap.set(candidate, alias);
-      }
+      aliasMap.set(character.name, buildCharacterAlias(index));
     }
   });
 
@@ -231,7 +209,12 @@ export function prepareCharacterSheetImagePrompt(
   aliasMap: ReadonlyMap<string, string>,
   styleDescription?: string,
 ): string {
-  const alias = aliasMap.get(character.name) ?? 'the character';
+  const promptAwareAliasMap = buildPromptAwareAliasMap(
+    character.characterSheetPrompt,
+    [character.name],
+    aliasMap,
+  );
+  const alias = promptAwareAliasMap.get(character.name) ?? 'the character';
 
   return sanitizeImagePromptText(
     `Professional character reference sheet for ${alias}.
@@ -245,7 +228,7 @@ ${getOriginalizedImageStyleDescription(styleDescription)}.
 Pure white background. Clean, professional character model sheet layout.
 CRITICAL: Show the EXACT same character in all views - same colors, same proportions, same clothing.
 No text or labels in the image.`,
-    aliasMap,
+    promptAwareAliasMap,
   );
 }
 
@@ -257,11 +240,12 @@ export function prepareSceneImagePrompt(
   styleDescription?: string,
 ): string {
   const aliasMap = buildCharacterAliasMap(characters);
+  const promptAwareAliasMap = buildPromptAwareAliasMap(page.imagePrompt, page.characters, aliasMap);
   const charDescriptions = page.characters
     .map(name => {
       const character = characters.find(candidate => candidate.name === name);
       if (!character) return '';
-      const alias = aliasMap.get(name) ?? 'the character';
+      const alias = promptAwareAliasMap.get(name) ?? 'the character';
       return `- ${alias}: ${character.appearance}. ${character.clothing}.`;
     })
     .filter(Boolean)
@@ -272,7 +256,7 @@ export function prepareSceneImagePrompt(
 
   referenceLabels.push(
     ...includedCharacterNames.map((name, offset) => {
-      const alias = aliasMap.get(name) ?? 'the character';
+      const alias = promptAwareAliasMap.get(name) ?? 'the character';
       return `Image ${imageIndex + offset}: reference sheet for ${alias} - This reference sheet is the definitive source for this character's appearance. Every detail (skin/fur color, eye color, body proportions, clothing, accessories) must match this sheet exactly in the generated scene.`;
     }),
   );
@@ -310,6 +294,6 @@ STYLE & ENVIRONMENT CONSISTENCY:
 - Use the same visual language: same line weight, same level of detail, same background style
 ${hasPreviousScene ? '- ENVIRONMENT SPATIAL CONTINUITY: If this scene takes place in the same location as the previous scene, all furniture, objects, and architectural elements must remain in the exact same positions. Beds, shelves, windows, doors, trees, rocks - everything must stay where it was. Only the characters\' poses and actions should change. Match the camera angle and perspective of the previous scene.\n' : ''}Style: ${getOriginalizedImageStyleDescription(styleDescription)}.
 4:3 aspect ratio composition. No text or words in the image.`,
-    aliasMap,
+    promptAwareAliasMap,
   );
 }

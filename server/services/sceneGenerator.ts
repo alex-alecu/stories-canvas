@@ -4,7 +4,7 @@ import { generateImage, isImagePolicyBlockedError, isImageSafetyBlockedError } f
 import { buildCharacterAliasMap, prepareSceneImagePrompt } from './imagePromptPreparation.js';
 import { saveImage, updatePageStatus as fsUpdatePageStatus, getImagePath } from '../utils/storage.js';
 import { uploadImage, updatePageStatus as sbUpdatePageStatus, downloadImage } from './supabaseStorage.js';
-import { getCharacterSheetFilename } from './characterSheet.js';
+import { generateCharacterSheet, getCharacterSheetFilename } from './characterSheet.js';
 import { config } from '../config.js';
 import { imageGenerationLimiter } from '../utils/rateLimiter.js';
 import { getPageImageFilename } from '../utils/storyMedia.js';
@@ -302,8 +302,20 @@ export async function retryFailedSceneImages(
       const base64 = await downloadImageForRetry(storyId, filename, userId);
       characterSheets.set(character.name, base64);
     } catch {
-      // Character sheet may not exist if it failed during initial generation
-      console.warn(`[scene:${storyId}] Could not download character sheet for ${character.name}, continuing without it`);
+      try {
+        console.warn(`[scene:${storyId}] Could not download character sheet for ${character.name}. Regenerating it before retrying scenes...`);
+        const regenerated = await generateCharacterSheet(storyId, character, userId, styleDescription, pro);
+        characterSheets.set(character.name, regenerated.base64);
+      } catch (error) {
+        // Character sheet may not exist if it failed during initial generation and regeneration still fails
+        if (isImageSafetyBlockedError(error) || isImagePolicyBlockedError(error)) {
+          console.warn(
+            `[scene:${storyId}] Could not regenerate character sheet for ${character.name}, continuing without it. ${error.message}`,
+          );
+        } else {
+          console.warn(`[scene:${storyId}] Could not regenerate character sheet for ${character.name}, continuing without it`);
+        }
+      }
     }
   }
 
