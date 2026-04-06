@@ -126,7 +126,8 @@ function buildStoryCommonInstruction(context: StoryPromptContext): string {
 ## Illustration Style Rules
 
 - The selected illustration style for this story is: "${context.styleDescription}".
-- Every imagePrompt and characterSheetPrompt must include that exact style wording so repaired scenarios do not drift to a different look.`;
+- Every imagePrompt and characterSheetPrompt must include that exact style wording so repaired scenarios do not drift to a different look.
+- When adapting a classic or public-domain tale, keep appearance, clothing, characterSheetPrompt, and imagePrompt visually originalized. Do not lean on signature costume/object combinations or copied staging from famous copyrighted adaptations; preserve the story beat with fresh, generic visual details instead.`;
 }
 
 export function buildStorySystemInstruction(context: StoryPromptContext): string {

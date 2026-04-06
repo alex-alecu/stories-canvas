@@ -46,6 +46,10 @@ function makeCharacters(): Character[] {
   ];
 }
 
+function makeCinderellaCharacters(): Character[] {
+  return makeCharacters().slice(1);
+}
+
 function makePage(): Page {
   return {
     pageNumber: 4,
@@ -131,8 +135,75 @@ test('prepareSceneImagePrompt infers repeated legacy names against page characte
   );
 
   assert.match(prompt, /character four is kneeling on the wooden floor/iu);
-  assert.match(prompt, /onto character two's foot/iu);
+  assert.match(prompt, /helping character two try on an elegant shoe/iu);
   assert.match(prompt, /character two is smiling brightly/iu);
+  assert.doesNotMatch(prompt, /Cinderella/u);
+  assert.doesNotMatch(prompt, /The Prince/u);
+});
+
+test('sanitizeImagePromptText originalizes iconic fairytale motifs in legacy prompts', () => {
+  const sanitized = sanitizeImagePromptText(
+    'A large clock tower in the background shows midnight while Cinderella wears a sparkling, voluminous light blue ballgown with elegant glass slippers.',
+    buildCharacterAliasMap(makeCinderellaCharacters()),
+  );
+
+  assert.doesNotMatch(sanitized, /midnight/u);
+  assert.doesNotMatch(sanitized, /ballgown/u);
+  assert.doesNotMatch(sanitized, /glass slipper/u);
+  assert.match(sanitized, /late hour/u);
+  assert.match(sanitized, /formal gown/u);
+  assert.match(sanitized, /dress shoes/u);
+});
+
+test('prepareSceneImagePrompt originalizes iconic transformation motifs from blocked live prompts', () => {
+  const characters = makeCinderellaCharacters();
+  const page: Page = {
+    pageNumber: 6,
+    text: 'Apoi, Zâna a atins hainele rupte ale fetei.',
+    imagePrompt: 'Cinderella is spinning around joyfully in the garden, now wearing a sparkling light blue ballgown and glass slippers. The Fairy Godmother is smiling nearby on the right. Magical sparkles fill the air.',
+    characters: ['Cenușăreasa', 'Zâna Bună'],
+    status: 'pending',
+  };
+
+  const prompt = prepareSceneImagePrompt(
+    page,
+    characters,
+    true,
+    ['Cenușăreasa', 'Zâna Bună'],
+    'Disney/Pixar 3D animation style with warm, vibrant colors, round and friendly character designs',
+  );
+
+  assert.match(prompt, /character one is spinning around joyfully/iu);
+  assert.match(prompt, /character two is smiling nearby/iu);
+  assert.doesNotMatch(prompt, /Cinderella/u);
+  assert.doesNotMatch(prompt, /Fairy Godmother/u);
+  assert.doesNotMatch(prompt, /ballgown/u);
+  assert.doesNotMatch(prompt, /glass slipper/u);
+  assert.match(prompt, /sparkling formal gown/u);
+  assert.match(prompt, /dress shoes/u);
+});
+
+test('prepareSceneImagePrompt originalizes iconic shoe-fitting motifs from blocked live prompts', () => {
+  const characters = makeCinderellaCharacters();
+  const page: Page = {
+    pageNumber: 11,
+    text: 'A doua zi, Prințul a ajuns la casa Cenușăresei.',
+    imagePrompt: 'The Prince is kneeling on the wooden floor of a rustic house, gently sliding the glass slipper onto Cinderella\'s foot. It fits perfectly. Cinderella is smiling brightly.',
+    characters: ['Cenușăreasa', 'Prințul'],
+    status: 'pending',
+  };
+
+  const prompt = prepareSceneImagePrompt(
+    page,
+    characters,
+    true,
+    ['Cenușăreasa', 'Prințul'],
+    'Disney/Pixar 3D animation style with warm, vibrant colors, round and friendly character designs',
+  );
+
+  assert.match(prompt, /character three is kneeling on the wooden floor/iu);
+  assert.match(prompt, /helping character one try on an elegant shoe/iu);
+  assert.doesNotMatch(prompt, /glass slipper/u);
   assert.doesNotMatch(prompt, /Cinderella/u);
   assert.doesNotMatch(prompt, /The Prince/u);
 });

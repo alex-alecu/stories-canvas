@@ -53,6 +53,76 @@ const DISNEY_PIXAR_STYLE_PATTERNS: Array<[RegExp, string]> = [
     'stylized animated',
   ],
 ];
+const ICONIC_STORY_MOTIF_PATTERNS: Array<[RegExp, string]> = [
+  [
+    /\bgently sliding the (?:glass|crystal) slipper onto ([^.?!]+?)'s foot\b/giu,
+    'helping $1 try on an elegant shoe',
+  ],
+  [
+    /\bsparkling,\s*voluminous light blue ballgown\b/giu,
+    'sparkling, flowing formal gown',
+  ],
+  [
+    /\bsparkling light blue ballgown\b/giu,
+    'sparkling formal gown',
+  ],
+  [
+    /\bvoluminous light blue ballgown\b/giu,
+    'flowing formal gown',
+  ],
+  [
+    /\blight blue ballgown\b/giu,
+    'formal gown',
+  ],
+  [
+    /\bblue ballgown\b/giu,
+    'formal gown',
+  ],
+  [
+    /\bballgown\b/giu,
+    'formal gown',
+  ],
+  [
+    /\belegant glass slippers\b/giu,
+    'elegant dress shoes',
+  ],
+  [
+    /\belegant crystal slippers\b/giu,
+    'elegant dress shoes',
+  ],
+  [
+    /\bglass slippers\b/giu,
+    'dress shoes',
+  ],
+  [
+    /\bcrystal slippers\b/giu,
+    'dress shoes',
+  ],
+  [
+    /\bglass slipper\b/giu,
+    'dress shoe',
+  ],
+  [
+    /\bcrystal slipper\b/giu,
+    'dress shoe',
+  ],
+  [
+    /\bslippers of glass\b/giu,
+    'dress shoes',
+  ],
+  [
+    /\bshows midnight\b/giu,
+    'shows a late hour',
+  ],
+  [
+    /\bmidnight\b/giu,
+    'a late hour of the night',
+  ],
+  [
+    /\bpatched brown dress and white apron\b/giu,
+    'simple worn dress and apron',
+  ],
+];
 const PROMPT_NAME_STOP_WORDS = new Set([
   'Image',
   'Later',
@@ -60,6 +130,7 @@ const PROMPT_NAME_STOP_WORDS = new Set([
 const PROMPT_NAME_PATTERNS = [
   /((?:The\s+)?\p{Lu}[\p{L}'’-]+(?:\s+\p{Lu}[\p{L}'’-]+){0,3})(?=\s+(?:and|,)\s+(?:The\s+)?\p{Lu}[\p{L}'’-]+(?:\s+\p{Lu}[\p{L}'’-]+){0,3}\s+(?:is|are|was|were|smile|smiles|smiling|look|looks|looking|run|runs|running|walk|walks|walking|spin|spins|spinning|kneel|kneels|kneeling|stand|stands|standing|hold|holds|holding|wear|wears|wearing|slide|slides|sliding|touch|touches|touching|sit|sits|sitting|laugh|laughs|laughing|cry|cries|crying|dance|dances|dancing|nearby|towards|toward|into|onto|from|on|at|in|through)\b)/gu,
   /((?:The\s+)?\p{Lu}[\p{L}'’-]+(?:\s+\p{Lu}[\p{L}'’-]+){0,3})(?=(?:'s)?\s+(?:is|are|was|were|smile|smiles|smiling|look|looks|looking|run|runs|running|walk|walks|walking|spin|spins|spinning|kneel|kneels|kneeling|stand|stands|standing|hold|holds|holding|wear|wears|wearing|slide|slides|sliding|touch|touches|touching|sit|sits|sitting|laugh|laughs|laughing|cry|cries|crying|dance|dances|dancing|nearby|towards|toward|into|onto|from|on|at|in|through)\b|'s)/gu,
+  /\bhelping\s+((?:The\s+)?\p{Lu}[\p{L}'’-]+(?:\s+\p{Lu}[\p{L}'’-]+){0,3})(?=\s+(?:try|tries|trying|wear|wears|wearing|look|looks|looking|run|runs|running|walk|walks|walking)\b)/gu,
   /\bfor\s+((?:The\s+)?\p{Lu}[\p{L}'’-]+(?:\s+\p{Lu}[\p{L}'’-]+){0,3})(?=$|[,.!?:;]|\s+(?:in|with|on|at|style)\b)/gu,
 ] as const;
 
@@ -89,6 +160,10 @@ function originalizeStyleText(text: string): string {
   let result = text;
 
   for (const [pattern, replacement] of DISNEY_PIXAR_STYLE_PATTERNS) {
+    result = result.replace(pattern, replacement);
+  }
+
+  for (const [pattern, replacement] of ICONIC_STORY_MOTIF_PATTERNS) {
     result = result.replace(pattern, replacement);
   }
 
