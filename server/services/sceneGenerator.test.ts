@@ -199,6 +199,83 @@ test('generateSceneImage does not soften-and-retry provider policy blocks', asyn
   assert.match(progressMessages.at(-1) ?? '', /prohibited-content policy/i);
 });
 
+test('generateSceneImage logs the exact prohibited prompt and provider-policy debug context', async () => {
+  const sceneGenerator = await import('./sceneGenerator.js');
+  const gemini = await import('./gemini.js');
+  const { entries, logger } = createLogger();
+  const statuses: string[] = [];
+  const page = makePage({
+    pageNumber: 9,
+    text: 'Bambi and Cenușăreasa walk through the moonlit garden.',
+    imagePrompt: 'Bambi and Cenușăreasa walk together in Disney/Pixar 3D animation style with warm, round, and friendly character designs.',
+    characters: ['Bambi', 'Cenușăreasa'],
+  });
+  const characters: Character[] = [
+    {
+      name: 'Bambi',
+      role: 'hero',
+      appearance: 'Bambi is a young spotted fawn with bright eyes.',
+      clothing: 'Bambi wears a tiny blue scarf.',
+      personality: 'gentle',
+      characterSheetPrompt: 'Reference sheet for Bambi.',
+    },
+    {
+      name: 'Cenușăreasa',
+      role: 'friend',
+      appearance: 'Cenușăreasa has kind eyes and chestnut hair in a braid.',
+      clothing: 'Cenușăreasa wears a pale blue dress and silver shoes.',
+      personality: 'kind',
+      characterSheetPrompt: 'Reference sheet for Cenușăreasa.',
+    },
+  ];
+
+  const result = await sceneGenerator.generateSceneImage(
+    'story-policy-debug',
+    page,
+    characters,
+    new Map([['Bambi', 'sheet-one']]),
+    'Disney/Pixar 3D animation style with warm, vibrant colors, round and friendly character designs',
+    undefined,
+    undefined,
+    'previous-scene-base64',
+    false,
+    {
+      generateImage: async () => {
+        throw new gemini.ImagePolicyBlockedError(
+          'gemini-3.1-flash-image-preview',
+          'Image generation blocked by provider policy on model gemini-3.1-flash-image-preview: candidate 1, finishReason=PROHIBITED_CONTENT, parts=missing',
+        );
+      },
+      log: logger,
+      retryOptions: {
+        retries: 0,
+        minTimeout: 0,
+        maxTimeout: 0,
+        randomize: false,
+      },
+      saveSceneImage: async () => {
+        throw new Error('should not save image');
+      },
+      updatePageStatus: async (_storyId, _pageNumber, status) => {
+        statuses.push(status);
+      },
+    },
+  );
+
+  assert.equal(result, null);
+  assert.deepEqual(statuses, ['generating', 'failed']);
+  assert.equal(entries.warn.length, 1);
+  assert.match(entries.warn[0], /"sanitizedPrompt":"/);
+  assert.match(entries.warn[0], /reference sheet for character one/);
+  assert.match(entries.warn[0], /"rawImagePrompt":"Bambi and Cenușăreasa walk together in Disney\/Pixar/);
+  assert.match(entries.warn[0], /"pageCharacters":\["Bambi","Cenușăreasa"\]/);
+  assert.match(entries.warn[0], /"includedCharacterSheets":\["Bambi"\]/);
+  assert.match(entries.warn[0], /"missingCharacterSheets":\["Cenușăreasa"\]/);
+  assert.match(entries.warn[0], /"hasPreviousScene":true/);
+  assert.match(entries.warn[0], /"containsBrandedStyleTokens":false/);
+  assert.match(entries.warn[0], /"remainingCharacterNames":\[\]/);
+});
+
 test('generateSceneImage sanitizes outbound prompts without mutating visible story data', async () => {
   const sceneGenerator = await import('./sceneGenerator.js');
   const statuses: string[] = [];
