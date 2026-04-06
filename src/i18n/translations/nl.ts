@@ -47,6 +47,7 @@ const nl: Translations = {
   privateLabel: 'Privé',
   makePublic: 'Openbaar maken',
   makePrivate: 'Privé maken',
+  deleteAction: 'Verwijderen',
   deleteStory: 'Verhaal verwijderen',
 
   noStoriesYet: 'Nog geen verhalen',
@@ -121,8 +122,8 @@ const nl: Translations = {
   voiceJora: 'Opa',
   voiceSerban: 'Papa',
   voiceCorina: 'Mama',
-  voiceBunicaDesc: 'Warm, liefdevol, rustig, langzaam',
-  voiceJoraDesc: 'Warm, liefdevol, rustig, langzaam',
+  voiceBunicaDesc: 'Warm, liefdevol, rustig, langzaam, oud',
+  voiceJoraDesc: 'Warm, liefdevol, rustig, langzaam, oud',
   voiceSerbanDesc: 'Warm, liefdevol, vrolijk, langzaam',
   voiceCorinaDesc: 'Warm, liefdevol, vrolijk, langzaam',
   recordingNarration: 'Vertelling opnemen',

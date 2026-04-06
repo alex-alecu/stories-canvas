@@ -47,6 +47,7 @@ const sk: Translations = {
   privateLabel: 'Súkromný',
   makePublic: 'Zverejniť',
   makePrivate: 'Nastaviť ako súkromný',
+  deleteAction: 'Zmazať',
   deleteStory: 'Zmazať príbeh',
 
   noStoriesYet: 'Zatiaľ žiadne príbehy',
@@ -121,8 +122,8 @@ const sk: Translations = {
   voiceJora: 'Dedko',
   voiceSerban: 'Otec',
   voiceCorina: 'Mama',
-  voiceBunicaDesc: 'Tepla, laskava, pokojna, pomala',
-  voiceJoraDesc: 'Teply, laskavy, pokojny, pomaly',
+  voiceBunicaDesc: 'Tepla, laskava, pokojna, pomala, starsia',
+  voiceJoraDesc: 'Teply, laskavy, pokojny, pomaly, starsi',
   voiceSerbanDesc: 'Teply, laskavy, vesely, pomaly',
   voiceCorinaDesc: 'Tepla, laskava, vesela, pomala',
   recordingNarration: 'Nahrávanie narácie',

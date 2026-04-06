@@ -47,6 +47,7 @@ const fi: Translations = {
   privateLabel: 'Yksityinen',
   makePublic: 'Tee julkiseksi',
   makePrivate: 'Tee yksityiseksi',
+  deleteAction: 'Poista',
   deleteStory: 'Poista satu',
 
   noStoriesYet: 'Ei satuja vielä',
@@ -121,8 +122,8 @@ const fi: Translations = {
   voiceJora: 'Isoisa',
   voiceSerban: 'Isa',
   voiceCorina: 'Aiti',
-  voiceBunicaDesc: 'Lammin, rakastava, rauhallinen, hidas',
-  voiceJoraDesc: 'Lammin, rakastava, rauhallinen, hidas',
+  voiceBunicaDesc: 'Lammin, rakastava, rauhallinen, hidas, iakas',
+  voiceJoraDesc: 'Lammin, rakastava, rauhallinen, hidas, iakas',
   voiceSerbanDesc: 'Lammin, rakastava, iloinen, hidas',
   voiceCorinaDesc: 'Lammin, rakastava, iloinen, hidas',
   recordingNarration: 'Nauhoitetaan kerrontaa',

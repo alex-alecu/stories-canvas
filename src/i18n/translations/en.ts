@@ -47,6 +47,7 @@ const en: Translations = {
   privateLabel: 'Private',
   makePublic: 'Make public',
   makePrivate: 'Make private',
+  deleteAction: 'Delete',
   deleteStory: 'Delete story',
 
   noStoriesYet: 'No stories yet',
@@ -121,8 +122,8 @@ const en: Translations = {
   voiceJora: 'Grandpa',
   voiceSerban: 'Dad',
   voiceCorina: 'Mom',
-  voiceBunicaDesc: 'Warm, loving, calm, slow',
-  voiceJoraDesc: 'Warm, loving, calm, slow',
+  voiceBunicaDesc: 'Warm, loving, calm, slow, elderly',
+  voiceJoraDesc: 'Warm, loving, calm, slow, elderly',
   voiceSerbanDesc: 'Warm, loving, joyful, slow',
   voiceCorinaDesc: 'Warm, loving, joyful, slow',
   recordingNarration: 'Recording narration',

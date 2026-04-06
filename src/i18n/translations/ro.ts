@@ -52,6 +52,7 @@ const ro: Translations = {
   privateLabel: 'Privată',
   makePublic: 'Fă publică',
   makePrivate: 'Fă privată',
+  deleteAction: 'Șterge',
   deleteStory: 'Șterge povestea',
 
   // Story grid
@@ -134,8 +135,8 @@ const ro: Translations = {
   voiceJora: 'Bunicul',
   voiceSerban: 'Tata',
   voiceCorina: 'Mama',
-  voiceBunicaDesc: 'Caldă, iubitoare, calmă, lentă',
-  voiceJoraDesc: 'Cald, iubitor, calm, lent',
+  voiceBunicaDesc: 'Caldă, iubitoare, calmă, lentă, în vârstă',
+  voiceJoraDesc: 'Cald, iubitor, calm, lent, în vârstă',
   voiceSerbanDesc: 'Cald, iubitor, vesel, lent',
   voiceCorinaDesc: 'Caldă, iubitoare, veselă, lentă',
   recordingNarration: 'Inregistrare naratiune',

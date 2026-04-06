@@ -47,6 +47,7 @@ const no: Translations = {
   privateLabel: 'Privat',
   makePublic: 'Gjør offentlig',
   makePrivate: 'Gjør privat',
+  deleteAction: 'Slett',
   deleteStory: 'Slett historie',
 
   noStoriesYet: 'Ingen historier ennå',
@@ -121,8 +122,8 @@ const no: Translations = {
   voiceJora: 'Bestefar',
   voiceSerban: 'Pappa',
   voiceCorina: 'Mamma',
-  voiceBunicaDesc: 'Varm, kjarlig, rolig, langsom',
-  voiceJoraDesc: 'Varm, kjarlig, rolig, langsom',
+  voiceBunicaDesc: 'Varm, kjarlig, rolig, langsom, eldre',
+  voiceJoraDesc: 'Varm, kjarlig, rolig, langsom, eldre',
   voiceSerbanDesc: 'Varm, kjarlig, glad, langsom',
   voiceCorinaDesc: 'Varm, kjarlig, glad, langsom',
   recordingNarration: 'Tar opp fortelling',

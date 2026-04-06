@@ -47,6 +47,7 @@ const sv: Translations = {
   privateLabel: 'Privat',
   makePublic: 'Gör offentlig',
   makePrivate: 'Gör privat',
+  deleteAction: 'Radera',
   deleteStory: 'Radera saga',
 
   noStoriesYet: 'Inga sagor ännu',
@@ -121,8 +122,8 @@ const sv: Translations = {
   voiceJora: 'Morfar',
   voiceSerban: 'Pappa',
   voiceCorina: 'Mamma',
-  voiceBunicaDesc: 'Varm, karleksfull, lugn, langsam',
-  voiceJoraDesc: 'Varm, karleksfull, lugn, langsam',
+  voiceBunicaDesc: 'Varm, karleksfull, lugn, langsam, aldre',
+  voiceJoraDesc: 'Varm, karleksfull, lugn, langsam, aldre',
   voiceSerbanDesc: 'Varm, karleksfull, glad, langsam',
   voiceCorinaDesc: 'Varm, karleksfull, glad, langsam',
   recordingNarration: 'Spelar in berattelse',

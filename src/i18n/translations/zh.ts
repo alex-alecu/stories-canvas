@@ -47,6 +47,7 @@ const zh: Translations = {
   privateLabel: '私密',
   makePublic: '设为公开',
   makePrivate: '设为私密',
+  deleteAction: '删除',
   deleteStory: '删除故事',
 
   noStoriesYet: '还没有故事',
@@ -121,8 +122,8 @@ const zh: Translations = {
   voiceJora: '爷爷',
   voiceSerban: '爸爸',
   voiceCorina: '妈妈',
-  voiceBunicaDesc: '温暖、有爱、平静、缓慢',
-  voiceJoraDesc: '温暖、有爱、平静、缓慢',
+  voiceBunicaDesc: '温暖、有爱、平静、缓慢、年长',
+  voiceJoraDesc: '温暖、有爱、平静、缓慢、年长',
   voiceSerbanDesc: '温暖、有爱、愉快、缓慢',
   voiceCorinaDesc: '温暖、有爱、愉快、缓慢',
   recordingNarration: '正在录制旁白',

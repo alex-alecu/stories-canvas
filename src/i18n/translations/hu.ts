@@ -47,6 +47,7 @@ const hu: Translations = {
   privateLabel: 'Privát',
   makePublic: 'Nyilvánossá tétel',
   makePrivate: 'Priváttá tétel',
+  deleteAction: 'Törlés',
   deleteStory: 'Mese törlése',
 
   noStoriesYet: 'Még nincsenek mesék',
@@ -121,8 +122,8 @@ const hu: Translations = {
   voiceJora: 'Nagypapa',
   voiceSerban: 'Apa',
   voiceCorina: 'Anya',
-  voiceBunicaDesc: 'Meleg, szeretetteljes, nyugodt, lassu',
-  voiceJoraDesc: 'Meleg, szeretetteljes, nyugodt, lassu',
+  voiceBunicaDesc: 'Meleg, szeretetteljes, nyugodt, lassu, idos',
+  voiceJoraDesc: 'Meleg, szeretetteljes, nyugodt, lassu, idos',
   voiceSerbanDesc: 'Meleg, szeretetteljes, vidam, lassu',
   voiceCorinaDesc: 'Meleg, szeretetteljes, vidam, lassu',
   recordingNarration: 'Narracio felvetele',

@@ -47,6 +47,7 @@ const pt: Translations = {
   privateLabel: 'Privada',
   makePublic: 'Tornar pública',
   makePrivate: 'Tornar privada',
+  deleteAction: 'Excluir',
   deleteStory: 'Excluir história',
 
   noStoriesYet: 'Nenhuma história ainda',
@@ -121,8 +122,8 @@ const pt: Translations = {
   voiceJora: 'Avo',
   voiceSerban: 'Pai',
   voiceCorina: 'Mae',
-  voiceBunicaDesc: 'Quente, amorosa, calma, lenta',
-  voiceJoraDesc: 'Quente, amoroso, calmo, lento',
+  voiceBunicaDesc: 'Quente, amorosa, calma, lenta, idosa',
+  voiceJoraDesc: 'Quente, amoroso, calmo, lento, idoso',
   voiceSerbanDesc: 'Quente, amoroso, alegre, lento',
   voiceCorinaDesc: 'Quente, amorosa, alegre, lenta',
   recordingNarration: 'Gravando narracao',
