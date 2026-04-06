@@ -59,6 +59,7 @@ test('story prompt assembly keeps shared rubric and language-specific rules toge
   assert.match(systemInstruction, /Required Story Shape/);
   assert.match(systemInstruction, /Build around one clear central problem, quest, or test\./);
   assert.match(systemInstruction, /Write every field in English unless it is explicitly listed below as English-only/);
+  assert.match(systemInstruction, /keep the exact spelling from characters\[\]\.name whenever you mention a character/i);
   assert.match(draftPrompt, /Target age: 6/);
   assert.match(draftPrompt, /Classic hand-drawn storybook illustration/);
   assert.match(draftPrompt, /Write an original story unless the user explicitly asks for a retelling\./);

@@ -120,6 +120,7 @@ function buildStoryCommonInstruction(context: StoryPromptContext): string {
 
 - Write every field in ${config.label} unless it is explicitly listed below as English-only.
 - Keep only these fields in English: appearance, clothing, characterSheetPrompt, imagePrompt.
+- Inside appearance, clothing, characterSheetPrompt, and imagePrompt, keep the exact spelling from characters[].name whenever you mention a character. Do not translate, anglicize, or swap those names for franchise or canonical variants.
 - Use warm, natural ${config.label} names. Example style: ${config.sampleNames}.
 
 ## Illustration Style Rules
