@@ -54,6 +54,42 @@ const DISNEY_PIXAR_STYLE_PATTERNS: Array<[RegExp, string]> = [
   ],
 ];
 
+const NON_CHARACTER_NAME_WORDS = new Set([
+  'back',
+  'background',
+  'below',
+  'clean',
+  'close',
+  'color',
+  'colors',
+  'critical',
+  'exact',
+  'front',
+  'image',
+  'images',
+  'important',
+  'layout',
+  'left',
+  'model',
+  'no',
+  'palette',
+  'professional',
+  'pure',
+  'reference',
+  'right',
+  'same',
+  'scene',
+  'sheet',
+  'style',
+  'swatches',
+  'text',
+  'view',
+  'views',
+  'white',
+]) as ReadonlySet<string>;
+
+type CharacterAliasSource = Pick<Character, 'name'> & Partial<Pick<Character, 'appearance' | 'clothing' | 'characterSheetPrompt'>>;
+
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
@@ -61,6 +97,13 @@ function escapeRegExp(value: string): string {
 function buildCharacterAlias(index: number): string {
   const word = CHARACTER_ALIAS_WORDS[index];
   return word ? `character ${word}` : `character ${index + 1}`;
+}
+
+function normalizeAliasCandidate(value: string): string {
+  return value
+    .replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 function originalizeStyleText(text: string): string {
@@ -71,6 +114,61 @@ function originalizeStyleText(text: string): string {
   }
 
   return result;
+}
+
+function isLikelyCharacterAliasCandidate(value: string): boolean {
+  const normalized = normalizeAliasCandidate(value);
+
+  if (!normalized) {
+    return false;
+  }
+
+  if (/\b(?:Disney|Pixar)\b/iu.test(normalized)) {
+    return false;
+  }
+
+  const words = normalized.split(/\s+/);
+  if (words.length === 0) {
+    return false;
+  }
+
+  return words.some(word => !NON_CHARACTER_NAME_WORDS.has(word.toLowerCase()));
+}
+
+function extractCharacterAliasCandidates(character: CharacterAliasSource): string[] {
+  const candidates = new Set<string>();
+  const fields = [character.appearance, character.clothing, character.characterSheetPrompt];
+  const patterns = [
+    /((?:The\s+)?\p{Lu}[\p{L}'’-]+(?:\s+\p{Lu}[\p{L}'’-]+){0,3})(?=\s+(?:is|has|wears)\b)/gu,
+    /\bfor\s+((?:The\s+)?\p{Lu}[\p{L}'’-]+(?:\s+\p{Lu}[\p{L}'’-]+){0,3})(?=$|[,.!?:;]|\s+(?:in|with|on|at|style)\b)/gu,
+  ] as const;
+
+  for (const field of fields) {
+    if (typeof field !== 'string' || field.length === 0) {
+      continue;
+    }
+
+    const cleanedField = originalizeStyleText(field);
+    for (const pattern of patterns) {
+      for (const match of cleanedField.matchAll(pattern)) {
+        const candidate = normalizeAliasCandidate(match[1] ?? '');
+        if (!isLikelyCharacterAliasCandidate(candidate)) {
+          continue;
+        }
+
+        candidates.add(candidate);
+        if (candidate.startsWith('The ')) {
+          const withoutArticle = normalizeAliasCandidate(candidate.slice(4));
+          if (isLikelyCharacterAliasCandidate(withoutArticle)) {
+            candidates.add(withoutArticle);
+          }
+        }
+      }
+    }
+  }
+
+  candidates.delete(character.name);
+  return [...candidates];
 }
 
 function replaceCharacterNames(text: string, aliasMap: ReadonlyMap<string, string>): string {
@@ -95,13 +193,20 @@ function normalizePromptWhitespace(text: string): string {
 }
 
 export function buildCharacterAliasMap(
-  characters: ReadonlyArray<Pick<Character, 'name'>>,
+  characters: ReadonlyArray<CharacterAliasSource>,
 ): Map<string, string> {
   const aliasMap = new Map<string, string>();
 
   characters.forEach((character, index) => {
+    const alias = buildCharacterAlias(index);
     if (!aliasMap.has(character.name)) {
-      aliasMap.set(character.name, buildCharacterAlias(index));
+      aliasMap.set(character.name, alias);
+    }
+
+    for (const candidate of extractCharacterAliasCandidates(character)) {
+      if (!aliasMap.has(candidate)) {
+        aliasMap.set(candidate, alias);
+      }
     }
   });
 
