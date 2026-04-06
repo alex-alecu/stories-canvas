@@ -63,9 +63,16 @@ async function cancelStory(id: string): Promise<void> {
   if (!res.ok) throw new Error('Failed to cancel story');
 }
 
-async function fetchPublicStories(search?: string): Promise<StorySummary[]> {
+async function fetchPublicStories({
+  search,
+  limit,
+}: {
+  search?: string;
+  limit?: number;
+} = {}): Promise<StorySummary[]> {
   const params = new URLSearchParams();
   if (search) params.set('search', search);
+  if (typeof limit === 'number') params.set('limit', String(limit));
   const url = `/api/stories/public${params.toString() ? `?${params}` : ''}`;
   const res = await fetch(url);
   if (!res.ok) throw new Error('Failed to fetch public stories');
@@ -83,10 +90,11 @@ async function toggleStoryVisibility(id: string, isPublic: boolean): Promise<{ i
   return res.json();
 }
 
-export function useStories() {
+export function useStories(enabled = true) {
   return useQuery({
     queryKey: ['stories'],
     queryFn: fetchStories,
+    enabled,
     refetchInterval: 10_000, // Poll for updates on generating stories
   });
 }
@@ -124,6 +132,7 @@ export function useDeleteStory() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['stories'] });
       queryClient.invalidateQueries({ queryKey: ['stories', 'mine'] });
+      queryClient.invalidateQueries({ queryKey: ['stories', 'public'] });
     },
   });
 }
@@ -135,14 +144,15 @@ export function useCancelStory() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['stories'] });
       queryClient.invalidateQueries({ queryKey: ['stories', 'mine'] });
+      queryClient.invalidateQueries({ queryKey: ['stories', 'public'] });
     },
   });
 }
 
-export function usePublicStories(search?: string) {
+export function usePublicStories(search?: string, limit?: number) {
   return useQuery({
-    queryKey: ['stories', 'public', search ?? ''],
-    queryFn: () => fetchPublicStories(search),
+    queryKey: ['stories', 'public', search ?? '', limit ?? 'all'],
+    queryFn: () => fetchPublicStories({ search, limit }),
   });
 }
 

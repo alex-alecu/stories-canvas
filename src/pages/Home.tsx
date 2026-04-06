@@ -4,10 +4,15 @@ import StoryInput from '../components/StoryInput';
 import StoryGrid from '../components/StoryGrid';
 import BackgroundOrbs from '../components/BackgroundOrbs';
 import GenerationProgress from '../components/GenerationProgress';
-import { useStories, useCreateStory, useCancelStory, useToggleVisibility } from '../hooks/useStories';
+import PublicStoriesShowcase from '../components/PublicStoriesShowcase';
+import StoryDeleteDialog from '../components/StoryDeleteDialog';
+import { useStories, useCreateStory, useCancelStory, useDeleteStory, usePublicStories, useToggleVisibility } from '../hooks/useStories';
 import { useStoryGeneration } from '../hooks/useStoryGeneration';
 import { useNotification } from '../hooks/useNotification';
 import { useLanguage } from '../i18n/LanguageContext';
+import { useAuth } from '../contexts/AuthContext';
+import { isSupabaseConfigured } from '../lib/supabase';
+import type { StorySummary } from '../types';
 import type { ArtStyleKey, StoryStatus, VoiceKey } from '../../shared/types';
 import { readStorageItem, removeStorageItem, writeStorageItem } from '../lib/browserStorage';
 
@@ -30,15 +35,32 @@ function isTerminalStoryStatus(status: StoryStatus): boolean {
 }
 
 export default function Home() {
+  const { user } = useAuth();
   const [generatingStoryId, setGeneratingStoryId] = useState<string | null>(getStoredGeneratingId);
-  const { data: stories = [], isLoading, isSuccess: hasLoadedStories } = useStories();
+  const [storyToDelete, setStoryToDelete] = useState<StorySummary | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const shouldLoadUserStories = !isSupabaseConfigured || !!user;
+  const { data: stories = [], isLoading, isSuccess: hasLoadedStories } = useStories(shouldLoadUserStories);
+  const { data: publicStories = [], isLoading: isLoadingPublicStories } = usePublicStories(undefined, 4);
   const createStory = useCreateStory();
   const cancelStory = useCancelStory();
+  const cancelDeletingStory = useCancelStory();
+  const deleteStory = useDeleteStory();
   const toggleVisibility = useToggleVisibility();
   const { progress } = useStoryGeneration(generatingStoryId);
   const { requestPermission, notify } = useNotification();
   const navigate = useNavigate();
   const { t, language } = useLanguage();
+
+  const clearGeneratingStoryTracking = useCallback(() => {
+    setGeneratingStoryId(null);
+    setStoredGeneratingId(null);
+  }, []);
+
+  const restoreGeneratingStoryTracking = useCallback((id: string) => {
+    setGeneratingStoryId(id);
+    setStoredGeneratingId(id);
+  }, []);
 
   // Sync generatingStoryId to localStorage
   useEffect(() => {
@@ -52,10 +74,9 @@ export default function Home() {
 
     const matchingStory = stories.find(story => story.id === generatingStoryId);
     if (!matchingStory || isTerminalStoryStatus(matchingStory.status)) {
-      setGeneratingStoryId(null);
-      setStoredGeneratingId(null);
+      clearGeneratingStoryTracking();
     }
-  }, [generatingStoryId, hasLoadedStories, stories]);
+  }, [clearGeneratingStoryTracking, generatingStoryId, hasLoadedStories, stories]);
 
   const handleCreateStory = useCallback(async (prompt: string, age: number, style: ArtStyleKey, pro: boolean, voice?: VoiceKey) => {
     try {
@@ -82,9 +103,53 @@ export default function Home() {
     } catch (error) {
       console.error('Failed to cancel story:', error);
     }
-    setGeneratingStoryId(null);
-    setStoredGeneratingId(null);
-  }, [generatingStoryId, cancelStory]);
+    clearGeneratingStoryTracking();
+  }, [cancelStory, clearGeneratingStoryTracking, generatingStoryId]);
+
+  const handleRequestDelete = useCallback((story: StorySummary) => {
+    setDeleteError(null);
+    setStoryToDelete(story);
+  }, []);
+
+  const handleDismissDelete = useCallback(() => {
+    if (deleteStory.isPending || cancelDeletingStory.isPending) {
+      return;
+    }
+    setDeleteError(null);
+    setStoryToDelete(null);
+  }, [cancelDeletingStory.isPending, deleteStory.isPending]);
+
+  const handleConfirmDelete = useCallback(async () => {
+    if (!storyToDelete) return;
+
+    setDeleteError(null);
+    const deletingActiveStory = storyToDelete.id === generatingStoryId;
+    if (deletingActiveStory) {
+      clearGeneratingStoryTracking();
+    }
+
+    try {
+      if (isTerminalStoryStatus(storyToDelete.status)) {
+        await deleteStory.mutateAsync(storyToDelete.id);
+      } else {
+        await cancelDeletingStory.mutateAsync(storyToDelete.id);
+      }
+      setStoryToDelete(null);
+    } catch (error) {
+      if (deletingActiveStory) {
+        restoreGeneratingStoryTracking(storyToDelete.id);
+      }
+      setDeleteError(error instanceof Error ? error.message : t.couldNotDeleteStory);
+    }
+  }, [
+    cancelDeletingStory,
+    clearGeneratingStoryTracking,
+    deleteStory,
+    generatingStoryId,
+    restoreGeneratingStoryTracking,
+    storyToDelete,
+    t.couldNotDeleteStory,
+  ]);
 
   // Navigate to story as soon as the first page image is ready (or when fully completed)
   useEffect(() => {
@@ -92,22 +157,33 @@ export default function Home() {
       if (progress.completedPages >= 1 || progress.status === 'completed') {
         notify(t.notificationTitle, t.notificationBody);
         const targetId = generatingStoryId;
-        setGeneratingStoryId(null);
-        setStoredGeneratingId(null);
+        clearGeneratingStoryTracking();
         navigate(`/story/${targetId}`);
       }
       if (progress.status === 'failed' || progress.status === 'cancelled') {
-        setGeneratingStoryId(null);
-        setStoredGeneratingId(null);
+        clearGeneratingStoryTracking();
       }
     }
-  }, [progress?.status, progress?.completedPages, generatingStoryId, navigate, notify, t]);
+  }, [clearGeneratingStoryTracking, progress?.status, progress?.completedPages, generatingStoryId, navigate, notify, t]);
 
   // Show progress if we have a generatingStoryId (even before SSE connects, for instant feedback)
   const showProgress = generatingStoryId && progress?.status !== 'completed';
+  const showUserStories = isSupabaseConfigured
+    ? !!user && (isLoading || stories.length > 0)
+    : isLoading || stories.length > 0;
+  const isDeletingStory = deleteStory.isPending || cancelDeletingStory.isPending;
 
   return (
     <div className="min-h-screen p-4 md:p-8 relative">
+      <StoryDeleteDialog
+        isOpen={!!storyToDelete}
+        storyTitle={storyToDelete?.title || storyToDelete?.prompt}
+        isDeleting={isDeletingStory}
+        errorMessage={deleteError}
+        onCancel={handleDismissDelete}
+        onConfirm={handleConfirmDelete}
+      />
+
       <BackgroundOrbs />
       <div className="max-w-6xl mx-auto relative z-10">
         <div className="py-8 md:py-16">
@@ -130,9 +206,31 @@ export default function Home() {
           </div>
         )}
 
-        <div className="mt-4">
-          <StoryGrid stories={stories} isLoading={isLoading} onTogglePublic={handleTogglePublic} />
-        </div>
+        {showUserStories && (
+          <section className="mt-4">
+            <div className="mb-5">
+              <h2 className="text-xl md:text-2xl font-bold text-gray-800 dark:text-gray-100">
+                {t.myStories}
+              </h2>
+            </div>
+            <StoryGrid
+              stories={stories}
+              isLoading={isLoading}
+              onDelete={(id) => {
+                const story = stories.find((item) => item.id === id);
+                if (story) {
+                  handleRequestDelete(story);
+                }
+              }}
+              onTogglePublic={handleTogglePublic}
+            />
+          </section>
+        )}
+
+        <PublicStoriesShowcase
+          stories={publicStories}
+          isLoading={isLoadingPublicStories}
+        />
       </div>
     </div>
   );

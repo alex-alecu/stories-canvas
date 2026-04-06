@@ -46,6 +46,9 @@ export const storageOps = {
   getStory: async (storyId: string) => (
     config.useSupabase ? sbStorage.getStory(storyId) : fsStorage.getStory(storyId)
   ),
+  listPublicStories: async (search?: string, limit?: number) => (
+    config.useSupabase ? sbStorage.listPublicStories(search, limit) : []
+  ),
 };
 
 // ---------- Storage adapter (delegates to Supabase or filesystem) ----------
@@ -360,7 +363,13 @@ router.get('/public', async (req: Request, res: Response) => {
     }
 
     const search = typeof req.query.search === 'string' ? req.query.search : undefined;
-    const stories = await sbStorage.listPublicStories(search);
+    const rawLimit = typeof req.query.limit === 'string'
+      ? Number.parseInt(req.query.limit, 10)
+      : Number.NaN;
+    const limit = Number.isInteger(rawLimit) && rawLimit > 0
+      ? Math.min(rawLimit, 50)
+      : undefined;
+    const stories = await storageOps.listPublicStories(search, limit);
     const summaries = stories.map(toStorySummary);
     res.json(summaries);
   } catch (error) {
