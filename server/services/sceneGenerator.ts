@@ -1,7 +1,7 @@
 import pRetry, { AbortError } from 'p-retry';
 import fs from 'fs/promises';
 import { generateImage, isImagePolicyBlockedError, isImageSafetyBlockedError } from './gemini.js';
-import { prepareSceneImagePrompt } from './imagePromptPreparation.js';
+import { buildCharacterAliasMap, prepareSceneImagePrompt } from './imagePromptPreparation.js';
 import { saveImage, updatePageStatus as fsUpdatePageStatus, getImagePath } from '../utils/storage.js';
 import { uploadImage, updatePageStatus as sbUpdatePageStatus, downloadImage } from './supabaseStorage.js';
 import { getCharacterSheetFilename } from './characterSheet.js';
@@ -46,6 +46,14 @@ function softenPrompt(prompt: string): string {
     + '\n\nNote: This is a wholesome, gentle children\'s story illustration. Keep it bright, cheerful, and child-friendly.';
 }
 
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function promptContainsExactName(prompt: string, name: string): boolean {
+  return new RegExp(`(^|[^\\p{L}\\p{N}])${escapeRegExp(name)}(?=$|[^\\p{L}\\p{N}])`, 'iu').test(prompt);
+}
+
 interface SceneGenerationDeps {
   generateImage?: typeof generateImage;
   log?: Pick<Console, 'error' | 'warn'>;
@@ -70,6 +78,38 @@ function buildProviderFailureMessage(pageNumber: number, error: unknown): string
   }
 
   return `Page ${pageNumber} could not be illustrated because the image provider returned an error. You can retry it from Story Tools.`;
+}
+
+function buildProviderPolicyDebugContext(
+  page: Page,
+  characters: Character[],
+  prompt: string,
+  styleDescription: string | undefined,
+  includedCharacterNames: string[],
+  hasPreviousScene: boolean,
+  referenceImageCount: number,
+): string {
+  const aliasMap = buildCharacterAliasMap(characters);
+  const missingCharacterSheets = page.characters.filter(name => !includedCharacterNames.includes(name));
+  const remainingCharacterNames = characters
+    .map(character => character.name)
+    .filter(name => promptContainsExactName(prompt, name));
+
+  return JSON.stringify({
+    pageNumber: page.pageNumber,
+    pageText: page.text,
+    rawImagePrompt: page.imagePrompt,
+    sanitizedPrompt: prompt,
+    pageCharacters: page.characters,
+    includedCharacterSheets: includedCharacterNames,
+    missingCharacterSheets,
+    hasPreviousScene,
+    referenceImageCount,
+    requestedStyleDescription: styleDescription ?? null,
+    characterAliases: Object.fromEntries(aliasMap),
+    containsBrandedStyleTokens: /\b(?:Disney|Pixar)\b/iu.test(prompt),
+    remainingCharacterNames,
+  });
 }
 
 export async function generateSceneImage(
@@ -181,9 +221,18 @@ export async function generateSceneImage(
         + `Marking it failed and leaving it retryable. ${error.message}`,
       );
     } else if (isImagePolicyBlockedError(error)) {
+      const debugContext = buildProviderPolicyDebugContext(
+        page,
+        characters,
+        prompt,
+        styleDescription,
+        includedCharNames,
+        hasPreviousScene,
+        referenceImages.length,
+      );
       logger.warn(
         `[scene:${storyId}] Page ${page.pageNumber} was rejected by provider policy. `
-        + `Marking it failed and leaving it retryable. ${error.message}`,
+        + `Marking it failed and leaving it retryable. ${error.message} Debug: ${debugContext}`,
       );
     } else {
       logger.error(`[scene:${storyId}] Failed to generate page ${page.pageNumber}:`, error);
