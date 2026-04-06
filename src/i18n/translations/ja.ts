@@ -47,6 +47,7 @@ const ja: Translations = {
   privateLabel: '非公開',
   makePublic: '公開する',
   makePrivate: '非公開にする',
+  deleteAction: '削除',
   deleteStory: 'おはなしを削除',
 
   noStoriesYet: 'まだおはなしがありません',
@@ -121,8 +122,8 @@ const ja: Translations = {
   voiceJora: 'おじいちゃん',
   voiceSerban: 'おとうさん',
   voiceCorina: 'おかあさん',
-  voiceBunicaDesc: 'あたたかく、愛情深く、穏やかで、ゆっくり',
-  voiceJoraDesc: 'あたたかく、愛情深く、穏やかで、ゆっくり',
+  voiceBunicaDesc: 'あたたかく、愛情深く、穏やかで、ゆっくり、年配',
+  voiceJoraDesc: 'あたたかく、愛情深く、穏やかで、ゆっくり、年配',
   voiceSerbanDesc: 'あたたかく、愛情深く、明るく、ゆっくり',
   voiceCorinaDesc: 'あたたかく、愛情深く、明るく、ゆっくり',
   recordingNarration: 'ナレーション録音中',

@@ -47,6 +47,7 @@ const de: Translations = {
   privateLabel: 'Privat',
   makePublic: 'Öffentlich machen',
   makePrivate: 'Privat machen',
+  deleteAction: 'Löschen',
   deleteStory: 'Geschichte löschen',
 
   noStoriesYet: 'Noch keine Geschichten',
@@ -121,8 +122,8 @@ const de: Translations = {
   voiceJora: 'Opa',
   voiceSerban: 'Papa',
   voiceCorina: 'Mama',
-  voiceBunicaDesc: 'Warm, liebevoll, ruhig, langsam',
-  voiceJoraDesc: 'Warm, liebevoll, ruhig, langsam',
+  voiceBunicaDesc: 'Warm, liebevoll, ruhig, langsam, alt',
+  voiceJoraDesc: 'Warm, liebevoll, ruhig, langsam, alt',
   voiceSerbanDesc: 'Warm, liebevoll, frohlich, langsam',
   voiceCorinaDesc: 'Warm, liebevoll, frohlich, langsam',
   recordingNarration: 'Erzahlung aufnehmen',

@@ -47,6 +47,7 @@ const da: Translations = {
   privateLabel: 'Privat',
   makePublic: 'Gør offentlig',
   makePrivate: 'Gør privat',
+  deleteAction: 'Slet',
   deleteStory: 'Slet historie',
 
   noStoriesYet: 'Ingen historier endnu',
@@ -121,8 +122,8 @@ const da: Translations = {
   voiceJora: 'Bedstefar',
   voiceSerban: 'Far',
   voiceCorina: 'Mor',
-  voiceBunicaDesc: 'Varm, kaerlig, rolig, langsom',
-  voiceJoraDesc: 'Varm, kaerlig, rolig, langsom',
+  voiceBunicaDesc: 'Varm, kaerlig, rolig, langsom, aeldre',
+  voiceJoraDesc: 'Varm, kaerlig, rolig, langsom, aeldre',
   voiceSerbanDesc: 'Varm, kaerlig, glad, langsom',
   voiceCorinaDesc: 'Varm, kaerlig, glad, langsom',
   recordingNarration: 'Optager fortaelling',

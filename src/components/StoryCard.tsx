@@ -79,7 +79,8 @@ function VisibilityToggle({ isPublic, onToggle, label, ariaLabel }: {
 
 export default function StoryCard({ story, onDelete, onTogglePublic }: StoryCardProps) {
   const { t } = useLanguage();
-  const showFooter = onTogglePublic && story.status === 'completed';
+  const showVisibilityToggle = !!onTogglePublic && story.status === 'completed';
+  const showFooter = !!onDelete || showVisibilityToggle;
 
   return (
     <div className="rounded-2xl overflow-hidden shadow-md hover:shadow-xl dark:shadow-primary-900/20 dark:hover:shadow-primary-800/30 transition-all duration-300 bg-white dark:bg-surface-dark-elevated">
@@ -109,22 +110,6 @@ export default function StoryCard({ story, onDelete, onTogglePublic }: StoryCard
               </div>
             </div>
           )}
-          {onDelete && (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                onDelete(story.id);
-              }}
-              className="absolute top-3 left-3 w-8 h-8 rounded-full bg-red-500/60 hover:bg-red-500/80 text-white flex items-center justify-center backdrop-blur-sm transition-colors z-10"
-              aria-label={t.deleteStory}
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-              </svg>
-            </button>
-          )}
           <StatusBadge status={story.status} completedPages={story.completedPages} totalPages={story.totalPages} />
           {story.status === 'completed' && story.hasAudio && (
             <div className="absolute top-3 right-3 w-7 h-7 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center" aria-label={t.playNarration}>
@@ -142,13 +127,31 @@ export default function StoryCard({ story, onDelete, onTogglePublic }: StoryCard
         </div>
       </Link>
       {showFooter && (
-        <div className="px-4 py-2.5 border-t border-gray-100 dark:border-gray-700/50 flex items-center justify-end">
-          <VisibilityToggle
-            isPublic={!!story.isPublic}
-            onToggle={() => onTogglePublic(story.id, !story.isPublic)}
-            label={story.isPublic ? t.publicLabel : t.privateLabel}
-            ariaLabel={story.isPublic ? t.makePrivate : t.makePublic}
-          />
+        <div className="px-4 py-2.5 border-t border-gray-100 dark:border-gray-700/50 flex items-center gap-3">
+          {onDelete && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onDelete(story.id);
+              }}
+              className="text-sm font-semibold text-red-500 hover:text-red-600 dark:text-red-300 dark:hover:text-red-200 transition-colors"
+              aria-label={t.deleteStory}
+            >
+              {t.deleteAction}
+            </button>
+          )}
+          {showVisibilityToggle && (
+            <div className="ml-auto">
+              <VisibilityToggle
+                isPublic={!!story.isPublic}
+                onToggle={() => onTogglePublic(story.id, !story.isPublic)}
+                label={story.isPublic ? t.publicLabel : t.privateLabel}
+                ariaLabel={story.isPublic ? t.makePrivate : t.makePublic}
+              />
+            </div>
+          )}
         </div>
       )}
     </div>

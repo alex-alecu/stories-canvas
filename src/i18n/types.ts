@@ -52,6 +52,7 @@ export interface Translations {
   privateLabel: string;
   makePublic: string;
   makePrivate: string;
+  deleteAction: string;
   deleteStory: string;
 
   // Story grid

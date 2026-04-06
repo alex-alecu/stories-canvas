@@ -47,6 +47,7 @@ const ko: Translations = {
   privateLabel: '비공개',
   makePublic: '공개로 전환',
   makePrivate: '비공개로 전환',
+  deleteAction: '삭제',
   deleteStory: '이야기 삭제',
 
   noStoriesYet: '아직 이야기가 없어요',
@@ -121,8 +122,8 @@ const ko: Translations = {
   voiceJora: '할아버지',
   voiceSerban: '아빠',
   voiceCorina: '엄마',
-  voiceBunicaDesc: '따뜻하고, 다정하고, 차분하고, 천천히',
-  voiceJoraDesc: '따뜻하고, 다정하고, 차분하고, 천천히',
+  voiceBunicaDesc: '따뜻하고, 다정하고, 차분하고, 천천히, 연세 있는',
+  voiceJoraDesc: '따뜻하고, 다정하고, 차분하고, 천천히, 연세 있는',
   voiceSerbanDesc: '따뜻하고, 다정하고, 즐겁고, 천천히',
   voiceCorinaDesc: '따뜻하고, 다정하고, 즐겁고, 천천히',
   recordingNarration: '내레이션 녹음 중',

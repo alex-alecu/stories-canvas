@@ -47,6 +47,7 @@ const pl: Translations = {
   privateLabel: 'Prywatna',
   makePublic: 'Upublicznij',
   makePrivate: 'Ustaw jako prywatną',
+  deleteAction: 'Usuń',
   deleteStory: 'Usuń opowieść',
 
   noStoriesYet: 'Brak opowieści',
@@ -121,8 +122,8 @@ const pl: Translations = {
   voiceJora: 'Dziadek',
   voiceSerban: 'Tata',
   voiceCorina: 'Mama',
-  voiceBunicaDesc: 'Ciepla, kochajaca, spokojna, powolna',
-  voiceJoraDesc: 'Cieply, kochajacy, spokojny, powolny',
+  voiceBunicaDesc: 'Ciepla, kochajaca, spokojna, powolna, starsza',
+  voiceJoraDesc: 'Cieply, kochajacy, spokojny, powolny, starszy',
   voiceSerbanDesc: 'Cieply, kochajacy, radosny, powolny',
   voiceCorinaDesc: 'Ciepla, kochajaca, radosna, powolna',
   recordingNarration: 'Nagrywanie narracji',
