@@ -12,6 +12,16 @@ function optionalEnv(key: string): string | undefined {
   return process.env[key] || undefined;
 }
 
+function listEnv(key: string): string[] {
+  const value = process.env[key];
+  if (!value) return [];
+
+  return value
+    .split(',')
+    .map(item => item.trim().toLowerCase())
+    .filter(Boolean);
+}
+
 function numberEnv(
   key: string,
   fallback: number,
@@ -47,6 +57,7 @@ export const config = {
   supabaseAnonKey: optionalEnv('SUPABASE_ANON_KEY'),
   supabaseServiceKey,
   useSupabase: !!(supabaseUrl && supabaseServiceKey),
+  adminBootstrapEmails: listEnv('ADMIN_BOOTSTRAP_EMAILS'),
 
   // ElevenLabs configuration
   elevenLabsApiKey: optionalEnv('ELEVENLABS_API_KEY'),
@@ -56,4 +67,9 @@ export const config = {
     serban: optionalEnv('VOICE_SERBAN_ID') || '8nBBDfYxYXmDNaqTCxPH', // Serban Popescu
     corina: optionalEnv('VOICE_CORINA_ID') || 'RjgBjNgGkuZd49zyCxIq', // Corina Capuccina
   },
+
+  // Stripe configuration
+  stripeSecretKey: optionalEnv('STRIPE_SECRET_KEY'),
+  stripeWebhookSecret: optionalEnv('STRIPE_WEBHOOK_SECRET'),
+  appBaseUrl: process.env.APP_BASE_URL || process.env.PUBLIC_APP_URL || `http://localhost:${parseInt(process.env.PORT || process.env.SERVER_PORT || '3001', 10)}`,
 } as const;

@@ -5,6 +5,7 @@ export type StoryStatus = 'generating_scenario' | 'reviewing_scenario' | 'genera
 export type ArtStyleKey = 'disney-pixar' | 'watercolor' | 'storybook' | 'anime' | 'colored-pencil' | 'paper-cutout';
 
 export type VoiceKey = 'bunica' | 'jora' | 'serban' | 'corina';
+export type StoryMode = 'fast' | 'pro' | 'pro_audio';
 
 export type LegacyVoiceKey = 'grandma' | 'grandpa' | 'dad' | 'mom' | 'whisper';
 
@@ -129,6 +130,9 @@ export interface StoryMeta {
   scenarioRevision?: number;
   renderedScenarioRevision?: number;
   assetsStale?: boolean;
+  storyMode?: StoryMode;
+  creditCost?: number;
+  creditRefundedAt?: string;
 }
 
 export interface StoryDetail extends StoryMeta {
@@ -154,6 +158,7 @@ export interface CreateStoryRequest {
   language?: string;
   age?: number;
   style?: ArtStyleKey;
+  storyMode?: StoryMode;
   pro?: boolean;
   voice?: VoiceKey;
 }
@@ -182,4 +187,52 @@ export interface ReviewStoryResponse {
 
 export interface RegenerateAssetsResponse {
   status: StoryStatus;
+}
+
+export interface StoryPackOffer {
+  slug: 'pack_5' | 'pack_12' | 'pack_20';
+  name: string;
+  description: string;
+  credits: number;
+  priceMinor: number;
+  currency: 'ron';
+  isActive: boolean;
+}
+
+export interface CreditBalance {
+  availableCredits: number;
+}
+
+export interface CreditLedgerEntry {
+  id: string;
+  delta: number;
+  balanceAfter: number;
+  reason: string;
+  note?: string;
+  storyId?: string;
+  purchaseId?: string;
+  adminUserId?: string;
+  createdAt: string;
+}
+
+export interface BillingPurchase {
+  id: string;
+  offerSlug: StoryPackOffer['slug'];
+  amountMinor: number;
+  currency: 'ron';
+  creditsGranted: number;
+  status: 'pending' | 'completed' | 'failed';
+  createdAt: string;
+  fulfilledAt?: string;
+}
+
+export interface BillingOverview {
+  balance: CreditBalance;
+  offers: StoryPackOffer[];
+  isAdmin: boolean;
+}
+
+export interface BillingHistoryResponse {
+  purchases: BillingPurchase[];
+  ledger: CreditLedgerEntry[];
 }

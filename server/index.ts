@@ -2,6 +2,7 @@ import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { config } from './config.js';
+import billingRouter from './routes/billing.js';
 import storiesRouter from './routes/stories.js';
 import userRouter from './routes/user.js';
 import { isGenerationActive } from './services/generationRegistry.js';
@@ -22,6 +23,7 @@ app.use('/api', (req, res, next) => {
 });
 
 // API routes
+app.use('/api/billing', billingRouter);
 app.use('/api/stories', storiesRouter);
 app.use('/api/user', userRouter);
 

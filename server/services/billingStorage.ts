@@ -1,0 +1,471 @@
+import { getSupabase } from './supabase.js';
+import type {
+  BillingHistoryResponse,
+  BillingOverview,
+  BillingPurchase,
+  CreditBalance,
+  CreditLedgerEntry,
+  StoryPackOffer,
+} from '../../shared/types.js';
+
+interface StoryPackOfferRow {
+  slug: StoryPackOffer['slug'];
+  name: string;
+  description: string;
+  credits: number;
+  price_minor: number;
+  currency: 'ron';
+  is_active: boolean;
+}
+
+interface CreditBalanceRow {
+  available_credits: number;
+}
+
+interface CreditLedgerRow {
+  id: string;
+  delta: number;
+  balance_after: number;
+  reason: string;
+  note: string | null;
+  story_id: string | null;
+  purchase_id: string | null;
+  admin_user_id: string | null;
+  created_at: string;
+}
+
+interface BillingPurchaseRow {
+  id: string;
+  offer_slug: StoryPackOffer['slug'];
+  amount_minor: number;
+  currency: 'ron';
+  credits_granted: number;
+  status: BillingPurchase['status'];
+  created_at: string;
+  fulfilled_at: string | null;
+}
+
+interface CreditRpcRow {
+  ledger_id: string;
+  available_credits: number;
+}
+
+interface RefundStoryCreditsRow {
+  refunded: boolean;
+  ledger_id: string | null;
+  available_credits: number | null;
+}
+
+interface FulfillStoryPackPurchaseRow {
+  purchase_id: string;
+  ledger_id: string | null;
+  already_fulfilled: boolean;
+  available_credits: number | null;
+}
+
+export class InsufficientCreditsError extends Error {
+  constructor() {
+    super('INSUFFICIENT_CREDITS');
+    this.name = 'InsufficientCreditsError';
+  }
+}
+
+function rowToOffer(row: StoryPackOfferRow): StoryPackOffer {
+  return {
+    slug: row.slug,
+    name: row.name,
+    description: row.description,
+    credits: row.credits,
+    priceMinor: row.price_minor,
+    currency: row.currency,
+    isActive: row.is_active,
+  };
+}
+
+function rowToLedgerEntry(row: CreditLedgerRow): CreditLedgerEntry {
+  return {
+    id: row.id,
+    delta: row.delta,
+    balanceAfter: row.balance_after,
+    reason: row.reason,
+    note: row.note ?? undefined,
+    storyId: row.story_id ?? undefined,
+    purchaseId: row.purchase_id ?? undefined,
+    adminUserId: row.admin_user_id ?? undefined,
+    createdAt: row.created_at,
+  };
+}
+
+function rowToPurchase(row: BillingPurchaseRow): BillingPurchase {
+  return {
+    id: row.id,
+    offerSlug: row.offer_slug,
+    amountMinor: row.amount_minor,
+    currency: row.currency,
+    creditsGranted: row.credits_granted,
+    status: row.status,
+    createdAt: row.created_at,
+    fulfilledAt: row.fulfilled_at ?? undefined,
+  };
+}
+
+export async function listStoryPackOffers(options: { includeInactive?: boolean } = {}): Promise<StoryPackOffer[]> {
+  const supabase = getSupabase();
+  let query = supabase
+    .from('story_pack_offers')
+    .select('slug, name, description, credits, price_minor, currency, is_active')
+    .order('display_order', { ascending: true });
+
+  if (!options.includeInactive) {
+    query = query.eq('is_active', true);
+  }
+
+  const { data, error } = await query;
+  if (error) {
+    throw new Error(`Failed to list story pack offers: ${error.message}`);
+  }
+
+  return (data as StoryPackOfferRow[]).map(rowToOffer);
+}
+
+export async function getUserCreditBalance(userId: string): Promise<CreditBalance> {
+  const supabase = getSupabase();
+  const { data, error } = await supabase
+    .from('user_credit_balances')
+    .select('available_credits')
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Failed to load credit balance: ${error.message}`);
+  }
+
+  return {
+    availableCredits: data?.available_credits ?? 0,
+  };
+}
+
+export async function listCreditLedger(userId: string, limit = 25): Promise<CreditLedgerEntry[]> {
+  const supabase = getSupabase();
+  const { data, error } = await supabase
+    .from('credit_ledger')
+    .select('id, delta, balance_after, reason, note, story_id, purchase_id, admin_user_id, created_at')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    throw new Error(`Failed to list credit ledger: ${error.message}`);
+  }
+
+  return (data as CreditLedgerRow[]).map(rowToLedgerEntry);
+}
+
+export async function listBillingPurchases(userId: string, limit = 25): Promise<BillingPurchase[]> {
+  const supabase = getSupabase();
+  const { data, error } = await supabase
+    .from('billing_purchases')
+    .select('id, offer_slug, amount_minor, currency, credits_granted, status, created_at, fulfilled_at')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    throw new Error(`Failed to list billing purchases: ${error.message}`);
+  }
+
+  return (data as BillingPurchaseRow[]).map(rowToPurchase);
+}
+
+export async function getBillingOverview(userId: string, isAdmin: boolean): Promise<BillingOverview> {
+  const [balance, offers] = await Promise.all([
+    getUserCreditBalance(userId),
+    listStoryPackOffers(),
+  ]);
+
+  return {
+    balance,
+    offers,
+    isAdmin,
+  };
+}
+
+export async function getBillingHistory(userId: string): Promise<BillingHistoryResponse> {
+  const [purchases, ledger] = await Promise.all([
+    listBillingPurchases(userId),
+    listCreditLedger(userId),
+  ]);
+
+  return {
+    purchases,
+    ledger,
+  };
+}
+
+export async function grantCredits(
+  userId: string,
+  amount: number,
+  params: {
+    reason: string;
+    storyId?: string;
+    purchaseId?: string;
+    adminUserId?: string;
+    note?: string;
+  },
+): Promise<CreditRpcRow> {
+  const supabase = getSupabase();
+  const { data, error } = await supabase.rpc('grant_credits', {
+    p_user_id: userId,
+    p_amount: amount,
+    p_reason: params.reason,
+    p_story_id: params.storyId ?? null,
+    p_purchase_id: params.purchaseId ?? null,
+    p_admin_user_id: params.adminUserId ?? null,
+    p_note: params.note ?? null,
+  });
+
+  if (error) {
+    throw new Error(`Failed to grant credits: ${error.message}`);
+  }
+
+  const [row] = (data ?? []) as CreditRpcRow[];
+  if (!row) {
+    throw new Error('Credit grant did not return a result');
+  }
+
+  return row;
+}
+
+export async function consumeCredits(
+  userId: string,
+  amount: number,
+  params: {
+    reason: string;
+    storyId?: string;
+    note?: string;
+  },
+): Promise<CreditRpcRow> {
+  const supabase = getSupabase();
+  const { data, error } = await supabase.rpc('consume_credits', {
+    p_user_id: userId,
+    p_amount: amount,
+    p_reason: params.reason,
+    p_story_id: params.storyId ?? null,
+    p_note: params.note ?? null,
+  });
+
+  if (error) {
+    if (error.message.includes('INSUFFICIENT_CREDITS')) {
+      throw new InsufficientCreditsError();
+    }
+
+    throw new Error(`Failed to consume credits: ${error.message}`);
+  }
+
+  const [row] = (data ?? []) as CreditRpcRow[];
+  if (!row) {
+    throw new Error('Credit consumption did not return a result');
+  }
+
+  return row;
+}
+
+export async function refundStoryCredits(storyId: string, note?: string): Promise<RefundStoryCreditsRow> {
+  const supabase = getSupabase();
+  const { data, error } = await supabase.rpc('refund_story_credits', {
+    p_story_id: storyId,
+    p_note: note ?? null,
+  });
+
+  if (error) {
+    throw new Error(`Failed to refund story credits: ${error.message}`);
+  }
+
+  const [row] = (data ?? []) as RefundStoryCreditsRow[];
+  return row ?? { refunded: false, ledger_id: null, available_credits: null };
+}
+
+export async function getBillingCustomer(userId: string): Promise<{ stripeCustomerId: string } | null> {
+  const supabase = getSupabase();
+  const { data, error } = await supabase
+    .from('billing_customers')
+    .select('stripe_customer_id')
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Failed to load billing customer: ${error.message}`);
+  }
+
+  if (!data) {
+    return null;
+  }
+
+  return {
+    stripeCustomerId: data.stripe_customer_id,
+  };
+}
+
+export async function upsertBillingCustomer(userId: string, stripeCustomerId: string): Promise<void> {
+  const supabase = getSupabase();
+  const { error } = await supabase
+    .from('billing_customers')
+    .upsert({
+      user_id: userId,
+      stripe_customer_id: stripeCustomerId,
+      updated_at: new Date().toISOString(),
+    }, {
+      onConflict: 'user_id',
+    });
+
+  if (error) {
+    throw new Error(`Failed to upsert billing customer: ${error.message}`);
+  }
+}
+
+export async function createWebhookEvent(eventId: string, eventType: string, payload: unknown): Promise<void> {
+  const supabase = getSupabase();
+  const { error } = await supabase
+    .from('billing_webhook_events')
+    .upsert({
+      stripe_event_id: eventId,
+      event_type: eventType,
+      status: 'processing',
+      payload: payload ?? {},
+      error_message: null,
+      processed_at: null,
+      updated_at: new Date().toISOString(),
+    }, {
+      onConflict: 'stripe_event_id',
+    });
+
+  if (error) {
+    throw new Error(`Failed to create webhook event: ${error.message}`);
+  }
+}
+
+export async function markWebhookEventProcessed(eventId: string): Promise<void> {
+  const supabase = getSupabase();
+  const { error } = await supabase
+    .from('billing_webhook_events')
+    .update({
+      status: 'processed',
+      processed_at: new Date().toISOString(),
+      error_message: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('stripe_event_id', eventId);
+
+  if (error) {
+    throw new Error(`Failed to mark webhook event processed: ${error.message}`);
+  }
+}
+
+export async function markWebhookEventFailed(eventId: string, errorMessage: string): Promise<void> {
+  const supabase = getSupabase();
+  const { error } = await supabase
+    .from('billing_webhook_events')
+    .update({
+      status: 'failed',
+      error_message: errorMessage,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('stripe_event_id', eventId);
+
+  if (error) {
+    throw new Error(`Failed to mark webhook event failed: ${error.message}`);
+  }
+}
+
+export async function fulfillStoryPackPurchase(params: {
+  userId: string;
+  offerSlug: StoryPackOffer['slug'];
+  stripeCheckoutSessionId: string;
+  stripePaymentIntentId?: string;
+  stripeCustomerId?: string;
+  amountMinor: number;
+  currency: 'ron';
+  metadata?: Record<string, unknown>;
+}): Promise<FulfillStoryPackPurchaseRow> {
+  const supabase = getSupabase();
+  const { data, error } = await supabase.rpc('fulfill_story_pack_purchase', {
+    p_user_id: params.userId,
+    p_offer_slug: params.offerSlug,
+    p_stripe_checkout_session_id: params.stripeCheckoutSessionId,
+    p_stripe_payment_intent_id: params.stripePaymentIntentId ?? null,
+    p_stripe_customer_id: params.stripeCustomerId ?? null,
+    p_amount_minor: params.amountMinor,
+    p_currency: params.currency,
+    p_metadata: params.metadata ?? {},
+  });
+
+  if (error) {
+    throw new Error(`Failed to fulfill story pack purchase: ${error.message}`);
+  }
+
+  const [row] = (data ?? []) as FulfillStoryPackPurchaseRow[];
+  if (!row) {
+    throw new Error('Purchase fulfillment did not return a result');
+  }
+
+  return row;
+}
+
+export async function updateStoryPackOffer(
+  slug: StoryPackOffer['slug'],
+  updates: {
+    name: string;
+    description: string;
+    priceMinor: number;
+    isActive: boolean;
+  },
+): Promise<StoryPackOffer> {
+  const supabase = getSupabase();
+  const { data, error } = await supabase
+    .from('story_pack_offers')
+    .update({
+      name: updates.name,
+      description: updates.description,
+      price_minor: updates.priceMinor,
+      is_active: updates.isActive,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('slug', slug)
+    .select('slug, name, description, credits, price_minor, currency, is_active')
+    .single();
+
+  if (error) {
+    throw new Error(`Failed to update story pack offer: ${error.message}`);
+  }
+
+  return rowToOffer(data as StoryPackOfferRow);
+}
+
+export async function listWebhookEvents(limit = 25): Promise<Array<{
+  stripeEventId: string;
+  eventType: string;
+  status: 'processing' | 'processed' | 'failed';
+  errorMessage?: string;
+  createdAt: string;
+  processedAt?: string;
+}>> {
+  const supabase = getSupabase();
+  const { data, error } = await supabase
+    .from('billing_webhook_events')
+    .select('stripe_event_id, event_type, status, error_message, created_at, processed_at')
+    .order('created_at', { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    throw new Error(`Failed to list webhook events: ${error.message}`);
+  }
+
+  return (data ?? []).map((row) => ({
+    stripeEventId: row.stripe_event_id,
+    eventType: row.event_type,
+    status: row.status,
+    errorMessage: row.error_message ?? undefined,
+    createdAt: row.created_at,
+    processedAt: row.processed_at ?? undefined,
+  }));
+}
