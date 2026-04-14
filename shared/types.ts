@@ -236,3 +236,31 @@ export interface BillingHistoryResponse {
   purchases: BillingPurchase[];
   ledger: CreditLedgerEntry[];
 }
+
+export interface AdminUserSummary {
+  id: string;
+  email: string;
+  displayName?: string;
+  availableCredits: number;
+  isAdmin: boolean;
+  createdAt?: string;
+}
+
+export interface AdminUserDetail extends AdminUserSummary {
+  purchases: BillingPurchase[];
+  ledger: CreditLedgerEntry[];
+}
+
+export interface AdminWebhookEvent {
+  stripeEventId: string;
+  eventType: string;
+  status: 'processing' | 'processed' | 'failed';
+  errorMessage?: string;
+  createdAt: string;
+  processedAt?: string;
+}
+
+export interface AdminOverview {
+  offers: StoryPackOffer[];
+  webhookEvents: AdminWebhookEvent[];
+}

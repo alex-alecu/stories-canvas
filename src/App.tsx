@@ -9,6 +9,7 @@ const Login = lazy(() => import('./pages/Login'));
 const AuthCallback = lazy(() => import('./pages/AuthCallback'));
 const Profile = lazy(() => import('./pages/Profile'));
 const Explore = lazy(() => import('./pages/Explore'));
+const Admin = lazy(() => import('./pages/Admin'));
 
 function RouteFallback() {
   return (
@@ -30,6 +31,7 @@ export default function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/auth/callback" element={<AuthCallback />} />
           <Route path="/profile" element={<Profile />} />
+          <Route path="/admin" element={<Admin />} />
         </Routes>
       </Suspense>
     </ErrorBoundary>

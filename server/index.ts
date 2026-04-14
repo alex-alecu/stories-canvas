@@ -1,6 +1,7 @@
 import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import adminRouter from './routes/admin.js';
 import { config } from './config.js';
 import billingRouter from './routes/billing.js';
 import storiesRouter from './routes/stories.js';
@@ -23,6 +24,7 @@ app.use('/api', (req, res, next) => {
 });
 
 // API routes
+app.use('/api/admin', adminRouter);
 app.use('/api/billing', billingRouter);
 app.use('/api/stories', storiesRouter);
 app.use('/api/user', userRouter);

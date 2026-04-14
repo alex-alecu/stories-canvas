@@ -22,6 +22,10 @@ export type {
   BillingPurchase,
   BillingOverview,
   BillingHistoryResponse,
+  AdminUserSummary,
+  AdminUserDetail,
+  AdminWebhookEvent,
+  AdminOverview,
 } from '../../shared/types';
 
 export interface StorySummary {

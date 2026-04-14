@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useBillingOverview } from '../hooks/useBilling';
 import { useLanguage } from '../i18n/LanguageContext';
 import LanguageSelector from './LanguageSelector';
 import ThemeToggle from './ThemeToggle';
@@ -8,6 +9,7 @@ import FontSizeControl from './FontSizeControl';
 
 export default function Header() {
   const { user, loading, signOut } = useAuth();
+  const { data: billingOverview } = useBillingOverview(!!user);
   const { t } = useLanguage();
   const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -78,6 +80,14 @@ export default function Header() {
           >
             {t.explore}
           </Link>
+          {user && billingOverview?.isAdmin && (
+            <Link
+              to="/admin"
+              className="text-sm font-bold text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 transition-colors"
+            >
+              Admin
+            </Link>
+          )}
           {loading ? (
             <div className="w-8 h-8 rounded-full bg-gray-100 dark:bg-surface-dark-accent animate-pulse" />
           ) : user ? (
@@ -166,6 +176,19 @@ export default function Header() {
             </svg>
             {t.explore}
           </Link>
+
+          {user && billingOverview?.isAdmin && (
+            <Link
+              to="/admin"
+              className="flex items-center gap-3 px-3 py-3 rounded-lg text-sm font-bold text-primary-600 dark:text-primary-400 hover:bg-primary-50 dark:hover:bg-surface-dark-accent transition-colors"
+              role="menuitem"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8v-2m0 2a2 2 0 100-4m0 4a2 2 0 110-4m12 4v-2m0 2a2 2 0 100-4m0 4a2 2 0 110-4m-6-4v10" />
+              </svg>
+              Admin
+            </Link>
+          )}
 
           {/* Profile / Auth section */}
           {loading ? (

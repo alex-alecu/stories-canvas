@@ -1,14 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { StorySummary, StoryMeta, CreateStoryResponse, StoryAssets, RetryStoryResponse, RegenerateAssetsResponse } from '../types';
-import { supabase } from '../lib/supabase';
-
-async function getAuthHeaders(): Promise<Record<string, string>> {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (session?.access_token) {
-    return { Authorization: `Bearer ${session.access_token}` };
-  }
-  return {};
-}
+import { getAuthHeaders } from '../lib/authHeaders';
 
 async function fetchStories(): Promise<StorySummary[]> {
   const authHeaders = await getAuthHeaders();
