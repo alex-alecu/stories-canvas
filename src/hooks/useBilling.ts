@@ -3,6 +3,7 @@ import type {
   AdminOverview,
   AdminUserDetail,
   AdminUserSummary,
+  BillingCheckoutResponse,
   BillingHistoryResponse,
   BillingOverview,
   StoryPackOffer,
@@ -40,6 +41,16 @@ export function useBillingHistory(enabled = true) {
     queryKey: ['billing', 'history'],
     queryFn: () => fetchJson<BillingHistoryResponse>('/api/billing/history'),
     enabled,
+  });
+}
+
+export function useCreateCheckoutSession() {
+  return useMutation({
+    mutationFn: (payload: { offerSlug: StoryPackOffer['slug'] }) => fetchJson<BillingCheckoutResponse>('/api/billing/checkout', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    }),
   });
 }
 

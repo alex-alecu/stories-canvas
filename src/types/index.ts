@@ -22,6 +22,7 @@ export type {
   BillingPurchase,
   BillingOverview,
   BillingHistoryResponse,
+  BillingCheckoutResponse,
   AdminUserSummary,
   AdminUserDetail,
   AdminWebhookEvent,

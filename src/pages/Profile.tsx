@@ -3,12 +3,14 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import StoryGrid from '../components/StoryGrid';
 import { useUserStories, useDeleteStory, useToggleVisibility } from '../hooks/useStories';
+import { useBillingOverview } from '../hooks/useBilling';
 import { useLanguage } from '../i18n/LanguageContext';
 
 export default function Profile() {
   const { user, loading, signOut } = useAuth();
   const navigate = useNavigate();
   const { data: stories = [], isLoading: storiesLoading } = useUserStories(!!user);
+  const { data: billingOverview } = useBillingOverview(!!user);
   const deleteStory = useDeleteStory();
   const toggleVisibility = useToggleVisibility();
   const { t } = useLanguage();
@@ -60,29 +62,44 @@ export default function Profile() {
       <div className="max-w-6xl mx-auto">
         {/* Profile header */}
         <div className="bg-white dark:bg-surface-dark-elevated rounded-2xl shadow-lg shadow-primary-100/50 dark:shadow-primary-900/30 border border-primary-100 dark:border-primary-800/50 p-6 md:p-8 mb-8">
-          <div className="flex flex-col sm:flex-row items-center gap-6">
-            {avatarUrl ? (
-              <img
-                src={avatarUrl}
-                alt={displayName}
-                className="w-20 h-20 rounded-full border-4 border-primary-200 dark:border-primary-700 shadow-md"
-                referrerPolicy="no-referrer"
-              />
-            ) : (
-              <div className="w-20 h-20 rounded-full bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center text-white text-2xl font-bold shadow-md">
-                {displayName.charAt(0).toUpperCase()}
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+            <div className="flex flex-col sm:flex-row items-center gap-6 flex-1">
+              {avatarUrl ? (
+                <img
+                  src={avatarUrl}
+                  alt={displayName}
+                  className="w-20 h-20 rounded-full border-4 border-primary-200 dark:border-primary-700 shadow-md"
+                  referrerPolicy="no-referrer"
+                />
+              ) : (
+                <div className="w-20 h-20 rounded-full bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center text-white text-2xl font-bold shadow-md">
+                  {displayName.charAt(0).toUpperCase()}
+                </div>
+              )}
+              <div className="text-center sm:text-left flex-1">
+                <h1 className="text-2xl font-extrabold text-gray-800 dark:text-gray-100">{displayName}</h1>
+                {email && <p className="text-gray-500 dark:text-gray-400">{email}</p>}
               </div>
-            )}
-            <div className="text-center sm:text-left flex-1">
-              <h1 className="text-2xl font-extrabold text-gray-800 dark:text-gray-100">{displayName}</h1>
-              {email && <p className="text-gray-500 dark:text-gray-400">{email}</p>}
             </div>
-            <button
-              onClick={handleSignOut}
-              className="bg-gray-100 dark:bg-surface-dark-accent hover:bg-gray-200 dark:hover:bg-surface-dark text-gray-700 dark:text-gray-200 font-bold py-2.5 px-6 rounded-xl transition-colors text-sm"
-            >
-              {t.logout}
-            </button>
+
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <div className="rounded-2xl bg-primary-50 px-5 py-4 text-primary-700 dark:bg-primary-900/30 dark:text-primary-200">
+                <p className="text-xs uppercase tracking-[0.18em]">Credits</p>
+                <p className="mt-1 text-3xl font-extrabold">{billingOverview?.balance.availableCredits ?? 0}</p>
+                <Link
+                  to="/billing"
+                  className="mt-3 inline-flex text-sm font-semibold text-primary-700 underline decoration-primary-300 underline-offset-4 dark:text-primary-200"
+                >
+                  Manage billing
+                </Link>
+              </div>
+              <button
+                onClick={handleSignOut}
+                className="bg-gray-100 dark:bg-surface-dark-accent hover:bg-gray-200 dark:hover:bg-surface-dark text-gray-700 dark:text-gray-200 font-bold py-2.5 px-6 rounded-xl transition-colors text-sm"
+              >
+                {t.logout}
+              </button>
+            </div>
           </div>
         </div>
 

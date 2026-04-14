@@ -9,10 +9,17 @@ import { generateAllCharacterSheets } from '../services/characterSheet.js';
 import { finishTrackedGeneration, getTrackedGeneration, isGenerationActive, startTrackedGeneration } from '../services/generationRegistry.js';
 import { generateAllSceneImages, retryFailedSceneImages } from '../services/sceneGenerator.js';
 import { generateAllPageAudio, retryMissingAudio, isElevenLabsConfigured } from '../services/elevenlabs.js';
+import {
+  consumeCredits,
+  getUserCreditBalance,
+  grantCredits,
+  InsufficientCreditsError,
+  refundStoryCredits,
+} from '../services/billingStorage.js';
 import { getArtStyleDescription, getStoryArtStyleDescription, resolveArtStyle } from '../services/storyStyle.js';
 import { optionalAuth } from '../middleware/auth.js';
-import type { GenerationProgress, CreateStoryRequest, StoryStatus, StoryMeta, Scenario, ArtStyleKey, VoiceKey, StoryAssets, RetryStoryResponse, RegenerateAssetsResponse } from '../../shared/types.js';
-import { DEFAULT_AGE, getVoiceName, normalizeVoiceKey } from '../../shared/types.js';
+import type { GenerationProgress, CreateStoryRequest, StoryStatus, StoryMeta, Scenario, ArtStyleKey, VoiceKey, StoryAssets, RetryStoryResponse, RegenerateAssetsResponse, StoryMode } from '../../shared/types.js';
+import { DEFAULT_AGE, getStoryModeCredits, getVoiceName, isStoryMode, normalizeVoiceKey } from '../../shared/types.js';
 import { MEDIA_CACHE_CONTROL, getPageAudioFilename, getPageImageFilename, pageHasAudio } from '../utils/storyMedia.js';
 
 const router = Router();
@@ -64,6 +71,8 @@ async function saveScenario(
     language?: string;
     scenarioRevision?: number;
     renderedScenarioRevision?: number;
+    storyMode?: StoryMode;
+    creditCost?: number;
   } = {},
 ): Promise<void> {
   if (config.useSupabase) {
@@ -72,6 +81,8 @@ async function saveScenario(
       language: options.language,
       scenarioRevision: options.scenarioRevision,
       renderedScenarioRevision: options.renderedScenarioRevision,
+      storyMode: options.storyMode,
+      creditCost: options.creditCost,
     });
   } else {
     await fsStorage.saveScenario(storyId, scenario, status, prompt, options);
@@ -89,6 +100,8 @@ async function updateStoryScenario(
     language?: string;
     scenarioRevision?: number;
     renderedScenarioRevision?: number;
+    storyMode?: StoryMode;
+    creditCost?: number;
   } = {},
 ): Promise<void> {
   if (config.useSupabase) {
@@ -97,6 +110,8 @@ async function updateStoryScenario(
       language: options.language,
       scenarioRevision: options.scenarioRevision,
       renderedScenarioRevision: options.renderedScenarioRevision,
+      storyMode: options.storyMode,
+      creditCost: options.creditCost,
     });
   } else {
     await fsStorage.updateStoryScenario(storyId, scenario, status, prompt, options);
@@ -241,6 +256,42 @@ function getStatusMessage(status: StoryStatus): string {
 
 function getDisplayProgressMessage(story: StoryMeta): string {
   return story.progressMessage || getStatusMessage(story.status);
+}
+
+function resolveRequestedStoryMode(input: CreateStoryRequest): StoryMode {
+  if (isStoryMode(input.storyMode)) {
+    return input.storyMode;
+  }
+
+  if (input.voice) {
+    return 'pro_audio';
+  }
+
+  if (input.pro) {
+    return 'pro';
+  }
+
+  return 'fast';
+}
+
+function storyModeUsesProModel(mode: StoryMode): boolean {
+  return mode !== 'fast';
+}
+
+function storyHasCompletedIllustrations(story: Pick<StoryMeta, 'scenario'>): boolean {
+  return story.scenario?.pages.some(page => page.status === 'completed') ?? false;
+}
+
+async function maybeRefundCreditsForStory(
+  storyId: string,
+  story: StoryMeta | null,
+  note: string,
+): Promise<void> {
+  if (!config.useSupabase || !story || storyHasCompletedIllustrations(story)) {
+    return;
+  }
+
+  await refundStoryCredits(storyId, note);
 }
 
 function summarizeImageProviderFailure(failedPages: number[], lastFailureMessage?: string): string {
@@ -432,7 +483,8 @@ router.post('/', optionalAuth, async (req: Request, res: Response) => {
       return;
     }
 
-    const { prompt, language, age, style, pro, voice } = req.body as CreateStoryRequest;
+    const request = req.body as CreateStoryRequest;
+    const { prompt, language, age, style, voice } = request;
 
     if (!prompt || typeof prompt !== 'string') {
       res.status(400).json({ error: 'Prompt is required' });
@@ -453,20 +505,90 @@ router.post('/', optionalAuth, async (req: Request, res: Response) => {
     const storyLanguage = typeof language === 'string' ? language : 'ro';
     const storyAge = typeof age === 'number' && age > 0 && age <= 12 ? age : DEFAULT_AGE;
     const storyStyle = storyStyleOps.resolveArtStyle(typeof style === 'string' ? style : undefined);
-    const storyVoice = normalizeVoiceKey(typeof voice === 'string' ? voice : undefined);
+    const storyMode = resolveRequestedStoryMode(request);
+    const creditCost = getStoryModeCredits(storyMode);
+    const storyVoice = storyMode === 'pro_audio'
+      ? normalizeVoiceKey(typeof voice === 'string' ? voice : undefined)
+      : undefined;
+    const useProModel = storyModeUsesProModel(storyMode);
     const storyId = crypto.randomUUID();
     const userId = req.authUser?.id;
 
+    if (storyMode === 'pro_audio' && !storyVoice) {
+      res.status(400).json({ error: 'A narrator voice is required for Pro + Audio stories' });
+      return;
+    }
+
     // Create the story in DB IMMEDIATELY so it's available for SSE and refresh
     if (config.useSupabase) {
-      await sbStorage.createStory(storyId, trimmedPrompt, 'generating_scenario', userId, storyLanguage, storyVoice, storyStyle);
+      await sbStorage.createStory(
+        storyId,
+        trimmedPrompt,
+        'generating_scenario',
+        userId,
+        storyLanguage,
+        storyVoice,
+        storyStyle,
+        storyMode,
+        creditCost,
+      );
+
+      try {
+        const charge = await consumeCredits(req.authUser!.id, creditCost, {
+          reason: 'story_create',
+          storyId,
+          note: storyMode,
+        });
+
+        try {
+          await sbStorage.updateStoryCreditCharge(storyId, charge.ledger_id);
+        } catch (creditChargeError) {
+          try {
+            await grantCredits(req.authUser!.id, creditCost, {
+              reason: 'story_refund',
+              storyId,
+              note: 'Automatic refund after credit charge persistence failed.',
+            });
+          } catch (refundError) {
+            console.error(`Failed to compensate credits after charge persistence error for ${storyId}:`, refundError);
+          }
+
+          await removeStory(storyId, userId).catch(() => {});
+          throw creditChargeError;
+        }
+      } catch (error) {
+        if (error instanceof InsufficientCreditsError) {
+          const balance = await getUserCreditBalance(req.authUser!.id).catch(() => ({ availableCredits: 0 }));
+          await removeStory(storyId, userId).catch(() => {});
+          res.status(402).json({
+            error: 'Not enough credits to create this story',
+            requiredCredits: creditCost,
+            availableCredits: balance.availableCredits,
+          });
+          return;
+        }
+
+        await removeStory(storyId, userId).catch(() => {});
+        throw error;
+      }
     }
 
     // Return immediately, generation happens in background
     res.status(201).json({ id: storyId, status: 'generating_scenario' as StoryStatus });
 
     // Background generation pipeline
-    runGenerationPipeline(storyId, trimmedPrompt, userId, storyLanguage, storyAge, storyStyle, !!pro, storyVoice).catch(error => {
+    runGenerationPipeline(
+      storyId,
+      trimmedPrompt,
+      userId,
+      storyLanguage,
+      storyAge,
+      storyStyle,
+      storyMode,
+      creditCost,
+      storyVoice,
+      useProModel,
+    ).catch(error => {
       console.error(`Generation pipeline failed for ${storyId}:`, error);
     });
   } catch (error) {
@@ -475,7 +597,18 @@ router.post('/', optionalAuth, async (req: Request, res: Response) => {
   }
 });
 
-async function runGenerationPipeline(storyId: string, prompt: string, userId?: string, language?: string, age?: number, style?: ArtStyleKey, pro?: boolean, voice?: VoiceKey): Promise<void> {
+async function runGenerationPipeline(
+  storyId: string,
+  prompt: string,
+  userId?: string,
+  language?: string,
+  age?: number,
+  style?: ArtStyleKey,
+  storyMode: StoryMode = 'fast',
+  creditCost = getStoryModeCredits(storyMode),
+  voice?: VoiceKey,
+  pro = storyModeUsesProModel(storyMode),
+): Promise<void> {
   const controller = startTrackedGeneration(storyId);
   const { signal } = controller;
   const initialScenarioRevision = 1;
@@ -516,6 +649,8 @@ async function runGenerationPipeline(storyId: string, prompt: string, userId?: s
       language,
       scenarioRevision: initialScenarioRevision,
       renderedScenarioRevision: 0,
+      storyMode,
+      creditCost,
     });
 
     if (signal.aborted) throw new Error('Generation cancelled');
@@ -693,6 +828,15 @@ async function runGenerationPipeline(storyId: string, prompt: string, userId?: s
     const isCancelled = signal.aborted;
     const status = isCancelled ? 'cancelled' : 'failed';
     console.error(`Pipeline ${status} for ${storyId}:`, isCancelled ? 'cancelled by user' : error);
+
+    if (!isCancelled) {
+      const story = await getStory(storyId).catch(() => null);
+      await maybeRefundCreditsForStory(
+        storyId,
+        story,
+        'Story failed before the first completed illustration.',
+      );
+    }
 
     try {
       await updateStoryStatus(storyId, status);
@@ -1255,15 +1399,13 @@ async function runRetryPipeline(
 // POST /api/stories/:id/generate-audio - Generate audio for a story that has none
 router.post('/:id/generate-audio', optionalAuth, async (req: Request, res: Response) => {
   try {
-    const storyId = req.params.id as string;
-
     // Require auth when Supabase is configured
     if (config.useSupabase && !req.authUser) {
       res.status(401).json({ error: 'Authentication required' });
       return;
     }
 
-    const story = await getStory(storyId);
+    const story = await getStory(req.params.id as string);
     if (!story) {
       res.status(404).json({ error: 'Story not found' });
       return;
@@ -1274,64 +1416,7 @@ router.post('/:id/generate-audio', optionalAuth, async (req: Request, res: Respo
       res.status(403).json({ error: 'Forbidden' });
       return;
     }
-
-    // Must be a completed story
-    if (story.status !== 'completed') {
-      res.status(400).json({ error: 'Story must be completed to generate audio' });
-      return;
-    }
-
-    if (!story.scenario) {
-      res.status(400).json({ error: 'Story has no scenario data' });
-      return;
-    }
-
-    if (storyAssetsAreStale(story)) {
-      res.status(400).json({ error: 'Story assets are out of date. Regenerate assets before generating audio.' });
-      return;
-    }
-
-    // Reject if story already has narration (voice set or any page has audio)
-    const alreadyHasAudio = story.scenario.pages.some(pageHasAudio);
-    if (story.voice || alreadyHasAudio) {
-      res.status(400).json({ error: 'Story already has narration. Use retry to fix missing pages.' });
-      return;
-    }
-
-    // Check ElevenLabs is configured
-    if (!audioOps.isElevenLabsConfigured()) {
-      res.status(503).json({ error: 'Audio generation service is not configured' });
-      return;
-    }
-
-    // Prevent concurrent generations
-    if (isGenerationActive(storyId)) {
-      res.status(409).json({ error: 'A generation is already in progress' });
-      return;
-    }
-
-    // Validate voice
-    const { voice } = req.body as { voice?: string };
-    const voiceKey = normalizeVoiceKey(voice);
-    if (!voiceKey) {
-      res.status(400).json({ error: 'Invalid voice selection' });
-      return;
-    }
-
-    // Persist the voice choice
-    if (config.useSupabase) {
-      await sbStorage.updateStoryVoice(storyId, voiceKey);
-    } else {
-      await fsStorage.updateStoryVoice(storyId, voiceKey);
-    }
-
-    // Return immediately
-    res.json({ status: 'generating_audio' as StoryStatus });
-
-    // Run audio generation in background
-    runAudioGenerationPipeline(storyId, story, voiceKey).catch(error => {
-      console.error(`Audio generation pipeline failed for ${storyId}:`, error);
-    });
+    res.status(400).json({ error: 'Narration can only be added when creating a Pro + Audio story in v1.' });
   } catch (error) {
     console.error('Failed to start audio generation:', error);
     res.status(500).json({ error: 'Failed to start audio generation' });
@@ -1712,10 +1797,15 @@ router.post('/:id/cancel', optionalAuth, async (req: Request, res: Response) => 
       return;
     }
 
+    const story = await getStory(storyId);
+    if (!story) {
+      res.status(404).json({ error: 'Story not found' });
+      return;
+    }
+
     // Verify ownership if authenticated
     if (config.useSupabase && req.authUser) {
-      const story = await getStory(storyId);
-      if (story && story.userId && story.userId !== req.authUser.id) {
+      if (story.userId && story.userId !== req.authUser.id) {
         res.status(403).json({ error: 'Forbidden: you can only cancel your own stories' });
         return;
       }
@@ -1725,6 +1815,10 @@ router.post('/:id/cancel', optionalAuth, async (req: Request, res: Response) => 
     const controller = getTrackedGeneration(storyId);
     if (controller) {
       controller.abort();
+    }
+
+    if (config.useSupabase && !storyHasCompletedIllustrations(story)) {
+      await refundStoryCredits(storyId, 'Story cancelled before the first completed illustration.');
     }
 
     // Delete the story from the database

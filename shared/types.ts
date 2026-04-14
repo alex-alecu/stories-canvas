@@ -7,6 +7,20 @@ export type ArtStyleKey = 'disney-pixar' | 'watercolor' | 'storybook' | 'anime' 
 export type VoiceKey = 'bunica' | 'jora' | 'serban' | 'corina';
 export type StoryMode = 'fast' | 'pro' | 'pro_audio';
 
+export const STORY_MODE_CREDITS: Record<StoryMode, number> = {
+  fast: 1,
+  pro: 2,
+  pro_audio: 3,
+};
+
+export function isStoryMode(value: string | null | undefined): value is StoryMode {
+  return value === 'fast' || value === 'pro' || value === 'pro_audio';
+}
+
+export function getStoryModeCredits(mode: StoryMode): number {
+  return STORY_MODE_CREDITS[mode];
+}
+
 export type LegacyVoiceKey = 'grandma' | 'grandpa' | 'dad' | 'mom' | 'whisper';
 
 export const DEFAULT_VOICE_KEY: VoiceKey = 'bunica';
@@ -235,6 +249,11 @@ export interface BillingOverview {
 export interface BillingHistoryResponse {
   purchases: BillingPurchase[];
   ledger: CreditLedgerEntry[];
+}
+
+export interface BillingCheckoutResponse {
+  checkoutUrl: string;
+  checkoutSessionId: string;
 }
 
 export interface AdminUserSummary {
