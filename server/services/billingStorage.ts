@@ -128,6 +128,32 @@ export async function listStoryPackOffers(options: { includeInactive?: boolean }
   return (data as StoryPackOfferRow[]).map(rowToOffer);
 }
 
+export async function getStoryPackOffer(
+  slug: StoryPackOffer['slug'],
+  options: { includeInactive?: boolean } = {},
+): Promise<StoryPackOffer | null> {
+  const supabase = getSupabase();
+  let query = supabase
+    .from('story_pack_offers')
+    .select('slug, name, description, credits, price_minor, currency, is_active')
+    .eq('slug', slug);
+
+  if (!options.includeInactive) {
+    query = query.eq('is_active', true);
+  }
+
+  const { data, error } = await query.maybeSingle();
+  if (error) {
+    throw new Error(`Failed to load story pack offer: ${error.message}`);
+  }
+
+  if (!data) {
+    return null;
+  }
+
+  return rowToOffer(data as StoryPackOfferRow);
+}
+
 export async function getUserCreditBalance(userId: string): Promise<CreditBalance> {
   const supabase = getSupabase();
   const { data, error } = await supabase
