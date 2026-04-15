@@ -18,9 +18,25 @@ import {
 } from '../services/billingStorage.js';
 import { getArtStyleDescription, getStoryArtStyleDescription, resolveArtStyle } from '../services/storyStyle.js';
 import { optionalAuth } from '../middleware/auth.js';
-import type { GenerationProgress, CreateStoryRequest, StoryStatus, StoryMeta, Scenario, ArtStyleKey, VoiceKey, StoryAssets, RetryStoryResponse, RegenerateAssetsResponse, StoryMode } from '../../shared/types.js';
+import type {
+  ArtStyleKey,
+  CreateStoryRequest,
+  GenerationProgress,
+  RegenerateAssetsResponse,
+  RetryStoryResponse,
+  Scenario,
+  StoryGenerationInputs,
+  StoryMeta,
+  StoryMode,
+  StoryStatus,
+  StoryUsageSource,
+  StoryUsageTotals,
+  StoryAssets,
+  VoiceKey,
+} from '../../shared/types.js';
 import { DEFAULT_AGE, getStoryModeCredits, getVoiceName, isStoryMode, normalizeVoiceKey } from '../../shared/types.js';
 import { MEDIA_CACHE_CONTROL, getPageAudioFilename, getPageImageFilename, pageHasAudio } from '../utils/storyMedia.js';
+import { buildStoryGenerationInputs, recordStoryUsage, type StoryUsageStorage } from '../services/storyUsage.js';
 
 const router = Router();
 const SSE_CLOSE_DELAY_MS = 2_000;
@@ -89,6 +105,47 @@ async function saveScenario(
   }
 }
 
+async function createStoryRecord(
+  storyId: string,
+  prompt: string,
+  status: StoryStatus,
+  userId: string | undefined,
+  language: string | undefined,
+  voice: VoiceKey | undefined,
+  artStyle: ArtStyleKey | undefined,
+  storyMode: StoryMode,
+  creditCost: number,
+  generationInputs: StoryGenerationInputs,
+): Promise<void> {
+  if (config.useSupabase) {
+    await sbStorage.createStory(
+      storyId,
+      prompt,
+      status,
+      userId,
+      language,
+      voice,
+      artStyle,
+      storyMode,
+      creditCost,
+      generationInputs,
+    );
+  } else {
+    await fsStorage.createStory(
+      storyId,
+      prompt,
+      status,
+      userId,
+      language,
+      voice,
+      artStyle,
+      storyMode,
+      creditCost,
+      generationInputs,
+    );
+  }
+}
+
 async function updateStoryScenario(
   storyId: string,
   scenario: Scenario,
@@ -137,6 +194,16 @@ async function updateStoryStatus(storyId: string, status: StoryStatus): Promise<
 async function getStory(storyId: string): Promise<StoryMeta | null> {
   return storageOps.getStory(storyId);
 }
+
+const usageStorage: StoryUsageStorage = {
+  appendStoryUsageEvent: async (storyId, event, totalsDelta) => {
+    if (config.useSupabase) {
+      await sbStorage.appendStoryUsageEvent(storyId, event, totalsDelta);
+    } else {
+      await fsStorage.appendStoryUsageEvent(storyId, event, totalsDelta);
+    }
+  },
+};
 
 async function listAllStories(): Promise<StoryMeta[]> {
   if (config.useSupabase) {
@@ -339,6 +406,130 @@ function buildInitialProgress(storyId: string, story: StoryMeta): GenerationProg
   };
 }
 
+function buildGenerationInputsSnapshot(
+  prompt: string,
+  language: string,
+  age: number,
+  artStyle: ArtStyleKey,
+  storyMode: StoryMode,
+  voice: VoiceKey | undefined,
+  proModel: boolean,
+): StoryGenerationInputs {
+  return buildStoryGenerationInputs({
+    prompt,
+    language,
+    age,
+    artStyle,
+    storyMode,
+    voice,
+    proModel,
+    scenarioModel: config.scenarioModel,
+    imageModel: config.imageModel,
+    imageModelPro: config.imageModelPro,
+    audioModel: config.elevenLabsModel,
+  });
+}
+
+function createUsageRecorder(storyId: string, userId: string | undefined, source: StoryUsageSource) {
+  async function safeRecord(operationLabel: string, record: () => Promise<void>): Promise<void> {
+    try {
+      await record();
+    } catch (error) {
+      console.error(`[usage:${storyId}] Failed to persist ${operationLabel} usage event:`, error);
+    }
+  }
+
+  return {
+    recordText: async (operation: 'scenario_draft' | 'scenario_validation_repair' | 'scenario_review' | 'scenario_review_rewrite', usage: {
+      model: string;
+      status: 'succeeded' | 'failed';
+      inputTokens: number;
+      outputTokens: number;
+      totalTokens: number;
+      usageDetails: Record<string, unknown>;
+    }) => {
+      await safeRecord(operation, async () => {
+        await recordStoryUsage(usageStorage, storyId, userId, {
+          provider: 'gemini',
+          operation,
+          source,
+          status: usage.status,
+          model: usage.model,
+          inputTokens: usage.inputTokens,
+          outputTokens: usage.outputTokens,
+          usageDetails: usage.usageDetails,
+        });
+      });
+    },
+    recordCharacterSheet: async (usage: {
+      model: string;
+      status: 'succeeded' | 'failed';
+      inputTokens: number;
+      outputTokens: number;
+      totalTokens: number;
+      generatedImages: number;
+      usageDetails: Record<string, unknown>;
+    }) => {
+      await safeRecord('character_sheet', async () => {
+        await recordStoryUsage(usageStorage, storyId, userId, {
+          provider: 'gemini',
+          operation: 'character_sheet',
+          source,
+          status: usage.status,
+          model: usage.model,
+          inputTokens: usage.inputTokens,
+          outputTokens: usage.outputTokens,
+          generatedImages: usage.generatedImages,
+          usageDetails: usage.usageDetails,
+        });
+      });
+    },
+    recordPageImage: async (pageNumber: number, usage: {
+      model: string;
+      status: 'succeeded' | 'failed';
+      inputTokens: number;
+      outputTokens: number;
+      totalTokens: number;
+      generatedImages: number;
+      usageDetails: Record<string, unknown>;
+    }) => {
+      await safeRecord(`page_image:${pageNumber}`, async () => {
+        await recordStoryUsage(usageStorage, storyId, userId, {
+          provider: 'gemini',
+          operation: 'page_image',
+          source,
+          status: usage.status,
+          model: usage.model,
+          pageNumber,
+          inputTokens: usage.inputTokens,
+          outputTokens: usage.outputTokens,
+          generatedImages: usage.generatedImages,
+          usageDetails: usage.usageDetails,
+        });
+      });
+    },
+    recordPageAudio: async (pageNumber: number, usage: {
+      model: string;
+      status: 'succeeded' | 'failed';
+      billedCharacters: number;
+      usageDetails: Record<string, unknown>;
+    }) => {
+      await safeRecord(`page_audio:${pageNumber}`, async () => {
+        await recordStoryUsage(usageStorage, storyId, userId, {
+          provider: 'elevenlabs',
+          operation: 'page_audio',
+          source,
+          status: usage.status,
+          model: usage.model,
+          pageNumber,
+          billedCharacters: usage.billedCharacters,
+          usageDetails: usage.usageDetails,
+        });
+      });
+    },
+  };
+}
+
 // ---------- SSE connections ----------
 
 const sseConnections = new Map<string, Set<Response>>();
@@ -513,6 +704,15 @@ router.post('/', optionalAuth, async (req: Request, res: Response) => {
     const useProModel = storyModeUsesProModel(storyMode);
     const storyId = crypto.randomUUID();
     const userId = req.authUser?.id;
+    const generationInputs = buildGenerationInputsSnapshot(
+      trimmedPrompt,
+      storyLanguage,
+      storyAge,
+      storyStyle,
+      storyMode,
+      storyVoice,
+      useProModel,
+    );
 
     if (storyMode === 'pro_audio' && !storyVoice) {
       res.status(400).json({ error: 'A narrator voice is required for Pro + Audio stories' });
@@ -524,20 +724,21 @@ router.post('/', optionalAuth, async (req: Request, res: Response) => {
       return;
     }
 
-    // Create the story in DB IMMEDIATELY so it's available for SSE and refresh
-    if (config.useSupabase) {
-      await sbStorage.createStory(
-        storyId,
-        trimmedPrompt,
-        'generating_scenario',
-        userId,
-        storyLanguage,
-        storyVoice,
-        storyStyle,
-        storyMode,
-        creditCost,
-      );
+    await createStoryRecord(
+      storyId,
+      trimmedPrompt,
+      'generating_scenario',
+      userId,
+      storyLanguage,
+      storyVoice,
+      storyStyle,
+      storyMode,
+      creditCost,
+      generationInputs,
+    );
 
+    // Create the story in storage immediately so it's available for SSE and refresh
+    if (config.useSupabase) {
       try {
         const charge = await consumeCredits(req.authUser!.id, creditCost, {
           reason: 'story_create',
@@ -617,6 +818,7 @@ async function runGenerationPipeline(
   const controller = startTrackedGeneration(storyId);
   const { signal } = controller;
   const initialScenarioRevision = 1;
+  const usageRecorder = createUsageRecorder(storyId, userId, 'initial_generation');
 
   try {
     // Phase 1: Generate scenario
@@ -647,6 +849,12 @@ async function runGenerationPipeline(
           message: progress.message,
         }).catch(() => {});
       },
+      {
+        onDraftUsage: usage => usageRecorder.recordText('scenario_draft', usage),
+        onValidationRepairUsage: usage => usageRecorder.recordText('scenario_validation_repair', usage),
+        onReviewUsage: usage => usageRecorder.recordText('scenario_review', usage),
+        onRewriteUsage: usage => usageRecorder.recordText('scenario_review_rewrite', usage),
+      },
     );
     await saveScenario(storyId, scenario, 'generating_characters', prompt, {
       voice,
@@ -671,7 +879,16 @@ async function runGenerationPipeline(
 
     // Phase 2: Generate character sheets (sequential)
     const styleDescription = storyStyleOps.getArtStyleDescription(style);
-    const characterSheets = await illustrationOps.generateAllCharacterSheets(storyId, scenario.characters, userId, signal, styleDescription, pro);
+    const characterSheets = await illustrationOps.generateAllCharacterSheets(
+      storyId,
+      scenario.characters,
+      userId,
+      signal,
+      styleDescription,
+      pro,
+      {},
+      (_character, usage) => usageRecorder.recordCharacterSheet(usage),
+    );
 
     if (signal.aborted) throw new Error('Generation cancelled');
     await updateStoryStatus(storyId, 'generating_images');
@@ -724,6 +941,7 @@ async function runGenerationPipeline(
       userId,
       signal,
       pro,
+      (page, usage) => usageRecorder.recordPageImage(page.pageNumber, usage),
     );
 
     // Update cover image URL
@@ -786,6 +1004,7 @@ async function runGenerationPipeline(
             pageStatus: progress.pageStatus,
           }).catch(() => {});
         },
+        (page, usage) => usageRecorder.recordPageAudio(page.pageNumber, usage),
       );
 
       // Check if audio generation had failures
@@ -953,6 +1172,7 @@ router.post('/:id/regenerate-assets', optionalAuth, async (req: Request, res: Re
 async function runRegenerateAssetsPipeline(storyId: string, story: StoryMeta): Promise<void> {
   const controller = startTrackedGeneration(storyId);
   const { signal } = controller;
+  const usageRecorder = createUsageRecorder(storyId, story.userId, 'regenerate_assets');
 
   try {
     if (!story.scenario) {
@@ -979,6 +1199,9 @@ async function runRegenerateAssetsPipeline(storyId: string, story: StoryMeta): P
       userId,
       signal,
       styleDescription,
+      undefined,
+      {},
+      (_character, usage) => usageRecorder.recordCharacterSheet(usage),
     );
 
     if (signal.aborted) throw new Error('Generation cancelled');
@@ -1027,6 +1250,8 @@ async function runRegenerateAssetsPipeline(storyId: string, story: StoryMeta): P
       },
       userId,
       signal,
+      undefined,
+      (page, usage) => usageRecorder.recordPageImage(page.pageNumber, usage),
     );
 
     if (config.useSupabase) {
@@ -1084,6 +1309,7 @@ async function runRegenerateAssetsPipeline(storyId: string, story: StoryMeta): P
             pageStatus: progress.pageStatus,
           }).catch(() => {});
         },
+        (page, usage) => usageRecorder.recordPageAudio(page.pageNumber, usage),
       );
 
       if (audioResult.completedCount < scenario.pages.length) {
@@ -1241,6 +1467,7 @@ async function runRetryPipeline(
 ): Promise<void> {
   const controller = startTrackedGeneration(storyId);
   const { signal } = controller;
+  const usageRecorder = createUsageRecorder(storyId, story.userId, 'retry');
 
   const scenario = story.scenario!;
   const userId = story.userId;
@@ -1296,6 +1523,9 @@ async function runRetryPipeline(
         },
         userId,
         signal,
+        undefined,
+        (page, usage) => usageRecorder.recordPageImage(page.pageNumber, usage),
+        (_character, usage) => usageRecorder.recordCharacterSheet(usage),
       );
 
       // Update cover image if page 1 was retried and succeeded
@@ -1355,6 +1585,7 @@ async function runRetryPipeline(
               pageStatus: progress.pageStatus,
             }).catch(() => {});
           },
+          (page, usage) => usageRecorder.recordPageAudio(page.pageNumber, usage),
         );
       }
     }

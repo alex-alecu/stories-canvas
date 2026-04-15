@@ -87,27 +87,53 @@ async function streamToBuffer(stream: ReadableStream<Uint8Array>, timeoutMs = 60
 export async function generatePageAudio(
   text: string,
   voiceKey: VoiceKey,
+  onUsage?: AudioUsageCallback,
 ): Promise<Buffer> {
   const elevenlabs = getClient();
   const settings = getVoiceSettings(voiceKey);
+  const billedCharacters = text.length;
 
   return pRetry(
     async () => {
-      const audioStream = await elevenlabs.textToSpeech.convert(settings.voiceId, {
-        text,
-        modelId: config.elevenLabsModel,
-        outputFormat: 'mp3_44100_128',
-        voiceSettings: {
-          stability: settings.stability,
-          similarityBoost: settings.similarityBoost,
-          style: settings.style,
-          speed: settings.speed,
-        },
-      }, {
-        timeoutInSeconds: 60,
-        maxRetries: 0,
-      });
-      return streamToBuffer(audioStream, 60_000);
+      try {
+        const audioStream = await elevenlabs.textToSpeech.convert(settings.voiceId, {
+          text,
+          modelId: config.elevenLabsModel,
+          outputFormat: 'mp3_44100_128',
+          voiceSettings: {
+            stability: settings.stability,
+            similarityBoost: settings.similarityBoost,
+            style: settings.style,
+            speed: settings.speed,
+          },
+        }, {
+          timeoutInSeconds: 60,
+          maxRetries: 0,
+        });
+        const buffer = await streamToBuffer(audioStream, 60_000);
+        await onUsage?.({
+          model: config.elevenLabsModel,
+          status: 'succeeded',
+          billedCharacters,
+          usageDetails: {
+            voiceKey,
+            voiceId: settings.voiceId,
+          },
+        });
+        return buffer;
+      } catch (error) {
+        await onUsage?.({
+          model: config.elevenLabsModel,
+          status: 'failed',
+          billedCharacters,
+          usageDetails: {
+            voiceKey,
+            voiceId: settings.voiceId,
+            error: error instanceof Error ? error.message : String(error),
+          },
+        });
+        throw error;
+      }
     },
     {
       retries: 3,
@@ -118,7 +144,6 @@ export async function generatePageAudio(
           `ElevenLabs TTS attempt ${error.attemptNumber} failed. ${error.retriesLeft} retries left.`,
           error.message,
         );
-        // Don't retry on quota or auth errors (both return 401)
         if (error.message.includes('quota_exceeded')) {
           throw new AbortError('ElevenLabs API key quota exceeded — increase the per-key quota limit in your ElevenLabs dashboard');
         }
@@ -148,6 +173,12 @@ async function updatePageAudioUrlBoth(storyId: string, pageNumber: number, audio
 }
 
 type AudioProgressCallback = (progress: Partial<GenerationProgress>) => void;
+type AudioUsageCallback = (usage: {
+  model: string;
+  status: 'succeeded' | 'failed';
+  billedCharacters: number;
+  usageDetails: Record<string, unknown>;
+}) => void | Promise<void>;
 
 export interface AudioGenerationResult {
   completedCount: number;
@@ -163,6 +194,12 @@ export async function generateAllPageAudio(
   userId: string | undefined,
   signal: AbortSignal,
   onProgress?: AudioProgressCallback,
+  onUsage?: (page: Page, usage: {
+    model: string;
+    status: 'succeeded' | 'failed';
+    billedCharacters: number;
+    usageDetails: Record<string, unknown>;
+  }) => void | Promise<void>,
 ): Promise<AudioGenerationResult> {
   let completedCount = 0;
   let failedCount = 0;
@@ -183,7 +220,7 @@ export async function generateAllPageAudio(
         pageStatus: 'generating',
       });
 
-      const audioBuffer = await generatePageAudio(page.text, voiceKey);
+      const audioBuffer = await generatePageAudio(page.text, voiceKey, usage => onUsage?.(page, usage));
       const audioUrl = await savePageAudio(storyId, filename, audioBuffer, userId);
       await updatePageAudioUrlBoth(storyId, page.pageNumber, audioUrl);
       page.audioUrl = audioUrl;
@@ -232,6 +269,12 @@ export async function retryMissingAudio(
   userId: string | undefined,
   signal: AbortSignal,
   onProgress?: AudioProgressCallback,
+  onUsage?: (page: Page, usage: {
+    model: string;
+    status: 'succeeded' | 'failed';
+    billedCharacters: number;
+    usageDetails: Record<string, unknown>;
+  }) => void | Promise<void>,
 ): Promise<AudioGenerationResult> {
   // Filter to only pages missing audio
   const pagesNeedingAudio = pages.filter(p => !p.audioUrl);
@@ -257,7 +300,7 @@ export async function retryMissingAudio(
         pageStatus: 'generating',
       });
 
-      const audioBuffer = await generatePageAudio(page.text, voiceKey);
+      const audioBuffer = await generatePageAudio(page.text, voiceKey, usage => onUsage?.(page, usage));
       const audioUrl = await savePageAudio(storyId, filename, audioBuffer, userId);
       await updatePageAudioUrlBoth(storyId, page.pageNumber, audioUrl);
       page.audioUrl = audioUrl;

@@ -17,6 +17,16 @@ interface CharacterSheetDeps {
   uploadImage?: typeof uploadImage;
 }
 
+type CharacterSheetUsageCallback = (usage: {
+  model: string;
+  status: 'succeeded' | 'failed';
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  generatedImages: number;
+  usageDetails: Record<string, unknown>;
+}) => void | Promise<void>;
+
 export async function generateCharacterSheet(
   storyId: string,
   character: Character,
@@ -24,6 +34,7 @@ export async function generateCharacterSheet(
   styleDescription?: string,
   pro?: boolean,
   deps: CharacterSheetDeps = {},
+  onUsage?: CharacterSheetUsageCallback,
 ): Promise<{ name: string; filename: string; base64: string }> {
   const aliasMap = deps.aliasMap ?? buildCharacterAliasMap([character]);
   const prompt = prepareCharacterSheetImagePrompt(character, aliasMap, styleDescription);
@@ -32,7 +43,7 @@ export async function generateCharacterSheet(
   const persistSupabaseImage = deps.uploadImage ?? uploadImage;
 
   console.log(`[character-sheet:${storyId}] Generating character sheet for ${character.name}...`);
-  const base64 = await runGenerateImage(prompt, [], pro);
+  const base64 = await runGenerateImage(prompt, [], { pro, onUsage });
   const filename = getCharacterSheetFilename(character.name);
 
   if (config.useSupabase) {
@@ -53,6 +64,15 @@ export async function generateAllCharacterSheets(
   styleDescription?: string,
   pro?: boolean,
   deps: CharacterSheetDeps = {},
+  onUsage?: (character: Character, usage: {
+    model: string;
+    status: 'succeeded' | 'failed';
+    inputTokens: number;
+    outputTokens: number;
+    totalTokens: number;
+    generatedImages: number;
+    usageDetails: Record<string, unknown>;
+  }) => void | Promise<void>,
 ): Promise<Map<string, string>> {
   const characterSheets = new Map<string, string>();
   const aliasMap = deps.aliasMap ?? buildCharacterAliasMap(characters);
@@ -65,7 +85,7 @@ export async function generateAllCharacterSheets(
       const result = await generateCharacterSheet(storyId, character, userId, styleDescription, pro, {
         ...deps,
         aliasMap,
-      });
+      }, usage => onUsage?.(character, usage));
       characterSheets.set(result.name, result.base64);
     } catch (error) {
       if (isImageSafetyBlockedError(error) || isImagePolicyBlockedError(error)) {

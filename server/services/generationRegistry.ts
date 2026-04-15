@@ -17,3 +17,13 @@ export function getTrackedGeneration(storyId: string): AbortController | undefin
 export function isGenerationActive(storyId: string): boolean {
   return activeGenerations.has(storyId);
 }
+
+export function listTrackedGenerationIds(): string[] {
+  return [...activeGenerations.keys()];
+}
+
+export function abortAllTrackedGenerations(): void {
+  for (const controller of activeGenerations.values()) {
+    controller.abort();
+  }
+}

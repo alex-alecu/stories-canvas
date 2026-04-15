@@ -25,10 +25,19 @@ export interface JSONGenerationOptions {
   temperature?: number;
   thinkingConfig?: ThinkingConfig;
   maxRetries?: number;
+  onUsage?: (usage: {
+    model: string;
+    status: 'succeeded' | 'failed';
+    inputTokens: number;
+    outputTokens: number;
+    totalTokens: number;
+    usageDetails: Record<string, unknown>;
+  }) => void | Promise<void>;
 }
 
 interface ImageGenerationResponse {
   data?: unknown;
+  usageMetadata?: unknown;
   generatedImages?: Array<{
     image?: {
       imageBytes?: unknown;
@@ -50,6 +59,43 @@ interface ImageGenerationResponse {
       }>;
     };
   }>;
+}
+
+function readNumberField(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0;
+}
+
+function extractUsageMetadata(response: { usageMetadata?: unknown }): {
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  usageDetails: Record<string, unknown>;
+} {
+  const usageMetadata = response.usageMetadata;
+  if (!usageMetadata || typeof usageMetadata !== 'object') {
+    return {
+      inputTokens: 0,
+      outputTokens: 0,
+      totalTokens: 0,
+      usageDetails: {},
+    };
+  }
+
+  const usage = usageMetadata as Record<string, unknown>;
+  const inputTokens = readNumberField(
+    usage.promptTokenCount ?? usage.inputTokenCount ?? usage.cachedContentTokenCount,
+  );
+  const outputTokens = readNumberField(
+    usage.candidatesTokenCount ?? usage.outputTokenCount,
+  );
+  const totalTokens = readNumberField(usage.totalTokenCount) || (inputTokens + outputTokens);
+
+  return {
+    inputTokens,
+    outputTokens,
+    totalTokens,
+    usageDetails: usage,
+  };
 }
 
 export class ImageSafetyBlockedError extends Error {
@@ -241,6 +287,18 @@ export async function generateJSON<T>(
         throw new Error('Empty response from Gemini');
       }
 
+      if (options.onUsage) {
+        const usage = extractUsageMetadata(response as { usageMetadata?: unknown });
+        await options.onUsage({
+          model: config.scenarioModel,
+          status: 'succeeded',
+          inputTokens: usage.inputTokens,
+          outputTokens: usage.outputTokens,
+          totalTokens: usage.totalTokens,
+          usageDetails: usage.usageDetails,
+        });
+      }
+
       const parsed = JSON.parse(text) as T;
       return parsed;
     } catch (error) {
@@ -270,16 +328,28 @@ export async function generateJSON<T>(
 export async function generateImage(
   prompt: string,
   referenceImages: Array<{ data: string; mimeType: string }> = [],
-  pro?: boolean,
+  proOrOptions?: boolean | {
+    pro?: boolean;
+    onUsage?: (usage: {
+      model: string;
+      status: 'succeeded' | 'failed';
+      inputTokens: number;
+      outputTokens: number;
+      totalTokens: number;
+      generatedImages: number;
+      usageDetails: Record<string, unknown>;
+    }) => void | Promise<void>;
+  },
 ): Promise<string> {
+  const options = typeof proOrOptions === 'boolean' ? { pro: proOrOptions } : (proOrOptions ?? {});
   const contents: Array<{ inlineData?: { data: string; mimeType: string }; text?: string }> = [];
 
   for (const img of referenceImages) {
     contents.push({ inlineData: { data: img.data, mimeType: img.mimeType } });
   }
   contents.push({ text: prompt });
-  const primaryModel = pro ? config.imageModelPro : config.imageModel;
-  const fallbackModel = !pro && config.imageModelPro !== primaryModel
+  const primaryModel = options.pro ? config.imageModelPro : config.imageModel;
+  const fallbackModel = !options.pro && config.imageModelPro !== primaryModel
     ? config.imageModelPro
     : undefined;
 
@@ -299,10 +369,34 @@ export async function generateImage(
 
     const imageData = extractImageData(response);
     if (imageData) {
+      if (options.onUsage) {
+        const usage = extractUsageMetadata(response);
+        await options.onUsage({
+          model,
+          status: 'succeeded',
+          inputTokens: usage.inputTokens,
+          outputTokens: usage.outputTokens,
+          totalTokens: usage.totalTokens,
+          generatedImages: 1,
+          usageDetails: usage.usageDetails,
+        });
+      }
       return imageData;
     }
 
     const message = describeImageFailure(response, model);
+    if (options.onUsage) {
+      const usage = extractUsageMetadata(response);
+      await options.onUsage({
+        model,
+        status: 'failed',
+        inputTokens: usage.inputTokens,
+        outputTokens: usage.outputTokens,
+        totalTokens: usage.totalTokens,
+        generatedImages: 0,
+        usageDetails: usage.usageDetails,
+      });
+    }
     const error = isSafetyImageFailure(response)
       ? new ImageSafetyBlockedError(model, message)
       : isPolicyImageFailure(response)

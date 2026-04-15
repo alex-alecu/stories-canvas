@@ -68,6 +68,26 @@ interface SceneGenerationDeps {
   updatePageStatus?: typeof updatePageStatusBoth;
 }
 
+type SceneUsageCallback = (page: Page, usage: {
+  model: string;
+  status: 'succeeded' | 'failed';
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  generatedImages: number;
+  usageDetails: Record<string, unknown>;
+}) => void | Promise<void>;
+
+type CharacterSheetUsageCallback = (character: Character, usage: {
+  model: string;
+  status: 'succeeded' | 'failed';
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  generatedImages: number;
+  usageDetails: Record<string, unknown>;
+}) => void | Promise<void>;
+
 function buildProviderFailureMessage(pageNumber: number, error: unknown): string {
   if (isImageSafetyBlockedError(error)) {
     return `Page ${pageNumber} could not be illustrated because the image provider blocked it with safety filters, even after retrying with a softened prompt. You can retry it from Story Tools.`;
@@ -125,6 +145,7 @@ export async function generateSceneImage(
   previousSceneBase64?: string | null,
   pro?: boolean,
   deps: SceneGenerationDeps = {},
+  onUsage?: SceneUsageCallback,
 ): Promise<string | null> {
   const pageFilename = getPageImageFilename(page.pageNumber);
   const runGenerateImage = deps.generateImage ?? generateImage;
@@ -167,7 +188,10 @@ export async function generateSceneImage(
           return await runGenerateImage(
             attemptNumber > 1 ? softenPrompt(prompt) : prompt,
             referenceImages,
-            pro,
+            {
+              pro,
+              onUsage: usage => onUsage?.(page, usage),
+            },
           );
         } catch (error: any) {
           // Check for safety filter
@@ -255,6 +279,7 @@ export async function generateAllSceneImages(
   userId?: string,
   signal?: AbortSignal,
   pro?: boolean,
+  onUsage?: SceneUsageCallback,
 ): Promise<void> {
   let previousSceneBase64: string | null = null;
 
@@ -267,7 +292,7 @@ export async function generateAllSceneImages(
     const result = await imageGenerationLimiter(() =>
       generateSceneImage(
         storyId, page, characters, characterSheets, styleDescription,
-        onProgress, userId, previousSceneBase64, pro,
+        onProgress, userId, previousSceneBase64, pro, {}, onUsage,
       ),
     );
 
@@ -291,6 +316,8 @@ export async function retryFailedSceneImages(
   userId?: string,
   signal?: AbortSignal,
   pro?: boolean,
+  onUsage?: SceneUsageCallback,
+  onCharacterSheetUsage?: CharacterSheetUsageCallback,
 ): Promise<number> {
   let retriedCount = 0;
 
@@ -304,7 +331,15 @@ export async function retryFailedSceneImages(
     } catch {
       try {
         console.warn(`[scene:${storyId}] Could not download character sheet for ${character.name}. Regenerating it before retrying scenes...`);
-        const regenerated = await generateCharacterSheet(storyId, character, userId, styleDescription, pro);
+        const regenerated = await generateCharacterSheet(
+          storyId,
+          character,
+          userId,
+          styleDescription,
+          pro,
+          {},
+          usage => onCharacterSheetUsage?.(character, usage),
+        );
         characterSheets.set(character.name, regenerated.base64);
       } catch (error) {
         // Character sheet may not exist if it failed during initial generation and regeneration still fails
@@ -343,12 +378,12 @@ export async function retryFailedSceneImages(
       }
     }
 
-    const result = await imageGenerationLimiter(() =>
-      generateSceneImage(
-        storyId, page, characters, characterSheets, styleDescription,
-        onProgress, userId, previousSceneBase64, pro,
-      ),
-    );
+      const result = await imageGenerationLimiter(() =>
+        generateSceneImage(
+          storyId, page, characters, characterSheets, styleDescription,
+          onProgress, userId, previousSceneBase64, pro, {}, onUsage,
+        ),
+      );
 
     if (result) {
       // Update the page status in our local array too for subsequent reference lookups

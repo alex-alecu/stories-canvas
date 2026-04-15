@@ -150,9 +150,9 @@ test('rewriteScenarioFromReviewWithModel asks for a conservative full rewrite', 
         },
       ],
     },
-    async (prompt) => {
+    async <T>(prompt: string) => {
       capturedPrompt = prompt;
-      return makeScenario();
+      return makeScenario() as T;
     },
   );
 

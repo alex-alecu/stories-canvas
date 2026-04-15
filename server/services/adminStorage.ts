@@ -1,11 +1,13 @@
-import type { AdminOverview, AdminUserDetail, AdminUserSummary } from '../../shared/types.js';
+import type { AdminOverview, AdminUserDetail, AdminUserStoryCostSummary, AdminUserSummary } from '../../shared/types.js';
 import { getSupabase } from './supabase.js';
 import {
   getBillingHistory,
   getUserCreditBalance,
+  listBillingPurchases,
   listStoryPackOffers,
   listWebhookEvents,
 } from './billingStorage.js';
+import { listStoriesByUser } from './supabaseStorage.js';
 
 interface AuthUserLike {
   id: string;
@@ -18,6 +20,22 @@ interface AuthUserLike {
 }
 
 const AUTH_USERS_PAGE_SIZE = 200;
+
+interface AdminStorageDeps {
+  getSupabase: typeof getSupabase;
+  getUserCreditBalance: typeof getUserCreditBalance;
+  getBillingHistory: typeof getBillingHistory;
+  listBillingPurchases: typeof listBillingPurchases;
+  listStoriesByUser: typeof listStoriesByUser;
+}
+
+const defaultDeps: AdminStorageDeps = {
+  getSupabase,
+  getUserCreditBalance,
+  getBillingHistory,
+  listBillingPurchases,
+  listStoriesByUser,
+};
 
 function getDisplayName(user: AuthUserLike): string | undefined {
   return user.user_metadata?.full_name
@@ -122,12 +140,14 @@ export async function searchUsers(query: string, limit = 20): Promise<AdminUserS
   }));
 }
 
-export async function getAdminUserDetail(userId: string): Promise<AdminUserDetail | null> {
-  const supabase = getSupabase();
-  const [{ data: authUserData, error: authUserError }, balance, history, { data: adminRoleData, error: adminRoleError }] = await Promise.all([
+export async function getAdminUserDetail(userId: string, deps: AdminStorageDeps = defaultDeps): Promise<AdminUserDetail | null> {
+  const supabase = deps.getSupabase();
+  const [{ data: authUserData, error: authUserError }, balance, history, stories, purchases, { data: adminRoleData, error: adminRoleError }] = await Promise.all([
     supabase.auth.admin.getUserById(userId),
-    getUserCreditBalance(userId),
-    getBillingHistory(userId),
+    deps.getUserCreditBalance(userId),
+    deps.getBillingHistory(userId),
+    deps.listStoriesByUser(userId),
+    deps.listBillingPurchases(userId),
     supabase
       .from('user_roles')
       .select('role')
@@ -153,6 +173,41 @@ export async function getAdminUserDetail(userId: string): Promise<AdminUserDetai
     return null;
   }
 
+  const storySummaries: AdminUserStoryCostSummary[] = stories.map(story => ({
+    id: story.id,
+    createdAt: story.createdAt,
+    title: story.scenario?.title,
+    status: story.status,
+    creditCost: story.creditCost,
+    generationInputs: story.generationInputs,
+    usageTotals: story.usageTotals ?? {
+      inputTokens: 0,
+      outputTokens: 0,
+      totalTokens: 0,
+      costUsdMicros: 0,
+      textCostUsdMicros: 0,
+      imageCostUsdMicros: 0,
+      audioCostUsdMicros: 0,
+    },
+  }));
+
+  const metrics = storySummaries.reduce((acc, story) => {
+    acc.costUsdMicros += story.usageTotals.costUsdMicros;
+    acc.inputTokens += story.usageTotals.inputTokens;
+    acc.outputTokens += story.usageTotals.outputTokens;
+    acc.totalTokens += story.usageTotals.totalTokens;
+    return acc;
+  }, {
+    revenueMinor: purchases
+      .filter(purchase => purchase.status === 'completed')
+      .reduce((sum, purchase) => sum + purchase.amountMinor, 0),
+    revenueCurrency: 'ron' as const,
+    costUsdMicros: 0,
+    inputTokens: 0,
+    outputTokens: 0,
+    totalTokens: 0,
+  });
+
   return {
     id: user.id,
     email: user.email ?? 'Unknown email',
@@ -162,6 +217,8 @@ export async function getAdminUserDetail(userId: string): Promise<AdminUserDetai
     createdAt: user.created_at,
     purchases: history.purchases,
     ledger: history.ledger,
+    stories: storySummaries,
+    metrics,
   };
 }
 
