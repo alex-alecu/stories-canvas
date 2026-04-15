@@ -13,7 +13,7 @@ import { useLanguage } from '../i18n/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
 import { isSupabaseConfigured } from '../lib/supabase';
 import type { StorySummary } from '../types';
-import type { ArtStyleKey, StoryStatus, VoiceKey } from '../../shared/types';
+import type { ArtStyleKey, StoryMode, StoryStatus, VoiceKey } from '../../shared/types';
 import { readStorageItem, removeStorageItem, writeStorageItem } from '../lib/browserStorage';
 
 const GENERATING_STORY_KEY = 'stories-canvas:generatingStoryId';
@@ -78,10 +78,10 @@ export default function Home() {
     }
   }, [clearGeneratingStoryTracking, generatingStoryId, hasLoadedStories, stories]);
 
-  const handleCreateStory = useCallback(async (prompt: string, age: number, style: ArtStyleKey, pro: boolean, voice?: VoiceKey) => {
+  const handleCreateStory = useCallback(async (prompt: string, age: number, style: ArtStyleKey, storyMode: StoryMode, voice?: VoiceKey) => {
     try {
       requestPermission();
-      const result = await createStory.mutateAsync({ prompt, language, age, style, pro, voice });
+      const result = await createStory.mutateAsync({ prompt, language, age, style, storyMode, voice });
       setGeneratingStoryId(result.id);
     } catch (error) {
       console.error('Failed to create story:', error);

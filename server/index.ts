@@ -1,7 +1,9 @@
 import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import adminRouter from './routes/admin.js';
 import { config } from './config.js';
+import billingRouter, { billingWebhookRouter } from './routes/billing.js';
 import storiesRouter from './routes/stories.js';
 import userRouter from './routes/user.js';
 import { isGenerationActive } from './services/generationRegistry.js';
@@ -12,6 +14,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const app = express();
 
+app.use('/api/billing/webhook', express.raw({ type: 'application/json' }), billingWebhookRouter);
 app.use(express.json());
 app.use('/api', (req, res, next) => {
   if (req.method === 'GET' && !/^\/stories\/[^/]+\/(images|audio)\//.test(req.path)) {
@@ -22,6 +25,8 @@ app.use('/api', (req, res, next) => {
 });
 
 // API routes
+app.use('/api/admin', adminRouter);
+app.use('/api/billing', billingRouter);
 app.use('/api/stories', storiesRouter);
 app.use('/api/user', userRouter);
 

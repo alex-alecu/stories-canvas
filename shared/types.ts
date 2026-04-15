@@ -5,6 +5,21 @@ export type StoryStatus = 'generating_scenario' | 'reviewing_scenario' | 'genera
 export type ArtStyleKey = 'disney-pixar' | 'watercolor' | 'storybook' | 'anime' | 'colored-pencil' | 'paper-cutout';
 
 export type VoiceKey = 'bunica' | 'jora' | 'serban' | 'corina';
+export type StoryMode = 'fast' | 'pro' | 'pro_audio';
+
+export const STORY_MODE_CREDITS: Record<StoryMode, number> = {
+  fast: 1,
+  pro: 2,
+  pro_audio: 3,
+};
+
+export function isStoryMode(value: string | null | undefined): value is StoryMode {
+  return value === 'fast' || value === 'pro' || value === 'pro_audio';
+}
+
+export function getStoryModeCredits(mode: StoryMode): number {
+  return STORY_MODE_CREDITS[mode];
+}
 
 export type LegacyVoiceKey = 'grandma' | 'grandpa' | 'dad' | 'mom' | 'whisper';
 
@@ -129,6 +144,9 @@ export interface StoryMeta {
   scenarioRevision?: number;
   renderedScenarioRevision?: number;
   assetsStale?: boolean;
+  storyMode?: StoryMode;
+  creditCost?: number;
+  creditRefundedAt?: string;
 }
 
 export interface StoryDetail extends StoryMeta {
@@ -154,6 +172,7 @@ export interface CreateStoryRequest {
   language?: string;
   age?: number;
   style?: ArtStyleKey;
+  storyMode?: StoryMode;
   pro?: boolean;
   voice?: VoiceKey;
 }
@@ -182,4 +201,85 @@ export interface ReviewStoryResponse {
 
 export interface RegenerateAssetsResponse {
   status: StoryStatus;
+}
+
+export interface StoryPackOffer {
+  slug: 'pack_5' | 'pack_12' | 'pack_20';
+  name: string;
+  description: string;
+  credits: number;
+  priceMinor: number;
+  currency: 'ron';
+  isActive: boolean;
+}
+
+export interface CreditBalance {
+  availableCredits: number;
+}
+
+export interface CreditLedgerEntry {
+  id: string;
+  delta: number;
+  balanceAfter: number;
+  reason: string;
+  note?: string;
+  storyId?: string;
+  purchaseId?: string;
+  adminUserId?: string;
+  createdAt: string;
+}
+
+export interface BillingPurchase {
+  id: string;
+  offerSlug: StoryPackOffer['slug'];
+  amountMinor: number;
+  currency: 'ron';
+  creditsGranted: number;
+  status: 'pending' | 'completed' | 'failed';
+  createdAt: string;
+  fulfilledAt?: string;
+}
+
+export interface BillingOverview {
+  balance: CreditBalance;
+  offers: StoryPackOffer[];
+  isAdmin: boolean;
+}
+
+export interface BillingHistoryResponse {
+  purchases: BillingPurchase[];
+  ledger: CreditLedgerEntry[];
+}
+
+export interface BillingCheckoutResponse {
+  checkoutUrl: string;
+  checkoutSessionId: string;
+}
+
+export interface AdminUserSummary {
+  id: string;
+  email: string;
+  displayName?: string;
+  availableCredits: number;
+  isAdmin: boolean;
+  createdAt?: string;
+}
+
+export interface AdminUserDetail extends AdminUserSummary {
+  purchases: BillingPurchase[];
+  ledger: CreditLedgerEntry[];
+}
+
+export interface AdminWebhookEvent {
+  stripeEventId: string;
+  eventType: string;
+  status: 'processing' | 'processed' | 'failed';
+  errorMessage?: string;
+  createdAt: string;
+  processedAt?: string;
+}
+
+export interface AdminOverview {
+  offers: StoryPackOffer[];
+  webhookEvents: AdminWebhookEvent[];
 }

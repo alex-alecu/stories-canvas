@@ -1,10 +1,23 @@
 import { useState, useEffect, type FormEvent } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useBillingOverview } from '../hooks/useBilling';
 import { useLanguage } from '../i18n/LanguageContext';
-import { AGE_RANGES, DEFAULT_AGE, DEFAULT_ART_STYLE, DEFAULT_VOICE_KEY, getAgeGroup, VOICE_OPTIONS, type ArtStyleKey, type VoiceKey } from '../../shared/types';
+import {
+  AGE_RANGES,
+  DEFAULT_AGE,
+  DEFAULT_ART_STYLE,
+  DEFAULT_VOICE_KEY,
+  getAgeGroup,
+  getStoryModeCredits,
+  VOICE_OPTIONS,
+  type ArtStyleKey,
+  type StoryMode,
+  type VoiceKey,
+} from '../../shared/types';
 import { getRandomStoryIdea } from '../data/storyIdeas';
 import { getVoiceOptionText } from '../i18n/storyStatusCopy';
+import { formatCredits } from '../i18n/billingCopy';
 
 const STYLE_KEYS: ArtStyleKey[] = ['disney-pixar', 'watercolor', 'storybook', 'anime', 'colored-pencil', 'paper-cutout'];
 
@@ -18,7 +31,7 @@ const styleTranslationMap: Record<ArtStyleKey, keyof ReturnType<typeof useLangua
 };
 
 interface StoryInputProps {
-  onSubmit: (prompt: string, age: number, style: ArtStyleKey, pro: boolean, voice?: VoiceKey) => void;
+  onSubmit: (prompt: string, age: number, style: ArtStyleKey, storyMode: StoryMode, voice?: VoiceKey) => void;
   isLoading: boolean;
 }
 
@@ -26,13 +39,17 @@ export default function StoryInput({ onSubmit, isLoading }: StoryInputProps) {
   const [prompt, setPrompt] = useState('');
   const [age, setAge] = useState<number>(DEFAULT_AGE);
   const [style, setStyle] = useState<ArtStyleKey>(DEFAULT_ART_STYLE);
-  const [pro, setPro] = useState(false);
+  const [storyMode, setStoryMode] = useState<StoryMode>('fast');
   const [voice, setVoice] = useState<VoiceKey | ''>(DEFAULT_VOICE_KEY);
   const maxLength = 500;
   const { user, loading } = useAuth();
+  const { data: billingOverview } = useBillingOverview(!!user);
   const { t, language } = useLanguage();
   const navigate = useNavigate();
   const location = useLocation();
+  const requiredCredits = getStoryModeCredits(storyMode);
+  const availableCredits = billingOverview?.balance.availableCredits ?? 0;
+  const hasEnoughCredits = !user || !billingOverview || availableCredits >= requiredCredits;
 
   // Set data-age-group on <html> for CSS-driven background animations
   useEffect(() => {
@@ -54,9 +71,15 @@ export default function StoryInput({ onSubmit, isLoading }: StoryInputProps) {
       handleGuestClick();
       return;
     }
+
+    if (!hasEnoughCredits) {
+      navigate('/billing?reason=insufficient-credits');
+      return;
+    }
+
     const trimmed = prompt.trim();
     if (trimmed && !isLoading) {
-      onSubmit(trimmed, age, style, pro, voice || undefined);
+      onSubmit(trimmed, age, style, storyMode, storyMode === 'pro_audio' ? voice || undefined : undefined);
       setPrompt('');
     }
   };
@@ -66,6 +89,7 @@ export default function StoryInput({ onSubmit, isLoading }: StoryInputProps) {
   };
 
   const isGuest = !loading && !user;
+  const creditsSummary = `${t.creditsRequiredLabel}: ${formatCredits(requiredCredits, t)}${user && billingOverview ? ` · ${t.creditsAvailableLabel}: ${formatCredits(availableCredits, t)}` : ''}`;
 
   return (
     <div className="w-full max-w-2xl mx-auto">
@@ -155,62 +179,68 @@ export default function StoryInput({ onSubmit, isLoading }: StoryInputProps) {
                   ))}
                 </select>
               </div>
-
-              <div className="flex items-center gap-2 min-w-0">
-                <label htmlFor="voice-select" className="text-sm text-gray-400 dark:text-gray-500 whitespace-nowrap">
-                  {t.narratorVoice}
-                </label>
-                <select
-                  id="voice-select"
-                  value={voice}
-                  onChange={(e) => setVoice(e.target.value as VoiceKey | '')}
-                  disabled={isLoading}
-                  className="text-sm bg-gray-50 dark:bg-surface-dark border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1.5 text-gray-700 dark:text-gray-300 focus:outline-none focus:border-primary-300 dark:focus:border-primary-600 disabled:opacity-50 cursor-pointer min-w-0"
-                >
-                  <option value="">{t.noVoice}</option>
-                  {VOICE_OPTIONS.map((option) => {
-                    const { label } = getVoiceOptionText(option, t);
-                    return (
-                      <option key={option.key} value={option.key}>
-                        {label}
-                      </option>
-                    );
-                  })}
-                </select>
-              </div>
             </div>
           )}
 
           <div className="flex items-center justify-between px-6 pb-4">
             {!isGuest ? (
-              <div className="flex items-center gap-2 select-none">
-                <span className="text-sm text-gray-400 dark:text-gray-500">Pro</span>
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={pro}
-                  aria-label="Pro"
-                  onClick={() => setPro(!pro)}
-                  disabled={isLoading}
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors disabled:opacity-50 cursor-pointer ${
-                    pro
-                      ? 'bg-gradient-to-r from-primary-500 to-primary-600'
-                      : 'bg-gray-200 dark:bg-gray-700'
-                  }`}
-                >
-                  <span
-                    className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform ${
-                      pro ? 'translate-x-6' : 'translate-x-1'
-                    }`}
-                  />
-                </button>
+              <div className="flex flex-col gap-2">
+                <div className="flex flex-wrap gap-2">
+                  {([
+                    { key: 'fast', label: t.storyModeFast, detail: formatCredits(1, t) },
+                    { key: 'pro', label: t.storyModePro, detail: formatCredits(2, t) },
+                    { key: 'pro_audio', label: t.storyModeProAudio, detail: formatCredits(3, t) },
+                  ] as const).map((option) => (
+                    <button
+                      key={option.key}
+                      type="button"
+                      onClick={() => setStoryMode(option.key)}
+                      disabled={isLoading}
+                      className={`rounded-full border px-3 py-1.5 text-sm font-semibold transition-colors ${
+                        storyMode === option.key
+                          ? 'border-primary-500 bg-primary-50 text-primary-700 dark:border-primary-400 dark:bg-primary-900/30 dark:text-primary-200'
+                          : 'border-gray-200 bg-white text-gray-500 dark:border-gray-700 dark:bg-surface-dark dark:text-gray-300'
+                      }`}
+                    >
+                      {option.label} · {option.detail}
+                    </button>
+                  ))}
+                </div>
+
+                {storyMode === 'pro_audio' && (
+                  <div className="flex items-center gap-2 min-w-0">
+                    <label htmlFor="voice-select" className="text-sm text-gray-400 dark:text-gray-500 whitespace-nowrap">
+                      {t.narratorVoice}
+                    </label>
+                    <select
+                      id="voice-select"
+                      value={voice}
+                      onChange={(e) => setVoice(e.target.value as VoiceKey | '')}
+                      disabled={isLoading}
+                      className="text-sm bg-gray-50 dark:bg-surface-dark border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1.5 text-gray-700 dark:text-gray-300 focus:outline-none focus:border-primary-300 dark:focus:border-primary-600 disabled:opacity-50 cursor-pointer min-w-0"
+                    >
+                      {VOICE_OPTIONS.map((option) => {
+                        const { label } = getVoiceOptionText(option, t);
+                        return (
+                          <option key={option.key} value={option.key}>
+                            {label}
+                          </option>
+                        );
+                      })}
+                    </select>
+                  </div>
+                )}
+
+                <p className="text-sm text-gray-400 dark:text-gray-500">
+                  {creditsSummary}
+                </p>
               </div>
             ) : (
               <span />
             )}
             <button
               type="submit"
-              disabled={user ? (!prompt.trim() || isLoading) : false}
+              disabled={user ? (isLoading || (hasEnoughCredits && !prompt.trim())) : false}
               className="bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 disabled:from-gray-300 disabled:to-gray-300 dark:disabled:from-gray-700 dark:disabled:to-gray-700 text-white font-bold py-2.5 px-8 rounded-xl transition-all disabled:cursor-not-allowed transform hover:scale-[1.02] active:scale-[0.98]"
             >
               {isLoading ? (
@@ -221,6 +251,8 @@ export default function StoryInput({ onSubmit, isLoading }: StoryInputProps) {
                   </svg>
                   {t.creating}
                 </span>
+              ) : user && !hasEnoughCredits ? (
+                t.getCredits
               ) : (
                 t.createStory
               )}

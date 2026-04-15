@@ -2,6 +2,17 @@
 
 Generate illustrated and narrated stories for children with the help of AI.
 
+## Billing Model
+
+The public gallery stays free and ad-free. Billing only applies when a signed-in user creates a new story.
+
+- `Fast` story: `1` credit
+- `Pro` story: `2` credits
+- `Pro + Audio` story: `3` credits
+- Story packs: `5`, `12`, and `20` credits
+
+Credits do not expire. Pack pricing and descriptions are managed from the in-app admin panel, not the Stripe dashboard.
+
 ## How Story Generation Works
 
 When a user submits a story idea, the app runs through four steps in order: writing the story, drawing character references, drawing each page, and recording narration.
@@ -35,6 +46,54 @@ This layered approach — character sheets for identity, previous scene for styl
 
 ### Step 4 — Record Narration
 
-If the user selected a narrator voice, each page's text is sent to a text-to-speech model one page at a time. The app offers three family-role narrator options backed by the curated Romanian shortlist: Grandpa (Jora Slobod), Dad (Serban Popescu), and Mom (Corina Capuccina). All three use the same narration-oriented speech settings, and the resulting audio clips are saved so the story can be played back like an audiobook.
+If the user selected the `Pro + Audio` mode, each page's text is sent to a text-to-speech model one page at a time. The app offers three family-role narrator options backed by the curated Romanian shortlist: Grandpa (Jora Slobod), Dad (Serban Popescu), and Mom (Corina Capuccina). All three use the same narration-oriented speech settings, and the resulting audio clips are saved so the story can be played back like an audiobook.
 
-Audio generation is optional and can also be triggered later on an already-finished story.
+Narration is only available at story creation time in this version. Users cannot buy or add narration later to an existing story.
+
+## Admin Features
+
+Users with the `admin` role can open `/admin` to:
+
+- edit live pack names, descriptions, prices, and active state
+- search users and inspect their purchase and credit history
+- grant free credits with an audit note
+- monitor mirrored Stripe webhook events
+
+The first admin accounts are bootstrapped from `ADMIN_BOOTSTRAP_EMAILS`.
+
+## Environment
+
+Copy `.env.example` to `.env` and fill in the values you need:
+
+- `GEMINI_API_KEY` is required
+- `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_KEY` enable auth, storage, billing, and admin APIs
+- `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` enable Checkout and webhook fulfillment
+- `APP_BASE_URL` should match the browser origin used for local or deployed checkout redirects
+- `ADMIN_BOOTSTRAP_EMAILS` seeds initial admins as a comma-separated list
+
+Apply the Supabase migrations before testing billing:
+
+```bash
+npm run migrate:railway
+```
+
+## Local Stripe Flow
+
+1. Add your Stripe sandbox keys to `.env`.
+2. Start the app with `npm run dev`.
+3. Forward Stripe events to the local webhook endpoint:
+
+```bash
+stripe listen --forward-to http://localhost:3001/api/billing/webhook
+```
+
+4. Copy the printed webhook signing secret into `STRIPE_WEBHOOK_SECRET`.
+5. Buy a pack from `/billing` and confirm the credits appear in the UI and in `/admin`.
+
+## Manual Smoke Checks
+
+- Buy each pack and verify it grants `5`, `12`, or `20` credits exactly once.
+- Create `Fast`, `Pro`, and `Pro + Audio` stories and verify the debit is `1`, `2`, and `3` credits.
+- Cancel or fail a story before the first illustration completes and verify the credits are refunded.
+- Confirm completed stories with at least one finished illustration do not refund credits on cancel.
+- Verify `/api/stories/:id/generate-audio` is rejected for completed stories without narration.

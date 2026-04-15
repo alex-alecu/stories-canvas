@@ -188,4 +188,92 @@ export interface Translations {
 
   // Story ideas
   storyIdeaButton: string;
+
+  // Billing and credits
+  creditSingular: string;
+  creditPlural: string;
+  storyModeFast: string;
+  storyModePro: string;
+  storyModeProAudio: string;
+  storyModeFastSummary: string;
+  storyModeProSummary: string;
+  storyModeProAudioSummary: string;
+  creditsRequiredLabel: string;
+  creditsAvailableLabel: string;
+  getCredits: string;
+  billingLabel: string;
+  billingTitle: string;
+  billingDescription: string;
+  availableCredits: string;
+  billingBannerCheckoutCompletedTitle: string;
+  billingBannerCheckoutCompletedBody: string;
+  billingBannerCheckoutCancelledTitle: string;
+  billingBannerCheckoutCancelledBody: string;
+  billingBannerMoreCreditsTitle: string;
+  billingBannerMoreCreditsBody: string;
+  billingStoryPacksTitle: string;
+  billingStoryPacksDescription: string;
+  billingRedirectingToStripe: string;
+  billingBuyPack: string;
+  billingUnavailable: string;
+  billingCreationModesTitle: string;
+  billingPurchasesTitle: string;
+  billingNoPurchases: string;
+  billingCreditHistoryTitle: string;
+  billingNoCreditActivity: string;
+  billingBalanceAfter: string;
+  billingPending: string;
+  billingStatusPending: string;
+  billingStatusCompleted: string;
+  billingStatusFailed: string;
+  billingStatusProcessing: string;
+  billingStatusProcessed: string;
+  billingReasonPackPurchase: string;
+  billingReasonStoryCreate: string;
+  billingReasonStoryRefund: string;
+  billingReasonAdminGrant: string;
+  offerPack5Name: string;
+  offerPack5Description: string;
+  offerPack12Name: string;
+  offerPack12Description: string;
+  offerPack20Name: string;
+  offerPack20Description: string;
+
+  // Profile billing
+  profileCreditsTitle: string;
+  profileManageBilling: string;
+
+  // Admin
+  adminAccessRequiredTitle: string;
+  adminAccessRequiredBody: string;
+  adminLabel: string;
+  adminTitle: string;
+  adminDescription: string;
+  adminSignedInAs: string;
+  adminPackOffersTitle: string;
+  adminOfferSaved: string;
+  adminWebhookActivityTitle: string;
+  adminNoWebhookEvents: string;
+  adminUserSearchTitle: string;
+  adminUserSearchPlaceholder: string;
+  adminSearchingUsers: string;
+  adminNoUsersFound: string;
+  adminRole: string;
+  adminSelectUser: string;
+  adminLoadingUserDetails: string;
+  adminJoined: string;
+  adminGrantFreeCreditsTitle: string;
+  adminLedgerReasonPlaceholder: string;
+  adminGrantingCredits: string;
+  adminGrantCredits: string;
+  adminRecentPurchasesTitle: string;
+  adminCreditLedgerTitle: string;
+  adminNoLedgerEntries: string;
+  adminOfferNameLabel: string;
+  adminOfferDescriptionLabel: string;
+  adminOfferPriceLabel: string;
+  adminOfferActiveLabel: string;
+  adminSaving: string;
+  adminSaveOffer: string;
+  adminNever: string;
 }

@@ -1,14 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import type { StorySummary, StoryMeta, CreateStoryResponse, StoryAssets, RetryStoryResponse, RegenerateAssetsResponse } from '../types';
-import { supabase } from '../lib/supabase';
-
-async function getAuthHeaders(): Promise<Record<string, string>> {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (session?.access_token) {
-    return { Authorization: `Bearer ${session.access_token}` };
-  }
-  return {};
-}
+import type { StorySummary, StoryMeta, CreateStoryResponse, StoryAssets, RetryStoryResponse, RegenerateAssetsResponse, StoryMode } from '../types';
+import { getAuthHeaders } from '../lib/authHeaders';
 
 async function fetchStories(): Promise<StorySummary[]> {
   const authHeaders = await getAuthHeaders();
@@ -37,12 +29,19 @@ async function fetchStory(id: string): Promise<StoryMeta> {
   return res.json();
 }
 
-async function createStory(params: { prompt: string; language?: string; age?: number; style?: string; pro?: boolean; voice?: string }): Promise<CreateStoryResponse> {
+async function createStory(params: { prompt: string; language?: string; age?: number; style?: string; storyMode?: StoryMode; voice?: string }): Promise<CreateStoryResponse> {
   const authHeaders = await getAuthHeaders();
   const res = await fetch('/api/stories', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...authHeaders },
-    body: JSON.stringify({ prompt: params.prompt, language: params.language, age: params.age, style: params.style, pro: params.pro, voice: params.voice }),
+    body: JSON.stringify({
+      prompt: params.prompt,
+      language: params.language,
+      age: params.age,
+      style: params.style,
+      storyMode: params.storyMode,
+      voice: params.voice,
+    }),
   });
   if (!res.ok) {
     const error = await res.json().catch(() => ({ error: 'Failed to create story' }));
@@ -234,32 +233,5 @@ export function useStoryAssets(id: string | undefined, enabled = false) {
     queryKey: ['story-assets', id],
     queryFn: () => fetchStoryAssets(id!),
     enabled: !!id && enabled,
-  });
-}
-
-// ---------- Generate Audio ----------
-
-async function generateAudio({ id, voice }: { id: string; voice: string }): Promise<{ status: string }> {
-  const authHeaders = await getAuthHeaders();
-  const res = await fetch(`/api/stories/${id}/generate-audio`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...authHeaders },
-    body: JSON.stringify({ voice }),
-  });
-  if (!res.ok) {
-    const error = await res.json().catch(() => ({ error: 'Failed to generate audio' }));
-    throw new Error(error.error || 'Failed to generate audio');
-  }
-  return res.json();
-}
-
-export function useGenerateAudio() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: generateAudio,
-    onSuccess: (_data, { id }) => {
-      queryClient.invalidateQueries({ queryKey: ['story', id] });
-      queryClient.invalidateQueries({ queryKey: ['stories'] });
-    },
   });
 }

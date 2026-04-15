@@ -121,13 +121,19 @@ test('POST /api/stories stores canonical narrator keys unchanged', async (t) => 
   t.mock.method(harness.storiesModule.scenarioOps, 'generateScenario', async () => makeScenario());
   t.mock.method(harness.storiesModule.illustrationOps, 'generateAllCharacterSheets', async () => []);
   t.mock.method(harness.storiesModule.illustrationOps, 'generateAllSceneImages', async () => {});
-  t.mock.method(harness.storiesModule.audioOps, 'isElevenLabsConfigured', () => false);
+  t.mock.method(harness.storiesModule.audioOps, 'isElevenLabsConfigured', () => true);
+  t.mock.method(harness.storiesModule.audioOps, 'generateAllPageAudio', async () => ({
+    completedCount: 0,
+    failedCount: 0,
+    skippedCount: 0,
+  }));
 
   const response = await fetch(`${harness.baseUrl}/api/stories`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       prompt: 'Tell a moonlit story about a dragon.',
+      storyMode: 'pro_audio',
       voice: 'corina',
     }),
   });
@@ -140,6 +146,8 @@ test('POST /api/stories stores canonical narrator keys unchanged', async (t) => 
   );
 
   assert.equal(savedStory.voice, 'corina');
+  assert.equal(savedStory.storyMode, 'pro_audio');
+  assert.equal(savedStory.creditCost, 3);
 });
 
 test('POST /api/stories normalizes legacy narrator keys before persistence', async (t) => {
@@ -153,13 +161,19 @@ test('POST /api/stories normalizes legacy narrator keys before persistence', asy
   t.mock.method(harness.storiesModule.scenarioOps, 'generateScenario', async () => makeScenario());
   t.mock.method(harness.storiesModule.illustrationOps, 'generateAllCharacterSheets', async () => []);
   t.mock.method(harness.storiesModule.illustrationOps, 'generateAllSceneImages', async () => {});
-  t.mock.method(harness.storiesModule.audioOps, 'isElevenLabsConfigured', () => false);
+  t.mock.method(harness.storiesModule.audioOps, 'isElevenLabsConfigured', () => true);
+  t.mock.method(harness.storiesModule.audioOps, 'generateAllPageAudio', async () => ({
+    completedCount: 0,
+    failedCount: 0,
+    skippedCount: 0,
+  }));
 
   const response = await fetch(`${harness.baseUrl}/api/stories`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       prompt: 'Tell a gentle bedtime story.',
+      storyMode: 'pro_audio',
       voice: 'whisper',
     }),
   });
@@ -172,82 +186,108 @@ test('POST /api/stories normalizes legacy narrator keys before persistence', asy
   );
 
   assert.equal(savedStory.voice, 'jora');
+  assert.equal(savedStory.storyMode, 'pro_audio');
+  assert.equal(savedStory.creditCost, 3);
 });
 
-test('POST /api/stories/:id/generate-audio accepts canonical narrator keys', async (t) => {
-  const dataDir = mkdtempSync(path.join(os.tmpdir(), 'stories-audio-canonical-'));
+test('POST /api/stories stores fixed story mode credit costs', async (t) => {
+  const dataDir = mkdtempSync(path.join(os.tmpdir(), 'stories-mode-costs-'));
   const harness = await createStoriesHarness(dataDir);
   t.after(async () => {
     await harness.close();
     await fs.rm(dataDir, { recursive: true, force: true });
   });
 
+  t.mock.method(harness.storiesModule.scenarioOps, 'generateScenario', async () => makeScenario());
+  t.mock.method(harness.storiesModule.illustrationOps, 'generateAllCharacterSheets', async () => []);
+  t.mock.method(harness.storiesModule.illustrationOps, 'generateAllSceneImages', async () => {});
   t.mock.method(harness.storiesModule.audioOps, 'isElevenLabsConfigured', () => true);
-  t.mock.method(harness.storiesModule.audioOps, 'retryMissingAudio', async () => ({
+  t.mock.method(harness.storiesModule.audioOps, 'generateAllPageAudio', async () => ({
     completedCount: 0,
     failedCount: 0,
     skippedCount: 0,
   }));
 
+  const cases = [
+    { storyMode: 'fast', creditCost: 1, voice: undefined },
+    { storyMode: 'pro', creditCost: 2, voice: undefined },
+    { storyMode: 'pro_audio', creditCost: 3, voice: 'bunica' },
+  ] as const;
+
+  for (const scenarioCase of cases) {
+    const response = await fetch(`${harness.baseUrl}/api/stories`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        prompt: `Create a ${scenarioCase.storyMode} bedtime story.`,
+        storyMode: scenarioCase.storyMode,
+        voice: scenarioCase.voice,
+      }),
+    });
+
+    assert.equal(response.status, 201);
+    const body = await response.json() as { id: string };
+    const savedStory = await waitFor(
+      () => readStoryMeta(dataDir, body.id),
+      story => story.storyMode === scenarioCase.storyMode,
+    );
+
+    assert.equal(savedStory.storyMode, scenarioCase.storyMode);
+    assert.equal(savedStory.creditCost, scenarioCase.creditCost);
+    assert.equal(savedStory.voice, scenarioCase.voice);
+  }
+});
+
+test('POST /api/stories rejects Pro + Audio when narration is unavailable', async (t) => {
+  const dataDir = mkdtempSync(path.join(os.tmpdir(), 'stories-pro-audio-disabled-'));
+  const harness = await createStoriesHarness(dataDir);
+  t.after(async () => {
+    await harness.close();
+    await fs.rm(dataDir, { recursive: true, force: true });
+  });
+
+  t.mock.method(harness.storiesModule.audioOps, 'isElevenLabsConfigured', () => false);
+
+  const response = await fetch(`${harness.baseUrl}/api/stories`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      prompt: 'Create a narrated bedtime story.',
+      storyMode: 'pro_audio',
+      voice: 'corina',
+    }),
+  });
+
+  assert.equal(response.status, 503);
+  const body = await response.json() as { error: string };
+  assert.equal(body.error, 'Audio generation service is not configured');
+});
+
+test('POST /api/stories/:id/generate-audio rejects add-audio-later purchases', async (t) => {
+  const dataDir = mkdtempSync(path.join(os.tmpdir(), 'stories-audio-disabled-'));
+  const harness = await createStoriesHarness(dataDir);
+  t.after(async () => {
+    await harness.close();
+    await fs.rm(dataDir, { recursive: true, force: true });
+  });
+
   await writeStoryMeta(dataDir, {
-    id: 'story-audio-canonical',
+    id: 'story-audio-disabled',
     prompt: 'A story ready for narration.',
     status: 'completed',
     createdAt: '2026-03-29T00:00:00.000Z',
     scenario: makeScenario(),
   });
 
-  const response = await fetch(`${harness.baseUrl}/api/stories/story-audio-canonical/generate-audio`, {
+  const response = await fetch(`${harness.baseUrl}/api/stories/story-audio-disabled/generate-audio`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ voice: 'serban' }),
   });
 
-  assert.equal(response.status, 200);
-  const savedStory = await waitFor(
-    () => readStoryMeta(dataDir, 'story-audio-canonical'),
-    story => story.voice === 'serban',
-  );
-
-  assert.equal(savedStory.voice, 'serban');
-});
-
-test('POST /api/stories/:id/generate-audio normalizes legacy narrator keys', async (t) => {
-  const dataDir = mkdtempSync(path.join(os.tmpdir(), 'stories-audio-legacy-'));
-  const harness = await createStoriesHarness(dataDir);
-  t.after(async () => {
-    await harness.close();
-    await fs.rm(dataDir, { recursive: true, force: true });
-  });
-
-  t.mock.method(harness.storiesModule.audioOps, 'isElevenLabsConfigured', () => true);
-  t.mock.method(harness.storiesModule.audioOps, 'retryMissingAudio', async () => ({
-    completedCount: 0,
-    failedCount: 0,
-    skippedCount: 0,
-  }));
-
-  await writeStoryMeta(dataDir, {
-    id: 'story-audio-legacy',
-    prompt: 'A story ready for narration.',
-    status: 'completed',
-    createdAt: '2026-03-29T00:00:00.000Z',
-    scenario: makeScenario(),
-  });
-
-  const response = await fetch(`${harness.baseUrl}/api/stories/story-audio-legacy/generate-audio`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ voice: 'dad' }),
-  });
-
-  assert.equal(response.status, 200);
-  const savedStory = await waitFor(
-    () => readStoryMeta(dataDir, 'story-audio-legacy'),
-    story => story.voice === 'serban',
-  );
-
-  assert.equal(savedStory.voice, 'serban');
+  assert.equal(response.status, 400);
+  const body = await response.json() as { error: string };
+  assert.equal(body.error, 'Narration can only be added when creating a Pro + Audio story in v1.');
 });
 
 test('POST /api/stories/:id/retry resolves stored legacy voice keys for missing audio', async (t) => {

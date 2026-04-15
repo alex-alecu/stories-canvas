@@ -15,6 +15,18 @@ export type {
   RetryStoryResponse,
   ReviewStoryResponse,
   RegenerateAssetsResponse,
+  StoryMode,
+  StoryPackOffer,
+  CreditBalance,
+  CreditLedgerEntry,
+  BillingPurchase,
+  BillingOverview,
+  BillingHistoryResponse,
+  BillingCheckoutResponse,
+  AdminUserSummary,
+  AdminUserDetail,
+  AdminWebhookEvent,
+  AdminOverview,
 } from '../../shared/types';
 
 export interface StorySummary {

@@ -8,6 +8,7 @@ declare global {
       authUser?: {
         id: string;
         email?: string;
+        isAdmin?: boolean;
       };
     }
   }
@@ -38,12 +39,42 @@ export async function optionalAuth(req: Request, _res: Response, next: NextFunct
       return next();
     }
 
+    const { resolveUserAccess } = await import('../services/accessControl.js');
+    const access = await resolveUserAccess(user.id, user.email);
+
     req.authUser = {
       id: user.id,
       email: user.email,
+      isAdmin: access.isAdmin,
     };
   } catch {
     // Silently continue without auth
   }
+  next();
+}
+
+export async function requireAuth(req: Request, res: Response, next: NextFunction): Promise<void> {
+  await optionalAuth(req, res, () => undefined);
+
+  if (!req.authUser) {
+    res.status(401).json({ error: 'Authentication required' });
+    return;
+  }
+
+  next();
+}
+
+export async function requireAdmin(req: Request, res: Response, next: NextFunction): Promise<void> {
+  await requireAuth(req, res, () => undefined);
+
+  if (!req.authUser) {
+    return;
+  }
+
+  if (!req.authUser.isAdmin) {
+    res.status(403).json({ error: 'Admin access required' });
+    return;
+  }
+
   next();
 }

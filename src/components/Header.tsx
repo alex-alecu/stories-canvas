@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useBillingOverview } from '../hooks/useBilling';
 import { useLanguage } from '../i18n/LanguageContext';
 import LanguageSelector from './LanguageSelector';
 import ThemeToggle from './ThemeToggle';
@@ -8,6 +9,7 @@ import FontSizeControl from './FontSizeControl';
 
 export default function Header() {
   const { user, loading, signOut } = useAuth();
+  const { data: billingOverview } = useBillingOverview(!!user);
   const { t } = useLanguage();
   const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -72,12 +74,22 @@ export default function Header() {
           <ThemeToggle />
           <FontSizeControl />
           <LanguageSelector />
-          <Link
-            to="/explore"
-            className="text-sm font-bold text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 transition-colors"
-          >
-            {t.explore}
-          </Link>
+          {user && (
+            <Link
+              to="/billing"
+              className="text-sm font-bold text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 transition-colors"
+            >
+              {t.billingLabel}
+            </Link>
+          )}
+          {user && billingOverview?.isAdmin && (
+            <Link
+              to="/admin"
+              className="text-sm font-bold text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 transition-colors"
+            >
+              Admin
+            </Link>
+          )}
           {loading ? (
             <div className="w-8 h-8 rounded-full bg-gray-100 dark:bg-surface-dark-accent animate-pulse" />
           ) : user ? (
@@ -155,17 +167,31 @@ export default function Header() {
         role="menu"
       >
         <nav className="max-w-6xl mx-auto px-4 py-4 flex flex-col gap-1">
-          {/* Explore link */}
-          <Link
-            to="/explore"
-            className="flex items-center gap-3 px-3 py-3 rounded-lg text-sm font-bold text-primary-600 dark:text-primary-400 hover:bg-primary-50 dark:hover:bg-surface-dark-accent transition-colors"
-            role="menuitem"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
-            {t.explore}
-          </Link>
+          {user && (
+            <Link
+              to="/billing"
+              className="flex items-center gap-3 px-3 py-3 rounded-lg text-sm font-bold text-primary-600 dark:text-primary-400 hover:bg-primary-50 dark:hover:bg-surface-dark-accent transition-colors"
+              role="menuitem"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-2.21 0-4 1.343-4 3s1.79 3 4 3 4 1.343 4 3-1.79 3-4 3m0-12c1.39 0 2.615.53 3.294 1.333M12 8V6m0 2v10m0 0v2m0-2c-1.39 0-2.615-.53-3.294-1.333" />
+              </svg>
+              {t.billingLabel}
+            </Link>
+          )}
+
+          {user && billingOverview?.isAdmin && (
+            <Link
+              to="/admin"
+              className="flex items-center gap-3 px-3 py-3 rounded-lg text-sm font-bold text-primary-600 dark:text-primary-400 hover:bg-primary-50 dark:hover:bg-surface-dark-accent transition-colors"
+              role="menuitem"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8v-2m0 2a2 2 0 100-4m0 4a2 2 0 110-4m12 4v-2m0 2a2 2 0 100-4m0 4a2 2 0 110-4m-6-4v10" />
+              </svg>
+              Admin
+            </Link>
+          )}
 
           {/* Profile / Auth section */}
           {loading ? (

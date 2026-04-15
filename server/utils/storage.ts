@@ -1,7 +1,7 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { config } from '../config.js';
-import { normalizeVoiceKey, type ArtStyleKey, type StoryMeta, type Scenario, type StoryStatus, type VoiceKey } from '../../shared/types.js';
+import { normalizeVoiceKey, type ArtStyleKey, type StoryMeta, type StoryMode, type Scenario, type StoryStatus, type VoiceKey } from '../../shared/types.js';
 
 const writeLocks = new Map<string, Promise<void>>();
 
@@ -65,6 +65,8 @@ export interface SaveScenarioOptions {
   language?: string;
   scenarioRevision?: number;
   renderedScenarioRevision?: number;
+  storyMode?: StoryMode;
+  creditCost?: number;
 }
 
 export async function getStoryDir(storyId: string): Promise<string> {
@@ -94,6 +96,9 @@ export async function saveScenario(
     language: options.language ?? existing?.language ?? 'ro',
     scenarioRevision: options.scenarioRevision ?? existing?.scenarioRevision ?? 1,
     renderedScenarioRevision: options.renderedScenarioRevision ?? existing?.renderedScenarioRevision ?? 1,
+    storyMode: options.storyMode ?? existing?.storyMode,
+    creditCost: options.creditCost ?? existing?.creditCost,
+    creditRefundedAt: existing?.creditRefundedAt,
   };
   await fs.writeFile(path.join(dir, 'scenario.json'), JSON.stringify(meta, null, 2));
 }

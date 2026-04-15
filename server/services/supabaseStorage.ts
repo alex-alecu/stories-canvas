@@ -1,6 +1,6 @@
 import { getSupabase } from './supabase.js';
 import { config } from '../config.js';
-import { normalizeVoiceKey, type ArtStyleKey, type StoryMeta, type StoryStatus, type Scenario, type PageStatus, type VoiceKey } from '../../shared/types.js';
+import { normalizeVoiceKey, type ArtStyleKey, type StoryMeta, type StoryMode, type StoryStatus, type Scenario, type PageStatus, type VoiceKey } from '../../shared/types.js';
 import { MEDIA_CACHE_MAX_AGE_SECONDS } from '../utils/storyMedia.js';
 import { parseArtStyle } from './storyStyle.js';
 
@@ -163,6 +163,8 @@ export async function createStory(
   language?: string,
   voice?: VoiceKey,
   artStyle?: ArtStyleKey,
+  storyMode?: StoryMode,
+  creditCost = 0,
 ): Promise<void> {
   const supabase = getSupabase();
   const { error } = await supabase.from('stories').insert({
@@ -173,12 +175,23 @@ export async function createStory(
     language: language ?? 'ro',
     voice: voice ?? null,
     art_style: artStyle ?? null,
+    story_mode: storyMode ?? null,
+    credit_cost: creditCost,
     scenario_revision: 0,
     rendered_scenario_revision: 0,
     current_phase: 'Generating story scenario...',
     progress_message: 'Creating your story...',
   });
   if (error) throw new Error(`Failed to create story: ${error.message}`);
+}
+
+export async function updateStoryCreditCharge(id: string, creditChargeLedgerId: string): Promise<void> {
+  const supabase = getSupabase();
+  const { error } = await supabase
+    .from('stories')
+    .update({ credit_charge_ledger_id: creditChargeLedgerId })
+    .eq('id', id);
+  if (error) throw new Error(`Failed to update story credit charge: ${error.message}`);
 }
 
 export async function updateStoryStatus(id: string, status: StoryStatus): Promise<void> {
@@ -211,23 +224,35 @@ export async function updateStoryScenario(
     language?: string;
     scenarioRevision?: number;
     renderedScenarioRevision?: number;
+    storyMode?: StoryMode;
+    creditCost?: number;
   } = {},
 ): Promise<void> {
   const supabase = getSupabase();
+  const updatePayload: Record<string, unknown> = {
+    scenario,
+    title: scenario.title,
+    target_age: scenario.targetAge,
+    total_pages: scenario.pages.length,
+    status,
+    prompt,
+    art_style: options.artStyle ?? null,
+    language: options.language ?? 'ro',
+    scenario_revision: options.scenarioRevision,
+    rendered_scenario_revision: options.renderedScenarioRevision,
+  };
+
+  if (options.storyMode !== undefined) {
+    updatePayload.story_mode = options.storyMode;
+  }
+
+  if (options.creditCost !== undefined) {
+    updatePayload.credit_cost = options.creditCost;
+  }
+
   const { error } = await supabase
     .from('stories')
-    .update({
-      scenario,
-      title: scenario.title,
-      target_age: scenario.targetAge,
-      total_pages: scenario.pages.length,
-      status,
-      prompt,
-      art_style: options.artStyle ?? null,
-      language: options.language ?? 'ro',
-      scenario_revision: options.scenarioRevision,
-      rendered_scenario_revision: options.renderedScenarioRevision,
-    })
+    .update(updatePayload)
     .eq('id', id);
   if (error) throw new Error(`Failed to update story scenario: ${error.message}`);
 }
@@ -275,6 +300,9 @@ interface StoryRow {
   voice: string | null;
   scenario_revision: number | null;
   rendered_scenario_revision: number | null;
+  story_mode: StoryMode | null;
+  credit_cost: number | null;
+  credit_refunded_at: string | null;
 }
 
 function rowToStoryMeta(row: StoryRow): StoryMeta {
@@ -304,6 +332,9 @@ function rowToStoryMeta(row: StoryRow): StoryMeta {
     scenarioRevision,
     renderedScenarioRevision,
     assetsStale: scenarioRevision > renderedScenarioRevision,
+    storyMode: row.story_mode ?? undefined,
+    creditCost: row.credit_cost ?? undefined,
+    creditRefundedAt: row.credit_refunded_at ?? undefined,
   };
 }
 
