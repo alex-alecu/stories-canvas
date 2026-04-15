@@ -44,6 +44,7 @@ function makeStoryMeta(overrides: Partial<StoryMeta> = {}): StoryMeta {
 async function createStoriesHarness(dataDir: string, configOverrides: Record<string, unknown> = {}) {
   const express = (await import('express')).default;
   const { config } = await import('../config.js');
+  const generationRegistry = await import('../services/generationRegistry.js');
   const storiesModule = await import('./stories.js');
   const authUser = configOverrides.__testAuthUser as { id: string; email?: string } | undefined;
 
@@ -78,9 +79,16 @@ async function createStoriesHarness(dataDir: string, configOverrides: Record<str
 
   return {
     storiesModule,
-    close: () => new Promise<void>((resolve, reject) => {
-      server.close((error) => error ? reject(error) : resolve());
-    }),
+    close: async () => {
+      await new Promise<void>((resolve, reject) => {
+        server.close((error) => error ? reject(error) : resolve());
+      });
+      generationRegistry.abortAllTrackedGenerations();
+      await waitFor(
+        async () => generationRegistry.listTrackedGenerationIds(),
+        activeGenerationIds => activeGenerationIds.length === 0,
+      ).catch(() => {});
+    },
     baseUrl: `http://127.0.0.1:${address.port}`,
   };
 }
@@ -99,15 +107,20 @@ async function waitFor<T>(fn: () => Promise<T>, predicate: (value: T) => boolean
   return fn();
 }
 
-async function writeStoryMeta(dataDir: string, story: StoryMeta & { voice?: string }) {
+async function writeStoryMeta(dataDir: string, story: Omit<StoryMeta, 'voice'> & { voice?: string }) {
   const storyDir = path.join(dataDir, story.id);
   await fs.mkdir(storyDir, { recursive: true });
   await fs.writeFile(path.join(storyDir, 'scenario.json'), JSON.stringify(story, null, 2));
 }
 
-async function readStoryMeta(dataDir: string, storyId: string): Promise<StoryMeta & { voice?: string }> {
+async function readStoryMeta(dataDir: string, storyId: string): Promise<Omit<StoryMeta, 'voice'> & { voice?: string }> {
   const raw = await fs.readFile(path.join(dataDir, storyId, 'scenario.json'), 'utf-8');
   return JSON.parse(raw) as StoryMeta & { voice?: string };
+}
+
+async function readUsageEvents(dataDir: string, storyId: string) {
+  const raw = await fs.readFile(path.join(dataDir, storyId, 'usage-events.json'), 'utf-8');
+  return JSON.parse(raw) as Array<{ operation: string; source: string; status: string; costUsdMicros: number }>;
 }
 
 test('POST /api/stories stores canonical narrator keys unchanged', async (t) => {
@@ -238,6 +251,189 @@ test('POST /api/stories stores fixed story mode credit costs', async (t) => {
   }
 });
 
+test('POST /api/stories persists generation inputs and usage totals for filesystem stories', async (t) => {
+  const dataDir = mkdtempSync(path.join(os.tmpdir(), 'stories-usage-tracking-'));
+  const harness = await createStoriesHarness(dataDir);
+  t.after(async () => {
+    await harness.close();
+    await fs.rm(dataDir, { recursive: true, force: true });
+  });
+
+  const scenario = makeScenario([
+    makePage({
+      status: 'pending',
+      text: 'A dragon falls asleep under the moon.',
+    }),
+  ]);
+
+  t.mock.method(harness.storiesModule.scenarioOps, 'generateScenario', async (
+    _prompt: string,
+    _language: string | undefined,
+    _age: number | undefined,
+    _style: string | undefined,
+    _onProgress?: unknown,
+    usageCallbacks?: {
+      onDraftUsage?: (usage: {
+        model: string;
+        status: 'succeeded' | 'failed';
+        inputTokens: number;
+        outputTokens: number;
+        totalTokens: number;
+        usageDetails: Record<string, unknown>;
+      }) => void | Promise<void>;
+    },
+  ) => {
+    await usageCallbacks?.onDraftUsage?.({
+      model: 'gemini-3.1-pro-preview',
+      status: 'succeeded',
+      inputTokens: 120,
+      outputTokens: 80,
+      totalTokens: 200,
+      usageDetails: { promptTokenCount: 120, candidatesTokenCount: 80, totalTokenCount: 200 },
+    });
+    return scenario;
+  });
+
+  t.mock.method(harness.storiesModule.illustrationOps, 'generateAllCharacterSheets', async (
+    _storyId: string,
+    _characters: unknown,
+    _userId: unknown,
+    _signal: AbortSignal | undefined,
+    _styleDescription: string | undefined,
+    _pro: boolean | undefined,
+    _deps: unknown,
+    onUsage?: (_character: unknown, usage: {
+      model: string;
+      status: 'succeeded' | 'failed';
+      inputTokens: number;
+      outputTokens: number;
+      totalTokens: number;
+      generatedImages: number;
+      usageDetails: Record<string, unknown>;
+    }) => void | Promise<void>,
+  ) => {
+    await onUsage?.({}, {
+      model: 'gemini-3.1-flash-image-preview',
+      status: 'succeeded',
+      inputTokens: 10,
+      outputTokens: 0,
+      totalTokens: 10,
+      generatedImages: 1,
+      usageDetails: { promptTokenCount: 10, totalTokenCount: 10 },
+    });
+    return new Map();
+  });
+
+  t.mock.method(harness.storiesModule.illustrationOps, 'generateAllSceneImages', async (
+    _storyId: string,
+    pages: Page[],
+    _characters: unknown,
+    _sheets: unknown,
+    _styleDescription: string | undefined,
+    onProgress?: (progress: { pageNumber?: number; pageStatus?: 'completed' | 'failed'; message?: string }) => void,
+    _userId?: string,
+    _signal?: AbortSignal,
+    _pro?: boolean,
+    onUsage?: (page: Page, usage: {
+      model: string;
+      status: 'succeeded' | 'failed';
+      inputTokens: number;
+      outputTokens: number;
+      totalTokens: number;
+      generatedImages: number;
+      usageDetails: Record<string, unknown>;
+    }) => void | Promise<void>,
+  ) => {
+    const [page] = pages;
+    await onUsage?.(page, {
+      model: 'gemini-3.1-flash-image-preview',
+      status: 'succeeded',
+      inputTokens: 12,
+      outputTokens: 0,
+      totalTokens: 12,
+      generatedImages: 1,
+      usageDetails: { promptTokenCount: 12, totalTokenCount: 12 },
+    });
+    page.status = 'completed';
+    onProgress?.({ pageNumber: page.pageNumber, pageStatus: 'completed', message: 'Page complete' });
+  });
+
+  t.mock.method(harness.storiesModule.audioOps, 'isElevenLabsConfigured', () => true);
+  t.mock.method(harness.storiesModule.audioOps, 'generateAllPageAudio', async (
+    _storyId: string,
+    pages: Page[],
+    _voice: string,
+    _userId: string | undefined,
+    _signal: AbortSignal,
+    _onProgress?: unknown,
+    onUsage?: (page: Page, usage: {
+      model: string;
+      status: 'succeeded' | 'failed';
+      billedCharacters: number;
+      usageDetails: Record<string, unknown>;
+    }) => void | Promise<void>,
+  ) => {
+    const [page] = pages;
+    await onUsage?.(page, {
+      model: 'eleven_multilingual_v2',
+      status: 'succeeded',
+      billedCharacters: page.text.length,
+      usageDetails: { voiceId: 'voice-123' },
+    });
+    return {
+      completedCount: 1,
+      failedCount: 0,
+      skippedCount: 0,
+    };
+  });
+
+  const response = await fetch(`${harness.baseUrl}/api/stories`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      prompt: '  Tell a gentle bedtime story about a dragon.  ',
+      storyMode: 'pro_audio',
+      voice: 'corina',
+      age: 5,
+      style: 'watercolor',
+      language: 'en',
+    }),
+  });
+
+  assert.equal(response.status, 201);
+  const body = await response.json() as { id: string };
+  const savedStory = await waitFor(
+    () => readStoryMeta(dataDir, body.id),
+    story => story.status === 'completed' && (story.usageTotals?.costUsdMicros ?? 0) > 0,
+  );
+
+  assert.equal(savedStory.generationInputs?.prompt, 'Tell a gentle bedtime story about a dragon.');
+  assert.equal(savedStory.generationInputs?.language, 'en');
+  assert.equal(savedStory.generationInputs?.age, 5);
+  assert.equal(savedStory.generationInputs?.artStyle, 'watercolor');
+  assert.equal(savedStory.generationInputs?.storyMode, 'pro_audio');
+  assert.equal(savedStory.generationInputs?.voice, 'corina');
+  assert.equal(savedStory.generationInputs?.audioEnabled, true);
+  assert.equal(savedStory.generationInputs?.proModel, true);
+  assert.equal(savedStory.usageTotals?.inputTokens, 142);
+  assert.equal(savedStory.usageTotals?.outputTokens, 80);
+  assert.equal(savedStory.usageTotals?.totalTokens, 222);
+  assert.ok((savedStory.usageTotals?.textCostUsdMicros ?? 0) > 0);
+  assert.ok((savedStory.usageTotals?.imageCostUsdMicros ?? 0) > 0);
+  assert.ok((savedStory.usageTotals?.audioCostUsdMicros ?? 0) > 0);
+
+  const usageEvents = await readUsageEvents(dataDir, body.id);
+  assert.equal(usageEvents.length, 4);
+  assert.deepEqual(usageEvents.map(event => event.operation), [
+    'scenario_draft',
+    'character_sheet',
+    'page_image',
+    'page_audio',
+  ]);
+  assert.ok(usageEvents.every(event => event.source === 'initial_generation'));
+  assert.ok(usageEvents.every(event => event.status === 'succeeded'));
+});
+
 test('POST /api/stories rejects Pro + Audio when narration is unavailable', async (t) => {
   const dataDir = mkdtempSync(path.join(os.tmpdir(), 'stories-pro-audio-disabled-'));
   const harness = await createStoriesHarness(dataDir);
@@ -300,7 +496,7 @@ test('POST /api/stories/:id/retry resolves stored legacy voice keys for missing 
 
   let resolvedVoice: string | undefined;
   t.mock.method(harness.storiesModule.audioOps, 'isElevenLabsConfigured', () => true);
-  t.mock.method(harness.storiesModule.audioOps, 'retryMissingAudio', async (_storyId, _pages, voiceKey) => {
+  t.mock.method(harness.storiesModule.audioOps, 'retryMissingAudio', async (_storyId: string, _pages: Page[], voiceKey: string) => {
     resolvedVoice = voiceKey;
     return {
       completedCount: 1,
@@ -421,7 +617,7 @@ test('POST /api/stories/:id/regenerate-assets syncs renderedScenarioRevision to 
   });
 
   t.mock.method(harness.storiesModule.illustrationOps, 'generateAllCharacterSheets', async () => new Map());
-  t.mock.method(harness.storiesModule.illustrationOps, 'generateAllSceneImages', async (_storyId, pages, _characters, _sheets, _style, onProgress) => {
+  t.mock.method(harness.storiesModule.illustrationOps, 'generateAllSceneImages', async (_storyId: string, pages: Page[], _characters: unknown, _sheets: unknown, _style: unknown, onProgress?: (progress: { pageNumber?: number; pageStatus?: string; message?: string }) => void) => {
     for (const page of pages) {
       page.status = 'completed';
       onProgress?.({ pageNumber: page.pageNumber, pageStatus: 'completed', message: `Page ${page.pageNumber} complete` });

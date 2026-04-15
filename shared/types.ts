@@ -6,6 +6,17 @@ export type ArtStyleKey = 'disney-pixar' | 'watercolor' | 'storybook' | 'anime' 
 
 export type VoiceKey = 'bunica' | 'jora' | 'serban' | 'corina';
 export type StoryMode = 'fast' | 'pro' | 'pro_audio';
+export type StoryUsageProvider = 'gemini' | 'elevenlabs';
+export type StoryUsageSource = 'initial_generation' | 'retry' | 'regenerate_assets';
+export type StoryUsageStatus = 'succeeded' | 'failed';
+export type StoryUsageOperation =
+  | 'scenario_draft'
+  | 'scenario_validation_repair'
+  | 'scenario_review'
+  | 'scenario_review_rewrite'
+  | 'character_sheet'
+  | 'page_image'
+  | 'page_audio';
 
 export const STORY_MODE_CREDITS: Record<StoryMode, number> = {
   fast: 1,
@@ -127,6 +138,50 @@ export interface Scenario {
   pages: Page[];
 }
 
+export interface StoryGenerationInputs {
+  prompt: string;
+  language: string;
+  age: number;
+  artStyle: ArtStyleKey;
+  storyMode: StoryMode;
+  voice?: VoiceKey;
+  audioEnabled: boolean;
+  proModel: boolean;
+  scenarioModel: string;
+  imageModel: string;
+  imageModelPro: string;
+  audioModel?: string;
+  pricingVersion: string;
+}
+
+export interface StoryUsageTotals {
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  costUsdMicros: number;
+  textCostUsdMicros: number;
+  imageCostUsdMicros: number;
+  audioCostUsdMicros: number;
+}
+
+export interface StoryUsageEvent {
+  id: string;
+  storyId: string;
+  userId?: string;
+  provider: StoryUsageProvider;
+  operation: StoryUsageOperation;
+  source: StoryUsageSource;
+  status: StoryUsageStatus;
+  model: string;
+  pageNumber?: number;
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  costUsdMicros: number;
+  usageDetails: Record<string, unknown>;
+  createdAt: string;
+}
+
 export interface StoryMeta {
   id: string;
   prompt: string;
@@ -147,6 +202,8 @@ export interface StoryMeta {
   storyMode?: StoryMode;
   creditCost?: number;
   creditRefundedAt?: string;
+  generationInputs?: StoryGenerationInputs;
+  usageTotals?: StoryUsageTotals;
 }
 
 export interface StoryDetail extends StoryMeta {
@@ -265,9 +322,30 @@ export interface AdminUserSummary {
   createdAt?: string;
 }
 
+export interface AdminUserStoryCostSummary {
+  id: string;
+  createdAt: string;
+  title?: string;
+  status: StoryStatus;
+  creditCost?: number;
+  generationInputs?: StoryGenerationInputs;
+  usageTotals: StoryUsageTotals;
+}
+
+export interface AdminUserCostMetrics {
+  revenueMinor: number;
+  revenueCurrency: 'ron';
+  costUsdMicros: number;
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+}
+
 export interface AdminUserDetail extends AdminUserSummary {
   purchases: BillingPurchase[];
   ledger: CreditLedgerEntry[];
+  stories: AdminUserStoryCostSummary[];
+  metrics: AdminUserCostMetrics;
 }
 
 export interface AdminWebhookEvent {

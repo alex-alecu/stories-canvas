@@ -45,7 +45,7 @@ test('generateAllCharacterSheets sanitizes outbound prompts without mutating sto
         return 'image-base64';
       },
       saveImage: async () => {},
-      uploadImage: async () => {},
+      uploadImage: async () => '/mock-upload-url',
     },
   );
 

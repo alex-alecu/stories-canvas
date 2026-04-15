@@ -1,8 +1,21 @@
 import { getSupabase } from './supabase.js';
 import { config } from '../config.js';
-import { normalizeVoiceKey, type ArtStyleKey, type StoryMeta, type StoryMode, type StoryStatus, type Scenario, type PageStatus, type VoiceKey } from '../../shared/types.js';
+import {
+  normalizeVoiceKey,
+  type ArtStyleKey,
+  type PageStatus,
+  type StoryGenerationInputs,
+  type StoryMeta,
+  type StoryMode,
+  type StoryStatus,
+  type StoryUsageEvent,
+  type StoryUsageTotals,
+  type Scenario,
+  type VoiceKey,
+} from '../../shared/types.js';
 import { MEDIA_CACHE_MAX_AGE_SECONDS } from '../utils/storyMedia.js';
 import { parseArtStyle } from './storyStyle.js';
+import { EMPTY_STORY_USAGE_TOTALS, normalizeStoryUsageTotals } from './storyUsage.js';
 
 const BUCKET = 'story-images';
 const TRANSIENT_HTTP_STATUSES = new Set([502, 503, 504]);
@@ -165,6 +178,7 @@ export async function createStory(
   artStyle?: ArtStyleKey,
   storyMode?: StoryMode,
   creditCost = 0,
+  generationInputs?: StoryGenerationInputs,
 ): Promise<void> {
   const supabase = getSupabase();
   const { error } = await supabase.from('stories').insert({
@@ -177,6 +191,14 @@ export async function createStory(
     art_style: artStyle ?? null,
     story_mode: storyMode ?? null,
     credit_cost: creditCost,
+    generation_inputs: generationInputs ?? {},
+    usage_input_tokens: 0,
+    usage_output_tokens: 0,
+    usage_total_tokens: 0,
+    usage_cost_usd_micros: 0,
+    usage_text_cost_usd_micros: 0,
+    usage_image_cost_usd_micros: 0,
+    usage_audio_cost_usd_micros: 0,
     scenario_revision: 0,
     rendered_scenario_revision: 0,
     current_phase: 'Generating story scenario...',
@@ -303,6 +325,14 @@ interface StoryRow {
   story_mode: StoryMode | null;
   credit_cost: number | null;
   credit_refunded_at: string | null;
+  generation_inputs: StoryGenerationInputs | null;
+  usage_input_tokens: number | null;
+  usage_output_tokens: number | null;
+  usage_total_tokens: number | null;
+  usage_cost_usd_micros: number | null;
+  usage_text_cost_usd_micros: number | null;
+  usage_image_cost_usd_micros: number | null;
+  usage_audio_cost_usd_micros: number | null;
 }
 
 function rowToStoryMeta(row: StoryRow): StoryMeta {
@@ -335,6 +365,16 @@ function rowToStoryMeta(row: StoryRow): StoryMeta {
     storyMode: row.story_mode ?? undefined,
     creditCost: row.credit_cost ?? undefined,
     creditRefundedAt: row.credit_refunded_at ?? undefined,
+    generationInputs: row.generation_inputs ?? undefined,
+    usageTotals: normalizeStoryUsageTotals({
+      inputTokens: row.usage_input_tokens ?? 0,
+      outputTokens: row.usage_output_tokens ?? 0,
+      totalTokens: row.usage_total_tokens ?? 0,
+      costUsdMicros: row.usage_cost_usd_micros ?? 0,
+      textCostUsdMicros: row.usage_text_cost_usd_micros ?? 0,
+      imageCostUsdMicros: row.usage_image_cost_usd_micros ?? 0,
+      audioCostUsdMicros: row.usage_audio_cost_usd_micros ?? 0,
+    }),
   };
 }
 
@@ -363,16 +403,87 @@ export async function listStories(limit = 27): Promise<StoryMeta[]> {
   return (data as StoryRow[]).map(rowToStoryMeta);
 }
 
-export async function listStoriesByUser(userId: string, limit = 50): Promise<StoryMeta[]> {
+export async function listStoriesByUser(userId: string, limit?: number): Promise<StoryMeta[]> {
   const supabase = getSupabase();
-  const { data, error } = await supabase
+  let query = supabase
     .from('stories')
     .select('*')
     .eq('user_id', userId)
-    .order('created_at', { ascending: false })
-    .limit(limit);
+    .order('created_at', { ascending: false });
+
+  if (typeof limit === 'number') {
+    query = query.limit(limit);
+  }
+
+  const { data, error } = await query;
   if (error) throw new Error(`Failed to list user stories: ${error.message}`);
   return (data as StoryRow[]).map(rowToStoryMeta);
+}
+
+function mergeStoryUsageTotals(
+  current: StoryUsageTotals | undefined,
+  delta: StoryUsageTotals,
+): StoryUsageTotals {
+  const existing = normalizeStoryUsageTotals(current);
+  return {
+    inputTokens: existing.inputTokens + delta.inputTokens,
+    outputTokens: existing.outputTokens + delta.outputTokens,
+    totalTokens: existing.totalTokens + delta.totalTokens,
+    costUsdMicros: existing.costUsdMicros + delta.costUsdMicros,
+    textCostUsdMicros: existing.textCostUsdMicros + delta.textCostUsdMicros,
+    imageCostUsdMicros: existing.imageCostUsdMicros + delta.imageCostUsdMicros,
+    audioCostUsdMicros: existing.audioCostUsdMicros + delta.audioCostUsdMicros,
+  };
+}
+
+export async function appendStoryUsageEvent(
+  storyId: string,
+  event: StoryUsageEvent,
+  totalsDelta: StoryUsageTotals,
+): Promise<void> {
+  const supabase = getSupabase();
+  const story = await getStory(storyId);
+  if (!story) {
+    throw new Error(`Failed to append story usage event: story ${storyId} not found`);
+  }
+
+  const mergedTotals = mergeStoryUsageTotals(story.usageTotals ?? EMPTY_STORY_USAGE_TOTALS, totalsDelta);
+  const { error: insertError } = await supabase.from('story_usage_events').insert({
+    id: event.id,
+    story_id: event.storyId,
+    user_id: event.userId ?? null,
+    provider: event.provider,
+    operation: event.operation,
+    source: event.source,
+    status: event.status,
+    model: event.model,
+    page_number: event.pageNumber ?? null,
+    input_tokens: event.inputTokens,
+    output_tokens: event.outputTokens,
+    total_tokens: event.totalTokens,
+    cost_usd_micros: event.costUsdMicros,
+    usage_details: event.usageDetails,
+    created_at: event.createdAt,
+  });
+  if (insertError) {
+    throw new Error(`Failed to insert story usage event: ${insertError.message}`);
+  }
+
+  const { error: updateError } = await supabase
+    .from('stories')
+    .update({
+      usage_input_tokens: mergedTotals.inputTokens,
+      usage_output_tokens: mergedTotals.outputTokens,
+      usage_total_tokens: mergedTotals.totalTokens,
+      usage_cost_usd_micros: mergedTotals.costUsdMicros,
+      usage_text_cost_usd_micros: mergedTotals.textCostUsdMicros,
+      usage_image_cost_usd_micros: mergedTotals.imageCostUsdMicros,
+      usage_audio_cost_usd_micros: mergedTotals.audioCostUsdMicros,
+    })
+    .eq('id', storyId);
+  if (updateError) {
+    throw new Error(`Failed to update story usage totals: ${updateError.message}`);
+  }
 }
 
 export async function deleteStory(id: string, userId?: string): Promise<boolean> {

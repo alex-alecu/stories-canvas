@@ -9,6 +9,7 @@ import {
 } from './storyPrompt.js';
 import { normalizeScenarioWhitespace } from './scenarioValidation.js';
 import type { JSONGenerationOptions } from './gemini.js';
+import type { StoryUsageStatus } from '../../shared/types.js';
 
 export const SCENARIO_REVIEW_ISSUE_CODES = [
   'prompt_fidelity',
@@ -179,6 +180,14 @@ export async function reviewScenarioWithModel(
   context: StoryPromptContext,
   scenario: Scenario,
   generateJSON: GenerateJSONFn,
+  onUsage?: (usage: {
+    model: string;
+    status: StoryUsageStatus;
+    inputTokens: number;
+    outputTokens: number;
+    totalTokens: number;
+    usageDetails: Record<string, unknown>;
+  }) => void | Promise<void>,
 ): Promise<ScenarioReviewResult> {
   const normalizedScenario = normalizeScenarioWhitespace(scenario);
   const rawResult = await generateJSON<RawScenarioReviewResult>(
@@ -190,6 +199,7 @@ export async function reviewScenarioWithModel(
       thinkingConfig: {
         thinkingBudget: config.scenarioReviewThinkingBudget,
       },
+      onUsage,
     },
   );
 
@@ -201,6 +211,14 @@ export async function rewriteScenarioFromReviewWithModel(
   scenario: Scenario,
   review: ScenarioReviewResult,
   generateJSON: GenerateJSONFn,
+  onUsage?: (usage: {
+    model: string;
+    status: StoryUsageStatus;
+    inputTokens: number;
+    outputTokens: number;
+    totalTokens: number;
+    usageDetails: Record<string, unknown>;
+  }) => void | Promise<void>,
 ): Promise<Scenario> {
   const normalizedScenario = normalizeScenarioWhitespace(scenario);
 
@@ -260,6 +278,7 @@ export async function rewriteScenarioFromReviewWithModel(
       thinkingConfig: {
         thinkingBudget: config.scenarioReviewThinkingBudget,
       },
+      onUsage,
     },
   );
 }

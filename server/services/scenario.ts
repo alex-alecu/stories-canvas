@@ -18,6 +18,7 @@ import {
   type ScenarioReviewResult,
 } from './scenarioReview.js';
 import type { Scenario, ArtStyleKey } from '../../shared/types.js';
+import type { StoryUsageStatus } from '../../shared/types.js';
 
 const scenarioSchema = {
   type: 'OBJECT',
@@ -104,6 +105,20 @@ export interface ScenarioProgressUpdate {
 
 type ScenarioProgressCallback = (update: ScenarioProgressUpdate) => void;
 
+export interface ScenarioUsageCallbacks {
+  onDraftUsage?: (usage: {
+    model: string;
+    status: StoryUsageStatus;
+    inputTokens: number;
+    outputTokens: number;
+    totalTokens: number;
+    usageDetails: Record<string, unknown>;
+  }) => void | Promise<void>;
+  onValidationRepairUsage?: ScenarioUsageCallbacks['onDraftUsage'];
+  onReviewUsage?: ScenarioUsageCallbacks['onDraftUsage'];
+  onRewriteUsage?: ScenarioUsageCallbacks['onDraftUsage'];
+}
+
 export interface ReviewedScenarioResult {
   scenario: Scenario;
   review: ScenarioReviewResult;
@@ -139,6 +154,7 @@ async function generateDraftScenario(
   context: StoryPromptContext,
   systemInstruction: string,
   generateJSON: GenerateJSONFn,
+  usageCallbacks?: ScenarioUsageCallbacks,
 ): Promise<Scenario> {
   return generateJSON<Scenario>(
     buildDraftScenarioPrompt(context),
@@ -149,6 +165,7 @@ async function generateDraftScenario(
       thinkingConfig: {
         thinkingBudget: config.scenarioThinkingBudget,
       },
+      onUsage: usageCallbacks?.onDraftUsage,
     },
   );
 }
@@ -159,6 +176,7 @@ async function generateRepairScenario(
   draftScenario: Scenario,
   repairPass: number,
   generateJSON: GenerateJSONFn,
+  usageCallbacks?: ScenarioUsageCallbacks,
 ): Promise<Scenario> {
   const issues = validateScenario(draftScenario, context.targetAge);
 
@@ -171,6 +189,7 @@ async function generateRepairScenario(
       thinkingConfig: {
         thinkingBudget: config.scenarioReviewThinkingBudget,
       },
+      onUsage: usageCallbacks?.onValidationRepairUsage,
     },
   );
 }
@@ -180,6 +199,7 @@ async function enforceHardValidation(
   systemInstruction: string,
   candidateScenario: Scenario,
   generateJSON: GenerateJSONFn,
+  usageCallbacks?: ScenarioUsageCallbacks,
 ): Promise<Scenario> {
   let currentScenario = normalizeScenarioWhitespace(stripPageRuntimeFields(candidateScenario));
   let issues = validateScenario(currentScenario, context.targetAge);
@@ -195,6 +215,7 @@ async function enforceHardValidation(
       currentScenario,
       repairPass,
       generateJSON,
+      usageCallbacks,
     );
 
     currentScenario = normalizeScenarioWhitespace(stripPageRuntimeFields(currentScenario));
@@ -213,9 +234,10 @@ async function applyEditorialReview(
   context: StoryPromptContext,
   candidateScenario: Scenario,
   generateJSON: GenerateJSONFn,
+  usageCallbacks?: ScenarioUsageCallbacks,
 ): Promise<ReviewedScenarioResult> {
   const normalizedScenario = normalizeScenarioWhitespace(stripPageRuntimeFields(candidateScenario));
-  const review = await runScenarioReviewWithModel(context, normalizedScenario, generateJSON);
+  const review = await runScenarioReviewWithModel(context, normalizedScenario, generateJSON, usageCallbacks?.onReviewUsage);
 
   if (!review.needsRewrite) {
     return {
@@ -226,7 +248,7 @@ async function applyEditorialReview(
   }
 
   const rewrittenScenario = normalizeScenarioWhitespace(stripPageRuntimeFields(
-    await rewriteScenarioFromReviewWithModel(context, normalizedScenario, review, generateJSON),
+    await rewriteScenarioFromReviewWithModel(context, normalizedScenario, review, generateJSON, usageCallbacks?.onRewriteUsage),
   ));
   const finalIssues = validateScenario(rewrittenScenario, context.targetAge);
   if (finalIssues.length > 0) {
@@ -249,19 +271,21 @@ export async function generateScenarioWithModel(
   style: ArtStyleKey | undefined,
   generateJSON: GenerateJSONFn,
   _onProgress?: ScenarioProgressCallback,
+  usageCallbacks?: ScenarioUsageCallbacks,
 ): Promise<Scenario> {
   const context = buildStoryPromptContext(userPrompt, language, age, style);
   const systemInstruction = buildStorySystemInstruction(context);
 
-  const draftScenario = await generateDraftScenario(context, systemInstruction, generateJSON);
+  const draftScenario = await generateDraftScenario(context, systemInstruction, generateJSON, usageCallbacks);
   const validatedScenario = await enforceHardValidation(
     context,
     systemInstruction,
     draftScenario,
     generateJSON,
+    usageCallbacks,
   );
 
-  const reviewedScenario = await applyEditorialReview(context, validatedScenario, generateJSON);
+  const reviewedScenario = await applyEditorialReview(context, validatedScenario, generateJSON, usageCallbacks);
 
   return finalizeScenario(reviewedScenario.scenario);
 }
@@ -274,6 +298,7 @@ export async function reviewScenarioWithModel(
   scenario: Scenario,
   generateJSON: GenerateJSONFn,
   onProgress?: ScenarioProgressCallback,
+  usageCallbacks?: ScenarioUsageCallbacks,
 ): Promise<ReviewedScenarioResult> {
   const context = buildStoryPromptContext(userPrompt, language, age ?? scenario.targetAge, style);
   const systemInstruction = buildStorySystemInstruction(context);
@@ -282,6 +307,7 @@ export async function reviewScenarioWithModel(
     systemInstruction,
     scenario,
     generateJSON,
+    usageCallbacks,
   );
 
   onProgress?.({
@@ -290,7 +316,7 @@ export async function reviewScenarioWithModel(
     message: 'Reviewing and refining your story...',
   });
 
-  const reviewedScenario = await applyEditorialReview(context, validatedScenario, generateJSON);
+  const reviewedScenario = await applyEditorialReview(context, validatedScenario, generateJSON, usageCallbacks);
 
   return {
     ...reviewedScenario,
@@ -304,8 +330,9 @@ export async function generateScenario(
   age?: number,
   style?: ArtStyleKey,
   onProgress?: ScenarioProgressCallback,
+  usageCallbacks?: ScenarioUsageCallbacks,
 ): Promise<Scenario> {
-  return generateScenarioWithModel(userPrompt, language, age, style, gemini.generateJSON, onProgress);
+  return generateScenarioWithModel(userPrompt, language, age, style, gemini.generateJSON, onProgress, usageCallbacks);
 }
 
 export async function reviewScenario(
@@ -315,6 +342,7 @@ export async function reviewScenario(
   style: ArtStyleKey | undefined,
   scenario: Scenario,
   onProgress?: ScenarioProgressCallback,
+  usageCallbacks?: ScenarioUsageCallbacks,
 ): Promise<ReviewedScenarioResult> {
   return reviewScenarioWithModel(
     userPrompt,
@@ -324,5 +352,6 @@ export async function reviewScenario(
     scenario,
     gemini.generateJSON,
     onProgress,
+    usageCallbacks,
   );
 }

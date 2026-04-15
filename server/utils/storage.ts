@@ -1,12 +1,29 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { config } from '../config.js';
-import { normalizeVoiceKey, type ArtStyleKey, type StoryMeta, type StoryMode, type Scenario, type StoryStatus, type VoiceKey } from '../../shared/types.js';
+import {
+  normalizeVoiceKey,
+  type ArtStyleKey,
+  type StoryGenerationInputs,
+  type StoryMeta,
+  type StoryMode,
+  type Scenario,
+  type StoryStatus,
+  type StoryUsageEvent,
+  type StoryUsageTotals,
+  type VoiceKey,
+} from '../../shared/types.js';
+import { EMPTY_STORY_USAGE_TOTALS, normalizeStoryUsageTotals } from '../services/storyUsage.js';
 
 const writeLocks = new Map<string, Promise<void>>();
+const storyDirOverrides = new Map<string, string>();
 
 function getStoriesDir(): string {
   return config.dataDir;
+}
+
+function resolveStoryDir(storyId: string): string {
+  return storyDirOverrides.get(storyId) ?? path.join(getStoriesDir(), storyId);
 }
 
 async function withLock<T>(storyId: string, fn: () => Promise<T>): Promise<T> {
@@ -46,13 +63,16 @@ function normalizeStoryMetaVoice(story: StoryMeta): StoryMeta {
     scenarioRevision,
     renderedScenarioRevision,
     assetsStale: scenarioRevision > renderedScenarioRevision,
+    usageTotals: normalizeStoryUsageTotals(story.usageTotals),
+    generationInputs: story.generationInputs,
   };
 }
 
 async function readRawStory(storyId: string): Promise<StoryMeta | null> {
-  const filePath = path.join(getStoriesDir(), storyId, 'scenario.json');
+  const filePath = path.join(resolveStoryDir(storyId), 'scenario.json');
   try {
     const data = await fs.readFile(filePath, 'utf-8');
+    storyDirOverrides.set(storyId, path.dirname(filePath));
     return JSON.parse(data) as StoryMeta;
   } catch {
     return null;
@@ -67,12 +87,84 @@ export interface SaveScenarioOptions {
   renderedScenarioRevision?: number;
   storyMode?: StoryMode;
   creditCost?: number;
+  generationInputs?: StoryGenerationInputs;
+  usageTotals?: StoryUsageTotals;
+}
+
+function getUsageEventsPath(storyId: string): string {
+  return path.join(resolveStoryDir(storyId), 'usage-events.json');
+}
+
+async function readUsageEvents(storyId: string): Promise<StoryUsageEvent[]> {
+  try {
+    const raw = await fs.readFile(getUsageEventsPath(storyId), 'utf-8');
+    return JSON.parse(raw) as StoryUsageEvent[];
+  } catch {
+    return [];
+  }
+}
+
+async function writeUsageEvents(storyId: string, events: StoryUsageEvent[]): Promise<void> {
+  const dir = await getStoryDir(storyId);
+  await fs.writeFile(path.join(dir, 'usage-events.json'), JSON.stringify(events, null, 2));
+}
+
+function mergeUsageTotals(
+  current: StoryUsageTotals | undefined,
+  delta: StoryUsageTotals,
+): StoryUsageTotals {
+  const existing = normalizeStoryUsageTotals(current);
+  return {
+    inputTokens: existing.inputTokens + delta.inputTokens,
+    outputTokens: existing.outputTokens + delta.outputTokens,
+    totalTokens: existing.totalTokens + delta.totalTokens,
+    costUsdMicros: existing.costUsdMicros + delta.costUsdMicros,
+    textCostUsdMicros: existing.textCostUsdMicros + delta.textCostUsdMicros,
+    imageCostUsdMicros: existing.imageCostUsdMicros + delta.imageCostUsdMicros,
+    audioCostUsdMicros: existing.audioCostUsdMicros + delta.audioCostUsdMicros,
+  };
 }
 
 export async function getStoryDir(storyId: string): Promise<string> {
-  const dir = path.join(getStoriesDir(), storyId);
+  const dir = resolveStoryDir(storyId);
   await ensureDir(dir);
+  storyDirOverrides.set(storyId, dir);
   return dir;
+}
+
+export async function createStory(
+  storyId: string,
+  prompt: string,
+  status: StoryStatus,
+  userId?: string,
+  language?: string,
+  voice?: VoiceKey,
+  artStyle?: ArtStyleKey,
+  storyMode?: StoryMode,
+  creditCost = 0,
+  generationInputs?: StoryGenerationInputs,
+): Promise<void> {
+  const dir = await getStoryDir(storyId);
+  const meta: StoryMeta = {
+    id: storyId,
+    prompt,
+    status,
+    createdAt: new Date().toISOString(),
+    userId,
+    language: language ?? 'ro',
+    voice,
+    artStyle,
+    storyMode,
+    creditCost,
+    currentPhase: 'Generating story scenario...',
+    progressMessage: 'Creating your story...',
+    generationInputs,
+    usageTotals: { ...EMPTY_STORY_USAGE_TOTALS },
+    scenarioRevision: 0,
+    renderedScenarioRevision: 0,
+  };
+  await fs.writeFile(path.join(dir, 'scenario.json'), JSON.stringify(meta, null, 2));
+  await writeUsageEvents(storyId, []);
 }
 
 export async function saveScenario(
@@ -99,6 +191,8 @@ export async function saveScenario(
     storyMode: options.storyMode ?? existing?.storyMode,
     creditCost: options.creditCost ?? existing?.creditCost,
     creditRefundedAt: existing?.creditRefundedAt,
+    generationInputs: existing?.generationInputs ?? options.generationInputs,
+    usageTotals: normalizeStoryUsageTotals(existing?.usageTotals ?? options.usageTotals),
   };
   await fs.writeFile(path.join(dir, 'scenario.json'), JSON.stringify(meta, null, 2));
 }
@@ -115,7 +209,7 @@ export async function updateStoryScenario(
 
 export async function updateStoryStatus(storyId: string, status: StoryStatus): Promise<void> {
   await withLock(storyId, async () => {
-    const dir = path.join(getStoriesDir(), storyId);
+    const dir = resolveStoryDir(storyId);
     const filePath = path.join(dir, 'scenario.json');
     const data = JSON.parse(await fs.readFile(filePath, 'utf-8')) as StoryMeta;
     data.status = status;
@@ -125,7 +219,7 @@ export async function updateStoryStatus(storyId: string, status: StoryStatus): P
 
 export async function updatePageStatus(storyId: string, pageNumber: number, status: 'pending' | 'generating' | 'completed' | 'failed'): Promise<void> {
   await withLock(storyId, async () => {
-    const dir = path.join(getStoriesDir(), storyId);
+    const dir = resolveStoryDir(storyId);
     const filePath = path.join(dir, 'scenario.json');
     const data = JSON.parse(await fs.readFile(filePath, 'utf-8')) as StoryMeta;
     if (data.scenario) {
@@ -140,7 +234,7 @@ export async function updatePageStatus(storyId: string, pageNumber: number, stat
 
 export async function updatePageAudioUrl(storyId: string, pageNumber: number, audioUrl: string): Promise<void> {
   await withLock(storyId, async () => {
-    const dir = path.join(getStoriesDir(), storyId);
+    const dir = resolveStoryDir(storyId);
     const filePath = path.join(dir, 'scenario.json');
     const data = JSON.parse(await fs.readFile(filePath, 'utf-8')) as StoryMeta;
 
@@ -162,7 +256,7 @@ export async function saveImage(storyId: string, filename: string, base64Data: s
 }
 
 export async function getImagePath(storyId: string, filename: string): Promise<string | null> {
-  const filePath = path.join(getStoriesDir(), storyId, filename);
+  const filePath = path.join(resolveStoryDir(storyId), filename);
   try {
     await fs.access(filePath);
     return filePath;
@@ -178,7 +272,7 @@ export async function saveAudio(storyId: string, filename: string, audioBuffer: 
 
 export async function updateStoryVoice(storyId: string, voice: VoiceKey): Promise<void> {
   await withLock(storyId, async () => {
-    const dir = path.join(getStoriesDir(), storyId);
+    const dir = resolveStoryDir(storyId);
     const filePath = path.join(dir, 'scenario.json');
     const data = JSON.parse(await fs.readFile(filePath, 'utf-8')) as StoryMeta;
     data.voice = voice;
@@ -191,7 +285,7 @@ export async function updateStoryRenderedScenarioRevision(
   renderedScenarioRevision: number,
 ): Promise<void> {
   await withLock(storyId, async () => {
-    const dir = path.join(getStoriesDir(), storyId);
+    const dir = resolveStoryDir(storyId);
     const filePath = path.join(dir, 'scenario.json');
     const data = JSON.parse(await fs.readFile(filePath, 'utf-8')) as StoryMeta;
     data.renderedScenarioRevision = renderedScenarioRevision;
@@ -200,7 +294,7 @@ export async function updateStoryRenderedScenarioRevision(
 }
 
 export async function getAudioPath(storyId: string, filename: string): Promise<string | null> {
-  const filePath = path.join(getStoriesDir(), storyId, filename);
+  const filePath = path.join(resolveStoryDir(storyId), filename);
   try {
     await fs.access(filePath);
     return filePath;
@@ -212,6 +306,23 @@ export async function getAudioPath(storyId: string, filename: string): Promise<s
 export async function getStory(storyId: string): Promise<StoryMeta | null> {
   const story = await readRawStory(storyId);
   return story ? normalizeStoryMetaVoice(story) : null;
+}
+
+export async function appendStoryUsageEvent(
+  storyId: string,
+  event: StoryUsageEvent,
+  totalsDelta: StoryUsageTotals,
+): Promise<void> {
+  await withLock(storyId, async () => {
+    const dir = await getStoryDir(storyId);
+    const filePath = path.join(dir, 'scenario.json');
+    const data = JSON.parse(await fs.readFile(filePath, 'utf-8')) as StoryMeta;
+    data.usageTotals = mergeUsageTotals(data.usageTotals, totalsDelta);
+    const events = await readUsageEvents(storyId);
+    events.push(event);
+    await fs.writeFile(filePath, JSON.stringify(data, null, 2));
+    await writeUsageEvents(storyId, events);
+  });
 }
 
 export async function listStories(limit = 27): Promise<StoryMeta[]> {
@@ -238,10 +349,11 @@ export async function listStories(limit = 27): Promise<StoryMeta[]> {
 }
 
 export async function deleteStory(storyId: string): Promise<boolean> {
-  const dir = path.join(getStoriesDir(), storyId);
+  const dir = resolveStoryDir(storyId);
   try {
     await fs.access(dir);
     await fs.rm(dir, { recursive: true, force: true });
+    storyDirOverrides.delete(storyId);
     return true;
   } catch {
     return false;

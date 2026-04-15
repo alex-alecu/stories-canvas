@@ -187,14 +187,19 @@ export async function listCreditLedger(userId: string, limit = 25): Promise<Cred
   return (data as CreditLedgerRow[]).map(rowToLedgerEntry);
 }
 
-export async function listBillingPurchases(userId: string, limit = 25): Promise<BillingPurchase[]> {
+export async function listBillingPurchases(userId: string, limit?: number): Promise<BillingPurchase[]> {
   const supabase = getSupabase();
-  const { data, error } = await supabase
+  let query = supabase
     .from('billing_purchases')
     .select('id, offer_slug, amount_minor, currency, credits_granted, status, created_at, fulfilled_at')
     .eq('user_id', userId)
-    .order('created_at', { ascending: false })
-    .limit(limit);
+    .order('created_at', { ascending: false });
+
+  if (typeof limit === 'number') {
+    query = query.limit(limit);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     throw new Error(`Failed to list billing purchases: ${error.message}`);
@@ -218,7 +223,7 @@ export async function getBillingOverview(userId: string, isAdmin: boolean): Prom
 
 export async function getBillingHistory(userId: string): Promise<BillingHistoryResponse> {
   const [purchases, ledger] = await Promise.all([
-    listBillingPurchases(userId),
+    listBillingPurchases(userId, 25),
     listCreditLedger(userId),
   ]);
 
