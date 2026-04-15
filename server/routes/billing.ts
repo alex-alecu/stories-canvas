@@ -1,4 +1,5 @@
 import { Router, type Request, type Response } from 'express';
+import type Stripe from 'stripe';
 import { config } from '../config.js';
 import { requireAuth } from '../middleware/auth.js';
 import {
@@ -19,6 +20,27 @@ import {
 
 const router = Router();
 export const billingWebhookRouter = Router();
+const FULFILLABLE_CHECKOUT_EVENTS = new Set<Stripe.Event.Type>([
+  'checkout.session.completed',
+  'checkout.session.async_payment_succeeded',
+]);
+
+export const billingStorageOps = {
+  createWebhookEvent,
+  fulfillStoryPackPurchase,
+  getBillingHistory,
+  getBillingOverview,
+  getStoryPackOffer,
+  listStoryPackOffers,
+  markWebhookEventFailed,
+  markWebhookEventProcessed,
+};
+
+export const billingStripeOps = {
+  createStoryPackCheckoutSession,
+  isStripeConfigured,
+  verifyStripeWebhookEvent,
+};
 
 router.get('/offers', async (_req: Request, res: Response) => {
   try {
@@ -27,7 +49,7 @@ router.get('/offers', async (_req: Request, res: Response) => {
       return;
     }
 
-    const offers = await listStoryPackOffers();
+    const offers = await billingStorageOps.listStoryPackOffers();
     res.json(offers);
   } catch (error) {
     console.error('Failed to load billing offers:', error);
@@ -46,7 +68,7 @@ router.get('/me', requireAuth, async (req: Request, res: Response) => {
       return;
     }
 
-    const overview = await getBillingOverview(req.authUser.id, !!req.authUser.isAdmin);
+    const overview = await billingStorageOps.getBillingOverview(req.authUser.id, !!req.authUser.isAdmin);
     res.json(overview);
   } catch (error) {
     console.error('Failed to load billing overview:', error);
@@ -61,7 +83,7 @@ router.get('/history', requireAuth, async (req: Request, res: Response) => {
       return;
     }
 
-    const history = await getBillingHistory(req.authUser.id);
+    const history = await billingStorageOps.getBillingHistory(req.authUser.id);
     res.json(history);
   } catch (error) {
     console.error('Failed to load billing history:', error);
@@ -76,7 +98,7 @@ router.post('/checkout', requireAuth, async (req: Request, res: Response) => {
       return;
     }
 
-    if (!isStripeConfigured()) {
+    if (!billingStripeOps.isStripeConfigured()) {
       res.status(503).json({ error: 'Stripe checkout is not configured' });
       return;
     }
@@ -87,13 +109,13 @@ router.post('/checkout', requireAuth, async (req: Request, res: Response) => {
       return;
     }
 
-    const offer = await getStoryPackOffer(offerSlug);
+    const offer = await billingStorageOps.getStoryPackOffer(offerSlug);
     if (!offer) {
       res.status(404).json({ error: 'Offer not found or inactive' });
       return;
     }
 
-    const session = await createStoryPackCheckoutSession({
+    const session = await billingStripeOps.createStoryPackCheckoutSession({
       req,
       userId: req.authUser.id,
       email: req.authUser.email,
@@ -112,7 +134,7 @@ router.post('/checkout', requireAuth, async (req: Request, res: Response) => {
 
 billingWebhookRouter.post('/', async (req: Request, res: Response) => {
   try {
-    if (!isStripeConfigured()) {
+    if (!billingStripeOps.isStripeConfigured()) {
       res.status(503).json({ error: 'Stripe checkout is not configured' });
       return;
     }
@@ -123,10 +145,10 @@ billingWebhookRouter.post('/', async (req: Request, res: Response) => {
       return;
     }
 
-    const event = verifyStripeWebhookEvent(req.body, signature);
-    await createWebhookEvent(event.id, event.type, event.data.object);
+    const event = billingStripeOps.verifyStripeWebhookEvent(req.body, signature);
+    await billingStorageOps.createWebhookEvent(event.id, event.type, event.data.object);
 
-    if (event.type === 'checkout.session.completed') {
+    if (FULFILLABLE_CHECKOUT_EVENTS.has(event.type)) {
       const session = event.data.object;
       const userId = session.metadata?.userId;
       const offerSlug = session.metadata?.offerSlug;
@@ -135,19 +157,21 @@ billingWebhookRouter.post('/', async (req: Request, res: Response) => {
         throw new Error('Checkout session metadata is missing userId or offerSlug');
       }
 
-      await fulfillStoryPackPurchase({
-        userId,
-        offerSlug: offerSlug as 'pack_5' | 'pack_12' | 'pack_20',
-        stripeCheckoutSessionId: session.id,
-        stripePaymentIntentId: typeof session.payment_intent === 'string' ? session.payment_intent : undefined,
-        stripeCustomerId: typeof session.customer === 'string' ? session.customer : undefined,
-        amountMinor: session.amount_total ?? 0,
-        currency: 'ron',
-        metadata: session.metadata ?? {},
-      });
+      if (session.payment_status === 'paid') {
+        await billingStorageOps.fulfillStoryPackPurchase({
+          userId,
+          offerSlug: offerSlug as 'pack_5' | 'pack_12' | 'pack_20',
+          stripeCheckoutSessionId: session.id,
+          stripePaymentIntentId: typeof session.payment_intent === 'string' ? session.payment_intent : undefined,
+          stripeCustomerId: typeof session.customer === 'string' ? session.customer : undefined,
+          amountMinor: session.amount_total ?? 0,
+          currency: 'ron',
+          metadata: session.metadata ?? {},
+        });
+      }
     }
 
-    await markWebhookEventProcessed(event.id);
+    await billingStorageOps.markWebhookEventProcessed(event.id);
     res.json({ received: true });
   } catch (error) {
     console.error('Stripe webhook processing failed:', error);
@@ -168,7 +192,7 @@ billingWebhookRouter.post('/', async (req: Request, res: Response) => {
 
     if (eventId) {
       try {
-        await markWebhookEventFailed(eventId, error instanceof Error ? error.message : String(error));
+        await billingStorageOps.markWebhookEventFailed(eventId, error instanceof Error ? error.message : String(error));
       } catch (markError) {
         console.error('Failed to mark webhook event failed:', markError);
       }

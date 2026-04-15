@@ -17,6 +17,8 @@ interface AuthUserLike {
   };
 }
 
+const AUTH_USERS_PAGE_SIZE = 200;
+
 function getDisplayName(user: AuthUserLike): string | undefined {
   return user.user_metadata?.full_name
     || user.user_metadata?.name
@@ -24,34 +26,63 @@ function getDisplayName(user: AuthUserLike): string | undefined {
     || undefined;
 }
 
-export async function searchUsers(query: string, limit = 20): Promise<AdminUserSummary[]> {
+async function listMatchingAuthUsers(query: string, limit: number): Promise<AuthUserLike[]> {
   const supabase = getSupabase();
   const normalizedQuery = query.trim().toLowerCase();
-  const { data, error } = await supabase.auth.admin.listUsers({
-    page: 1,
-    perPage: 200,
-  });
+  const matches: AuthUserLike[] = [];
+  let page = 1;
 
-  if (error) {
-    throw new Error(`Failed to list users: ${error.message}`);
+  while (matches.length < limit) {
+    const { data, error } = await supabase.auth.admin.listUsers({
+      page,
+      perPage: AUTH_USERS_PAGE_SIZE,
+    });
+
+    if (error) {
+      throw new Error(`Failed to list users: ${error.message}`);
+    }
+
+    const users = (data.users as AuthUserLike[]) ?? [];
+    if (users.length === 0) {
+      break;
+    }
+
+    for (const user of users) {
+      if (!normalizedQuery) {
+        matches.push(user);
+      } else {
+        const haystacks = [
+          user.id,
+          user.email,
+          user.user_metadata?.full_name,
+          user.user_metadata?.name,
+        ]
+          .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+          .map(value => value.toLowerCase());
+
+        if (haystacks.some(value => value.includes(normalizedQuery))) {
+          matches.push(user);
+        }
+      }
+
+      if (matches.length >= limit) {
+        break;
+      }
+    }
+
+    if (users.length < AUTH_USERS_PAGE_SIZE) {
+      break;
+    }
+
+    page += 1;
   }
 
-  const filtered = (data.users as AuthUserLike[])
-    .filter((user) => {
-      if (!normalizedQuery) return true;
+  return matches.slice(0, limit);
+}
 
-      const haystacks = [
-        user.id,
-        user.email,
-        user.user_metadata?.full_name,
-        user.user_metadata?.name,
-      ]
-        .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
-        .map(value => value.toLowerCase());
-
-      return haystacks.some(value => value.includes(normalizedQuery));
-    })
-    .slice(0, limit);
+export async function searchUsers(query: string, limit = 20): Promise<AdminUserSummary[]> {
+  const supabase = getSupabase();
+  const filtered = await listMatchingAuthUsers(query, limit);
 
   const userIds = filtered.map(user => user.id);
   if (userIds.length === 0) {

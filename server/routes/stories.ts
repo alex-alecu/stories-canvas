@@ -519,6 +519,11 @@ router.post('/', optionalAuth, async (req: Request, res: Response) => {
       return;
     }
 
+    if (storyMode === 'pro_audio' && !audioOps.isElevenLabsConfigured()) {
+      res.status(503).json({ error: 'Audio generation service is not configured' });
+      return;
+    }
+
     // Create the story in DB IMMEDIATELY so it's available for SSE and refresh
     if (config.useSupabase) {
       await sbStorage.createStory(

@@ -121,7 +121,12 @@ test('POST /api/stories stores canonical narrator keys unchanged', async (t) => 
   t.mock.method(harness.storiesModule.scenarioOps, 'generateScenario', async () => makeScenario());
   t.mock.method(harness.storiesModule.illustrationOps, 'generateAllCharacterSheets', async () => []);
   t.mock.method(harness.storiesModule.illustrationOps, 'generateAllSceneImages', async () => {});
-  t.mock.method(harness.storiesModule.audioOps, 'isElevenLabsConfigured', () => false);
+  t.mock.method(harness.storiesModule.audioOps, 'isElevenLabsConfigured', () => true);
+  t.mock.method(harness.storiesModule.audioOps, 'generateAllPageAudio', async () => ({
+    completedCount: 0,
+    failedCount: 0,
+    skippedCount: 0,
+  }));
 
   const response = await fetch(`${harness.baseUrl}/api/stories`, {
     method: 'POST',
@@ -156,7 +161,12 @@ test('POST /api/stories normalizes legacy narrator keys before persistence', asy
   t.mock.method(harness.storiesModule.scenarioOps, 'generateScenario', async () => makeScenario());
   t.mock.method(harness.storiesModule.illustrationOps, 'generateAllCharacterSheets', async () => []);
   t.mock.method(harness.storiesModule.illustrationOps, 'generateAllSceneImages', async () => {});
-  t.mock.method(harness.storiesModule.audioOps, 'isElevenLabsConfigured', () => false);
+  t.mock.method(harness.storiesModule.audioOps, 'isElevenLabsConfigured', () => true);
+  t.mock.method(harness.storiesModule.audioOps, 'generateAllPageAudio', async () => ({
+    completedCount: 0,
+    failedCount: 0,
+    skippedCount: 0,
+  }));
 
   const response = await fetch(`${harness.baseUrl}/api/stories`, {
     method: 'POST',
@@ -191,7 +201,12 @@ test('POST /api/stories stores fixed story mode credit costs', async (t) => {
   t.mock.method(harness.storiesModule.scenarioOps, 'generateScenario', async () => makeScenario());
   t.mock.method(harness.storiesModule.illustrationOps, 'generateAllCharacterSheets', async () => []);
   t.mock.method(harness.storiesModule.illustrationOps, 'generateAllSceneImages', async () => {});
-  t.mock.method(harness.storiesModule.audioOps, 'isElevenLabsConfigured', () => false);
+  t.mock.method(harness.storiesModule.audioOps, 'isElevenLabsConfigured', () => true);
+  t.mock.method(harness.storiesModule.audioOps, 'generateAllPageAudio', async () => ({
+    completedCount: 0,
+    failedCount: 0,
+    skippedCount: 0,
+  }));
 
   const cases = [
     { storyMode: 'fast', creditCost: 1, voice: undefined },
@@ -221,6 +236,31 @@ test('POST /api/stories stores fixed story mode credit costs', async (t) => {
     assert.equal(savedStory.creditCost, scenarioCase.creditCost);
     assert.equal(savedStory.voice, scenarioCase.voice);
   }
+});
+
+test('POST /api/stories rejects Pro + Audio when narration is unavailable', async (t) => {
+  const dataDir = mkdtempSync(path.join(os.tmpdir(), 'stories-pro-audio-disabled-'));
+  const harness = await createStoriesHarness(dataDir);
+  t.after(async () => {
+    await harness.close();
+    await fs.rm(dataDir, { recursive: true, force: true });
+  });
+
+  t.mock.method(harness.storiesModule.audioOps, 'isElevenLabsConfigured', () => false);
+
+  const response = await fetch(`${harness.baseUrl}/api/stories`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      prompt: 'Create a narrated bedtime story.',
+      storyMode: 'pro_audio',
+      voice: 'corina',
+    }),
+  });
+
+  assert.equal(response.status, 503);
+  const body = await response.json() as { error: string };
+  assert.equal(body.error, 'Audio generation service is not configured');
 });
 
 test('POST /api/stories/:id/generate-audio rejects add-audio-later purchases', async (t) => {
