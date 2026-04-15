@@ -47,7 +47,7 @@ const hu: Translations = {
   privateLabel: 'Privát',
   makePublic: 'Nyilvánossá tétel',
   makePrivate: 'Priváttá tétel',
-  deleteStory: 'Mese törlése',
+  deleteStory: 'Törlés',
 
   noStoriesYet: 'Még nincsenek mesék',
   createFirstStory: 'Készítsd el az első mesédet fent!',

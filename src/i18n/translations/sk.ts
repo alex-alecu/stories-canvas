@@ -47,7 +47,7 @@ const sk: Translations = {
   privateLabel: 'Súkromný',
   makePublic: 'Zverejniť',
   makePrivate: 'Nastaviť ako súkromný',
-  deleteStory: 'Zmazať príbeh',
+  deleteStory: 'Zmazať',
 
   noStoriesYet: 'Zatiaľ žiadne príbehy',
   createFirstStory: 'Vytvorte svoj prvý príbeh vyššie!',

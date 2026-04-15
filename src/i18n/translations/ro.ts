@@ -52,7 +52,7 @@ const ro: Translations = {
   privateLabel: 'Privată',
   makePublic: 'Fă publică',
   makePrivate: 'Fă privată',
-  deleteStory: 'Șterge povestea',
+  deleteStory: 'Șterge',
 
   // Story grid
   noStoriesYet: 'Nicio poveste încă',

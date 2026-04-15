@@ -47,7 +47,7 @@ const ja: Translations = {
   privateLabel: '非公開',
   makePublic: '公開する',
   makePrivate: '非公開にする',
-  deleteStory: 'おはなしを削除',
+  deleteStory: '削除',
 
   noStoriesYet: 'まだおはなしがありません',
   createFirstStory: '上で最初のおはなしを作ろう！',

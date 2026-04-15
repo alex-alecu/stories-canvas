@@ -47,7 +47,7 @@ const fi: Translations = {
   privateLabel: 'Yksityinen',
   makePublic: 'Tee julkiseksi',
   makePrivate: 'Tee yksityiseksi',
-  deleteStory: 'Poista satu',
+  deleteStory: 'Poista',
 
   noStoriesYet: 'Ei satuja vielä',
   createFirstStory: 'Luo ensimmäinen satusi yllä!',

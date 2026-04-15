@@ -47,7 +47,7 @@ const nl: Translations = {
   privateLabel: 'Privé',
   makePublic: 'Openbaar maken',
   makePrivate: 'Privé maken',
-  deleteStory: 'Verhaal verwijderen',
+  deleteStory: 'Verwijderen',
 
   noStoriesYet: 'Nog geen verhalen',
   createFirstStory: 'Maak je eerste verhaal hierboven!',

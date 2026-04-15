@@ -47,7 +47,7 @@ const da: Translations = {
   privateLabel: 'Privat',
   makePublic: 'Gør offentlig',
   makePrivate: 'Gør privat',
-  deleteStory: 'Slet historie',
+  deleteStory: 'Slet',
 
   noStoriesYet: 'Ingen historier endnu',
   createFirstStory: 'Opret din første historie ovenfor!',

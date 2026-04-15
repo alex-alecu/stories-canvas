@@ -47,7 +47,7 @@ const pt: Translations = {
   privateLabel: 'Privada',
   makePublic: 'Tornar pública',
   makePrivate: 'Tornar privada',
-  deleteStory: 'Excluir história',
+  deleteStory: 'Excluir',
 
   noStoriesYet: 'Nenhuma história ainda',
   createFirstStory: 'Crie sua primeira história acima!',

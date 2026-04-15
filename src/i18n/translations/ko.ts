@@ -47,7 +47,7 @@ const ko: Translations = {
   privateLabel: '비공개',
   makePublic: '공개로 전환',
   makePrivate: '비공개로 전환',
-  deleteStory: '이야기 삭제',
+  deleteStory: '삭제',
 
   noStoriesYet: '아직 이야기가 없어요',
   createFirstStory: '위에서 첫 번째 이야기를 만들어보세요!',

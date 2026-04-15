@@ -47,7 +47,7 @@ const sv: Translations = {
   privateLabel: 'Privat',
   makePublic: 'Gör offentlig',
   makePrivate: 'Gör privat',
-  deleteStory: 'Radera saga',
+  deleteStory: 'Radera',
 
   noStoriesYet: 'Inga sagor ännu',
   createFirstStory: 'Skapa din första saga ovan!',

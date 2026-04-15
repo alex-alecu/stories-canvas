@@ -47,7 +47,7 @@ const zh: Translations = {
   privateLabel: '私密',
   makePublic: '设为公开',
   makePrivate: '设为私密',
-  deleteStory: '删除故事',
+  deleteStory: '删除',
 
   noStoriesYet: '还没有故事',
   createFirstStory: '在上方创建你的第一个故事吧！',
