@@ -5,10 +5,9 @@ import { useBillingOverview } from '../hooks/useBilling';
 import { useLanguage } from '../i18n/LanguageContext';
 import LanguageSelector from './LanguageSelector';
 import ThemeToggle from './ThemeToggle';
-import FontSizeControl from './FontSizeControl';
 
 export default function Header() {
-  const { user, loading, signOut } = useAuth();
+  const { user, loading } = useAuth();
   const { data: billingOverview } = useBillingOverview(!!user);
   const { t } = useLanguage();
   const location = useLocation();
@@ -72,16 +71,7 @@ export default function Header() {
         {/* Desktop nav — hidden on mobile */}
         <nav className="hidden md:flex items-center gap-3">
           <ThemeToggle />
-          <FontSizeControl />
           <LanguageSelector />
-          {user && (
-            <Link
-              to="/billing"
-              className="text-sm font-bold text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 transition-colors"
-            >
-              {t.billingLabel}
-            </Link>
-          )}
           {user && billingOverview?.isAdmin && (
             <Link
               to="/admin"
@@ -114,12 +104,6 @@ export default function Header() {
                   {user.user_metadata?.full_name || user.email || t.profile}
                 </span>
               </Link>
-              <button
-                onClick={signOut}
-                className="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 font-medium transition-colors ml-2"
-              >
-                {t.logout}
-              </button>
             </>
           ) : (
             <Link
@@ -167,19 +151,6 @@ export default function Header() {
         role="menu"
       >
         <nav className="max-w-6xl mx-auto px-4 py-4 flex flex-col gap-1">
-          {user && (
-            <Link
-              to="/billing"
-              className="flex items-center gap-3 px-3 py-3 rounded-lg text-sm font-bold text-primary-600 dark:text-primary-400 hover:bg-primary-50 dark:hover:bg-surface-dark-accent transition-colors"
-              role="menuitem"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-2.21 0-4 1.343-4 3s1.79 3 4 3 4 1.343 4 3-1.79 3-4 3m0-12c1.39 0 2.615.53 3.294 1.333M12 8V6m0 2v10m0 0v2m0-2c-1.39 0-2.615-.53-3.294-1.333" />
-              </svg>
-              {t.billingLabel}
-            </Link>
-          )}
-
           {user && billingOverview?.isAdmin && (
             <Link
               to="/admin"
@@ -255,34 +226,7 @@ export default function Header() {
               <ThemeToggle />
             </div>
 
-            {/* Font size */}
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
-                {t.fontSize}
-              </span>
-              <FontSizeControl />
-            </div>
           </div>
-
-          {/* Sign out button at the bottom */}
-          {user && (
-            <>
-              <div className="border-t border-gray-100 dark:border-primary-900/30 my-1" />
-              <button
-                onClick={() => {
-                  signOut();
-                  setMenuOpen(false);
-                }}
-                className="flex items-center gap-3 px-3 py-3 rounded-lg text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-50 dark:hover:bg-surface-dark-accent transition-colors w-full text-left"
-                role="menuitem"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                </svg>
-                {t.logout}
-              </button>
-            </>
-          )}
         </nav>
       </div>
     </header>
