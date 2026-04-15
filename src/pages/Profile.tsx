@@ -84,13 +84,13 @@ export default function Profile() {
 
             <div className="flex flex-col gap-3 sm:flex-row">
               <div className="rounded-2xl bg-primary-50 px-5 py-4 text-primary-700 dark:bg-primary-900/30 dark:text-primary-200">
-                <p className="text-xs uppercase tracking-[0.18em]">Credits</p>
+                <p className="text-xs uppercase tracking-[0.18em]">{t.profileCreditsTitle}</p>
                 <p className="mt-1 text-3xl font-extrabold">{billingOverview?.balance.availableCredits ?? 0}</p>
                 <Link
                   to="/billing"
                   className="mt-3 inline-flex text-sm font-semibold text-primary-700 underline decoration-primary-300 underline-offset-4 dark:text-primary-200"
                 >
-                  Manage billing
+                  {t.profileManageBilling}
                 </Link>
               </div>
               <button

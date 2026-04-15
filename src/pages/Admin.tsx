@@ -9,19 +9,17 @@ import {
   useGrantCredits,
   useUpdateStoryPackOffer,
 } from '../hooks/useBilling';
+import { useLanguage } from '../i18n/LanguageContext';
+import {
+  formatCredits,
+  formatLocalizedDate,
+  formatLocalizedPrice,
+  getLedgerReasonLabel,
+  getOfferCopy,
+  getPurchaseStatusLabel,
+  getWebhookStatusLabel,
+} from '../i18n/billingCopy';
 import type { StoryPackOffer } from '../types';
-
-function formatPrice(priceMinor: number): string {
-  return new Intl.NumberFormat('ro-RO', {
-    style: 'currency',
-    currency: 'RON',
-  }).format(priceMinor / 100);
-}
-
-function formatDate(value: string | undefined): string {
-  if (!value) return 'Never';
-  return new Date(value).toLocaleString('ro-RO');
-}
 
 function OfferEditor({
   offer,
@@ -38,6 +36,7 @@ function OfferEditor({
   }) => Promise<void>;
   isSaving: boolean;
 }) {
+  const { t, language } = useLanguage();
   const [name, setName] = useState(offer.name);
   const [description, setDescription] = useState(offer.description);
   const [price, setPrice] = useState(String((offer.priceMinor / 100).toFixed(2)));
@@ -60,16 +59,16 @@ function OfferEditor({
       <div className="flex items-start justify-between gap-4 mb-4">
         <div>
           <p className="text-xs uppercase tracking-[0.2em] text-gray-400 dark:text-gray-500">{offer.slug}</p>
-          <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">{offer.credits} credits</h3>
+          <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">{formatCredits(offer.credits, t)}</h3>
         </div>
         <span className="rounded-full bg-primary-50 dark:bg-primary-900/30 px-3 py-1 text-xs font-semibold text-primary-600 dark:text-primary-300">
-          {formatPrice(offer.priceMinor)}
+          {formatLocalizedPrice(offer.priceMinor, language)}
         </span>
       </div>
 
       <div className="space-y-3">
         <label className="block">
-          <span className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">Pack name</span>
+          <span className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">{t.adminOfferNameLabel}</span>
           <input
             value={name}
             onChange={(event) => setName(event.target.value)}
@@ -78,7 +77,7 @@ function OfferEditor({
         </label>
 
         <label className="block">
-          <span className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">Description</span>
+          <span className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">{t.adminOfferDescriptionLabel}</span>
           <textarea
             value={description}
             onChange={(event) => setDescription(event.target.value)}
@@ -89,7 +88,7 @@ function OfferEditor({
 
         <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
           <label className="block">
-            <span className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">Price (RON)</span>
+            <span className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-200">{t.adminOfferPriceLabel}</span>
             <input
               value={price}
               onChange={(event) => setPrice(event.target.value)}
@@ -105,7 +104,7 @@ function OfferEditor({
               onChange={(event) => setIsActive(event.target.checked)}
               className="h-4 w-4"
             />
-            Active
+            {t.adminOfferActiveLabel}
           </label>
         </div>
       </div>
@@ -122,7 +121,7 @@ function OfferEditor({
         })}
         className="mt-4 rounded-xl bg-primary-600 px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
       >
-        {isSaving ? 'Saving...' : 'Save offer'}
+        {isSaving ? t.adminSaving : t.adminSaveOffer}
       </button>
     </div>
   );
@@ -130,6 +129,7 @@ function OfferEditor({
 
 export default function Admin() {
   const { user, loading } = useAuth();
+  const { t, language } = useLanguage();
   const navigate = useNavigate();
   const { data: billingOverview, isLoading: billingLoading, error: billingError } = useBillingOverview(!!user);
   const { data: adminOverview, isLoading: adminLoading } = useAdminOverview(!!user);
@@ -178,9 +178,9 @@ export default function Admin() {
     return (
       <div className="min-h-screen p-6 md:p-8">
         <div className="mx-auto max-w-3xl rounded-3xl border border-red-200 bg-red-50 p-8 text-center dark:border-red-900/40 dark:bg-red-950/30">
-          <h1 className="text-2xl font-bold text-red-700 dark:text-red-300">Admin access required</h1>
+          <h1 className="text-2xl font-bold text-red-700 dark:text-red-300">{t.adminAccessRequiredTitle}</h1>
           <p className="mt-2 text-sm text-red-600 dark:text-red-300/80">
-            Your account is signed in, but it does not have the admin role.
+            {t.adminAccessRequiredBody}
           </p>
         </div>
       </div>
@@ -193,14 +193,14 @@ export default function Admin() {
         <section className="rounded-3xl border border-primary-100 bg-white p-6 shadow-sm dark:border-primary-900/40 dark:bg-surface-dark-elevated">
           <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
             <div>
-              <p className="text-sm font-medium uppercase tracking-[0.22em] text-primary-500">Admin</p>
-              <h1 className="text-3xl font-extrabold text-gray-900 dark:text-gray-100">Story packs and billing ops</h1>
+              <p className="text-sm font-medium uppercase tracking-[0.22em] text-primary-500">{t.adminLabel}</p>
+              <h1 className="text-3xl font-extrabold text-gray-900 dark:text-gray-100">{t.adminTitle}</h1>
               <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-                Edit live pack pricing, look up users, and grant credits without leaving the app.
+                {t.adminDescription}
               </p>
             </div>
             <div className="rounded-2xl bg-primary-50 px-4 py-3 text-sm text-primary-700 dark:bg-primary-900/30 dark:text-primary-200">
-              Signed in as {user.email}
+              {t.adminSignedInAs} {user.email}
             </div>
           </div>
         </section>
@@ -208,7 +208,7 @@ export default function Admin() {
         <section className="grid gap-6 xl:grid-cols-[1.4fr_1fr]">
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">Pack offers</h2>
+              <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">{t.adminPackOffersTitle}</h2>
               {saveMessage && (
                 <span className="text-sm text-primary-600 dark:text-primary-300">{saveMessage}</span>
               )}
@@ -221,7 +221,7 @@ export default function Admin() {
                   isSaving={updateOffer.isPending}
                   onSave={async (payload) => {
                     await updateOffer.mutateAsync(payload);
-                    setSaveMessage(`Saved ${payload.slug}`);
+                    setSaveMessage(`${t.adminOfferSaved}: ${payload.slug}`);
                     setTimeout(() => setSaveMessage(null), 3000);
                   }}
                 />
@@ -230,10 +230,10 @@ export default function Admin() {
           </div>
 
           <div className="rounded-3xl border border-primary-100 bg-white p-5 shadow-sm dark:border-primary-900/40 dark:bg-surface-dark-elevated">
-            <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">Webhook activity</h2>
+            <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">{t.adminWebhookActivityTitle}</h2>
             <div className="mt-4 space-y-3">
               {(adminOverview?.webhookEvents ?? []).length === 0 ? (
-                <p className="text-sm text-gray-500 dark:text-gray-400">No Stripe webhook events recorded yet.</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">{t.adminNoWebhookEvents}</p>
               ) : (
                 adminOverview?.webhookEvents.map((event) => (
                   <div key={event.stripeEventId} className="rounded-2xl border border-gray-100 bg-gray-50 px-4 py-3 dark:border-gray-800 dark:bg-surface-dark">
@@ -246,10 +246,10 @@ export default function Admin() {
                             ? 'bg-green-100 text-green-700 dark:bg-green-950/40 dark:text-green-300'
                             : 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300'
                       }`}>
-                        {event.status}
+                        {getWebhookStatusLabel(event.status, t)}
                       </span>
                     </div>
-                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{formatDate(event.createdAt)}</p>
+                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{formatLocalizedDate(event.createdAt, language, t.adminNever)}</p>
                     {event.errorMessage && (
                       <p className="mt-2 text-xs text-red-600 dark:text-red-300">{event.errorMessage}</p>
                     )}
@@ -262,20 +262,20 @@ export default function Admin() {
 
         <section className="grid gap-6 xl:grid-cols-[360px_1fr]">
           <div className="rounded-3xl border border-primary-100 bg-white p-5 shadow-sm dark:border-primary-900/40 dark:bg-surface-dark-elevated">
-            <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">User search</h2>
+            <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">{t.adminUserSearchTitle}</h2>
             <input
               type="text"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search by email, name, or user id"
+              placeholder={t.adminUserSearchPlaceholder}
               className="mt-4 w-full rounded-2xl border border-gray-200 px-4 py-3 text-sm text-gray-800 dark:border-gray-700 dark:bg-surface-dark dark:text-gray-100"
             />
 
             <div className="mt-4 space-y-2">
               {usersLoading ? (
-                <p className="text-sm text-gray-500 dark:text-gray-400">Searching users...</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">{t.adminSearchingUsers}</p>
               ) : users.length === 0 ? (
-                <p className="text-sm text-gray-500 dark:text-gray-400">No users match this query.</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">{t.adminNoUsersFound}</p>
               ) : (
                 users.map((result) => (
                   <button
@@ -291,8 +291,8 @@ export default function Admin() {
                     <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{result.displayName || result.email}</p>
                     <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{result.email}</p>
                     <div className="mt-2 flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
-                      <span>{result.availableCredits} credits</span>
-                      {result.isAdmin && <span className="font-semibold text-primary-600 dark:text-primary-300">admin</span>}
+                      <span>{formatCredits(result.availableCredits, t)}</span>
+                      {result.isAdmin && <span className="font-semibold text-primary-600 dark:text-primary-300">{t.adminRole}</span>}
                     </div>
                   </button>
                 ))
@@ -302,25 +302,25 @@ export default function Admin() {
 
           <div className="rounded-3xl border border-primary-100 bg-white p-5 shadow-sm dark:border-primary-900/40 dark:bg-surface-dark-elevated">
             {!selectedUserId ? (
-              <p className="text-sm text-gray-500 dark:text-gray-400">Select a user to inspect credits and history.</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">{t.adminSelectUser}</p>
             ) : selectedUserLoading || !selectedUser ? (
-              <p className="text-sm text-gray-500 dark:text-gray-400">Loading user details...</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">{t.adminLoadingUserDetails}</p>
             ) : (
               <div className="space-y-6">
                 <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                   <div>
                     <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{selectedUser.displayName || selectedUser.email}</h2>
                     <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{selectedUser.email}</p>
-                    <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">Joined {formatDate(selectedUser.createdAt)}</p>
+                    <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">{t.adminJoined} {formatLocalizedDate(selectedUser.createdAt, language, t.adminNever)}</p>
                   </div>
                   <div className="rounded-2xl bg-primary-50 px-4 py-3 text-right dark:bg-primary-900/20">
-                    <p className="text-xs uppercase tracking-[0.2em] text-primary-500">Credits</p>
+                    <p className="text-xs uppercase tracking-[0.2em] text-primary-500">{t.availableCredits}</p>
                     <p className="text-2xl font-extrabold text-primary-700 dark:text-primary-200">{selectedUser.availableCredits}</p>
                   </div>
                 </div>
 
                 <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4 dark:border-gray-800 dark:bg-surface-dark">
-                  <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Grant free credits</h3>
+                  <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t.adminGrantFreeCreditsTitle}</h3>
                   <div className="mt-3 grid gap-3 md:grid-cols-[120px_1fr_auto]">
                     <input
                       value={grantAmount}
@@ -331,7 +331,7 @@ export default function Admin() {
                     <input
                       value={grantNote}
                       onChange={(event) => setGrantNote(event.target.value)}
-                      placeholder="Reason shown in the ledger"
+                      placeholder={t.adminLedgerReasonPlaceholder}
                       className="rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-800 dark:border-gray-700 dark:bg-surface-dark-accent dark:text-gray-100"
                     />
                     <button
@@ -347,49 +347,52 @@ export default function Admin() {
                       }}
                       className="rounded-xl bg-primary-600 px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                      {grantCredits.isPending ? 'Granting...' : 'Grant credits'}
+                      {grantCredits.isPending ? t.adminGrantingCredits : t.adminGrantCredits}
                     </button>
                   </div>
                 </div>
 
                 <div className="grid gap-6 lg:grid-cols-2">
                   <div>
-                    <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">Recent purchases</h3>
+                    <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">{t.adminRecentPurchasesTitle}</h3>
                     <div className="mt-3 space-y-3">
                       {selectedUser.purchases.length === 0 ? (
-                        <p className="text-sm text-gray-500 dark:text-gray-400">No purchases yet.</p>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">{t.billingNoPurchases}</p>
                       ) : (
-                        selectedUser.purchases.map((purchase) => (
+                        selectedUser.purchases.map((purchase) => {
+                          const offer = adminOverview?.offers.find((item) => item.slug === purchase.offerSlug);
+                          const offerName = offer ? getOfferCopy(offer, t).name : purchase.offerSlug;
+                          return (
                           <div key={purchase.id} className="rounded-2xl border border-gray-100 px-4 py-3 dark:border-gray-800">
                             <div className="flex items-center justify-between gap-3">
-                              <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{purchase.offerSlug}</p>
-                              <span className="text-sm text-primary-600 dark:text-primary-300">{formatPrice(purchase.amountMinor)}</span>
+                              <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{offerName}</p>
+                              <span className="text-sm text-primary-600 dark:text-primary-300">{formatLocalizedPrice(purchase.amountMinor, language)}</span>
                             </div>
                             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                              {purchase.creditsGranted} credits · {purchase.status} · {formatDate(purchase.createdAt)}
+                              {formatCredits(purchase.creditsGranted, t)} · {getPurchaseStatusLabel(purchase.status, t)} · {formatLocalizedDate(purchase.createdAt, language, t.adminNever)}
                             </p>
                           </div>
-                        ))
+                        )})
                       )}
                     </div>
                   </div>
 
                   <div>
-                    <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">Credit ledger</h3>
+                    <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">{t.adminCreditLedgerTitle}</h3>
                     <div className="mt-3 space-y-3">
                       {selectedUser.ledger.length === 0 ? (
-                        <p className="text-sm text-gray-500 dark:text-gray-400">No ledger entries yet.</p>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">{t.adminNoLedgerEntries}</p>
                       ) : (
                         selectedUser.ledger.map((entry) => (
                           <div key={entry.id} className="rounded-2xl border border-gray-100 px-4 py-3 dark:border-gray-800">
                             <div className="flex items-center justify-between gap-3">
-                              <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{entry.reason}</p>
+                              <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{getLedgerReasonLabel(entry.reason, t)}</p>
                               <span className={`text-sm font-semibold ${entry.delta > 0 ? 'text-green-600 dark:text-green-300' : 'text-red-600 dark:text-red-300'}`}>
                                 {entry.delta > 0 ? '+' : ''}{entry.delta}
                               </span>
                             </div>
                             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                              Balance after: {entry.balanceAfter} · {formatDate(entry.createdAt)}
+                              {t.billingBalanceAfter}: {entry.balanceAfter} · {formatLocalizedDate(entry.createdAt, language, t.adminNever)}
                             </p>
                             {entry.note && (
                               <p className="mt-2 text-xs text-gray-600 dark:text-gray-300">{entry.note}</p>

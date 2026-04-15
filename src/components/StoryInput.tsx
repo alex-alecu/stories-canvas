@@ -17,6 +17,7 @@ import {
 } from '../../shared/types';
 import { getRandomStoryIdea } from '../data/storyIdeas';
 import { getVoiceOptionText } from '../i18n/storyStatusCopy';
+import { formatCredits } from '../i18n/billingCopy';
 
 const STYLE_KEYS: ArtStyleKey[] = ['disney-pixar', 'watercolor', 'storybook', 'anime', 'colored-pencil', 'paper-cutout'];
 
@@ -88,6 +89,7 @@ export default function StoryInput({ onSubmit, isLoading }: StoryInputProps) {
   };
 
   const isGuest = !loading && !user;
+  const creditsSummary = `${t.creditsRequiredLabel}: ${formatCredits(requiredCredits, t)}${user && billingOverview ? ` · ${t.creditsAvailableLabel}: ${formatCredits(availableCredits, t)}` : ''}`;
 
   return (
     <div className="w-full max-w-2xl mx-auto">
@@ -185,9 +187,9 @@ export default function StoryInput({ onSubmit, isLoading }: StoryInputProps) {
               <div className="flex flex-col gap-2">
                 <div className="flex flex-wrap gap-2">
                   {([
-                    { key: 'fast', label: 'Fast', detail: '1 credit' },
-                    { key: 'pro', label: 'Pro', detail: '2 credits' },
-                    { key: 'pro_audio', label: 'Pro + Audio', detail: '3 credits' },
+                    { key: 'fast', label: t.storyModeFast, detail: formatCredits(1, t) },
+                    { key: 'pro', label: t.storyModePro, detail: formatCredits(2, t) },
+                    { key: 'pro_audio', label: t.storyModeProAudio, detail: formatCredits(3, t) },
                   ] as const).map((option) => (
                     <button
                       key={option.key}
@@ -230,8 +232,7 @@ export default function StoryInput({ onSubmit, isLoading }: StoryInputProps) {
                 )}
 
                 <p className="text-sm text-gray-400 dark:text-gray-500">
-                  {requiredCredits} credit{requiredCredits === 1 ? '' : 's'} required
-                  {user && billingOverview && ` · ${availableCredits} available`}
+                  {creditsSummary}
                 </p>
               </div>
             ) : (
@@ -239,7 +240,7 @@ export default function StoryInput({ onSubmit, isLoading }: StoryInputProps) {
             )}
             <button
               type="submit"
-              disabled={user ? (!prompt.trim() || isLoading) : false}
+              disabled={user ? (isLoading || (hasEnoughCredits && !prompt.trim())) : false}
               className="bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 disabled:from-gray-300 disabled:to-gray-300 dark:disabled:from-gray-700 dark:disabled:to-gray-700 text-white font-bold py-2.5 px-8 rounded-xl transition-all disabled:cursor-not-allowed transform hover:scale-[1.02] active:scale-[0.98]"
             >
               {isLoading ? (
@@ -251,7 +252,7 @@ export default function StoryInput({ onSubmit, isLoading }: StoryInputProps) {
                   {t.creating}
                 </span>
               ) : user && !hasEnoughCredits ? (
-                'Get credits'
+                t.getCredits
               ) : (
                 t.createStory
               )}
