@@ -85,7 +85,7 @@ export default function Header() {
               to="/billing"
               className="text-sm font-bold text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 transition-colors"
             >
-              Billing
+              {t.billingLabel}
             </Link>
           )}
           {user && billingOverview?.isAdmin && (
@@ -194,7 +194,7 @@ export default function Header() {
               <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-2.21 0-4 1.343-4 3s1.79 3 4 3 4 1.343 4 3-1.79 3-4 3m0-12c1.39 0 2.615.53 3.294 1.333M12 8V6m0 2v10m0 0v2m0-2c-1.39 0-2.615-.53-3.294-1.333" />
               </svg>
-              Billing
+              {t.billingLabel}
             </Link>
           )}
 
