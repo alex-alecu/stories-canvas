@@ -73,7 +73,7 @@ export default function StoryInput({ onSubmit, isLoading }: StoryInputProps) {
     }
 
     if (!hasEnoughCredits) {
-      navigate('/billing?reason=insufficient-credits');
+      navigate('/profile?reason=insufficient-credits');
       return;
     }
 

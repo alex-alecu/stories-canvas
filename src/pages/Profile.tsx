@@ -1,25 +1,20 @@
 import { useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import StoryGrid from '../components/StoryGrid';
-import { useUserStories, useDeleteStory, useToggleVisibility } from '../hooks/useStories';
-import { useBillingOverview } from '../hooks/useBilling';
 import { useLanguage } from '../i18n/LanguageContext';
+import BillingContent from '../components/BillingContent';
 
 export default function Profile() {
   const { user, loading, signOut } = useAuth();
   const navigate = useNavigate();
-  const { data: stories = [], isLoading: storiesLoading } = useUserStories(!!user);
-  const { data: billingOverview } = useBillingOverview(!!user);
-  const deleteStory = useDeleteStory();
-  const toggleVisibility = useToggleVisibility();
+  const location = useLocation();
   const { t } = useLanguage();
 
   useEffect(() => {
     if (!loading && !user) {
-      navigate('/login?returnTo=/profile', { replace: true });
+      navigate(`/login?returnTo=${encodeURIComponent(`${location.pathname}${location.search}`)}`, { replace: true });
     }
-  }, [loading, user, navigate]);
+  }, [loading, user, navigate, location.pathname, location.search]);
 
   if (loading) {
     return (
@@ -40,29 +35,12 @@ export default function Profile() {
     navigate('/', { replace: true });
   };
 
-  const handleDelete = async (id: string) => {
-    if (!window.confirm(t.confirmDeleteStory)) return;
-    try {
-      await deleteStory.mutateAsync(id);
-    } catch {
-      alert(t.couldNotDeleteStory);
-    }
-  };
-
-  const handleTogglePublic = async (id: string, isPublic: boolean) => {
-    try {
-      await toggleVisibility.mutateAsync({ id, isPublic });
-    } catch {
-      alert(t.couldNotChangeVisibility);
-    }
-  };
-
   return (
     <div className="min-h-screen p-4 md:p-8">
       <div className="max-w-6xl mx-auto">
         {/* Profile header */}
         <div className="bg-white dark:bg-surface-dark-elevated rounded-2xl shadow-lg shadow-primary-100/50 dark:shadow-primary-900/30 border border-primary-100 dark:border-primary-800/50 p-6 md:p-8 mb-8">
-          <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex flex-col sm:flex-row items-center gap-6 flex-1">
               {avatarUrl ? (
                 <img
@@ -82,20 +60,10 @@ export default function Profile() {
               </div>
             </div>
 
-            <div className="flex flex-col gap-3 sm:flex-row">
-              <div className="rounded-2xl bg-primary-50 px-5 py-4 text-primary-700 dark:bg-primary-900/30 dark:text-primary-200">
-                <p className="text-xs uppercase tracking-[0.18em]">{t.profileCreditsTitle}</p>
-                <p className="mt-1 text-3xl font-extrabold">{billingOverview?.balance.availableCredits ?? 0}</p>
-                <Link
-                  to="/billing"
-                  className="mt-3 inline-flex text-sm font-semibold text-primary-700 underline decoration-primary-300 underline-offset-4 dark:text-primary-200"
-                >
-                  {t.profileManageBilling}
-                </Link>
-              </div>
+            <div className="flex">
               <button
                 onClick={handleSignOut}
-                className="bg-gray-100 dark:bg-surface-dark-accent hover:bg-gray-200 dark:hover:bg-surface-dark text-gray-700 dark:text-gray-200 font-bold py-2.5 px-6 rounded-xl transition-colors text-sm"
+                className="self-center bg-gray-100 dark:bg-surface-dark-accent hover:bg-gray-200 dark:hover:bg-surface-dark text-gray-700 dark:text-gray-200 font-bold py-2.5 px-6 rounded-xl transition-colors text-sm"
               >
                 {t.logout}
               </button>
@@ -103,26 +71,7 @@ export default function Profile() {
           </div>
         </div>
 
-        {/* User's stories */}
-        <div className="mb-6">
-          <h2 className="text-xl font-bold text-gray-700 dark:text-gray-200 mb-4">{t.myStories}</h2>
-        </div>
-
-        {stories.length === 0 && !storiesLoading ? (
-          <div className="text-center py-16">
-            <div className="text-6xl mb-4 opacity-50">~</div>
-            <h3 className="text-xl font-bold text-gray-400 dark:text-gray-500 mb-2">{t.noStoriesYetProfile}</h3>
-            <p className="text-gray-400 dark:text-gray-500 mb-6">{t.createFirstStoryMagic}</p>
-            <Link
-              to="/"
-              className="inline-block bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 text-white font-bold py-3 px-8 rounded-xl transition-all transform hover:scale-[1.02]"
-            >
-              {t.createAStory}
-            </Link>
-          </div>
-        ) : (
-          <StoryGrid stories={stories} isLoading={storiesLoading} onDelete={handleDelete} onTogglePublic={handleTogglePublic} />
-        )}
+        <BillingContent />
       </div>
     </div>
   );
