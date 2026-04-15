@@ -1,6 +1,7 @@
 import { lazy, Suspense } from 'react';
 import { Routes, Route } from 'react-router-dom';
 import Header from './components/Header';
+import BrowserThemeSync from './components/BrowserThemeSync';
 import ErrorBoundary from './components/ErrorBoundary';
 
 const Home = lazy(() => import('./pages/Home'));
@@ -23,6 +24,7 @@ function RouteFallback() {
 export default function App() {
   return (
     <ErrorBoundary>
+      <BrowserThemeSync />
       <Header />
       <Suspense fallback={<RouteFallback />}>
         <Routes>

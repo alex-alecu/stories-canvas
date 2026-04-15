@@ -92,7 +92,7 @@ export default function StoryInput({ onSubmit, isLoading }: StoryInputProps) {
   const creditsSummary = `${t.creditsRequiredLabel}: ${formatCredits(requiredCredits, t)}${user && billingOverview ? ` · ${t.creditsAvailableLabel}: ${formatCredits(availableCredits, t)}` : ''}`;
 
   return (
-    <div className="w-full max-w-2xl mx-auto">
+    <div className="w-full max-w-5xl mx-auto">
       <div className="text-center mb-8">
         <h1 className="text-4xl md:text-5xl font-extrabold bg-gradient-to-r from-primary-600 via-primary-500 to-warm-500 dark:from-primary-400 dark:via-primary-300 dark:to-warm-400 bg-clip-text text-transparent mb-3">
           {t.appTitle}
@@ -145,70 +145,44 @@ export default function StoryInput({ onSubmit, isLoading }: StoryInputProps) {
 
           {/* Age & Style selectors - only for authenticated users */}
           {!isGuest && (
-            <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 px-6 pb-3">
-              <div className="flex items-center gap-2">
-                <label htmlFor="age-select" className="text-sm text-gray-400 dark:text-gray-500 whitespace-nowrap">
-                  {t.childAge}
-                </label>
-                <select
-                  id="age-select"
-                  value={age}
-                  onChange={(e) => setAge(Number(e.target.value))}
-                  disabled={isLoading}
-                  className="text-sm bg-gray-50 dark:bg-surface-dark border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1.5 text-gray-700 dark:text-gray-300 focus:outline-none focus:border-primary-300 dark:focus:border-primary-600 disabled:opacity-50 cursor-pointer"
-                >
-                  {AGE_RANGES.map(({ value, label }) => (
-                    <option key={value} value={value}>{label}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="flex items-center gap-2 min-w-0">
-                <label htmlFor="style-select" className="text-sm text-gray-400 dark:text-gray-500 whitespace-nowrap">
-                  {t.artStyle}
-                </label>
-                <select
-                  id="style-select"
-                  value={style}
-                  onChange={(e) => setStyle(e.target.value as ArtStyleKey)}
-                  disabled={isLoading}
-                  className="text-sm bg-gray-50 dark:bg-surface-dark border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1.5 text-gray-700 dark:text-gray-300 focus:outline-none focus:border-primary-300 dark:focus:border-primary-600 disabled:opacity-50 cursor-pointer min-w-0"
-                >
-                  {STYLE_KEYS.map((key) => (
-                    <option key={key} value={key}>{t[styleTranslationMap[key]]}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-          )}
-
-          <div className="flex items-center justify-between px-6 pb-4">
-            {!isGuest ? (
-              <div className="flex flex-col gap-2">
-                <div className="flex flex-wrap gap-2">
-                  {([
-                    { key: 'fast', label: t.storyModeFast, detail: formatCredits(1, t) },
-                    { key: 'pro', label: t.storyModePro, detail: formatCredits(2, t) },
-                    { key: 'pro_audio', label: t.storyModeProAudio, detail: formatCredits(3, t) },
-                  ] as const).map((option) => (
-                    <button
-                      key={option.key}
-                      type="button"
-                      onClick={() => setStoryMode(option.key)}
-                      disabled={isLoading}
-                      className={`rounded-full border px-3 py-1.5 text-sm font-semibold transition-colors ${
-                        storyMode === option.key
-                          ? 'border-primary-500 bg-primary-50 text-primary-700 dark:border-primary-400 dark:bg-primary-900/30 dark:text-primary-200'
-                          : 'border-gray-200 bg-white text-gray-500 dark:border-gray-700 dark:bg-surface-dark dark:text-gray-300'
-                      }`}
-                    >
-                      {option.label} · {option.detail}
-                    </button>
-                  ))}
+            <div className="px-6 pb-3 space-y-3">
+              <div className="grid gap-3 lg:grid-cols-[auto_minmax(0,1fr)_minmax(0,1fr)] lg:items-center">
+                <div className="flex items-center gap-2">
+                  <label htmlFor="age-select" className="text-sm text-gray-400 dark:text-gray-500 whitespace-nowrap">
+                    {t.childAge}
+                  </label>
+                  <select
+                    id="age-select"
+                    value={age}
+                    onChange={(e) => setAge(Number(e.target.value))}
+                    disabled={isLoading}
+                    className="text-sm bg-gray-50 dark:bg-surface-dark border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1.5 text-gray-700 dark:text-gray-300 focus:outline-none focus:border-primary-300 dark:focus:border-primary-600 disabled:opacity-50 cursor-pointer"
+                  >
+                    {AGE_RANGES.map(({ value, label }) => (
+                      <option key={value} value={value}>{label}</option>
+                    ))}
+                  </select>
                 </div>
 
-                {storyMode === 'pro_audio' && (
-                  <div className="flex items-center gap-2 min-w-0">
+                <div className="flex items-center gap-2 min-w-0">
+                  <label htmlFor="style-select" className="text-sm text-gray-400 dark:text-gray-500 whitespace-nowrap">
+                    {t.artStyle}
+                  </label>
+                  <select
+                    id="style-select"
+                    value={style}
+                    onChange={(e) => setStyle(e.target.value as ArtStyleKey)}
+                    disabled={isLoading}
+                    className="w-full min-w-0 text-sm bg-gray-50 dark:bg-surface-dark border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1.5 text-gray-700 dark:text-gray-300 focus:outline-none focus:border-primary-300 dark:focus:border-primary-600 disabled:opacity-50 cursor-pointer"
+                  >
+                    {STYLE_KEYS.map((key) => (
+                      <option key={key} value={key}>{t[styleTranslationMap[key]]}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {storyMode === 'pro_audio' ? (
+                  <div className="flex items-center gap-2 min-w-0 lg:justify-end">
                     <label htmlFor="voice-select" className="text-sm text-gray-400 dark:text-gray-500 whitespace-nowrap">
                       {t.narratorVoice}
                     </label>
@@ -217,7 +191,7 @@ export default function StoryInput({ onSubmit, isLoading }: StoryInputProps) {
                       value={voice}
                       onChange={(e) => setVoice(e.target.value as VoiceKey | '')}
                       disabled={isLoading}
-                      className="text-sm bg-gray-50 dark:bg-surface-dark border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1.5 text-gray-700 dark:text-gray-300 focus:outline-none focus:border-primary-300 dark:focus:border-primary-600 disabled:opacity-50 cursor-pointer min-w-0"
+                      className="w-full min-w-0 lg:max-w-[220px] text-sm bg-gray-50 dark:bg-surface-dark border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1.5 text-gray-700 dark:text-gray-300 focus:outline-none focus:border-primary-300 dark:focus:border-primary-600 disabled:opacity-50 cursor-pointer"
                     >
                       {VOICE_OPTIONS.map((option) => {
                         const { label } = getVoiceOptionText(option, t);
@@ -229,8 +203,38 @@ export default function StoryInput({ onSubmit, isLoading }: StoryInputProps) {
                       })}
                     </select>
                   </div>
+                ) : (
+                  <div className="hidden lg:block" />
                 )}
+              </div>
 
+              <div className="flex flex-wrap gap-2">
+                {([
+                  { key: 'fast', label: t.storyModeFast, detail: formatCredits(1, t) },
+                  { key: 'pro', label: t.storyModePro, detail: formatCredits(2, t) },
+                  { key: 'pro_audio', label: t.storyModeProAudio, detail: formatCredits(3, t) },
+                ] as const).map((option) => (
+                  <button
+                    key={option.key}
+                    type="button"
+                    onClick={() => setStoryMode(option.key)}
+                    disabled={isLoading}
+                    className={`rounded-full border px-3 py-1.5 text-sm font-semibold transition-colors ${
+                      storyMode === option.key
+                        ? 'border-primary-500 bg-primary-50 text-primary-700 dark:border-primary-400 dark:bg-primary-900/30 dark:text-primary-200'
+                        : 'border-gray-200 bg-white text-gray-500 dark:border-gray-700 dark:bg-surface-dark dark:text-gray-300'
+                    }`}
+                  >
+                    {option.label} · {option.detail}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="flex flex-col gap-4 px-6 pb-4 lg:flex-row lg:items-end lg:justify-between">
+            {!isGuest ? (
+              <div className="flex flex-col gap-2">
                 <p className="text-sm text-gray-400 dark:text-gray-500">
                   {creditsSummary}
                 </p>
@@ -241,10 +245,10 @@ export default function StoryInput({ onSubmit, isLoading }: StoryInputProps) {
             <button
               type="submit"
               disabled={user ? (isLoading || (hasEnoughCredits && !prompt.trim())) : false}
-              className="bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 disabled:from-gray-300 disabled:to-gray-300 dark:disabled:from-gray-700 dark:disabled:to-gray-700 text-white font-bold py-2.5 px-8 rounded-xl transition-all disabled:cursor-not-allowed transform hover:scale-[1.02] active:scale-[0.98]"
+              className="w-full bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 disabled:from-gray-300 disabled:to-gray-300 dark:disabled:from-gray-700 dark:disabled:to-gray-700 text-white font-bold py-2.5 px-8 rounded-xl transition-all disabled:cursor-not-allowed transform hover:scale-[1.02] active:scale-[0.98] lg:w-auto lg:min-w-[220px]"
             >
               {isLoading ? (
-                <span className="flex items-center gap-2">
+                <span className="flex items-center justify-center gap-2">
                   <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
