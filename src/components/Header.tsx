@@ -74,12 +74,6 @@ export default function Header() {
           <ThemeToggle />
           <FontSizeControl />
           <LanguageSelector />
-          <Link
-            to="/explore"
-            className="text-sm font-bold text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 transition-colors"
-          >
-            {t.explore}
-          </Link>
           {user && (
             <Link
               to="/billing"
@@ -173,18 +167,6 @@ export default function Header() {
         role="menu"
       >
         <nav className="max-w-6xl mx-auto px-4 py-4 flex flex-col gap-1">
-          {/* Explore link */}
-          <Link
-            to="/explore"
-            className="flex items-center gap-3 px-3 py-3 rounded-lg text-sm font-bold text-primary-600 dark:text-primary-400 hover:bg-primary-50 dark:hover:bg-surface-dark-accent transition-colors"
-            role="menuitem"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
-            {t.explore}
-          </Link>
-
           {user && (
             <Link
               to="/billing"
