@@ -3,6 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#faf5ff" />
     <title>Povesti Magice</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -13,9 +14,13 @@
         try {
           var theme = localStorage.getItem('stories-canvas:theme') || 'system';
           var isDark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          var themeColorMeta = document.querySelector('meta[name=\"theme-color\"]');
           if (isDark) {
             document.documentElement.classList.add('dark');
             document.documentElement.style.backgroundColor = '#000';
+            if (themeColorMeta) themeColorMeta.setAttribute('content', '#0f0a1a');
+          } else if (themeColorMeta) {
+            themeColorMeta.setAttribute('content', '#faf5ff');
           }
         } catch(e) {}
       })();
