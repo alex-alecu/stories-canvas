@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import type { StorySummary, StoryMeta, CreateStoryResponse, StoryAssets, RetryStoryResponse, RegenerateAssetsResponse, StoryMode } from '../types';
+import type { StorySummary, StoryMeta, CreateStoryResponse, StoryAssets, RetryStoryResponse, RegenerateAssetsResponse, GenerateAudioResponse, StoryMode, VoiceKey } from '../types';
 import { getAuthHeaders } from '../lib/authHeaders';
 
 async function fetchStories(): Promise<StorySummary[]> {
@@ -196,6 +196,20 @@ async function regenerateStoryAssets(id: string): Promise<RegenerateAssetsRespon
   return res.json();
 }
 
+async function generateStoryAudio({ id, voice }: { id: string; voice: VoiceKey }): Promise<GenerateAudioResponse> {
+  const authHeaders = await getAuthHeaders();
+  const res = await fetch(`/api/stories/${id}/generate-audio`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders },
+    body: JSON.stringify({ voice }),
+  });
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({ error: 'Failed to generate narration' }));
+    throw new Error(error.error || 'Failed to generate narration');
+  }
+  return res.json();
+}
+
 async function fetchStoryAssets(id: string): Promise<StoryAssets> {
   const authHeaders = await getAuthHeaders();
   const res = await fetch(`/api/stories/${id}/assets`, {
@@ -224,6 +238,18 @@ export function useRegenerateStoryAssets() {
       queryClient.invalidateQueries({ queryKey: ['story', id] });
       queryClient.invalidateQueries({ queryKey: ['story-assets', id] });
       queryClient.invalidateQueries({ queryKey: ['stories'] });
+    },
+  });
+}
+
+export function useGenerateStoryAudio() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: generateStoryAudio,
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['story', variables.id] });
+      queryClient.invalidateQueries({ queryKey: ['stories'] });
+      queryClient.invalidateQueries({ queryKey: ['stories', 'mine'] });
     },
   });
 }

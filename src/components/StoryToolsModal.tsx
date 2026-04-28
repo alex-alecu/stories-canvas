@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import type { Scenario, GenerationProgress } from '../types';
-import { useRetryStory, useStoryAssets } from '../hooks/useStories';
+import type { Scenario, GenerationProgress, StoryStatus } from '../types';
+import { DEFAULT_VOICE_KEY, VOICE_OPTIONS, type VoiceKey } from '../../shared/types';
+import { useGenerateStoryAudio, useRetryStory, useStoryAssets } from '../hooks/useStories';
 import { useStoryGeneration } from '../hooks/useStoryGeneration';
 import { useLanguage } from '../i18n/LanguageContext';
-import { formatStoryStatusMessage } from '../i18n/storyStatusCopy';
+import { formatStoryStatusMessage, getVoiceOptionText } from '../i18n/storyStatusCopy';
 
 interface StoryToolsModalProps {
   isOpen: boolean;
@@ -14,6 +15,7 @@ interface StoryToolsModalProps {
   isGenerating?: boolean;
   storyMessage?: string;
   voice?: string;
+  storyStatus: StoryStatus;
 }
 
 export default function StoryToolsModal({
@@ -25,48 +27,68 @@ export default function StoryToolsModal({
   isGenerating,
   storyMessage,
   voice,
+  storyStatus,
 }: StoryToolsModalProps) {
   const { t } = useLanguage();
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const [retryTriggered, setRetryTriggered] = useState(false);
+  const [audioTriggered, setAudioTriggered] = useState(false);
   const [retryResult, setRetryResult] = useState<'success' | 'failed' | null>(null);
+  const [audioResult, setAudioResult] = useState<'success' | 'failed' | null>(null);
+  const [selectedVoice, setSelectedVoice] = useState<VoiceKey>(DEFAULT_VOICE_KEY);
   // Grace period: when true, ignores stale terminal statuses from the SSE's initial DB read
-  const [retryStarting, setRetryStarting] = useState(false);
-  const retryStartingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [operationStarting, setOperationStarting] = useState(false);
+  const operationStartingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const retryStory = useRetryStory();
+  const generateAudio = useGenerateStoryAudio();
   const { data: assets, isLoading: assetsLoading } = useStoryAssets(storyId, isOpen);
+  const isTrackingGeneration = retryTriggered || audioTriggered;
 
-  // Connect to SSE for retry progress — delay until grace period ends to avoid
+  // Connect to SSE for background progress — delay until grace period ends to avoid
   // the stale 'completed' status that the SSE endpoint reads from DB before the
-  // retry pipeline has a chance to update it.
-  const { progress: sseProgress } = useStoryGeneration(retryTriggered && !retryStarting ? storyId : null);
-  const activeProgress = retryTriggered ? sseProgress : progress;
+  // pipeline has a chance to update it.
+  const { progress: sseProgress } = useStoryGeneration(isTrackingGeneration && !operationStarting ? storyId : null);
+  const activeProgress = isTrackingGeneration ? sseProgress : progress;
 
   // Clear the grace period timers on unmount
   useEffect(() => {
     return () => {
-      if (retryStartingTimerRef.current) clearTimeout(retryStartingTimerRef.current);
+      if (operationStartingTimerRef.current) clearTimeout(operationStartingTimerRef.current);
     };
   }, []);
 
-  // Detect when retry completes or fails
-  // During the retryStarting grace period, ignore stale terminal statuses
+  // Detect when a background operation completes or fails.
+  // During the operationStarting grace period, ignore stale terminal statuses
   // (the SSE may read the old 'completed' from DB before the pipeline updates it)
   useEffect(() => {
-    if (!retryTriggered || retryStarting) return;
+    if (!retryTriggered || operationStarting) return;
     if (sseProgress?.status === 'completed' || sseProgress?.status === 'failed') {
       setRetryResult(sseProgress.status === 'completed' ? 'success' : 'failed');
       setRetryTriggered(false);
     }
-  }, [retryTriggered, retryStarting, sseProgress?.status]);
+  }, [retryTriggered, operationStarting, sseProgress?.status]);
 
-  // Auto-dismiss retry result after 5 seconds
+  useEffect(() => {
+    if (!audioTriggered || operationStarting) return;
+    if (sseProgress?.status === 'completed' || sseProgress?.status === 'failed') {
+      setAudioResult(sseProgress.status === 'completed' && !sseProgress.audioFailed ? 'success' : 'failed');
+      setAudioTriggered(false);
+    }
+  }, [audioTriggered, operationStarting, sseProgress?.audioFailed, sseProgress?.status]);
+
+  // Auto-dismiss result messages after 5 seconds
   useEffect(() => {
     if (!retryResult) return;
     const timer = setTimeout(() => setRetryResult(null), 5000);
     return () => clearTimeout(timer);
   }, [retryResult]);
+
+  useEffect(() => {
+    if (!audioResult) return;
+    const timer = setTimeout(() => setAudioResult(null), 5000);
+    return () => clearTimeout(timer);
+  }, [audioResult]);
 
   // Error detection
   const failedImageCount = useMemo(
@@ -85,18 +107,32 @@ export default function StoryToolsModal({
   );
 
   const hasErrors = failedImageCount > 0 || missingAudioCount > 0;
+  const storyHasAudio = useMemo(
+    () => scenario.pages.some(p => !!p.audioUrl),
+    [scenario.pages],
+  );
+  const canStartAddNarration = storyStatus === 'completed'
+    && !isGenerating
+    && !voice
+    && !storyHasAudio
+    && scenario.pages.length > 0;
+  const showAddNarration = canStartAddNarration || audioTriggered || audioResult !== null;
 
   // Is the retry currently running?
-  // During the grace period (retryStarting), we show retrying state even though the SSE
+  // During the grace period (operationStarting), we show retrying state even though the SSE
   // may not yet reflect the pipeline's in-progress status.
   const isRetrying = retryTriggered && (
-    retryStarting ||
+    operationStarting ||
     activeProgress?.status === 'generating_images' ||
+    activeProgress?.status === 'generating_audio'
+  );
+  const isAddingNarration = audioTriggered && (
+    operationStarting ||
     activeProgress?.status === 'generating_audio'
   );
 
   // Any background operation running?
-  const isBusy = isRetrying;
+  const isBusy = isRetrying || isAddingNarration;
 
   // Character sheets that are NOT page images (the "intermediate" images)
   const characterSheets = assets?.characterSheets ?? [];
@@ -117,22 +153,47 @@ export default function StoryToolsModal({
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, lightboxUrl, onClose]);
 
+  const startOperationGracePeriod = useCallback(() => {
+    setOperationStarting(true);
+    // Grace period: ignore stale terminal statuses from the SSE's initial DB read.
+    // Pipelines typically update status within 1-2 seconds, but allow extra time
+    // for network latency and DB round-trips.
+    if (operationStartingTimerRef.current) clearTimeout(operationStartingTimerRef.current);
+    operationStartingTimerRef.current = setTimeout(() => setOperationStarting(false), 5000);
+  }, []);
+
+  const clearOperationGracePeriod = useCallback(() => {
+    setOperationStarting(false);
+    if (operationStartingTimerRef.current) {
+      clearTimeout(operationStartingTimerRef.current);
+      operationStartingTimerRef.current = null;
+    }
+  }, []);
+
   const handleRetry = useCallback(async () => {
     setRetryTriggered(true);
-    setRetryStarting(true);
-    // Grace period: ignore stale terminal statuses from the SSE's initial DB read.
-    // The retry pipeline typically updates the story status within 1-2 seconds,
-    // but we allow 5 seconds for network latency and DB round-trips.
-    if (retryStartingTimerRef.current) clearTimeout(retryStartingTimerRef.current);
-    retryStartingTimerRef.current = setTimeout(() => setRetryStarting(false), 5000);
+    startOperationGracePeriod();
     try {
       await retryStory.mutateAsync(storyId);
     } catch {
       setRetryTriggered(false);
-      setRetryStarting(false);
-      if (retryStartingTimerRef.current) clearTimeout(retryStartingTimerRef.current);
+      clearOperationGracePeriod();
     }
-  }, [retryStory, storyId]);
+  }, [clearOperationGracePeriod, retryStory, startOperationGracePeriod, storyId]);
+
+  const handleGenerateAudio = useCallback(async () => {
+    if (!canStartAddNarration) return;
+    setAudioTriggered(true);
+    setAudioResult(null);
+    startOperationGracePeriod();
+    try {
+      await generateAudio.mutateAsync({ id: storyId, voice: selectedVoice });
+    } catch {
+      setAudioTriggered(false);
+      setAudioResult('failed');
+      clearOperationGracePeriod();
+    }
+  }, [canStartAddNarration, clearOperationGracePeriod, generateAudio, selectedVoice, startOperationGracePeriod, storyId]);
 
   if (!isOpen) return null;
 
@@ -163,6 +224,90 @@ export default function StoryToolsModal({
 
           {/* Scrollable content */}
           <div className="overflow-y-auto flex-1 px-6 py-5 space-y-6">
+            {/* Add narration section — shown for completed owner stories with no audio */}
+            {showAddNarration && (
+              <div className="bg-white/5 border border-white/10 rounded-xl p-5">
+                <div className="flex items-start gap-3 mb-4">
+                  <div className="w-8 h-8 rounded-full bg-primary-500/20 flex items-center justify-center shrink-0 mt-0.5">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-primary-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 18.5a6.5 6.5 0 006.5-6.5V8a6.5 6.5 0 00-13 0v4a6.5 6.5 0 006.5 6.5z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M8 20h8M9 12v-1m3 1V8m3 4V9" />
+                    </svg>
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-white font-semibold text-sm mb-1">{t.addNarration}</h3>
+                    <p className="text-white/60 text-sm">{t.creditsRequiredLabel}: 1 {t.creditSingular}</p>
+                  </div>
+                </div>
+
+                <label htmlFor="story-tools-voice-select" className="block text-white/70 text-sm mb-2">
+                  {t.selectVoice}
+                </label>
+                <select
+                  id="story-tools-voice-select"
+                  value={selectedVoice}
+                  onChange={(e) => setSelectedVoice(e.target.value as VoiceKey)}
+                  disabled={isBusy || !canStartAddNarration}
+                  className="w-full bg-white/10 border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-primary-300 disabled:opacity-50"
+                >
+                  {VOICE_OPTIONS.map((option) => {
+                    const { label, description } = getVoiceOptionText(option, t);
+                    return (
+                      <option key={option.key} value={option.key} className="bg-[#1a1a2e] text-white">
+                        {label} - {description}
+                      </option>
+                    );
+                  })}
+                </select>
+
+                {isAddingNarration && (
+                  <div className="mt-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-4 h-4 rounded-full border-2 border-primary-400/30 border-t-primary-400 animate-spin" />
+                      <span className="text-white/70 text-sm">{t.generatingNarration}</span>
+                    </div>
+                    {activeProgress?.totalPages ? (
+                      <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-primary-500 rounded-full transition-all duration-300"
+                          style={{ width: `${Math.round((activeProgress.completedPages / activeProgress.totalPages) * 100)}%` }}
+                        />
+                      </div>
+                    ) : null}
+                    {activeProgress?.message && (
+                      <p className="text-white/40 text-xs mt-1.5">{formatStoryStatusMessage(activeProgress.message, t)}</p>
+                    )}
+                  </div>
+                )}
+
+                {audioResult && (
+                  <div className={`flex items-center gap-2 mt-4 px-3 py-2 rounded-lg text-sm ${
+                    audioResult === 'success'
+                      ? 'bg-green-500/15 text-green-300'
+                      : 'bg-red-500/15 text-red-300'
+                  }`}>
+                    <span>{audioResult === 'success' ? t.narrationSuccess : t.narrationGenerationFailed}</span>
+                  </div>
+                )}
+
+                <div className="flex gap-3 mt-4">
+                  <button
+                    onClick={handleGenerateAudio}
+                    disabled={isBusy || !canStartAddNarration}
+                    className="bg-primary-500 hover:bg-primary-600 disabled:bg-primary-500/50 disabled:cursor-not-allowed text-white font-bold py-2 px-6 rounded-xl transition-colors text-sm"
+                  >
+                    {isAddingNarration ? t.generatingNarration : t.generateNarration}
+                  </button>
+                  <button
+                    onClick={onClose}
+                    className="bg-white/10 hover:bg-white/20 text-white py-2 px-6 rounded-xl transition-colors text-sm"
+                  >
+                    {t.back}
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Retry section — only shown when errors exist */}
             {hasErrors && (
               <div className="bg-white/5 border border-white/10 rounded-xl p-5">

@@ -221,6 +221,7 @@ const ro: Translations = {
   billingStatusProcessed: 'Procesat',
   billingReasonPackPurchase: 'Achiziție pachet de povești',
   billingReasonStoryCreate: 'Creare poveste',
+  billingReasonStoryAddAudio: 'Adăugare narațiune',
   billingReasonStoryRefund: 'Rambursare poveste',
   billingReasonAdminGrant: 'Credite acordate de administrator',
   offerPack5Name: '5 povești',

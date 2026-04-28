@@ -98,6 +98,7 @@ export function getLedgerReasonLabel(
     Translations,
     'billingReasonPackPurchase' |
     'billingReasonStoryCreate' |
+    'billingReasonStoryAddAudio' |
     'billingReasonStoryRefund' |
     'billingReasonAdminGrant'
   >,
@@ -107,6 +108,8 @@ export function getLedgerReasonLabel(
       return t.billingReasonPackPurchase;
     case 'story_create':
       return t.billingReasonStoryCreate;
+    case 'story_add_audio':
+      return t.billingReasonStoryAddAudio;
     case 'story_refund':
       return t.billingReasonStoryRefund;
     case 'admin_grant':

@@ -96,4 +96,4 @@ stripe listen --forward-to http://localhost:3001/api/billing/webhook
 - Create `Fast`, `Pro`, and `Pro + Audio` stories and verify the debit is `1`, `2`, and `3` credits.
 - Cancel or fail a story before the first illustration completes and verify the credits are refunded.
 - Confirm completed stories with at least one finished illustration do not refund credits on cancel.
-- Verify `/api/stories/:id/generate-audio` is rejected for completed stories without narration.
+- Verify `/api/stories/:id/generate-audio` charges 1 credit and adds narration for completed owner stories without audio.

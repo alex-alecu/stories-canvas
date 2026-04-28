@@ -168,6 +168,7 @@ export default function StoryPage() {
         progress={progress}
         storyMessage={story.progressMessage}
         voice={story.voice}
+        storyStatus={story.status}
       />
     );
   }

@@ -21,6 +21,7 @@ import { optionalAuth } from '../middleware/auth.js';
 import type {
   ArtStyleKey,
   CreateStoryRequest,
+  GenerateAudioResponse,
   GenerationProgress,
   RegenerateAssetsResponse,
   RetryStoryResponse,
@@ -40,6 +41,7 @@ import { buildStoryGenerationInputs, recordStoryUsage, type StoryUsageStorage } 
 
 const router = Router();
 const SSE_CLOSE_DELAY_MS = 2_000;
+const ADD_AUDIO_CREDIT_COST = 1;
 
 export const scenarioOps = {
   generateScenario,
@@ -69,9 +71,25 @@ export const storageOps = {
   getStory: async (storyId: string) => (
     config.useSupabase ? sbStorage.getStory(storyId) : fsStorage.getStory(storyId)
   ),
+  updateStoryStatus: async (storyId: string, status: StoryStatus) => (
+    config.useSupabase ? sbStorage.updateStoryStatus(storyId, status) : fsStorage.updateStoryStatus(storyId, status)
+  ),
+  updateStoryProgress: async (storyId: string, progress: sbStorage.StoryProgressUpdate) => (
+    config.useSupabase ? sbStorage.updateStoryProgress(storyId, progress) : undefined
+  ),
+  updateStoryVoice: async (storyId: string, voice: VoiceKey) => (
+    config.useSupabase ? sbStorage.updateStoryVoice(storyId, voice) : fsStorage.updateStoryVoice(storyId, voice)
+  ),
   listPublicStories: async (search?: string, limit?: number) => (
     config.useSupabase ? sbStorage.listPublicStories(search, limit) : []
   ),
+};
+
+export const billingOps = {
+  consumeCredits,
+  getUserCreditBalance,
+  grantCredits,
+  refundStoryCredits,
 };
 
 // ---------- Storage adapter (delegates to Supabase or filesystem) ----------
@@ -184,11 +202,7 @@ async function updateRenderedScenarioRevision(storyId: string, renderedScenarioR
 }
 
 async function updateStoryStatus(storyId: string, status: StoryStatus): Promise<void> {
-  if (config.useSupabase) {
-    await sbStorage.updateStoryStatus(storyId, status);
-  } else {
-    await fsStorage.updateStoryStatus(storyId, status);
-  }
+  await storageOps.updateStoryStatus(storyId, status);
 }
 
 async function getStory(storyId: string): Promise<StoryMeta | null> {
@@ -581,7 +595,7 @@ async function sendProgressUpdate(storyId: string, data: Partial<GenerationProgr
   // Also persist to Supabase so progress survives refresh
   if (config.useSupabase) {
     try {
-      await sbStorage.updateStoryProgress(storyId, {
+      await storageOps.updateStoryProgress(storyId, {
         status: data.status,
         completed_pages: data.completedPages,
         failed_pages: data.failedPages,
@@ -1635,24 +1649,134 @@ async function runRetryPipeline(
 // POST /api/stories/:id/generate-audio - Generate audio for a story that has none
 router.post('/:id/generate-audio', optionalAuth, async (req: Request, res: Response) => {
   try {
-    // Require auth when Supabase is configured
-    if (config.useSupabase && !req.authUser) {
+    if (!req.authUser) {
       res.status(401).json({ error: 'Authentication required' });
       return;
     }
 
-    const story = await getStory(req.params.id as string);
+    const storyId = req.params.id as string;
+    const story = await getStory(storyId);
     if (!story) {
       res.status(404).json({ error: 'Story not found' });
       return;
     }
 
-    // Ownership check
-    if (config.useSupabase && story.userId && story.userId !== req.authUser?.id) {
+    if (config.useSupabase && story.userId !== req.authUser.id) {
       res.status(403).json({ error: 'Forbidden' });
       return;
     }
-    res.status(400).json({ error: 'Narration can only be added when creating a Pro + Audio story in v1.' });
+
+    if (story.status !== 'completed') {
+      res.status(400).json({ error: 'Story must be completed to add narration' });
+      return;
+    }
+
+    if (!story.scenario) {
+      res.status(400).json({ error: 'Story has no scenario data' });
+      return;
+    }
+
+    if (isGenerationActive(storyId)) {
+      res.status(409).json({ error: 'A generation is already in progress' });
+      return;
+    }
+
+    const requestedVoice = normalizeVoiceKey(typeof req.body?.voice === 'string' ? req.body.voice : undefined);
+    if (!requestedVoice) {
+      res.status(400).json({ error: 'A valid narrator voice is required' });
+      return;
+    }
+
+    if (!audioOps.isElevenLabsConfigured()) {
+      res.status(503).json({ error: 'Audio generation service is not configured' });
+      return;
+    }
+
+    const hasAnyAudio = story.scenario.pages.some(pageHasAudio);
+    if (hasAnyAudio) {
+      res.status(400).json({ error: 'Story already has narration' });
+      return;
+    }
+
+    if (story.voice) {
+      res.status(400).json({ error: 'Story already has a narrator voice. Use retry to generate missing narration.' });
+      return;
+    }
+
+    const pagesNeedingAudio = story.scenario.pages.filter(page => !pageHasAudio(page));
+    if (pagesNeedingAudio.length === 0) {
+      res.status(400).json({ error: 'Story already has narration' });
+      return;
+    }
+
+    const controller = startTrackedGeneration(storyId);
+    let availableCredits = 0;
+    let chargedCredits = 0;
+
+    if (config.useSupabase) {
+      try {
+        const charge = await billingOps.consumeCredits(req.authUser.id, ADD_AUDIO_CREDIT_COST, {
+          reason: 'story_add_audio',
+          storyId,
+          note: requestedVoice,
+        });
+        availableCredits = charge.available_credits;
+        chargedCredits = ADD_AUDIO_CREDIT_COST;
+      } catch (error) {
+        if (error instanceof InsufficientCreditsError) {
+          const balance = await billingOps.getUserCreditBalance(req.authUser.id).catch(() => ({ availableCredits: 0 }));
+          finishTrackedGeneration(storyId);
+          res.status(402).json({
+            error: 'Not enough credits to add narration',
+            requiredCredits: ADD_AUDIO_CREDIT_COST,
+            availableCredits: balance.availableCredits,
+          });
+          return;
+        }
+
+        finishTrackedGeneration(storyId);
+        throw error;
+      }
+    }
+
+    try {
+      await storageOps.updateStoryVoice(storyId, requestedVoice);
+    } catch (error) {
+      if (config.useSupabase && chargedCredits > 0) {
+        try {
+          await billingOps.grantCredits(req.authUser.id, chargedCredits, {
+            reason: 'story_refund',
+            storyId,
+            note: 'Automatic refund after narration setup failed.',
+          });
+        } catch (refundError) {
+          console.error(`Failed to refund add-audio charge for ${storyId}:`, refundError);
+        }
+      }
+
+      finishTrackedGeneration(storyId);
+      throw error;
+    }
+
+    res.json({
+      status: 'generating_audio',
+      generatedAudio: pagesNeedingAudio.length,
+      chargedCredits,
+      availableCredits,
+    } as GenerateAudioResponse);
+
+    runAudioGenerationPipeline(
+      storyId,
+      {
+        ...story,
+        voice: requestedVoice,
+      },
+      requestedVoice,
+      'add_audio',
+      controller,
+    ).catch(error => {
+      console.error(`Audio generation pipeline failed for ${storyId}:`, error);
+    });
   } catch (error) {
     console.error('Failed to start audio generation:', error);
     res.status(500).json({ error: 'Failed to start audio generation' });
@@ -1663,9 +1787,11 @@ async function runAudioGenerationPipeline(
   storyId: string,
   story: StoryMeta,
   voiceKey: VoiceKey,
+  usageSource: StoryUsageSource = 'retry',
+  controller = startTrackedGeneration(storyId),
 ): Promise<void> {
-  const controller = startTrackedGeneration(storyId);
   const { signal } = controller;
+  const usageRecorder = createUsageRecorder(storyId, story.userId, usageSource);
 
   const scenario = story.scenario!;
   const userId = story.userId;
@@ -1711,6 +1837,7 @@ async function runAudioGenerationPipeline(
           pageStatus: progress.pageStatus,
         }).catch(() => {});
       },
+      (page, usage) => usageRecorder.recordPageAudio(page.pageNumber, usage),
     );
 
     // Check if audio generation had failures

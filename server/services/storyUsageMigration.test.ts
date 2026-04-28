@@ -5,7 +5,9 @@ import test from 'node:test';
 
 test('story usage migration adds story totals columns and usage events table constraints', async () => {
   const migrationPath = path.join(process.cwd(), 'supabase', 'migrations', '010_story_usage_tracking.sql');
+  const addAudioMigrationPath = path.join(process.cwd(), 'supabase', 'migrations', '012_allow_add_audio_usage_source.sql');
   const sql = await fs.readFile(migrationPath, 'utf-8');
+  const addAudioSql = await fs.readFile(addAudioMigrationPath, 'utf-8');
 
   assert.match(sql, /ALTER TABLE stories ADD COLUMN IF NOT EXISTS generation_inputs JSONB NOT NULL DEFAULT '\{\}'::JSONB;/);
   assert.match(sql, /ALTER TABLE stories ADD COLUMN IF NOT EXISTS usage_input_tokens BIGINT NOT NULL DEFAULT 0;/);
@@ -15,4 +17,6 @@ test('story usage migration adds story totals columns and usage events table con
   assert.match(sql, /source TEXT NOT NULL CHECK \(source IN \('initial_generation', 'retry', 'regenerate_assets'\)\)/);
   assert.match(sql, /status TEXT NOT NULL CHECK \(status IN \('succeeded', 'failed'\)\)/);
   assert.match(sql, /usage_details JSONB NOT NULL DEFAULT '\{\}'::JSONB/);
+  assert.match(addAudioSql, /DROP CONSTRAINT IF EXISTS story_usage_events_source_check/);
+  assert.match(addAudioSql, /CHECK \(source IN \('initial_generation', 'retry', 'regenerate_assets', 'add_audio'\)\)/);
 });

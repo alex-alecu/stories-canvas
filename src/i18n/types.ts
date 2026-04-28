@@ -230,6 +230,7 @@ export interface Translations {
   billingStatusProcessed: string;
   billingReasonPackPurchase: string;
   billingReasonStoryCreate: string;
+  billingReasonStoryAddAudio: string;
   billingReasonStoryRefund: string;
   billingReasonAdminGrant: string;
   offerPack5Name: string;

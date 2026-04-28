@@ -3,7 +3,7 @@ import { Swiper, SwiperSlide } from 'swiper/react';
 import { Navigation, Keyboard } from 'swiper/modules';
 import type { Swiper as SwiperType } from 'swiper';
 import { Link, useNavigate } from 'react-router-dom';
-import type { Scenario, GenerationProgress } from '../types';
+import type { Scenario, GenerationProgress, StoryStatus } from '../types';
 import { useLanguage } from '../i18n/LanguageContext';
 import { useFontSize, type FontSize } from '../contexts/FontSizeContext';
 import FontSizeControl from './FontSizeControl';
@@ -36,6 +36,7 @@ interface StoryViewerProps {
   progress?: GenerationProgress | null;
   storyMessage?: string;
   voice?: string;
+  storyStatus: StoryStatus;
 }
 
 const fontSizeClasses: Record<FontSize, string> = {
@@ -44,7 +45,7 @@ const fontSizeClasses: Record<FontSize, string> = {
   large: 'text-xl md:text-2xl lg:text-3xl',
 };
 
-export default function StoryViewer({ storyId, scenario, isGenerating, progress, storyMessage, voice }: StoryViewerProps) {
+export default function StoryViewer({ storyId, scenario, isGenerating, progress, storyMessage, voice, storyStatus }: StoryViewerProps) {
   const { t } = useLanguage();
   const { fontSize } = useFontSize();
   const [showFontSize, setShowFontSize] = useState(false);
@@ -553,6 +554,7 @@ export default function StoryViewer({ storyId, scenario, isGenerating, progress,
             isGenerating={isGenerating}
             storyMessage={storyMessage}
             voice={voice}
+            storyStatus={storyStatus}
           />
         </Suspense>
       )}

@@ -208,6 +208,7 @@ const ja: Translations = {
   billingStatusProcessed: 'Processed',
   billingReasonPackPurchase: 'Story pack purchase',
   billingReasonStoryCreate: 'Story creation',
+  billingReasonStoryAddAudio: 'Add narration',
   billingReasonStoryRefund: 'Story refund',
   billingReasonAdminGrant: 'Admin credit grant',
   offerPack5Name: '5 stories',

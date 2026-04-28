@@ -7,7 +7,7 @@ export type ArtStyleKey = 'disney-pixar' | 'watercolor' | 'storybook' | 'anime' 
 export type VoiceKey = 'bunica' | 'jora' | 'serban' | 'corina';
 export type StoryMode = 'fast' | 'pro' | 'pro_audio';
 export type StoryUsageProvider = 'gemini' | 'elevenlabs';
-export type StoryUsageSource = 'initial_generation' | 'retry' | 'regenerate_assets';
+export type StoryUsageSource = 'initial_generation' | 'retry' | 'regenerate_assets' | 'add_audio';
 export type StoryUsageStatus = 'succeeded' | 'failed';
 export type StoryUsageOperation =
   | 'scenario_draft'
@@ -258,6 +258,13 @@ export interface ReviewStoryResponse {
 
 export interface RegenerateAssetsResponse {
   status: StoryStatus;
+}
+
+export interface GenerateAudioResponse {
+  status: StoryStatus;
+  generatedAudio: number;
+  chargedCredits: number;
+  availableCredits: number;
 }
 
 export interface StoryPackOffer {

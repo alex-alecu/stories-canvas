@@ -459,31 +459,243 @@ test('POST /api/stories rejects Pro + Audio when narration is unavailable', asyn
   assert.equal(body.error, 'Audio generation service is not configured');
 });
 
-test('POST /api/stories/:id/generate-audio rejects add-audio-later purchases', async (t) => {
-  const dataDir = mkdtempSync(path.join(os.tmpdir(), 'stories-audio-disabled-'));
-  const harness = await createStoriesHarness(dataDir);
+test('POST /api/stories/:id/generate-audio charges one credit and starts narration', async (t) => {
+  const dataDir = mkdtempSync(path.join(os.tmpdir(), 'stories-audio-enabled-'));
+  const harness = await createStoriesHarness(dataDir, {
+    useSupabase: true,
+    __testAuthUser: { id: 'user-audio', email: 'audio@example.test' },
+  });
   t.after(async () => {
     await harness.close();
     await fs.rm(dataDir, { recursive: true, force: true });
   });
 
-  await writeStoryMeta(dataDir, {
-    id: 'story-audio-disabled',
+  let chargedReason: string | undefined;
+  let storedVoice: string | undefined;
+  let generatedVoice: string | undefined;
+
+  t.mock.method(harness.storiesModule.storageOps, 'getStory', async () => makeStoryMeta({
+    id: 'story-audio-enabled',
     prompt: 'A story ready for narration.',
     status: 'completed',
     createdAt: '2026-03-29T00:00:00.000Z',
-    scenario: makeScenario(),
+    userId: 'user-audio',
+    scenario: makeScenario([makePage()]),
+  }));
+  t.mock.method(harness.storiesModule.storageOps, 'updateStoryVoice', async (_storyId: string, voice: string) => {
+    storedVoice = voice;
+  });
+  t.mock.method(harness.storiesModule.storageOps, 'updateStoryStatus', async () => {});
+  t.mock.method(harness.storiesModule.storageOps, 'updateStoryProgress', async () => {});
+  t.mock.method(harness.storiesModule.billingOps, 'consumeCredits', async (_userId: string, amount: number, params: { reason: string }) => {
+    assert.equal(amount, 1);
+    chargedReason = params.reason;
+    return { ledger_id: 'ledger-add-audio', available_credits: 4 };
+  });
+  t.mock.method(harness.storiesModule.audioOps, 'isElevenLabsConfigured', () => true);
+  t.mock.method(harness.storiesModule.audioOps, 'retryMissingAudio', async (_storyId: string, _pages: Page[], voiceKey: string) => {
+    generatedVoice = voiceKey;
+    return {
+      completedCount: 1,
+      failedCount: 0,
+      skippedCount: 0,
+    };
   });
 
-  const response = await fetch(`${harness.baseUrl}/api/stories/story-audio-disabled/generate-audio`, {
+  const response = await fetch(`${harness.baseUrl}/api/stories/story-audio-enabled/generate-audio`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ voice: 'serban' }),
   });
 
+  assert.equal(response.status, 200);
+  const body = await response.json() as { status: string; generatedAudio: number; chargedCredits: number; availableCredits: number };
+  assert.deepEqual(body, {
+    status: 'generating_audio',
+    generatedAudio: 1,
+    chargedCredits: 1,
+    availableCredits: 4,
+  });
+
+  await waitFor(async () => generatedVoice, value => value === 'serban');
+  assert.equal(chargedReason, 'story_add_audio');
+  assert.equal(storedVoice, 'serban');
+  assert.equal(generatedVoice, 'serban');
+});
+
+test('POST /api/stories/:id/generate-audio returns 402 when credits are insufficient', async (t) => {
+  const dataDir = mkdtempSync(path.join(os.tmpdir(), 'stories-audio-insufficient-'));
+  const harness = await createStoriesHarness(dataDir, {
+    useSupabase: true,
+    __testAuthUser: { id: 'user-no-credits', email: 'no-credits@example.test' },
+  });
+  t.after(async () => {
+    await harness.close();
+    await fs.rm(dataDir, { recursive: true, force: true });
+  });
+
+  const { InsufficientCreditsError } = await import('../services/billingStorage.js');
+  let storedVoice = false;
+
+  t.mock.method(harness.storiesModule.storageOps, 'getStory', async () => makeStoryMeta({
+    id: 'story-audio-insufficient',
+    prompt: 'A story ready for narration.',
+    status: 'completed',
+    createdAt: '2026-03-29T00:00:00.000Z',
+    userId: 'user-no-credits',
+    scenario: makeScenario([makePage()]),
+  }));
+  t.mock.method(harness.storiesModule.storageOps, 'updateStoryVoice', async () => {
+    storedVoice = true;
+  });
+  t.mock.method(harness.storiesModule.billingOps, 'consumeCredits', async () => {
+    throw new InsufficientCreditsError();
+  });
+  t.mock.method(harness.storiesModule.billingOps, 'getUserCreditBalance', async () => ({ availableCredits: 0 }));
+  t.mock.method(harness.storiesModule.audioOps, 'isElevenLabsConfigured', () => true);
+
+  const response = await fetch(`${harness.baseUrl}/api/stories/story-audio-insufficient/generate-audio`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ voice: 'corina' }),
+  });
+
+  assert.equal(response.status, 402);
+  const body = await response.json() as { error: string; requiredCredits: number; availableCredits: number };
+  assert.equal(body.error, 'Not enough credits to add narration');
+  assert.equal(body.requiredCredits, 1);
+  assert.equal(body.availableCredits, 0);
+  assert.equal(storedVoice, false);
+});
+
+test('POST /api/stories/:id/generate-audio rejects invalid voices before charging', async (t) => {
+  const dataDir = mkdtempSync(path.join(os.tmpdir(), 'stories-audio-invalid-voice-'));
+  const harness = await createStoriesHarness(dataDir, {
+    useSupabase: true,
+    __testAuthUser: { id: 'user-invalid-voice', email: 'invalid-voice@example.test' },
+  });
+  t.after(async () => {
+    await harness.close();
+    await fs.rm(dataDir, { recursive: true, force: true });
+  });
+
+  let charged = false;
+  t.mock.method(harness.storiesModule.storageOps, 'getStory', async () => makeStoryMeta({
+    id: 'story-audio-invalid-voice',
+    status: 'completed',
+    userId: 'user-invalid-voice',
+    scenario: makeScenario([makePage()]),
+  }));
+  t.mock.method(harness.storiesModule.billingOps, 'consumeCredits', async () => {
+    charged = true;
+    return { ledger_id: 'unexpected', available_credits: 0 };
+  });
+
+  const response = await fetch(`${harness.baseUrl}/api/stories/story-audio-invalid-voice/generate-audio`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ voice: 'unknown' }),
+  });
+
   assert.equal(response.status, 400);
-  const body = await response.json() as { error: string };
-  assert.equal(body.error, 'Narration can only be added when creating a Pro + Audio story in v1.');
+  assert.equal(charged, false);
+});
+
+test('POST /api/stories/:id/generate-audio rejects non-owners', async (t) => {
+  const dataDir = mkdtempSync(path.join(os.tmpdir(), 'stories-audio-non-owner-'));
+  const harness = await createStoriesHarness(dataDir, {
+    useSupabase: true,
+    __testAuthUser: { id: 'viewer-user', email: 'viewer@example.test' },
+  });
+  t.after(async () => {
+    await harness.close();
+    await fs.rm(dataDir, { recursive: true, force: true });
+  });
+
+  t.mock.method(harness.storiesModule.storageOps, 'getStory', async () => makeStoryMeta({
+    id: 'story-audio-non-owner',
+    status: 'completed',
+    userId: 'owner-user',
+    scenario: makeScenario([makePage()]),
+  }));
+
+  const response = await fetch(`${harness.baseUrl}/api/stories/story-audio-non-owner/generate-audio`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ voice: 'bunica' }),
+  });
+
+  assert.equal(response.status, 403);
+});
+
+test('POST /api/stories/:id/generate-audio rejects stories that already have narration', async (t) => {
+  const dataDir = mkdtempSync(path.join(os.tmpdir(), 'stories-audio-already-narrated-'));
+  const harness = await createStoriesHarness(dataDir, {
+    useSupabase: true,
+    __testAuthUser: { id: 'user-narrated', email: 'narrated@example.test' },
+  });
+  t.after(async () => {
+    await harness.close();
+    await fs.rm(dataDir, { recursive: true, force: true });
+  });
+
+  let charged = false;
+  t.mock.method(harness.storiesModule.storageOps, 'getStory', async () => makeStoryMeta({
+    id: 'story-audio-already-narrated',
+    status: 'completed',
+    userId: 'user-narrated',
+    scenario: makeScenario([makePage({ audioUrl: '/audio/page-01.mp3' })]),
+  }));
+  t.mock.method(harness.storiesModule.billingOps, 'consumeCredits', async () => {
+    charged = true;
+    return { ledger_id: 'unexpected', available_credits: 0 };
+  });
+  t.mock.method(harness.storiesModule.audioOps, 'isElevenLabsConfigured', () => true);
+
+  const response = await fetch(`${harness.baseUrl}/api/stories/story-audio-already-narrated/generate-audio`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ voice: 'bunica' }),
+  });
+
+  assert.equal(response.status, 400);
+  assert.equal(charged, false);
+});
+
+test('POST /api/stories/:id/generate-audio rejects active generations before charging', async (t) => {
+  const dataDir = mkdtempSync(path.join(os.tmpdir(), 'stories-audio-active-'));
+  const harness = await createStoriesHarness(dataDir, {
+    useSupabase: true,
+    __testAuthUser: { id: 'user-active', email: 'active@example.test' },
+  });
+  const generationRegistry = await import('../services/generationRegistry.js');
+  generationRegistry.startTrackedGeneration('story-audio-active');
+  t.after(async () => {
+    generationRegistry.finishTrackedGeneration('story-audio-active');
+    await harness.close();
+    await fs.rm(dataDir, { recursive: true, force: true });
+  });
+
+  let charged = false;
+  t.mock.method(harness.storiesModule.storageOps, 'getStory', async () => makeStoryMeta({
+    id: 'story-audio-active',
+    status: 'completed',
+    userId: 'user-active',
+    scenario: makeScenario([makePage()]),
+  }));
+  t.mock.method(harness.storiesModule.billingOps, 'consumeCredits', async () => {
+    charged = true;
+    return { ledger_id: 'unexpected', available_credits: 0 };
+  });
+
+  const response = await fetch(`${harness.baseUrl}/api/stories/story-audio-active/generate-audio`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ voice: 'bunica' }),
+  });
+
+  assert.equal(response.status, 409);
+  assert.equal(charged, false);
 });
 
 test('POST /api/stories/:id/retry resolves stored legacy voice keys for missing audio', async (t) => {
