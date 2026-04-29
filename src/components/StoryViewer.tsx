@@ -14,7 +14,7 @@ import 'swiper/css/navigation';
 
 const AUTOPLAY_STORAGE_KEY = 'stories-canvas:auto-play';
 const PLAYBACK_RATE_KEY = 'stories-canvas:playback-rate';
-const PLAYBACK_RATES = [0.8, 0.9, 1] as const;
+const PLAYBACK_RATES = [0.8, 0.9, 1, 1.1] as const;
 const StoryToolsModal = lazy(() => import('./StoryToolsModal'));
 
 function getStoredAutoPlay(): boolean {
