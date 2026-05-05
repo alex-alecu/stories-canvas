@@ -7,7 +7,6 @@ import {
 import type { Scenario } from '../../shared/types.js';
 import type { ScenarioValidationIssue } from './scenarioValidation.js';
 import { loadPromptMarkdown, renderPromptTemplate } from './promptFiles.js';
-import { STORY_WRITING_RUBRIC } from './storyRubric.js';
 
 export const SUPPORTED_STORY_LANGUAGES = [
   'ro',
@@ -62,15 +61,26 @@ const LANGUAGE_PROMPT_CONFIG: Record<SupportedStoryLanguage, LanguagePromptConfi
   ko: { label: 'Korean', sampleNames: '토끼 미미, 꼬마 곰 올리' },
 };
 
-export const STORY_GENERATOR_TEMPLATE = loadPromptMarkdown('story-generator-template.md');
+export const STORY_GENERATOR_TEMPLATE = loadPromptMarkdown('en/operations/story-generator-template.md');
 
-const STORY_COMMON_INSTRUCTION_TEMPLATE = loadPromptMarkdown('story-common-instruction.md');
-const STORY_SYSTEM_INSTRUCTION_TEMPLATE = loadPromptMarkdown('story-system-instruction.md');
-const STORY_REVIEW_SYSTEM_INSTRUCTION_TEMPLATE = loadPromptMarkdown('story-review-system-instruction.md');
-const DRAFT_SCENARIO_PROMPT_TEMPLATE = loadPromptMarkdown('draft-scenario.md');
-const REPAIR_SCENARIO_PROMPT_TEMPLATE = loadPromptMarkdown('repair-scenario.md');
-const SCENARIO_REVIEW_PROMPT_TEMPLATE = loadPromptMarkdown('scenario-review.md');
-const SCENARIO_REWRITE_PROMPT_TEMPLATE = loadPromptMarkdown('scenario-rewrite.md');
+const SHARED_APPEARANCE_INSTRUCTION_TEMPLATE = loadPromptMarkdown('en/shared/appearance.md');
+const SHARED_LANGUAGE_INSTRUCTION_TEMPLATE = loadPromptMarkdown('en/shared/language.md');
+const STORY_SYSTEM_INSTRUCTION_TEMPLATE = loadPromptMarkdown('en/system/story-system.md');
+const STORY_REVIEW_SYSTEM_INSTRUCTION_TEMPLATE = loadPromptMarkdown('en/system/story-review-system.md');
+const DRAFT_SCENARIO_PROMPT_TEMPLATE = loadPromptMarkdown('en/operations/draft-scenario.md');
+const REPAIR_SCENARIO_PROMPT_TEMPLATE = loadPromptMarkdown('en/operations/repair-scenario.md');
+const SCENARIO_REVIEW_PROMPT_TEMPLATE = loadPromptMarkdown('en/operations/scenario-review.md');
+const SCENARIO_REWRITE_PROMPT_TEMPLATE = loadPromptMarkdown('en/operations/scenario-rewrite.md');
+
+export type ScenarioPromptAgeGroup = '3' | '4' | '5' | '6' | '7-plus';
+
+const SCENARIO_PROMPT_TEMPLATES: Record<ScenarioPromptAgeGroup, string> = {
+  '3': loadPromptMarkdown('en/scenario/age-3.md'),
+  '4': loadPromptMarkdown('en/scenario/age-4.md'),
+  '5': loadPromptMarkdown('en/scenario/age-5.md'),
+  '6': loadPromptMarkdown('en/scenario/age-6.md'),
+  '7-plus': loadPromptMarkdown('en/scenario/age-7-plus.md'),
+};
 
 export interface StoryPromptContext {
   language: SupportedStoryLanguage;
@@ -105,15 +115,41 @@ export function buildStoryPromptContext(
   };
 }
 
-function buildStoryCommonInstruction(context: StoryPromptContext): string {
-  const config = LANGUAGE_PROMPT_CONFIG[context.language];
+export function resolveScenarioPromptAgeGroup(targetAge: number): ScenarioPromptAgeGroup {
+  if (targetAge <= 3) return '3';
+  if (targetAge === 4) return '4';
+  if (targetAge === 5) return '5';
+  if (targetAge === 6) return '6';
+  return '7-plus';
+}
 
-  return renderPromptTemplate(STORY_COMMON_INSTRUCTION_TEMPLATE, {
-    story_writing_rubric: STORY_WRITING_RUBRIC,
-    language_label: config.label,
-    language_sample_names: config.sampleNames,
+function buildScenarioInstruction(context: StoryPromptContext): string {
+  return renderPromptTemplate(SCENARIO_PROMPT_TEMPLATES[resolveScenarioPromptAgeGroup(context.targetAge)], {
+    target_age: context.targetAge,
+  });
+}
+
+function buildSharedAppearanceInstruction(context: StoryPromptContext): string {
+  return renderPromptTemplate(SHARED_APPEARANCE_INSTRUCTION_TEMPLATE, {
     style_description: context.styleDescription,
   });
+}
+
+function buildSharedLanguageInstruction(context: StoryPromptContext): string {
+  const config = LANGUAGE_PROMPT_CONFIG[context.language];
+
+  return renderPromptTemplate(SHARED_LANGUAGE_INSTRUCTION_TEMPLATE, {
+    language_label: config.label,
+    language_sample_names: config.sampleNames,
+  });
+}
+
+function buildStoryCommonInstruction(context: StoryPromptContext): string {
+  return [
+    buildScenarioInstruction(context),
+    buildSharedAppearanceInstruction(context),
+    buildSharedLanguageInstruction(context),
+  ].join('\n\n');
 }
 
 export function buildStorySystemInstruction(context: StoryPromptContext): string {

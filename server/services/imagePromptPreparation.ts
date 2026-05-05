@@ -2,8 +2,8 @@ import type { Character, Page } from '../../shared/types.js';
 import { loadPromptMarkdown, renderPromptTemplate } from './promptFiles.js';
 
 const ORIGINALIZED_DISNEY_PIXAR_STYLE = 'warm family-friendly stylized 3D animation, rounded character shapes, expressive faces, cinematic lighting, richly detailed environments, gentle vibrant colors';
-const CHARACTER_SHEET_IMAGE_PROMPT_TEMPLATE = loadPromptMarkdown('character-sheet-image.md');
-const SCENE_IMAGE_PROMPT_TEMPLATE = loadPromptMarkdown('scene-image.md');
+const CHARACTER_SHEET_IMAGE_PROMPT_TEMPLATE = loadPromptMarkdown('en/images/character-sheet.md');
+const SCENE_IMAGE_PROMPT_TEMPLATE = loadPromptMarkdown('en/images/scene.md');
 
 const CHARACTER_ALIAS_WORDS = [
   'one',

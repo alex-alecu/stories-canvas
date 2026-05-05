@@ -43,7 +43,7 @@ function makeScenario(overrides: Partial<Scenario> = {}): Scenario {
   };
 }
 
-test('story prompt assembly keeps shared rubric and language-specific rules together', async () => {
+test('story prompt assembly keeps age scenario, appearance, and language rules together', async () => {
   const storyPrompt = await import('./storyPrompt.js');
 
   const context = storyPrompt.buildStoryPromptContext(
@@ -56,9 +56,11 @@ test('story prompt assembly keeps shared rubric and language-specific rules toge
   const systemInstruction = storyPrompt.buildStorySystemInstruction(context);
   const draftPrompt = storyPrompt.buildDraftScenarioPrompt(context);
 
+  assert.match(systemInstruction, /Age 6 Scenario Prompt/);
   assert.match(systemInstruction, /Required Story Shape/);
-  assert.match(systemInstruction, /Build around one clear central problem, quest, or test\./);
-  assert.match(systemInstruction, /Write every field in English unless it is explicitly listed below as English-only/);
+  assert.match(systemInstruction, /grounded conflict, active problem-solving, and a dramatic but child-safe reversal/i);
+  assert.match(systemInstruction, /Character types may be children, adults, elders, families, animals/i);
+  assert.match(systemInstruction, /Write the title, page text, character names, roles, and personality descriptions in English/);
   assert.match(systemInstruction, /keep the exact spelling from characters\[\]\.name whenever you mention a character/i);
   assert.match(systemInstruction, /keep appearance, clothing, characterSheetPrompt, and imagePrompt visually originalized/i);
   assert.match(draftPrompt, /Target age: 6/);
@@ -84,7 +86,7 @@ test('story prompt assembly preserves the selected illustration style in system 
   assert.match(systemInstruction, /Do not put text, letters, symbols, or readable words inside the image description/);
 });
 
-test('story prompt assembly keeps the stronger story-shape and age-band rubric rules', async () => {
+test('story prompt assembly uses the 7-plus scenario prompt for older selected ages', async () => {
   const storyPrompt = await import('./storyPrompt.js');
 
   const context = storyPrompt.buildStoryPromptContext(
@@ -96,15 +98,39 @@ test('story prompt assembly keeps the stronger story-shape and age-band rubric r
 
   const systemInstruction = storyPrompt.buildStorySystemInstruction(context);
 
-  assert.match(systemInstruction, /Trigger an inciting problem within the first third of the pages/);
-  assert.match(systemInstruction, /give the hero at least one meaningful failed attempt, setback, or misunderstanding/i);
-  assert.match(systemInstruction, /Use the final page as the warm resolution/);
-  assert.match(systemInstruction, /Ages 6-8: use 3-5 concise sentences/);
-  assert.match(systemInstruction, /Character actions, emotions, and goals must stay logically consistent from page to page/);
-  assert.match(systemInstruction, /If page text changes during revision, keep `imagePrompt` and `characters` aligned/);
-  assert.match(systemInstruction, /Tension should feel exciting, but safe enough for bedtime or repeat reading\./);
-  assert.match(systemInstruction, /Open on a picture a child can draw from memory after one hearing\./);
-  assert.match(systemInstruction, /Avoid cruelty overload, body horror, lingering terror, sadistic punishment, or bleak endings\./);
+  assert.match(systemInstruction, /Age 7\+ Scenario Prompt/);
+  assert.match(systemInstruction, /Trigger the inciting problem within the first third of the pages/);
+  assert.match(systemInstruction, /one serious failed attempt, reversal, or discovery/i);
+  assert.match(systemInstruction, /Use the final page as the aftermath/);
+  assert.match(systemInstruction, /Use 3-6 concise sentences per page/);
+  assert.match(systemInstruction, /the protagonist does not have to be a child unless the prompt asks for it/);
+  assert.match(systemInstruction, /If a page text changes during revision, update that page's imagePrompt and characters list to match/);
+  assert.match(systemInstruction, /Avoid melodrama, random peril, cartoon cruelty, and magical shortcuts/);
+});
+
+test('story prompt age resolver matches the UI age groups', async () => {
+  const storyPrompt = await import('./storyPrompt.js');
+
+  assert.equal(storyPrompt.resolveScenarioPromptAgeGroup(1), '3');
+  assert.equal(storyPrompt.resolveScenarioPromptAgeGroup(2), '3');
+  assert.equal(storyPrompt.resolveScenarioPromptAgeGroup(3), '3');
+  assert.equal(storyPrompt.resolveScenarioPromptAgeGroup(4), '4');
+  assert.equal(storyPrompt.resolveScenarioPromptAgeGroup(5), '5');
+  assert.equal(storyPrompt.resolveScenarioPromptAgeGroup(6), '6');
+  assert.equal(storyPrompt.resolveScenarioPromptAgeGroup(7), '7-plus');
+  assert.equal(storyPrompt.resolveScenarioPromptAgeGroup(12), '7-plus');
+});
+
+test('shared age ranges expose only the grouped UI choices', async () => {
+  const { AGE_RANGES } = await import('../../shared/types.js');
+
+  assert.deepEqual(AGE_RANGES, [
+    { value: 3, label: '3' },
+    { value: 4, label: '4' },
+    { value: 5, label: '5' },
+    { value: 6, label: '6' },
+    { value: 7, label: '7+' },
+  ]);
 });
 
 test('story generator template keeps the reusable under-10 prompt guidance', async () => {
