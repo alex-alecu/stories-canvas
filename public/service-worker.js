@@ -1,11 +1,15 @@
-const MEDIA_CACHE = 'stories-canvas-media-v1';
-const DATA_CACHE = 'stories-canvas-data-v1';
+const APP_CACHE = 'stories-canvas-app-v2';
+const MEDIA_CACHE = 'stories-canvas-media-v2';
+const DATA_CACHE = 'stories-canvas-data-v2';
 const APP_SHELL_CACHE_KEY = `${self.location.origin}/__sw_app_shell__`;
-const DATA_TTL_MS = 60 * 60 * 1000;
+const DATA_TTL_MS = 24 * 60 * 60 * 1000;
 const CACHED_AT_HEADER = 'x-sw-cached-at';
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(self.skipWaiting());
+  event.waitUntil((async () => {
+    await cacheAppShell();
+    await self.skipWaiting();
+  })());
 });
 
 self.addEventListener('activate', (event) => {
@@ -13,18 +17,31 @@ self.addEventListener('activate', (event) => {
     const cacheKeys = await caches.keys();
     await Promise.all(
       cacheKeys
-        .filter((key) => key !== MEDIA_CACHE && key !== DATA_CACHE)
+        .filter((key) => key !== APP_CACHE && key !== MEDIA_CACHE && key !== DATA_CACHE)
         .map((key) => caches.delete(key)),
     );
+    await cacheAppShell();
     await self.clients.claim();
   })());
 });
 
 self.addEventListener('message', (event) => {
   const data = event.data;
-  if (!data || data.type !== 'WARM_CACHE_URLS' || !Array.isArray(data.urls)) return;
+  if (!data || !Array.isArray(data.urls)) return;
 
-  event.waitUntil(warmMediaUrls(data.urls));
+  if (data.type === 'WARM_CACHE_URLS') {
+    event.waitUntil(cacheMediaUrls(data.urls));
+    return;
+  }
+
+  if (data.type === 'CACHE_MEDIA_URLS') {
+    event.waitUntil(replyToMessage(event, () => cacheMediaUrls(data.urls)));
+    return;
+  }
+
+  if (data.type === 'DELETE_MEDIA_URLS') {
+    event.waitUntil(replyToMessage(event, () => deleteMediaUrls(data.urls)));
+  }
 });
 
 self.addEventListener('fetch', (event) => {
@@ -39,10 +56,66 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  if (isAppAssetRequest(request, url)) {
+    event.respondWith(cacheFirstAppAsset(request));
+    return;
+  }
+
   if (isDataRequest(request, url)) {
     event.respondWith(networkFirstData(request));
   }
 });
+
+async function cacheAppShell() {
+  const cache = await caches.open(APP_CACHE);
+  let response;
+  try {
+    response = await fetch('/', { cache: 'no-cache' });
+  } catch {
+    return;
+  }
+  if (!response.ok) return;
+
+  const stampedResponse = await stampResponse(response.clone());
+  await cache.put(APP_SHELL_CACHE_KEY, stampedResponse.clone());
+  await cache.put(`${self.location.origin}/`, stampedResponse.clone());
+  await cache.put(`${self.location.origin}/index.html`, stampedResponse.clone());
+
+  const html = await response.text();
+  const assetUrls = collectAppAssetUrls(html);
+  await Promise.all(assetUrls.map(async (assetUrl) => {
+    try {
+      const assetResponse = await fetch(assetUrl, { cache: 'reload' });
+      if (assetResponse.ok) {
+        await cache.put(assetUrl, assetResponse.clone());
+      }
+    } catch {
+      // Runtime fetches still fill the app cache when an install-time fetch fails.
+    }
+  }));
+}
+
+function collectAppAssetUrls(html) {
+  const urls = new Set();
+  const patterns = [
+    /<(?:script|link)\b[^>]*(?:src|href)=["']([^"']+)["'][^>]*>/gi,
+  ];
+
+  for (const pattern of patterns) {
+    for (const match of html.matchAll(pattern)) {
+      try {
+        const url = new URL(match[1], self.location.origin);
+        if (url.origin === self.location.origin) {
+          urls.add(url.toString());
+        }
+      } catch {
+        // Ignore malformed URLs.
+      }
+    }
+  }
+
+  return [...urls];
+}
 
 function isStoryStatusRequest(url) {
   return url.origin === self.location.origin && /^\/api\/stories\/[^/]+\/status$/.test(url.pathname);
@@ -56,8 +129,37 @@ function isMediaUrl(url) {
   return /^\/storage\/v1\/object\/public\/story-images\//.test(url.pathname);
 }
 
+function isAppAssetRequest(request, url) {
+  if (request.mode === 'navigate') return false;
+
+  if (url.origin === self.location.origin && (
+    url.pathname.startsWith('/assets/') ||
+    url.pathname === '/favicon.ico' ||
+    url.pathname === '/manifest.webmanifest'
+  )) {
+    return true;
+  }
+
+  return request.destination === 'script' ||
+    request.destination === 'style' ||
+    request.destination === 'font' ||
+    request.destination === 'worker';
+}
+
 function isDataRequest(request, url) {
   return request.mode === 'navigate' || (url.origin === self.location.origin && url.pathname.startsWith('/api/'));
+}
+
+async function cacheFirstAppAsset(request) {
+  const cache = await caches.open(APP_CACHE);
+  const cached = await cache.match(request);
+  if (cached) return cached;
+
+  const response = await fetch(request);
+  if (response.ok && response.type !== 'opaque') {
+    await cache.put(request, response.clone());
+  }
+  return response;
 }
 
 async function cacheFirstMedia(request) {
@@ -74,25 +176,79 @@ async function cacheFirstMedia(request) {
   return response;
 }
 
-async function warmMediaUrls(urls) {
+async function cacheMediaUrls(urls) {
   const cache = await caches.open(MEDIA_CACHE);
+  const cachedUrls = [];
+  const failedUrls = [];
+  let bytes = 0;
 
   await Promise.all(urls.map(async (rawUrl) => {
     try {
       const url = new URL(rawUrl, self.location.origin);
-      if (!isMediaUrl(url)) return;
-
       const cacheKey = url.toString();
-      if (await cache.match(cacheKey)) return;
+      if (!isMediaUrl(url)) {
+        failedUrls.push(cacheKey);
+        return;
+      }
+
+      const cached = await cache.match(cacheKey);
+      if (cached) {
+        cachedUrls.push(cacheKey);
+        bytes += await getResponseByteLength(cached.clone());
+        return;
+      }
 
       const response = await fetchWarmMediaResponse(url);
       if (response && isCacheableMediaResponse(response)) {
+        bytes += await getResponseByteLength(response.clone());
         await cache.put(cacheKey, response.clone());
+        cachedUrls.push(cacheKey);
+        return;
       }
+
+      failedUrls.push(cacheKey);
     } catch {
-      // Ignore warmup failures. Runtime requests still fall back to cache-first fetches.
+      failedUrls.push(rawUrl);
     }
   }));
+
+  return { cachedUrls, failedUrls, bytes };
+}
+
+async function deleteMediaUrls(urls) {
+  const cache = await caches.open(MEDIA_CACHE);
+  const deletedUrls = [];
+
+  await Promise.all(urls.map(async (rawUrl) => {
+    try {
+      const url = new URL(rawUrl, self.location.origin);
+      const cacheKey = url.toString();
+      await cache.delete(cacheKey);
+      deletedUrls.push(cacheKey);
+    } catch {
+      // Ignore malformed URLs.
+    }
+  }));
+
+  return { deletedUrls };
+}
+
+async function replyToMessage(event, work) {
+  const port = event.ports?.[0];
+  if (!port) {
+    await work();
+    return;
+  }
+
+  try {
+    const result = await work();
+    port.postMessage({ ok: true, result });
+  } catch (error) {
+    port.postMessage({
+      ok: false,
+      error: error instanceof Error ? error.message : 'Service worker request failed',
+    });
+  }
 }
 
 async function fetchMediaResponse(request, url) {
@@ -123,6 +279,22 @@ function isCacheableMediaResponse(response) {
   return response.status === 200;
 }
 
+async function getResponseByteLength(response) {
+  const contentLength = response.headers.get('Content-Length');
+  if (contentLength) {
+    const parsed = Number.parseInt(contentLength, 10);
+    if (Number.isFinite(parsed) && parsed >= 0) {
+      return parsed;
+    }
+  }
+
+  try {
+    return (await response.arrayBuffer()).byteLength;
+  } catch {
+    return 0;
+  }
+}
+
 async function networkFirstData(request) {
   const cache = await caches.open(DATA_CACHE);
   const cacheKey = await buildDataCacheKey(request);
@@ -135,6 +307,8 @@ async function networkFirstData(request) {
 
       if (request.mode === 'navigate') {
         await cache.put(APP_SHELL_CACHE_KEY, stampedResponse.clone());
+        const appCache = await caches.open(APP_CACHE);
+        await appCache.put(APP_SHELL_CACHE_KEY, stampedResponse.clone());
       }
     }
     return response;
@@ -143,7 +317,8 @@ async function networkFirstData(request) {
     if (cached) return cached;
 
     if (request.mode === 'navigate') {
-      const shell = await matchFreshData(cache, APP_SHELL_CACHE_KEY);
+      const appCache = await caches.open(APP_CACHE);
+      const shell = await appCache.match(APP_SHELL_CACHE_KEY);
       if (shell) return shell;
     }
 

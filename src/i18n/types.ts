@@ -53,6 +53,13 @@ export interface Translations {
   makePublic: string;
   makePrivate: string;
   deleteStory: string;
+  downloadStory: string;
+  downloadingStory: string;
+  savedOffline: string;
+  downloadFailed: string;
+  retryDownload: string;
+  keepOffline: string;
+  removeFromDevice: string;
 
   // Story grid
   noStoriesYet: string;
@@ -243,6 +250,18 @@ export interface Translations {
   // Profile billing
   profileCreditsTitle: string;
   profileManageBilling: string;
+  deviceDownloads: string;
+  deviceDownloadsDescription: string;
+  downloadedStories: string;
+  manualDownloads: string;
+  recentDownloads: string;
+  storageUsed: string;
+  deleteAllDownloads: string;
+  deleteAllDownloadsTitle: string;
+  deleteAllDownloadsDescription: string;
+  confirmDeleteAllDownloads: string;
+  noDeviceDownloads: string;
+  couldNotUpdateDownloads: string;
 
   // Admin
   adminAccessRequiredTitle: string;

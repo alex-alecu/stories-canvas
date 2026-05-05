@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import type { StorySummary } from '../types';
 import { useLanguage } from '../i18n/LanguageContext';
+import OfflineDownloadButton from './OfflineDownloadButton';
 
 interface StoryCardProps {
   story: StorySummary;
@@ -80,7 +81,8 @@ function VisibilityToggle({ isPublic, onToggle, label, ariaLabel }: {
 export default function StoryCard({ story, onDelete, onTogglePublic }: StoryCardProps) {
   const { t } = useLanguage();
   const showVisibilityToggle = !!onTogglePublic && story.status === 'completed';
-  const showFooter = !!onDelete || showVisibilityToggle;
+  const showOfflineDownload = story.status === 'completed' && !story.assetsStale;
+  const showFooter = !!onDelete || showVisibilityToggle || showOfflineDownload;
 
   return (
     <div className="rounded-2xl overflow-hidden shadow-md hover:shadow-xl dark:shadow-primary-900/20 dark:hover:shadow-primary-800/30 transition-all duration-300 bg-white dark:bg-surface-dark-elevated">
@@ -127,31 +129,36 @@ export default function StoryCard({ story, onDelete, onTogglePublic }: StoryCard
         </div>
       </Link>
       {showFooter && (
-        <div className="px-4 py-2.5 border-t border-gray-100 dark:border-gray-700/50 flex items-center gap-3">
-          {onDelete && (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                onDelete(story.id);
-              }}
-              className="text-sm font-semibold text-red-500 hover:text-red-600 dark:text-red-300 dark:hover:text-red-200 transition-colors"
-              aria-label={t.deleteStory}
-            >
-              {t.deleteStory}
-            </button>
-          )}
-          {showVisibilityToggle && (
-            <div className="ml-auto">
+        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 px-4 py-2.5 border-t border-gray-100 dark:border-gray-700/50">
+          <div className="min-w-0">
+            {onDelete && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onDelete(story.id);
+                }}
+                className="text-sm font-semibold text-red-500 hover:text-red-600 dark:text-red-300 dark:hover:text-red-200 transition-colors"
+                aria-label={t.deleteStory}
+              >
+                {t.deleteStory}
+              </button>
+            )}
+          </div>
+          <div className="min-w-0 justify-self-center">
+            {showOfflineDownload && <OfflineDownloadButton story={story} />}
+          </div>
+          <div className="min-w-0 justify-self-end">
+            {showVisibilityToggle && (
               <VisibilityToggle
                 isPublic={!!story.isPublic}
                 onToggle={() => onTogglePublic(story.id, !story.isPublic)}
                 label={story.isPublic ? t.publicLabel : t.privateLabel}
                 ariaLabel={story.isPublic ? t.makePrivate : t.makePublic}
               />
-            </div>
-          )}
+            )}
+          </div>
         </div>
       )}
     </div>

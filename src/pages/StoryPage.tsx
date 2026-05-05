@@ -6,6 +6,7 @@ import StoryViewer from '../components/StoryViewer';
 import GenerationProgress from '../components/GenerationProgress';
 import { useLanguage } from '../i18n/LanguageContext';
 import { warmMediaCache } from '../lib/serviceWorker';
+import { downloadStoryForOffline } from '../lib/offlineStories';
 
 export default function StoryPage() {
   const { id } = useParams<{ id: string }>();
@@ -27,6 +28,7 @@ export default function StoryPage() {
   const navigate = useNavigate();
   const { t } = useLanguage();
   const lastWarmupKeyRef = useRef<string | null>(null);
+  const lastAutoDownloadKeyRef = useRef<string | null>(null);
 
   const warmupUrls = useMemo(() => {
     if (story?.status !== 'completed' || story.assetsStale || !story.scenario) return [];
@@ -57,6 +59,18 @@ export default function StoryPage() {
     lastWarmupKeyRef.current = warmupKey;
     warmMediaCache(warmupUrls);
   }, [warmupUrls]);
+
+  useEffect(() => {
+    if (!story || story.status !== 'completed' || story.assetsStale || !story.scenario) return;
+
+    const autoDownloadKey = `${story.id}:${story.scenarioRevision ?? 0}:${story.renderedScenarioRevision ?? 0}`;
+    if (lastAutoDownloadKeyRef.current === autoDownloadKey) return;
+
+    lastAutoDownloadKeyRef.current = autoDownloadKey;
+    downloadStoryForOffline(story.id, 'recent', story).catch((error) => {
+      console.error('Failed to save recently viewed story offline:', error);
+    });
+  }, [story]);
 
   const handleCancelStory = useCallback(async () => {
     if (!id) return;

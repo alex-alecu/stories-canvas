@@ -1,0 +1,8 @@
+{
+  "name": "Magic Stories",
+  "short_name": "Stories",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#faf5ff",
+  "theme_color": "#faf5ff"
+}

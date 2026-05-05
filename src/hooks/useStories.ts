@@ -1,98 +1,73 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import type { StorySummary, StoryMeta, CreateStoryResponse, StoryAssets, RetryStoryResponse, RegenerateAssetsResponse, GenerateAudioResponse, StoryMode, VoiceKey } from '../types';
-import { getAuthHeaders } from '../lib/authHeaders';
+import type { StorySummary, StoryMeta, StoryAssets, StoryMode, VoiceKey } from '../types';
+import { getOfflineStory, listOfflineStorySummaries } from '../lib/offlineStories';
+import {
+  cancelStory,
+  createStory,
+  fetchPublicStories,
+  fetchStories,
+  fetchStory,
+  fetchStoryAssets,
+  fetchUserStories,
+  generateStoryAudio,
+  regenerateStoryAssets,
+  removeStory,
+  retryStory,
+  toggleStoryVisibility,
+} from '../lib/storyApi';
 
-async function fetchStories(): Promise<StorySummary[]> {
-  const authHeaders = await getAuthHeaders();
-  const res = await fetch('/api/stories', {
-    headers: authHeaders,
-  });
-  if (!res.ok) throw new Error('Failed to fetch stories');
-  return res.json();
-}
-
-async function fetchUserStories(): Promise<StorySummary[]> {
-  const authHeaders = await getAuthHeaders();
-  const res = await fetch('/api/stories/mine', {
-    headers: authHeaders,
-  });
-  if (!res.ok) throw new Error('Failed to fetch user stories');
-  return res.json();
-}
-
-async function fetchStory(id: string): Promise<StoryMeta> {
-  const authHeaders = await getAuthHeaders();
-  const res = await fetch(`/api/stories/${id}`, {
-    headers: authHeaders,
-  });
-  if (!res.ok) throw new Error('Failed to fetch story');
-  return res.json();
-}
-
-async function createStory(params: { prompt: string; language?: string; age?: number; style?: string; storyMode?: StoryMode; voice?: string }): Promise<CreateStoryResponse> {
-  const authHeaders = await getAuthHeaders();
-  const res = await fetch('/api/stories', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...authHeaders },
-    body: JSON.stringify({
-      prompt: params.prompt,
-      language: params.language,
-      age: params.age,
-      style: params.style,
-      storyMode: params.storyMode,
-      voice: params.voice,
-    }),
-  });
-  if (!res.ok) {
-    const error = await res.json().catch(() => ({ error: 'Failed to create story' }));
-    throw new Error(error.error || 'Failed to create story');
+async function fetchStoriesWithOfflineFallback(): Promise<StorySummary[]> {
+  try {
+    return await fetchStories();
+  } catch (error) {
+    const offlineStories = await listOfflineStorySummaries().catch(() => []);
+    if (offlineStories.length > 0) return offlineStories;
+    throw error;
   }
-  return res.json();
 }
 
-async function removeStory(id: string): Promise<void> {
-  const authHeaders = await getAuthHeaders();
-  const res = await fetch(`/api/stories/${id}`, { method: 'DELETE', headers: authHeaders });
-  if (!res.ok) throw new Error('Failed to delete story');
+async function fetchUserStoriesWithOfflineFallback(): Promise<StorySummary[]> {
+  try {
+    return await fetchUserStories();
+  } catch (error) {
+    const offlineStories = await listOfflineStorySummaries().catch(() => []);
+    if (offlineStories.length > 0) return offlineStories;
+    throw error;
+  }
 }
 
-async function cancelStory(id: string): Promise<void> {
-  const authHeaders = await getAuthHeaders();
-  const res = await fetch(`/api/stories/${id}/cancel`, { method: 'POST', headers: authHeaders });
-  if (!res.ok) throw new Error('Failed to cancel story');
-}
-
-async function fetchPublicStories({
+async function fetchPublicStoriesWithOfflineFallback({
   search,
   limit,
 }: {
   search?: string;
   limit?: number;
 } = {}): Promise<StorySummary[]> {
-  const params = new URLSearchParams();
-  if (search) params.set('search', search);
-  if (typeof limit === 'number') params.set('limit', String(limit));
-  const url = `/api/stories/public${params.toString() ? `?${params}` : ''}`;
-  const res = await fetch(url);
-  if (!res.ok) throw new Error('Failed to fetch public stories');
-  return res.json();
+  try {
+    return await fetchPublicStories({ search, limit });
+  } catch (error) {
+    const offlineStories = await listOfflineStorySummaries(search).catch(() => []);
+    if (offlineStories.length > 0) {
+      return typeof limit === 'number' ? offlineStories.slice(0, limit) : offlineStories;
+    }
+    throw error;
+  }
 }
 
-async function toggleStoryVisibility(id: string, isPublic: boolean): Promise<{ id: string; isPublic: boolean }> {
-  const authHeaders = await getAuthHeaders();
-  const res = await fetch(`/api/stories/${id}/visibility`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json', ...authHeaders },
-    body: JSON.stringify({ isPublic }),
-  });
-  if (!res.ok) throw new Error('Failed to toggle story visibility');
-  return res.json();
+async function fetchStoryWithOfflineFallback(id: string): Promise<StoryMeta> {
+  try {
+    return await fetchStory(id);
+  } catch (error) {
+    const offlineStory = await getOfflineStory(id).catch(() => null);
+    if (offlineStory) return offlineStory.story;
+    throw error;
+  }
 }
 
 export function useStories(enabled = true) {
   return useQuery({
     queryKey: ['stories'],
-    queryFn: fetchStories,
+    queryFn: fetchStoriesWithOfflineFallback,
     enabled,
     refetchInterval: 10_000, // Poll for updates on generating stories
   });
@@ -101,7 +76,7 @@ export function useStories(enabled = true) {
 export function useUserStories(enabled = true) {
   return useQuery({
     queryKey: ['stories', 'mine'],
-    queryFn: fetchUserStories,
+    queryFn: fetchUserStoriesWithOfflineFallback,
     enabled,
   });
 }
@@ -109,7 +84,7 @@ export function useUserStories(enabled = true) {
 export function useStory(id: string | undefined) {
   return useQuery({
     queryKey: ['story', id],
-    queryFn: () => fetchStory(id!),
+    queryFn: () => fetchStoryWithOfflineFallback(id!),
     enabled: !!id,
   });
 }
@@ -151,7 +126,7 @@ export function useCancelStory() {
 export function usePublicStories(search?: string, limit?: number) {
   return useQuery({
     queryKey: ['stories', 'public', search ?? '', limit ?? 'all'],
-    queryFn: () => fetchPublicStories({ search, limit }),
+    queryFn: () => fetchPublicStoriesWithOfflineFallback({ search, limit }),
   });
 }
 
@@ -166,57 +141,6 @@ export function useToggleVisibility() {
       queryClient.invalidateQueries({ queryKey: ['stories', 'public'] });
     },
   });
-}
-
-// ---------- Retry & Assets ----------
-
-async function retryStory(id: string): Promise<RetryStoryResponse> {
-  const authHeaders = await getAuthHeaders();
-  const res = await fetch(`/api/stories/${id}/retry`, {
-    method: 'POST',
-    headers: authHeaders,
-  });
-  if (!res.ok) {
-    const error = await res.json().catch(() => ({ error: 'Failed to retry story' }));
-    throw new Error(error.error || 'Failed to retry story');
-  }
-  return res.json();
-}
-
-async function regenerateStoryAssets(id: string): Promise<RegenerateAssetsResponse> {
-  const authHeaders = await getAuthHeaders();
-  const res = await fetch(`/api/stories/${id}/regenerate-assets`, {
-    method: 'POST',
-    headers: authHeaders,
-  });
-  if (!res.ok) {
-    const error = await res.json().catch(() => ({ error: 'Failed to regenerate story assets' }));
-    throw new Error(error.error || 'Failed to regenerate story assets');
-  }
-  return res.json();
-}
-
-async function generateStoryAudio({ id, voice }: { id: string; voice: VoiceKey }): Promise<GenerateAudioResponse> {
-  const authHeaders = await getAuthHeaders();
-  const res = await fetch(`/api/stories/${id}/generate-audio`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...authHeaders },
-    body: JSON.stringify({ voice }),
-  });
-  if (!res.ok) {
-    const error = await res.json().catch(() => ({ error: 'Failed to generate narration' }));
-    throw new Error(error.error || 'Failed to generate narration');
-  }
-  return res.json();
-}
-
-async function fetchStoryAssets(id: string): Promise<StoryAssets> {
-  const authHeaders = await getAuthHeaders();
-  const res = await fetch(`/api/stories/${id}/assets`, {
-    headers: authHeaders,
-  });
-  if (!res.ok) throw new Error('Failed to fetch story assets');
-  return res.json();
 }
 
 export function useRetryStory() {

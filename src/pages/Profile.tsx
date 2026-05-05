@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../i18n/LanguageContext';
 import BillingContent from '../components/BillingContent';
+import DeviceDownloadsPanel from '../components/DeviceDownloadsPanel';
 
 export default function Profile() {
   const { user, loading, signOut } = useAuth();
@@ -71,6 +72,7 @@ export default function Profile() {
           </div>
         </div>
 
+        <DeviceDownloadsPanel />
         <BillingContent />
       </div>
     </div>

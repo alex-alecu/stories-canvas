@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Swiper, SwiperSlide } from 'swiper/react';
 import { Navigation, Keyboard } from 'swiper/modules';
 import type { Swiper as SwiperType } from 'swiper';
@@ -9,13 +9,13 @@ import { useFontSize, type FontSize } from '../contexts/FontSizeContext';
 import FontSizeControl from './FontSizeControl';
 import { readStoredBoolean, readStoredNumber, writeStorageItem } from '../lib/browserStorage';
 import { formatStoryStatusMessage } from '../i18n/storyStatusCopy';
+import StoryToolsModal from './StoryToolsModal';
 import 'swiper/css';
 import 'swiper/css/navigation';
 
 const AUTOPLAY_STORAGE_KEY = 'stories-canvas:auto-play';
 const PLAYBACK_RATE_KEY = 'stories-canvas:playback-rate';
 const PLAYBACK_RATES = [0.8, 0.9, 1, 1.1] as const;
-const StoryToolsModal = lazy(() => import('./StoryToolsModal'));
 
 function getStoredAutoPlay(): boolean {
   return readStoredBoolean(AUTOPLAY_STORAGE_KEY);
@@ -544,19 +544,17 @@ export default function StoryViewer({ storyId, scenario, isGenerating, progress,
 
       {/* Story Tools modal */}
       {showTools && (
-        <Suspense fallback={null}>
-          <StoryToolsModal
-            isOpen={showTools}
-            onClose={() => setShowTools(false)}
-            storyId={storyId}
-            scenario={scenario}
-            progress={progress}
-            isGenerating={isGenerating}
-            storyMessage={storyMessage}
-            voice={voice}
-            storyStatus={storyStatus}
-          />
-        </Suspense>
+        <StoryToolsModal
+          isOpen={showTools}
+          onClose={() => setShowTools(false)}
+          storyId={storyId}
+          scenario={scenario}
+          progress={progress}
+          isGenerating={isGenerating}
+          storyMessage={storyMessage}
+          voice={voice}
+          storyStatus={storyStatus}
+        />
       )}
 
       <style>{`
