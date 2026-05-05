@@ -34,7 +34,7 @@ export function getStoryModeCredits(mode: StoryMode): number {
 
 export type LegacyVoiceKey = 'grandma' | 'grandpa' | 'dad' | 'mom' | 'whisper';
 
-export const DEFAULT_VOICE_KEY: VoiceKey = 'bunica';
+export const DEFAULT_VOICE_KEY: VoiceKey = 'jora';
 
 export const LEGACY_VOICE_KEY_ALIASES: Record<LegacyVoiceKey, VoiceKey> = {
   grandma: 'bunica',
@@ -45,10 +45,10 @@ export const LEGACY_VOICE_KEY_ALIASES: Record<LegacyVoiceKey, VoiceKey> = {
 };
 
 export const VOICE_OPTIONS = [
+  { key: 'jora', name: 'Grandpa', labelKey: 'voiceJora', descKey: 'voiceJoraDesc' },
   { key: 'bunica', name: 'Grandma', labelKey: 'voiceBunica', descKey: 'voiceBunicaDesc' },
   { key: 'corina', name: 'Mom', labelKey: 'voiceCorina', descKey: 'voiceCorinaDesc' },
   { key: 'serban', name: 'Dad', labelKey: 'voiceSerban', descKey: 'voiceSerbanDesc' },
-  { key: 'jora', name: 'Grandpa', labelKey: 'voiceJora', descKey: 'voiceJoraDesc' },
 ] as const satisfies ReadonlyArray<{ key: VoiceKey; name: string; labelKey: string; descKey: string }>;
 
 const VOICE_OPTION_MAP = new Map<VoiceKey, (typeof VOICE_OPTIONS)[number]>(

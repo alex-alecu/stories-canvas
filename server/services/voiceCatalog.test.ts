@@ -6,13 +6,13 @@ process.env.GEMINI_API_KEY ??= 'test-key';
 test('voice catalog exposes only the curated Romanian shortlist', async () => {
   const { DEFAULT_VOICE_KEY, VOICE_OPTIONS, getVoiceName } = await import('../../shared/types.js');
 
-  assert.equal(DEFAULT_VOICE_KEY, 'bunica');
-  assert.deepEqual(VOICE_OPTIONS.map(option => option.key), ['bunica', 'corina', 'serban', 'jora']);
+  assert.equal(DEFAULT_VOICE_KEY, 'jora');
+  assert.deepEqual(VOICE_OPTIONS.map(option => option.key), ['jora', 'bunica', 'corina', 'serban']);
   assert.deepEqual(VOICE_OPTIONS.map(option => getVoiceName(option.key)), [
+    'Grandpa',
     'Grandma',
     'Mom',
     'Dad',
-    'Grandpa',
   ]);
 });
 
