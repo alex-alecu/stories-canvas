@@ -6,6 +6,7 @@ import {
 } from '../../shared/types.js';
 import type { Scenario } from '../../shared/types.js';
 import type { ScenarioValidationIssue } from './scenarioValidation.js';
+import { loadPromptMarkdown, renderPromptTemplate } from './promptFiles.js';
 import { STORY_WRITING_RUBRIC } from './storyRubric.js';
 
 export const SUPPORTED_STORY_LANGUAGES = [
@@ -61,22 +62,15 @@ const LANGUAGE_PROMPT_CONFIG: Record<SupportedStoryLanguage, LanguagePromptConfi
   ko: { label: 'Korean', sampleNames: '토끼 미미, 꼬마 곰 올리' },
 };
 
-export const STORY_GENERATOR_TEMPLATE = [
-  'Write an original {{language}} story for children age {{age}}.',
-  'Center it on one clear problem, quest, or test.',
-  'Use a small, lovable protagonist with a child-readable motivation.',
-  'Keep the cast small, the plot linear, and the scenes easy to picture.',
-  'Open on a memorable image, use repetition or a rule-of-three pattern, and make the emotional arc easy to follow.',
-  'Let the hero solve the problem actively through kindness, courage, honesty, teamwork, or cleverness.',
-  'Keep danger gentle and non-graphic, preserve wonder with one or two magical elements, and end with comfort, fairness, or belonging.',
-  'Use concrete language, visible action, and a read-aloud rhythm children will want to hear again.',
-  '',
-  'Story premise:',
-  '{{user_prompt}}',
-  '',
-  'Output contract:',
-  '{{output_contract}}',
-].join('\n');
+export const STORY_GENERATOR_TEMPLATE = loadPromptMarkdown('story-generator-template.md');
+
+const STORY_COMMON_INSTRUCTION_TEMPLATE = loadPromptMarkdown('story-common-instruction.md');
+const STORY_SYSTEM_INSTRUCTION_TEMPLATE = loadPromptMarkdown('story-system-instruction.md');
+const STORY_REVIEW_SYSTEM_INSTRUCTION_TEMPLATE = loadPromptMarkdown('story-review-system-instruction.md');
+const DRAFT_SCENARIO_PROMPT_TEMPLATE = loadPromptMarkdown('draft-scenario.md');
+const REPAIR_SCENARIO_PROMPT_TEMPLATE = loadPromptMarkdown('repair-scenario.md');
+const SCENARIO_REVIEW_PROMPT_TEMPLATE = loadPromptMarkdown('scenario-review.md');
+const SCENARIO_REWRITE_PROMPT_TEMPLATE = loadPromptMarkdown('scenario-rewrite.md');
 
 export interface StoryPromptContext {
   language: SupportedStoryLanguage;
@@ -114,58 +108,32 @@ export function buildStoryPromptContext(
 function buildStoryCommonInstruction(context: StoryPromptContext): string {
   const config = LANGUAGE_PROMPT_CONFIG[context.language];
 
-  return `${STORY_WRITING_RUBRIC}
-
-## Target Language Rules
-
-- Write every field in ${config.label} unless it is explicitly listed below as English-only.
-- Keep only these fields in English: appearance, clothing, characterSheetPrompt, imagePrompt.
-- Inside appearance, clothing, characterSheetPrompt, and imagePrompt, keep the exact spelling from characters[].name whenever you mention a character. Do not translate, anglicize, or swap those names for franchise or canonical variants.
-- Use warm, natural ${config.label} names. Example style: ${config.sampleNames}.
-
-## Illustration Style Rules
-
-- The selected illustration style for this story is: "${context.styleDescription}".
-- Every imagePrompt and characterSheetPrompt must include that exact style wording so repaired scenarios do not drift to a different look.
-- When adapting a classic or public-domain tale, keep appearance, clothing, characterSheetPrompt, and imagePrompt visually originalized. Do not lean on signature costume/object combinations or copied staging from famous copyrighted adaptations; preserve the story beat with fresh, generic visual details instead.`;
+  return renderPromptTemplate(STORY_COMMON_INSTRUCTION_TEMPLATE, {
+    story_writing_rubric: STORY_WRITING_RUBRIC,
+    language_label: config.label,
+    language_sample_names: config.sampleNames,
+    style_description: context.styleDescription,
+  });
 }
 
 export function buildStorySystemInstruction(context: StoryPromptContext): string {
-  return `${buildStoryCommonInstruction(context)}
-
-## Output Contract
-
-- Return valid JSON matching the provided schema exactly.
-- Do not output markdown, explanations, beat sheets, thoughts, or notes.
-- Think through the structure silently, then output only the final JSON.`;
+  return renderPromptTemplate(STORY_SYSTEM_INSTRUCTION_TEMPLATE, {
+    common_instruction: buildStoryCommonInstruction(context),
+  });
 }
 
 export function buildStoryReviewSystemInstruction(context: StoryPromptContext): string {
-  return `${buildStoryCommonInstruction(context)}
-
-## Review Contract
-
-- You are reviewing a structured story scenario before illustration generation.
-- Evaluate prompt fidelity, story arc, continuity, and page alignment with editorial rigor.
-- Output only JSON matching the provided schema exactly.
-- Do not output markdown, explanations, or notes outside the JSON.`;
+  return renderPromptTemplate(STORY_REVIEW_SYSTEM_INSTRUCTION_TEMPLATE, {
+    common_instruction: buildStoryCommonInstruction(context),
+  });
 }
 
 export function buildDraftScenarioPrompt(context: StoryPromptContext): string {
-  return [
-    'Mode: Draft the first complete scenario.',
-    `Target age: ${context.targetAge}`,
-    `Art style for illustrations: ${context.styleDescription}`,
-    'Write an original story unless the user explicitly asks for a retelling.',
-    'Prioritize one clear goal, a small cast, visible action, gentle tension, and a comforting ending.',
-    'Open on a memorable image, use repetition or a rule-of-three pattern, and let the hero solve the problem actively.',
-    'Before answering, silently plan the beat sheet page by page so the arc lands cleanly.',
-    'Make the inciting problem happen early, include at least one failed attempt, and reserve the last page for the emotional resolution.',
-    'Output only the final JSON.',
-    '',
-    'User story request:',
-    context.userPrompt,
-  ].join('\n');
+  return renderPromptTemplate(DRAFT_SCENARIO_PROMPT_TEMPLATE, {
+    target_age: context.targetAge,
+    style_description: context.styleDescription,
+    user_prompt: context.userPrompt,
+  });
 }
 
 export function buildRepairScenarioPrompt(
@@ -178,24 +146,14 @@ export function buildRepairScenarioPrompt(
     ? issues.map(issue => `- ${issue.path}: ${issue.message}`).join('\n')
     : '- No hard validation issues were found. Strengthen pacing, causality, and emotional payoff without making pages longer.';
 
-  return [
-    `Mode: Repair pass ${repairPass}. Rewrite the full scenario JSON so it is publication-ready.`,
-    `Target age: ${context.targetAge}`,
-    `Art style for illustrations: ${context.styleDescription}`,
-    'Preserve the core idea from the user request while improving structure and clarity.',
-    'Keep the cast small, the problem clear, the tension gentle, and the ending emotionally complete.',
-    'If you rewrite any page text, you must also update that page\'s imagePrompt and characters array so they stay aligned.',
-    'Do not explain the fixes. Output only the corrected full JSON object.',
-    '',
-    'Original user story request:',
-    context.userPrompt,
-    '',
-    'Validation issues to fix:',
-    issueSection,
-    '',
-    'Draft scenario JSON:',
-    JSON.stringify(draftScenario, null, 2),
-  ].join('\n');
+  return renderPromptTemplate(REPAIR_SCENARIO_PROMPT_TEMPLATE, {
+    repair_pass: repairPass,
+    target_age: context.targetAge,
+    style_description: context.styleDescription,
+    user_prompt: context.userPrompt,
+    validation_issues: issueSection,
+    draft_scenario_json: JSON.stringify(draftScenario, null, 2),
+  });
 }
 
 export interface ScenarioReviewPromptIssue {
@@ -208,21 +166,12 @@ export function buildScenarioReviewPrompt(
   context: StoryPromptContext,
   scenario: Scenario,
 ): string {
-  return [
-    'Mode: Review this scenario before illustration generation.',
-    `Target age: ${context.targetAge}`,
-    `Art style for illustrations: ${context.styleDescription}`,
-    'Judge the scenario against the user prompt and the full story-writing rubric.',
-    'Only ask for a rewrite when the scenario materially misses prompt fidelity, story arc, continuity, emotional payoff, or page alignment.',
-    'Flag moral muddle, passive protagonists, cruelty spikes, or cluttered subplots when they materially weaken the story.',
-    'Changed page numbers should include only the pages that would need rewritten text or imagePrompt updates.',
-    '',
-    'Original user story request:',
-    context.userPrompt,
-    '',
-    'Scenario JSON to review:',
-    JSON.stringify(scenario, null, 2),
-  ].join('\n');
+  return renderPromptTemplate(SCENARIO_REVIEW_PROMPT_TEMPLATE, {
+    target_age: context.targetAge,
+    style_description: context.styleDescription,
+    user_prompt: context.userPrompt,
+    scenario_json: JSON.stringify(scenario, null, 2),
+  });
 }
 
 export function buildScenarioRewritePrompt(
@@ -240,26 +189,12 @@ export function buildScenarioRewritePrompt(
       }).join('\n')
     : '- No specific issues were listed. Tighten the scenario conservatively while preserving the prompt.';
 
-  return [
-    'Mode: Rewrite the full scenario JSON after editorial review.',
-    `Target age: ${context.targetAge}`,
-    `Art style for illustrations: ${context.styleDescription}`,
-    'Preserve the prompt\'s core idea and keep revisions conservative.',
-    'Preserve page count, page numbers, and the main character set unless a change is truly required to fix prompt fidelity or validation.',
-    'Keep scenes vivid, the conflict child-readable, the danger gentle, and the ending comforting.',
-    'If you rewrite any page text, you must also update that page\'s imagePrompt and characters array so they stay aligned.',
-    'Return the full corrected scenario JSON only.',
-    '',
-    'Original user story request:',
-    context.userPrompt,
-    '',
-    'Editorial summary:',
-    summary,
-    '',
-    'Issues to fix:',
-    issueSection,
-    '',
-    'Current scenario JSON:',
-    JSON.stringify(scenario, null, 2),
-  ].join('\n');
+  return renderPromptTemplate(SCENARIO_REWRITE_PROMPT_TEMPLATE, {
+    target_age: context.targetAge,
+    style_description: context.styleDescription,
+    user_prompt: context.userPrompt,
+    editorial_summary: summary,
+    review_issues: issueSection,
+    current_scenario_json: JSON.stringify(scenario, null, 2),
+  });
 }

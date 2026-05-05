@@ -1,6 +1,9 @@
 import type { Character, Page } from '../../shared/types.js';
+import { loadPromptMarkdown, renderPromptTemplate } from './promptFiles.js';
 
 const ORIGINALIZED_DISNEY_PIXAR_STYLE = 'warm family-friendly stylized 3D animation, rounded character shapes, expressive faces, cinematic lighting, richly detailed environments, gentle vibrant colors';
+const CHARACTER_SHEET_IMAGE_PROMPT_TEMPLATE = loadPromptMarkdown('character-sheet-image.md');
+const SCENE_IMAGE_PROMPT_TEMPLATE = loadPromptMarkdown('scene-image.md');
 
 const CHARACTER_ALIAS_WORDS = [
   'one',
@@ -292,17 +295,12 @@ export function prepareCharacterSheetImagePrompt(
   const alias = promptAwareAliasMap.get(character.name) ?? 'the character';
 
   return sanitizeImagePromptText(
-    `Professional character reference sheet for ${alias}.
-Layout: Front view (left), 3/4 view (center), Back view (right).
-Below: Close-up face showing key facial features and expressions.
-Color palette swatches at the bottom showing exact colors used for skin/fur, clothing, eyes, and accessories.
-
-${character.appearance}. ${character.clothing}.
-
-${getOriginalizedImageStyleDescription(styleDescription)}.
-Pure white background. Clean, professional character model sheet layout.
-CRITICAL: Show the EXACT same character in all views - same colors, same proportions, same clothing.
-No text or labels in the image.`,
+    renderPromptTemplate(CHARACTER_SHEET_IMAGE_PROMPT_TEMPLATE, {
+      character_alias: alias,
+      appearance: character.appearance,
+      clothing: character.clothing,
+      style_description: getOriginalizedImageStyleDescription(styleDescription),
+    }),
     promptAwareAliasMap,
   );
 }
@@ -344,31 +342,15 @@ export function prepareSceneImagePrompt(
   }
 
   return sanitizeImagePromptText(
-    `${referenceLabels.join('\n')}
-
-IMPORTANT: Generate a new illustration. The character reference sheets are the single source of truth for how each character looks. Scene references are provided only for art style and environment continuity.
-
-Scene: ${page.imagePrompt}
-
-Characters in scene:
-${charDescriptions}
-
-ENVIRONMENT: This must be a complete, richly detailed scene - like a frame from a richly detailed stylized animated film. Render a full environment with depth, atmospheric lighting, and environmental storytelling details (weather, time of day, objects that tell a story). Do not render characters on a plain or overly simple background. The setting should feel alive and immersive.
-
-BACKGROUND LIFE: Include secondary characters and living details in the background to make the world feel alive - other animals, people, creatures, or environmental activity appropriate to the setting. These background elements should add depth and atmosphere without distracting from the main characters.
-
-COMPOSITION: Position the main characters in the upper two-thirds of the frame. The lower portion of the image will have a text overlay, so keep character faces and critical visual elements out of the bottom third. Place supporting environment details (ground, path, floor, grass) in the lower area instead.
-
-CHARACTER APPEARANCE (HIGHEST PRIORITY):
-- The character reference sheets are the absolute authority for character appearance. Always match them exactly.
-- Same exact skin/fur colors, eye colors, hair style and color, body proportions, clothing details, and accessories as shown in the character sheets.
-- If a scene reference shows a character looking even slightly different from the character sheet (due to accumulated generation drift), ignore the scene reference and follow the character sheet.
-
-STYLE & ENVIRONMENT CONSISTENCY:
-- Maintain the same art style across all scenes: same rendering quality, same color saturation, same lighting approach
-- Use the same visual language: same line weight, same level of detail, same background style
-${hasPreviousScene ? '- ENVIRONMENT SPATIAL CONTINUITY: If this scene takes place in the same location as the previous scene, all furniture, objects, and architectural elements must remain in the exact same positions. Beds, shelves, windows, doors, trees, rocks - everything must stay where it was. Only the characters\' poses and actions should change. Match the camera angle and perspective of the previous scene.\n' : ''}Style: ${getOriginalizedImageStyleDescription(styleDescription)}.
-4:3 aspect ratio composition. No text or words in the image.`,
+    renderPromptTemplate(SCENE_IMAGE_PROMPT_TEMPLATE, {
+      reference_labels: referenceLabels.join('\n'),
+      scene_prompt: page.imagePrompt,
+      character_descriptions: charDescriptions,
+      previous_scene_continuity: hasPreviousScene
+        ? '- ENVIRONMENT SPATIAL CONTINUITY: If this scene takes place in the same location as the previous scene, all furniture, objects, and architectural elements must remain in the exact same positions. Beds, shelves, windows, doors, trees, rocks - everything must stay where it was. Only the characters\' poses and actions should change. Match the camera angle and perspective of the previous scene.\n'
+        : '',
+      style_description: getOriginalizedImageStyleDescription(styleDescription),
+    }),
     promptAwareAliasMap,
   );
 }
