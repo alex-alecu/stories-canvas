@@ -46,6 +46,19 @@ async function ensureDir(dir: string): Promise<void> {
   await fs.mkdir(dir, { recursive: true });
 }
 
+function normalizeCount(value: unknown): number {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return Math.max(0, Math.trunc(value));
+  }
+
+  if (typeof value === 'string') {
+    const parsed = Number.parseInt(value, 10);
+    return Number.isFinite(parsed) ? Math.max(0, parsed) : 0;
+  }
+
+  return 0;
+}
+
 function normalizeStoryMetaVoice(story: StoryMeta): StoryMeta {
   const scenarioRevision = Number.isInteger(story.scenarioRevision)
     ? Math.max(0, story.scenarioRevision!)
@@ -65,6 +78,7 @@ function normalizeStoryMetaVoice(story: StoryMeta): StoryMeta {
     assetsStale: scenarioRevision > renderedScenarioRevision,
     usageTotals: normalizeStoryUsageTotals(story.usageTotals),
     generationInputs: story.generationInputs,
+    viewCount: normalizeCount(story.viewCount),
   };
 }
 
@@ -160,6 +174,7 @@ export async function createStory(
     progressMessage: 'Creating your story...',
     generationInputs,
     usageTotals: { ...EMPTY_STORY_USAGE_TOTALS },
+    viewCount: 0,
     scenarioRevision: 0,
     renderedScenarioRevision: 0,
   };
@@ -193,6 +208,7 @@ export async function saveScenario(
     creditRefundedAt: existing?.creditRefundedAt,
     generationInputs: existing?.generationInputs ?? options.generationInputs,
     usageTotals: normalizeStoryUsageTotals(existing?.usageTotals ?? options.usageTotals),
+    viewCount: normalizeCount(existing?.viewCount),
   };
   await fs.writeFile(path.join(dir, 'scenario.json'), JSON.stringify(meta, null, 2));
 }
@@ -346,6 +362,18 @@ export async function listStories(limit = 27): Promise<StoryMeta[]> {
   } catch {
     return [];
   }
+}
+
+export async function incrementStoryViewCount(storyId: string): Promise<number> {
+  return withLock(storyId, async () => {
+    const dir = resolveStoryDir(storyId);
+    const filePath = path.join(dir, 'scenario.json');
+    const data = JSON.parse(await fs.readFile(filePath, 'utf-8')) as StoryMeta;
+    const viewCount = normalizeCount(data.viewCount) + 1;
+    data.viewCount = viewCount;
+    await fs.writeFile(filePath, JSON.stringify(data, null, 2));
+    return viewCount;
+  });
 }
 
 export async function deleteStory(storyId: string): Promise<boolean> {

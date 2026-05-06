@@ -55,6 +55,7 @@ const sk: Translations = {
   retryDownload: "Retry download",
   keepOffline: "Keep offline",
   removeFromDevice: "Remove from device",
+  viewsLabel: "views",
 
   noStoriesYet: 'Zatiaľ žiadne príbehy',
   createFirstStory: 'Vytvorte svoj prvý príbeh vyššie!',

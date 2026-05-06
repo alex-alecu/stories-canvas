@@ -83,6 +83,12 @@ export const storageOps = {
   listPublicStories: async (search?: string, limit?: number) => (
     config.useSupabase ? sbStorage.listPublicStories(search, limit) : []
   ),
+  listStoriesByUser: async (userId: string, limit?: number) => (
+    config.useSupabase ? sbStorage.listStoriesByUser(userId, limit) : []
+  ),
+  incrementStoryViewCount: async (storyId: string) => (
+    config.useSupabase ? sbStorage.incrementStoryViewCount(storyId) : fsStorage.incrementStoryViewCount(storyId)
+  ),
 };
 
 export const billingOps = {
@@ -298,7 +304,16 @@ function toStorySummary(story: StoryMeta) {
     isPublic: story.isPublic,
     hasAudio: storyHasAudio(story),
     assetsStale: storyAssetsAreStale(story),
+    viewCount: story.viewCount ?? 0,
   };
+}
+
+function canReadStory(story: StoryMeta, viewerUserId?: string): boolean {
+  if (config.useSupabase && story.userId && !story.isPublic && viewerUserId !== story.userId) {
+    return false;
+  }
+
+  return true;
 }
 
 function isTerminalStoryStatus(status: StoryStatus): boolean {
@@ -643,7 +658,7 @@ router.get('/mine', optionalAuth, async (req: Request, res: Response) => {
     }
 
     if (config.useSupabase) {
-      const stories = await sbStorage.listStoriesByUser(req.authUser.id);
+      const stories = await storageOps.listStoriesByUser(req.authUser.id);
       const summaries = stories.map(toStorySummary);
       res.json(summaries);
     } else {
@@ -662,7 +677,7 @@ router.get('/', optionalAuth, async (req: Request, res: Response) => {
 
     if (config.useSupabase && req.authUser) {
       // Authenticated with Supabase: only return user's own stories
-      stories = await sbStorage.listStoriesByUser(req.authUser.id);
+      stories = await storageOps.listStoriesByUser(req.authUser.id);
     } else if (config.useSupabase && !req.authUser) {
       // Supabase enabled but not authenticated: return empty list (private by default)
       stories = [];
@@ -1965,6 +1980,28 @@ router.get('/:id/assets', optionalAuth, async (req: Request, res: Response) => {
   }
 });
 
+// POST /api/stories/:id/view - Count one successful story open
+router.post('/:id/view', optionalAuth, async (req: Request, res: Response) => {
+  try {
+    const story = await getStory(req.params.id as string);
+    if (!story) {
+      res.status(404).json({ error: 'Story not found' });
+      return;
+    }
+
+    if (!canReadStory(story, req.authUser?.id)) {
+      res.status(404).json({ error: 'Story not found' });
+      return;
+    }
+
+    const viewCount = await storageOps.incrementStoryViewCount(story.id);
+    res.json({ id: story.id, viewCount });
+  } catch (error) {
+    console.error('Failed to record story view:', error);
+    res.status(500).json({ error: 'Failed to record story view' });
+  }
+});
+
 // GET /api/stories/:id - Get story details (ownership check for private stories)
 router.get('/:id', optionalAuth, async (req: Request, res: Response) => {
   try {
@@ -1974,14 +2011,9 @@ router.get('/:id', optionalAuth, async (req: Request, res: Response) => {
       return;
     }
 
-    // Ownership check when Supabase is enabled
-    if (config.useSupabase && story.userId) {
-      // Story has an owner - check if current user is the owner or if story is public
-      if (!story.isPublic && (!req.authUser || req.authUser.id !== story.userId)) {
-        // Return 404 to avoid leaking existence
-        res.status(404).json({ error: 'Story not found' });
-        return;
-      }
+    if (!canReadStory(story, req.authUser?.id)) {
+      res.status(404).json({ error: 'Story not found' });
+      return;
     }
 
     // Enrich pages with image URLs

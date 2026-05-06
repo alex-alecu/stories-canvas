@@ -199,6 +199,7 @@ export async function createStory(
     usage_text_cost_usd_micros: 0,
     usage_image_cost_usd_micros: 0,
     usage_audio_cost_usd_micros: 0,
+    view_count: 0,
     scenario_revision: 0,
     rendered_scenario_revision: 0,
     current_phase: 'Generating story scenario...',
@@ -333,6 +334,20 @@ interface StoryRow {
   usage_text_cost_usd_micros: number | null;
   usage_image_cost_usd_micros: number | null;
   usage_audio_cost_usd_micros: number | null;
+  view_count: number | string | null;
+}
+
+function normalizeCount(value: unknown): number {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return Math.max(0, Math.trunc(value));
+  }
+
+  if (typeof value === 'string') {
+    const parsed = Number.parseInt(value, 10);
+    return Number.isFinite(parsed) ? Math.max(0, parsed) : 0;
+  }
+
+  return 0;
 }
 
 function rowToStoryMeta(row: StoryRow): StoryMeta {
@@ -375,6 +390,7 @@ function rowToStoryMeta(row: StoryRow): StoryMeta {
       imageCostUsdMicros: row.usage_image_cost_usd_micros ?? 0,
       audioCostUsdMicros: row.usage_audio_cost_usd_micros ?? 0,
     }),
+    viewCount: normalizeCount(row.view_count),
   };
 }
 
@@ -418,6 +434,16 @@ export async function listStoriesByUser(userId: string, limit?: number): Promise
   const { data, error } = await query;
   if (error) throw new Error(`Failed to list user stories: ${error.message}`);
   return (data as StoryRow[]).map(rowToStoryMeta);
+}
+
+export async function incrementStoryViewCount(id: string): Promise<number> {
+  const supabase = getSupabase();
+  const { data, error } = await supabase.rpc('increment_story_view_count', {
+    story_id: id,
+  });
+
+  if (error) throw new Error(`Failed to increment story view count: ${error.message}`);
+  return normalizeCount(data);
 }
 
 function mergeStoryUsageTotals(

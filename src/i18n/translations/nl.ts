@@ -55,6 +55,7 @@ const nl: Translations = {
   retryDownload: "Retry download",
   keepOffline: "Keep offline",
   removeFromDevice: "Remove from device",
+  viewsLabel: "views",
 
   noStoriesYet: 'Nog geen verhalen',
   createFirstStory: 'Maak je eerste verhaal hierboven!',

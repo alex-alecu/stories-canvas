@@ -55,6 +55,7 @@ const hu: Translations = {
   retryDownload: "Retry download",
   keepOffline: "Keep offline",
   removeFromDevice: "Remove from device",
+  viewsLabel: "views",
 
   noStoriesYet: 'Még nincsenek mesék',
   createFirstStory: 'Készítsd el az első mesédet fent!',

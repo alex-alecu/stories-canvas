@@ -55,6 +55,7 @@ const ja: Translations = {
   retryDownload: "Retry download",
   keepOffline: "Keep offline",
   removeFromDevice: "Remove from device",
+  viewsLabel: "views",
 
   noStoriesYet: 'まだおはなしがありません',
   createFirstStory: '上で最初のおはなしを作ろう！',

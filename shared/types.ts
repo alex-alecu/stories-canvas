@@ -197,6 +197,7 @@ export interface StoryMeta {
   creditRefundedAt?: string;
   generationInputs?: StoryGenerationInputs;
   usageTotals?: StoryUsageTotals;
+  viewCount?: number;
 }
 
 export interface StoryDetail extends StoryMeta {
@@ -258,6 +259,11 @@ export interface GenerateAudioResponse {
   generatedAudio: number;
   chargedCredits: number;
   availableCredits: number;
+}
+
+export interface StoryViewResponse {
+  id: string;
+  viewCount: number;
 }
 
 export interface StoryPackOffer {

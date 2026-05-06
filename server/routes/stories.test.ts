@@ -739,6 +739,110 @@ test('POST /api/stories/:id/retry resolves stored legacy voice keys for missing 
   assert.equal(resolvedVoice, 'jora');
 });
 
+test('POST /api/stories/:id/view increments filesystem view counts', async (t) => {
+  const dataDir = mkdtempSync(path.join(os.tmpdir(), 'stories-view-count-'));
+  const harness = await createStoriesHarness(dataDir);
+
+  t.after(async () => {
+    await harness.close();
+    await fs.rm(dataDir, { recursive: true, force: true });
+  });
+
+  await writeStoryMeta(dataDir, {
+    id: 'story-view-count',
+    prompt: 'A story with view tracking.',
+    status: 'completed',
+    createdAt: '2026-03-29T00:00:00.000Z',
+    scenario: makeScenario([makePage()]),
+    viewCount: 2,
+  });
+
+  const response = await fetch(`${harness.baseUrl}/api/stories/story-view-count/view`, {
+    method: 'POST',
+  });
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), {
+    id: 'story-view-count',
+    viewCount: 3,
+  });
+
+  const savedStory = await readStoryMeta(dataDir, 'story-view-count');
+  assert.equal(savedStory.viewCount, 3);
+
+  const summariesResponse = await fetch(`${harness.baseUrl}/api/stories`);
+  assert.equal(summariesResponse.status, 200);
+  const summaries = await summariesResponse.json() as Array<{ id: string; viewCount: number }>;
+  assert.equal(summaries.find(story => story.id === 'story-view-count')?.viewCount, 3);
+});
+
+test('POST /api/stories/:id/view rejects private non-owner stories without incrementing', async (t) => {
+  const dataDir = mkdtempSync(path.join(os.tmpdir(), 'stories-view-private-'));
+  const harness = await createStoriesHarness(dataDir, {
+    useSupabase: true,
+    __testAuthUser: { id: 'viewer-user', email: 'viewer@example.test' },
+  });
+
+  t.after(async () => {
+    await harness.close();
+    await fs.rm(dataDir, { recursive: true, force: true });
+  });
+
+  let incremented = false;
+  t.mock.method(harness.storiesModule.storageOps, 'getStory', async () => makeStoryMeta({
+    id: 'story-private-view',
+    status: 'completed',
+    userId: 'owner-user',
+    isPublic: false,
+    viewCount: 7,
+  }));
+  t.mock.method(harness.storiesModule.storageOps, 'incrementStoryViewCount', async () => {
+    incremented = true;
+    return 8;
+  });
+
+  const response = await fetch(`${harness.baseUrl}/api/stories/story-private-view/view`, {
+    method: 'POST',
+  });
+
+  assert.equal(response.status, 404);
+  assert.deepEqual(await response.json(), { error: 'Story not found' });
+  assert.equal(incremented, false);
+});
+
+test('GET /api/stories/mine includes view counts in summaries', async (t) => {
+  const dataDir = mkdtempSync(path.join(os.tmpdir(), 'stories-mine-view-count-'));
+  const harness = await createStoriesHarness(dataDir, {
+    useSupabase: true,
+    __testAuthUser: { id: 'story-owner', email: 'owner@example.test' },
+  });
+
+  t.after(async () => {
+    await harness.close();
+    await fs.rm(dataDir, { recursive: true, force: true });
+  });
+
+  t.mock.method(harness.storiesModule.storageOps, 'listStoriesByUser', async (userId: string) => {
+    assert.equal(userId, 'story-owner');
+    return [
+      makeStoryMeta({
+        id: 'owned-story',
+        status: 'completed',
+        userId,
+        viewCount: 11,
+      }),
+    ];
+  });
+
+  const response = await fetch(`${harness.baseUrl}/api/stories/mine`);
+
+  assert.equal(response.status, 200);
+  const stories = await response.json() as Array<{ id: string; viewCount: number }>;
+  assert.deepEqual(stories.map(story => ({ id: story.id, viewCount: story.viewCount })), [
+    { id: 'owned-story', viewCount: 11 },
+  ]);
+});
+
 test('GET /api/stories/public forwards the requested limit and returns that many summaries', async (t) => {
   const dataDir = mkdtempSync(path.join(os.tmpdir(), 'stories-public-limit-'));
   const harness = await createStoriesHarness(dataDir, { useSupabase: true });
@@ -755,13 +859,14 @@ test('GET /api/stories/public forwards the requested limit and returns that many
       isPublic: true,
       createdAt: `2026-03-${String(29 - index).padStart(2, '0')}T00:00:00.000Z`,
       scenario: makeScenario([makePage({ pageNumber: 1 })]),
+      viewCount: index + 5,
     }))
   ));
 
   const response = await fetch(`${harness.baseUrl}/api/stories/public?limit=4`);
 
   assert.equal(response.status, 200);
-  const stories = await response.json() as Array<{ id: string }>;
+  const stories = await response.json() as Array<{ id: string; viewCount: number }>;
   assert.equal(stories.length, 4);
   assert.deepEqual(stories.map(story => story.id), [
     'public-story-1',
@@ -769,6 +874,7 @@ test('GET /api/stories/public forwards the requested limit and returns that many
     'public-story-3',
     'public-story-4',
   ]);
+  assert.deepEqual(stories.map(story => story.viewCount), [5, 6, 7, 8]);
 });
 
 test('GET /api/stories/public keeps search and limit working together', async (t) => {

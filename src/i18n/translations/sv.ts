@@ -55,6 +55,7 @@ const sv: Translations = {
   retryDownload: "Retry download",
   keepOffline: "Keep offline",
   removeFromDevice: "Remove from device",
+  viewsLabel: "views",
 
   noStoriesYet: 'Inga sagor ännu',
   createFirstStory: 'Skapa din första saga ovan!',

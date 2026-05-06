@@ -60,6 +60,7 @@ export interface Translations {
   retryDownload: string;
   keepOffline: string;
   removeFromDevice: string;
+  viewsLabel: string;
 
   // Story grid
   noStoriesYet: string;

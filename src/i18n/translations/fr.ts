@@ -55,6 +55,7 @@ const fr: Translations = {
   retryDownload: "Retry download",
   keepOffline: "Keep offline",
   removeFromDevice: "Remove from device",
+  viewsLabel: "views",
 
   noStoriesYet: "Pas encore d'histoires",
   createFirstStory: 'Créez votre première histoire ci-dessus !',

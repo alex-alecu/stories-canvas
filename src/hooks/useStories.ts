@@ -10,6 +10,7 @@ import {
   fetchStoryAssets,
   fetchUserStories,
   generateStoryAudio,
+  recordStoryView,
   regenerateStoryAssets,
   removeStory,
   retryStory,
@@ -127,6 +128,21 @@ export function usePublicStories(search?: string, limit?: number) {
   return useQuery({
     queryKey: ['stories', 'public', search ?? '', limit ?? 'all'],
     queryFn: () => fetchPublicStoriesWithOfflineFallback({ search, limit }),
+  });
+}
+
+export function useRecordStoryView() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: recordStoryView,
+    onSuccess: (data) => {
+      queryClient.setQueryData<StoryMeta>(['story', data.id], old => (
+        old ? { ...old, viewCount: data.viewCount } : old
+      ));
+      queryClient.setQueriesData<StorySummary[]>({ queryKey: ['stories'] }, old => (
+        old?.map(story => story.id === data.id ? { ...story, viewCount: data.viewCount } : story) ?? old
+      ));
+    },
   });
 }
 

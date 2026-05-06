@@ -55,6 +55,7 @@ const ko: Translations = {
   retryDownload: "Retry download",
   keepOffline: "Keep offline",
   removeFromDevice: "Remove from device",
+  viewsLabel: "views",
 
   noStoriesYet: '아직 이야기가 없어요',
   createFirstStory: '위에서 첫 번째 이야기를 만들어보세요!',

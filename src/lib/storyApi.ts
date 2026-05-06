@@ -6,6 +6,7 @@ import type {
   StoryAssets,
   StoryMeta,
   StoryMode,
+  StoryViewResponse,
   VoiceKey,
 } from '../types';
 import type { StorySummary } from '../types';
@@ -40,6 +41,16 @@ export async function fetchStory(id: string): Promise<StoryMeta> {
     headers: authHeaders,
   });
   if (!res.ok) throw new Error('Failed to fetch story');
+  return res.json();
+}
+
+export async function recordStoryView(id: string): Promise<StoryViewResponse> {
+  const authHeaders = await getAuthHeaders();
+  const res = await fetch(`/api/stories/${id}/view`, {
+    method: 'POST',
+    headers: authHeaders,
+  });
+  if (!res.ok) throw new Error('Failed to record story view');
   return res.json();
 }
 

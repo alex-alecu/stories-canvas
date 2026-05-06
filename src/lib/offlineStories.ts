@@ -241,6 +241,7 @@ function summarizeStory(story: StoryMeta): StorySummary {
     isPublic: story.isPublic,
     hasAudio: pages.some(page => !!page.audioUrl),
     assetsStale: story.assetsStale,
+    viewCount: story.viewCount ?? 0,
   };
 }
 

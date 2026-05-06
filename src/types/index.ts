@@ -16,6 +16,7 @@ export type {
   ReviewStoryResponse,
   RegenerateAssetsResponse,
   GenerateAudioResponse,
+  StoryViewResponse,
   StoryMode,
   VoiceKey,
   StoryPackOffer,
@@ -43,4 +44,5 @@ export interface StorySummary {
   isPublic?: boolean;
   hasAudio?: boolean;
   assetsStale?: boolean;
+  viewCount?: number;
 }

@@ -55,6 +55,7 @@ const fi: Translations = {
   retryDownload: "Retry download",
   keepOffline: "Keep offline",
   removeFromDevice: "Remove from device",
+  viewsLabel: "views",
 
   noStoriesYet: 'Ei satuja vielä',
   createFirstStory: 'Luo ensimmäinen satusi yllä!',

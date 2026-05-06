@@ -83,6 +83,7 @@ export default function StoryCard({ story, onDelete, onTogglePublic }: StoryCard
   const showVisibilityToggle = !!onTogglePublic && story.status === 'completed';
   const showOfflineDownload = story.status === 'completed' && !story.assetsStale;
   const showFooter = !!onDelete || showVisibilityToggle || showOfflineDownload;
+  const viewCount = story.viewCount ?? 0;
 
   return (
     <div className="rounded-2xl overflow-hidden shadow-md hover:shadow-xl dark:shadow-primary-900/20 dark:hover:shadow-primary-800/30 transition-all duration-300 bg-white dark:bg-surface-dark-elevated">
@@ -112,6 +113,17 @@ export default function StoryCard({ story, onDelete, onTogglePublic }: StoryCard
               </div>
             </div>
           )}
+          <div
+            className="absolute top-3 left-3 inline-flex items-center gap-1.5 rounded-full bg-black/35 px-2.5 py-1 text-xs font-bold text-white/90 backdrop-blur-sm"
+            aria-label={`${viewCount} ${t.viewsLabel}`}
+            title={`${viewCount} ${t.viewsLabel}`}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0" />
+              <circle cx="12" cy="12" r="3" />
+            </svg>
+            <span>{viewCount.toLocaleString()}</span>
+          </div>
           <StatusBadge status={story.status} completedPages={story.completedPages} totalPages={story.totalPages} />
           {story.status === 'completed' && story.hasAudio && (
             <div className="absolute top-3 right-3 w-7 h-7 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center" aria-label={t.playNarration}>

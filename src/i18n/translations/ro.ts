@@ -60,6 +60,7 @@ const ro: Translations = {
   retryDownload: 'Reîncearcă descărcarea',
   keepOffline: 'Păstrează offline',
   removeFromDevice: 'Elimină de pe dispozitiv',
+  viewsLabel: 'views',
 
   // Story grid
   noStoriesYet: 'Nicio poveste încă',

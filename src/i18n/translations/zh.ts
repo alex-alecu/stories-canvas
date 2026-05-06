@@ -55,6 +55,7 @@ const zh: Translations = {
   retryDownload: "Retry download",
   keepOffline: "Keep offline",
   removeFromDevice: "Remove from device",
+  viewsLabel: "views",
 
   noStoriesYet: '还没有故事',
   createFirstStory: '在上方创建你的第一个故事吧！',

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
-import { useStory, useCancelStory, useStoryAssets, useRegenerateStoryAssets } from '../hooks/useStories';
+import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
+import { useStory, useCancelStory, useStoryAssets, useRegenerateStoryAssets, useRecordStoryView } from '../hooks/useStories';
 import { useStoryGeneration } from '../hooks/useStoryGeneration';
 import StoryViewer from '../components/StoryViewer';
 import GenerationProgress from '../components/GenerationProgress';
@@ -8,8 +8,11 @@ import { useLanguage } from '../i18n/LanguageContext';
 import { warmMediaCache } from '../lib/serviceWorker';
 import { downloadStoryForOffline } from '../lib/offlineStories';
 
+const recordedStoryViewKeys = new Set<string>();
+
 export default function StoryPage() {
   const { id } = useParams<{ id: string }>();
+  const location = useLocation();
 
   // Set black browser background while viewing stories (visible in overscroll areas)
   useEffect(() => {
@@ -25,6 +28,7 @@ export default function StoryPage() {
   const { progress } = useStoryGeneration(isGenerating ? id ?? null : null);
   const cancelStory = useCancelStory();
   const regenerateAssets = useRegenerateStoryAssets();
+  const recordStoryView = useRecordStoryView();
   const navigate = useNavigate();
   const { t } = useLanguage();
   const lastWarmupKeyRef = useRef<string | null>(null);
@@ -71,6 +75,16 @@ export default function StoryPage() {
       console.error('Failed to save recently viewed story offline:', error);
     });
   }, [story]);
+
+  useEffect(() => {
+    if (!story?.id) return;
+
+    const viewKey = `${story.id}:${location.key}`;
+    if (recordedStoryViewKeys.has(viewKey)) return;
+
+    recordedStoryViewKeys.add(viewKey);
+    recordStoryView.mutate(story.id);
+  }, [location.key, recordStoryView, story?.id]);
 
   const handleCancelStory = useCallback(async () => {
     if (!id) return;
