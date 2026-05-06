@@ -4,13 +4,20 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#faf5ff" />
+    <meta name="description" content="Creează povești ilustrate personalizate pentru copii, cu imagini, narațiune și povești publice de explorat." />
     <title>Povesti Magice</title>
     <link rel="icon" type="image/png" href="/icon-small.png" />
     <link rel="apple-touch-icon" href="/icon-192.png" />
     <link rel="manifest" href="/manifest.webmanifest" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet" />
+    <link
+      rel="preload"
+      as="image"
+      href="/logo-big-384.avif"
+      type="image/avif"
+      imagesrcset="/logo-big-256.avif 256w, /logo-big-384.avif 384w, /logo-big-512.avif 512w"
+      imagesizes="(min-width: 1024px) 384px, (min-width: 768px) 320px, 78vw"
+      fetchpriority="high"
+    />
     <script>
       // FOUC prevention: apply dark class and background before first paint
       (function() {

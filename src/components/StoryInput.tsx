@@ -95,13 +95,29 @@ export default function StoryInput({ onSubmit, isLoading }: StoryInputProps) {
     <div className="w-full max-w-5xl mx-auto">
       <div className="text-center mb-8">
         <h1 className="mb-4 flex justify-center">
-          <img
-            src="/logo-big.png"
-            alt={t.appTitle}
-            width={720}
-            height={497}
-            className="w-64 max-w-[78vw] md:w-80 lg:w-96"
-          />
+          <picture>
+            <source
+              type="image/avif"
+              srcSet="/logo-big-256.avif 256w, /logo-big-384.avif 384w, /logo-big-512.avif 512w"
+              sizes="(min-width: 1024px) 384px, (min-width: 768px) 320px, 78vw"
+            />
+            <source
+              type="image/webp"
+              srcSet="/logo-big-256.webp 256w, /logo-big-384.webp 384w, /logo-big-512.webp 512w"
+              sizes="(min-width: 1024px) 384px, (min-width: 768px) 320px, 78vw"
+            />
+            <img
+              src="/logo-big-384.png"
+              srcSet="/logo-big-256.png 256w, /logo-big-384.png 384w, /logo-big-512.png 512w"
+              sizes="(min-width: 1024px) 384px, (min-width: 768px) 320px, 78vw"
+              alt={t.appTitle}
+              width={720}
+              height={497}
+              className="w-64 max-w-[78vw] md:w-80 lg:w-96"
+              decoding="async"
+              fetchPriority="high"
+            />
+          </picture>
         </h1>
         <p className="text-gray-500 dark:text-gray-400 text-lg">
           {t.appSubtitle}

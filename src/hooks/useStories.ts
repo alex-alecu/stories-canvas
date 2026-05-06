@@ -124,10 +124,11 @@ export function useCancelStory() {
   });
 }
 
-export function usePublicStories(search?: string, limit?: number) {
+export function usePublicStories(search?: string, limit?: number, enabled = true) {
   return useQuery({
     queryKey: ['stories', 'public', search ?? '', limit ?? 'all'],
     queryFn: () => fetchPublicStoriesWithOfflineFallback({ search, limit }),
+    enabled,
   });
 }
 

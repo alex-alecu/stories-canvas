@@ -1,4 +1,4 @@
-import type { StoryStatus } from '../../shared/types';
+import type { StoryImageSources, StoryStatus } from '../../shared/types';
 
 export type {
   PageStatus,
@@ -39,6 +39,7 @@ export interface StorySummary {
   createdAt: string;
   title?: string;
   coverImage?: string;
+  coverImageSources?: StoryImageSources;
   totalPages: number;
   completedPages: number;
   isPublic?: boolean;

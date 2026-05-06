@@ -84,6 +84,12 @@ export default function StoryCard({ story, onDelete, onTogglePublic }: StoryCard
   const showOfflineDownload = story.status === 'completed' && !story.assetsStale;
   const showFooter = !!onDelete || showVisibilityToggle || showOfflineDownload;
   const viewCount = story.viewCount ?? 0;
+  const coverSources = story.coverImageSources;
+  const coverSrc = coverSources?.card ?? coverSources?.thumb ?? story.coverImage;
+  const coverSrcSet = [
+    coverSources?.thumb ? `${coverSources.thumb} 320w` : null,
+    coverSources?.card ? `${coverSources.card} 640w` : null,
+  ].filter(Boolean).join(', ');
 
   return (
     <div className="rounded-2xl overflow-hidden shadow-md hover:shadow-xl dark:shadow-primary-900/20 dark:hover:shadow-primary-800/30 transition-all duration-300 bg-white dark:bg-surface-dark-elevated">
@@ -92,12 +98,17 @@ export default function StoryCard({ story, onDelete, onTogglePublic }: StoryCard
         className="group block"
       >
         <div className="aspect-[4/3] relative overflow-hidden bg-gradient-to-br from-primary-100 to-warm-100 dark:from-primary-900/40 dark:to-warm-500/20">
-          {story.coverImage ? (
+          {coverSrc ? (
             <img
-              src={story.coverImage}
+              src={coverSrc}
+              srcSet={coverSrcSet || undefined}
+              sizes="(min-width: 1280px) 288px, (min-width: 640px) 50vw, 100vw"
               alt={story.title || t.generatingStory}
+              width={640}
+              height={480}
               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
               loading="lazy"
+              decoding="async"
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center">

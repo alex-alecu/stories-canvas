@@ -222,6 +222,10 @@ function collectStoryAssetUrls(story: StoryMeta, assets?: StoryAssets): string[]
     urls.add(image.url);
   }
 
+  if (story.coverImageSources?.thumb) urls.add(story.coverImageSources.thumb);
+  if (story.coverImageSources?.card) urls.add(story.coverImageSources.card);
+  if (story.coverImageSources?.full) urls.add(story.coverImageSources.full);
+
   return [...urls];
 }
 
@@ -236,6 +240,7 @@ function summarizeStory(story: StoryMeta): StorySummary {
     createdAt: story.createdAt,
     title: story.scenario?.title,
     coverImage: story.coverImage ?? firstCompletedPage?.imageUrl,
+    coverImageSources: story.coverImageSources,
     totalPages: pages.length,
     completedPages: pages.filter(page => page.status === 'completed').length,
     isPublic: story.isPublic,

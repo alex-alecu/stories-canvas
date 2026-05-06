@@ -13,6 +13,24 @@ import { recoverStuckStories } from './services/supabaseStorage.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const app = express();
+const LONG_LIVED_STATIC_ASSET = /^logo-(?:big|text)-\d+\.(?:avif|webp|png)$/;
+
+function setStaticCacheHeaders(res: express.Response, filePath: string): void {
+  const fileName = path.basename(filePath);
+
+  if (fileName === 'service-worker.js' || fileName === 'index.html') {
+    res.setHeader('Cache-Control', 'no-cache');
+    return;
+  }
+
+  if (
+    filePath.includes(`${path.sep}assets${path.sep}`) ||
+    filePath.includes(`${path.sep}fonts${path.sep}`) ||
+    LONG_LIVED_STATIC_ASSET.test(fileName)
+  ) {
+    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+  }
+}
 
 app.use('/api/billing/webhook', express.raw({ type: 'application/json' }), billingWebhookRouter);
 app.use(express.json());
@@ -38,11 +56,14 @@ app.get('/api/health', (_req, res) => {
 // In production, serve static files from Vite build
 if (process.env.NODE_ENV === 'production') {
   const distPath = path.join(__dirname, '..', 'dist');
-  app.use(express.static(distPath));
+  app.use(express.static(distPath, {
+    setHeaders: setStaticCacheHeaders,
+  }));
   app.get('*', (req, res, next) => {
     if (req.path.startsWith('/api')) {
       return next();
     }
+    res.setHeader('Cache-Control', 'no-cache');
     res.sendFile(path.join(distPath, 'index.html'));
   });
 }

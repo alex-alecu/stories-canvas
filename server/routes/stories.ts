@@ -292,13 +292,15 @@ function storyAssetsAreStale(story: Pick<StoryMeta, 'scenario' | 'scenarioRevisi
 }
 
 function toStorySummary(story: StoryMeta) {
+  const coverImage = story.coverImage ?? getCoverImageUrl(story);
   return {
     id: story.id,
     prompt: story.prompt,
     status: story.status,
     createdAt: story.createdAt,
     title: story.scenario?.title,
-    coverImage: getCoverImageUrl(story),
+    coverImage,
+    coverImageSources: story.coverImageSources,
     totalPages: story.scenario?.pages?.length ?? 0,
     completedPages: story.scenario?.pages?.filter(p => p.status === 'completed').length ?? 0,
     isPublic: story.isPublic,

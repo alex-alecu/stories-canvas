@@ -14,11 +14,20 @@ export function registerServiceWorker(): void {
   if (!import.meta.env.PROD || !('serviceWorker' in navigator)) return;
 
   window.addEventListener('load', () => {
-    void navigator.serviceWorker.register(SERVICE_WORKER_URL)
-      .then(() => navigator.storage?.persist?.())
-      .catch((error) => {
-        console.error('Failed to register service worker:', error);
-      });
+    const register = () => {
+      void navigator.serviceWorker.register(SERVICE_WORKER_URL)
+        .then(() => navigator.storage?.persist?.())
+        .catch((error) => {
+          console.error('Failed to register service worker:', error);
+        });
+    };
+
+    if ('requestIdleCallback' in window) {
+      window.requestIdleCallback(register, { timeout: 3000 });
+      return;
+    }
+
+    window.setTimeout(register, 3000);
   }, { once: true });
 }
 

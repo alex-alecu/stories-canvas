@@ -66,13 +66,28 @@ export default function Header() {
           className="inline-flex shrink-0 items-center hover:opacity-80 transition-opacity"
           aria-label={t.appTitle}
         >
-          <img
-            src="/logo-text.png"
-            alt={t.appTitle}
-            width={420}
-            height={120}
-            className="h-8 w-auto md:h-9"
-          />
+          <picture>
+            <source
+              type="image/avif"
+              srcSet="/logo-text-224.avif 224w, /logo-text-336.avif 336w"
+              sizes="(min-width: 768px) 126px, 112px"
+            />
+            <source
+              type="image/webp"
+              srcSet="/logo-text-224.webp 224w, /logo-text-336.webp 336w"
+              sizes="(min-width: 768px) 126px, 112px"
+            />
+            <img
+              src="/logo-text-224.png"
+              srcSet="/logo-text-224.png 224w, /logo-text-336.png 336w"
+              sizes="(min-width: 768px) 126px, 112px"
+              alt={t.appTitle}
+              width={420}
+              height={120}
+              className="h-8 w-auto md:h-9"
+              decoding="async"
+            />
+          </picture>
         </Link>
 
         {/* Desktop nav — hidden on mobile */}

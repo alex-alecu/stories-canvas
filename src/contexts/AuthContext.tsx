@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from 'react';
 import type { User, Session, AuthError } from '@supabase/supabase-js';
-import { supabase } from '../lib/supabase';
+import { isSupabaseConfigured } from '../lib/supabaseConfig';
 
 interface AuthResult {
   error: AuthError | null;
@@ -23,30 +23,59 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
+async function getSupabaseClient() {
+  const { supabase } = await import('../lib/supabase');
+  return supabase;
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session: initialSession } }) => {
+    if (!isSupabaseConfigured) {
+      setLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    let unsubscribe: (() => void) | null = null;
+
+    async function loadSession() {
+      const supabase = await getSupabaseClient();
+      if (cancelled) return;
+
+      const { data: { session: initialSession } } = await supabase.auth.getSession();
+      if (cancelled) return;
+
       setSession(initialSession);
       setUser(initialSession?.user ?? null);
       setLoading(false);
+
+      const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, newSession) => {
+        setSession(newSession);
+        setUser(newSession?.user ?? null);
+        setLoading(false);
+      });
+      unsubscribe = () => subscription.unsubscribe();
+    }
+
+    loadSession().catch((error) => {
+      console.error('Failed to initialize auth:', error);
+      if (!cancelled) {
+        setLoading(false);
+      }
     });
 
-    // Listen for auth state changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, newSession) => {
-      setSession(newSession);
-      setUser(newSession?.user ?? null);
-      setLoading(false);
-    });
-
-    return () => subscription.unsubscribe();
+    return () => {
+      cancelled = true;
+      unsubscribe?.();
+    };
   }, []);
 
   const signInWithGoogle = useCallback(async () => {
+    const supabase = await getSupabaseClient();
     await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
@@ -56,11 +85,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signInWithEmail = useCallback(async (email: string, password: string): Promise<AuthResult> => {
+    const supabase = await getSupabaseClient();
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     return { error };
   }, []);
 
   const signUpWithEmail = useCallback(async (email: string, password: string): Promise<SignUpResult> => {
+    const supabase = await getSupabaseClient();
     const { data, error } = await supabase.auth.signUp({ email, password });
     // If identities array is empty, the email is already registered
     const confirmEmail = !error && !!data.user && !data.session;
@@ -68,6 +99,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const resetPassword = useCallback(async (email: string): Promise<AuthResult> => {
+    const supabase = await getSupabaseClient();
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: window.location.origin + '/auth/callback',
     });
@@ -75,6 +107,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signOut = useCallback(async () => {
+    const supabase = await getSupabaseClient();
     await supabase.auth.signOut();
   }, []);
 

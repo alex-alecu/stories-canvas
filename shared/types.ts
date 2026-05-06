@@ -175,6 +175,12 @@ export interface StoryUsageEvent {
   createdAt: string;
 }
 
+export interface StoryImageSources {
+  thumb?: string;
+  card?: string;
+  full?: string;
+}
+
 export interface StoryMeta {
   id: string;
   prompt: string;
@@ -182,6 +188,7 @@ export interface StoryMeta {
   createdAt: string;
   scenario?: Scenario;
   coverImage?: string;
+  coverImageSources?: StoryImageSources;
   userId?: string;
   isPublic?: boolean;
   language?: string;

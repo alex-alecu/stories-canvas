@@ -1,10 +1,12 @@
 import { getSupabase } from './supabase.js';
+import sharp from 'sharp';
 import { config } from '../config.js';
 import {
   normalizeVoiceKey,
   type ArtStyleKey,
   type PageStatus,
   type StoryGenerationInputs,
+  type StoryImageSources,
   type StoryMeta,
   type StoryMode,
   type StoryStatus,
@@ -13,7 +15,12 @@ import {
   type Scenario,
   type VoiceKey,
 } from '../../shared/types.js';
-import { MEDIA_CACHE_MAX_AGE_SECONDS } from '../utils/storyMedia.js';
+import {
+  COVER_IMAGE_VARIANTS,
+  MEDIA_CACHE_MAX_AGE_SECONDS,
+  getCoverImageVariantFilename,
+  isCoverImageSourceFilename,
+} from '../utils/storyMedia.js';
 import { parseArtStyle } from './storyStyle.js';
 import { EMPTY_STORY_USAGE_TOTALS, normalizeStoryUsageTotals } from './storyUsage.js';
 
@@ -311,6 +318,7 @@ interface StoryRow {
   target_age: number | null;
   scenario: Scenario | null;
   cover_image_url: string | null;
+  cover_image_sources?: unknown;
   total_pages: number;
   completed_pages: number;
   failed_pages: number[];
@@ -350,6 +358,20 @@ function normalizeCount(value: unknown): number {
   return 0;
 }
 
+function normalizeStoryImageSources(value: unknown): StoryImageSources | undefined {
+  if (!value || typeof value !== 'object') {
+    return undefined;
+  }
+
+  const raw = value as Record<string, unknown>;
+  const sources: StoryImageSources = {};
+  if (typeof raw.thumb === 'string' && raw.thumb) sources.thumb = raw.thumb;
+  if (typeof raw.card === 'string' && raw.card) sources.card = raw.card;
+  if (typeof raw.full === 'string' && raw.full) sources.full = raw.full;
+
+  return sources.thumb || sources.card || sources.full ? sources : undefined;
+}
+
 function rowToStoryMeta(row: StoryRow): StoryMeta {
   const scenarioRevision = Number.isInteger(row.scenario_revision)
     ? Math.max(0, row.scenario_revision ?? 0)
@@ -367,6 +389,7 @@ function rowToStoryMeta(row: StoryRow): StoryMeta {
     createdAt: row.created_at,
     scenario: row.scenario ?? undefined,
     coverImage: row.cover_image_url ?? undefined,
+    coverImageSources: normalizeStoryImageSources(row.cover_image_sources),
     userId: row.user_id ?? undefined,
     isPublic: row.is_public ?? false,
     language: row.language ?? 'ro',
@@ -602,19 +625,87 @@ export async function listPublicStories(search?: string, limit = 50): Promise<St
 
 // ---------- Image Storage ----------
 
-export async function uploadImage(userId: string | undefined, storyId: string, filename: string, base64Data: string): Promise<string> {
-  const supabase = getSupabase();
-  const buffer = Buffer.from(base64Data, 'base64');
-  const storagePath = userId ? `${userId}/${storyId}/${filename}` : `${storyId}/${filename}`;
+function getStoryStoragePath(userId: string | undefined, storyId: string, filename: string): string {
+  return userId ? `${userId}/${storyId}/${filename}` : `${storyId}/${filename}`;
+}
 
+async function uploadStorageObject(
+  storagePath: string,
+  buffer: Buffer,
+  contentType: string,
+): Promise<void> {
+  const supabase = getSupabase();
   const { error } = await supabase.storage
     .from(BUCKET)
     .upload(storagePath, buffer, {
       cacheControl: String(MEDIA_CACHE_MAX_AGE_SECONDS),
-      contentType: 'image/png',
+      contentType,
       upsert: true,
     });
-  if (error) throw new Error(`Failed to upload image: ${error.message}`);
+
+  if (error) throw new Error(`Failed to upload ${storagePath}: ${error.message}`);
+}
+
+async function generateCoverImageSources(
+  userId: string | undefined,
+  storyId: string,
+  sourceFilename: string,
+  sourceBuffer: Buffer,
+): Promise<void> {
+  const sources: StoryImageSources = {
+    full: getImageUrl(userId, storyId, sourceFilename),
+  };
+
+  for (const [variant, options] of Object.entries(COVER_IMAGE_VARIANTS)) {
+    const filename = getCoverImageVariantFilename(variant as keyof typeof COVER_IMAGE_VARIANTS);
+    const buffer = await sharp(sourceBuffer)
+      .resize({
+        width: options.width,
+        height: options.height,
+        fit: 'cover',
+        position: 'centre',
+        withoutEnlargement: true,
+      })
+      .webp({
+        quality: 74,
+        effort: 5,
+        smartSubsample: true,
+      })
+      .toBuffer();
+
+    await uploadStorageObject(getStoryStoragePath(userId, storyId, filename), buffer, 'image/webp');
+    sources[variant as keyof typeof COVER_IMAGE_VARIANTS] = getImageUrl(userId, storyId, filename);
+  }
+
+  const { error } = await getSupabase()
+    .from('stories')
+    .update({
+      cover_image_url: sources.full,
+      cover_image_sources: sources,
+    })
+    .eq('id', storyId);
+
+  if (error) {
+    throw new Error(`Failed to update cover image sources: ${error.message}`);
+  }
+}
+
+export async function uploadImage(userId: string | undefined, storyId: string, filename: string, base64Data: string): Promise<string> {
+  const buffer = Buffer.from(base64Data, 'base64');
+  const storagePath = getStoryStoragePath(userId, storyId, filename);
+
+  await uploadStorageObject(storagePath, buffer, 'image/png');
+
+  if (isCoverImageSourceFilename(filename)) {
+    try {
+      await generateCoverImageSources(userId, storyId, filename, buffer);
+    } catch (error) {
+      console.warn(
+        `[story:${storyId}] Failed to generate cover image variants:`,
+        error instanceof Error ? error.message : error,
+      );
+    }
+  }
 
   return getImageUrl(userId, storyId, filename);
 }

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import StoryInput from '../components/StoryInput';
 import StoryGrid from '../components/StoryGrid';
@@ -11,7 +11,7 @@ import { useStoryGeneration } from '../hooks/useStoryGeneration';
 import { useNotification } from '../hooks/useNotification';
 import { useLanguage } from '../i18n/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
-import { isSupabaseConfigured } from '../lib/supabase';
+import { isSupabaseConfigured } from '../lib/supabaseConfig';
 import type { StorySummary } from '../types';
 import type { ArtStyleKey, StoryMode, StoryStatus, VoiceKey } from '../../shared/types';
 import { readStorageItem, removeStorageItem, writeStorageItem } from '../lib/browserStorage';
@@ -39,9 +39,11 @@ export default function Home() {
   const [generatingStoryId, setGeneratingStoryId] = useState<string | null>(getStoredGeneratingId);
   const [storyToDelete, setStoryToDelete] = useState<StorySummary | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [shouldLoadPublicStories, setShouldLoadPublicStories] = useState(false);
+  const publicStoriesRef = useRef<HTMLDivElement | null>(null);
   const shouldLoadUserStories = !isSupabaseConfigured || !!user;
   const { data: stories = [], isLoading, isSuccess: hasLoadedStories } = useStories(shouldLoadUserStories);
-  const { data: publicStories = [], isLoading: isLoadingPublicStories } = usePublicStories(undefined, 4);
+  const { data: publicStories = [], isLoading: isLoadingPublicStories } = usePublicStories(undefined, 4, shouldLoadPublicStories);
   const createStory = useCreateStory();
   const cancelStory = useCancelStory();
   const cancelDeletingStory = useCancelStory();
@@ -77,6 +79,31 @@ export default function Home() {
       clearGeneratingStoryTracking();
     }
   }, [clearGeneratingStoryTracking, generatingStoryId, hasLoadedStories, stories]);
+
+  useEffect(() => {
+    if (shouldLoadPublicStories) {
+      return;
+    }
+
+    const target = publicStoriesRef.current;
+    if (!target || !('IntersectionObserver' in window)) {
+      const timeoutId = window.setTimeout(() => setShouldLoadPublicStories(true), 1200);
+      return () => window.clearTimeout(timeoutId);
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry?.isIntersecting) {
+          setShouldLoadPublicStories(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: '600px 0px' },
+    );
+
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, [shouldLoadPublicStories]);
 
   const handleCreateStory = useCallback(async (prompt: string, age: number, style: ArtStyleKey, storyMode: StoryMode, voice?: VoiceKey) => {
     try {
@@ -227,10 +254,12 @@ export default function Home() {
           </section>
         )}
 
-        <PublicStoriesShowcase
-          stories={publicStories}
-          isLoading={isLoadingPublicStories}
-        />
+        <div ref={publicStoriesRef}>
+          <PublicStoriesShowcase
+            stories={publicStories}
+            isLoading={shouldLoadPublicStories && isLoadingPublicStories}
+          />
+        </div>
       </div>
     </div>
   );
