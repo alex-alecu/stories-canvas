@@ -70,6 +70,7 @@ Copy `.env.example` to `.env` and fill in the values you need:
 - `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` enable Checkout and webhook fulfillment
 - `APP_BASE_URL` should match the browser origin used for local or deployed checkout redirects
 - `ADMIN_BOOTSTRAP_EMAILS` seeds initial admins as a comma-separated list
+- `VITE_DEFAULT_LANGUAGE` sets the first-visit client language for a deployed domain, defaulting to `ro`
 
 Apply the Supabase migrations before testing billing:
 

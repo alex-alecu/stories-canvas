@@ -6,28 +6,18 @@ import { readStorageItem, writeStorageItem } from '../lib/browserStorage';
 
 const LANGUAGE_STORAGE_KEY = 'stories-canvas:language';
 const VALID_LANGUAGES = new Set<string>(Object.keys(translations));
+const DEFAULT_LANGUAGE: Language = 'ro';
 
 function isValidLanguage(lang: string): lang is Language {
   return VALID_LANGUAGES.has(lang);
 }
 
-function detectBrowserLanguage(): Language {
-  try {
-    const browserLang = navigator.language?.split('-')[0];
-    if (browserLang && isValidLanguage(browserLang)) {
-      return browserLang;
-    }
-    // Check navigator.languages for fallback
-    for (const lang of navigator.languages ?? []) {
-      const code = lang.split('-')[0];
-      if (isValidLanguage(code)) {
-        return code;
-      }
-    }
-  } catch {
-    // Ignore errors in SSR or restricted environments
+function getConfiguredDefaultLanguage(): Language {
+  const configuredLanguage = import.meta.env.VITE_DEFAULT_LANGUAGE;
+  if (configuredLanguage && isValidLanguage(configuredLanguage)) {
+    return configuredLanguage;
   }
-  return 'en';
+  return DEFAULT_LANGUAGE;
 }
 
 function getStoredLanguage(): Language | null {
@@ -54,7 +44,7 @@ const LanguageContext = createContext<LanguageContextValue | undefined>(undefine
 export function LanguageProvider({ children }: { children: ReactNode }) {
   const { user, session } = useAuth();
   const [language, setLanguageState] = useState<Language>(() => {
-    return getStoredLanguage() || detectBrowserLanguage();
+    return getStoredLanguage() || getConfiguredDefaultLanguage();
   });
 
   // On mount / user change, try to load language preference from Supabase
