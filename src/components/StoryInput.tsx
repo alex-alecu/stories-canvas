@@ -94,8 +94,14 @@ export default function StoryInput({ onSubmit, isLoading }: StoryInputProps) {
   return (
     <div className="w-full max-w-5xl mx-auto">
       <div className="text-center mb-8">
-        <h1 className="text-4xl md:text-5xl font-extrabold bg-gradient-to-r from-primary-600 via-primary-500 to-warm-500 dark:from-primary-400 dark:via-primary-300 dark:to-warm-400 bg-clip-text text-transparent mb-3">
-          {t.appTitle}
+        <h1 className="mb-4 flex justify-center">
+          <img
+            src="/logo-big.png"
+            alt={t.appTitle}
+            width={720}
+            height={497}
+            className="w-64 max-w-[78vw] md:w-80 lg:w-96"
+          />
         </h1>
         <p className="text-gray-500 dark:text-gray-400 text-lg">
           {t.appSubtitle}

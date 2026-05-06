@@ -63,9 +63,16 @@ export default function Header() {
         {/* Logo — always visible */}
         <Link
           to="/"
-          className="text-lg font-extrabold bg-gradient-to-r from-primary-600 to-primary-500 dark:from-primary-400 dark:to-primary-300 bg-clip-text text-transparent hover:opacity-80 transition-opacity"
+          className="inline-flex shrink-0 items-center hover:opacity-80 transition-opacity"
+          aria-label={t.appTitle}
         >
-          {t.appTitle}
+          <img
+            src="/logo-text.png"
+            alt={t.appTitle}
+            width={420}
+            height={120}
+            className="h-8 w-auto md:h-9"
+          />
         </Link>
 
         {/* Desktop nav — hidden on mobile */}
