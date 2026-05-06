@@ -71,6 +71,7 @@ export default function BillingContent() {
   }
 
   const banner = getBannerCopy(checkoutState, reason, t);
+  const historyListClassName = 'mt-4 max-h-96 space-y-3 overflow-y-auto overscroll-contain pr-2';
 
   const handleCheckout = async (offer: StoryPackOffer) => {
     const result = await checkout.mutateAsync({ offerSlug: offer.slug });
@@ -177,7 +178,7 @@ export default function BillingContent() {
       <section className="grid gap-6 lg:grid-cols-2">
         <div className="rounded-3xl border border-primary-100 bg-white p-6 shadow-sm dark:border-primary-900/40 dark:bg-surface-dark-elevated">
           <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100">{t.billingPurchasesTitle}</h3>
-          <div className="mt-4 space-y-3">
+          <div className={historyListClassName}>
             {(billingHistory?.purchases ?? []).length === 0 ? (
               <p className="text-sm text-gray-500 dark:text-gray-400">{t.billingNoPurchases}</p>
             ) : (
@@ -207,7 +208,7 @@ export default function BillingContent() {
 
         <div className="rounded-3xl border border-primary-100 bg-white p-6 shadow-sm dark:border-primary-900/40 dark:bg-surface-dark-elevated">
           <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100">{t.billingCreditHistoryTitle}</h3>
-          <div className="mt-4 space-y-3">
+          <div className={historyListClassName}>
             {(billingHistory?.ledger ?? []).length === 0 ? (
               <p className="text-sm text-gray-500 dark:text-gray-400">{t.billingNoCreditActivity}</p>
             ) : (
