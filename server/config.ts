@@ -72,4 +72,23 @@ export const config = {
   stripeSecretKey: optionalEnv('STRIPE_SECRET_KEY'),
   stripeWebhookSecret: optionalEnv('STRIPE_WEBHOOK_SECRET'),
   appBaseUrl: process.env.APP_BASE_URL || process.env.PUBLIC_APP_URL || `http://localhost:${parseInt(process.env.PORT || process.env.SERVER_PORT || '3001', 10)}`,
+
+  // Marketing conversion configuration
+  ga4MeasurementId: optionalEnv('GA4_MEASUREMENT_ID') || optionalEnv('VITE_GA4_MEASUREMENT_ID'),
+  ga4ApiSecret: optionalEnv('GA4_API_SECRET'),
+  metaPixelId: optionalEnv('META_PIXEL_ID') || optionalEnv('VITE_META_PIXEL_ID'),
+  metaCapiAccessToken: optionalEnv('META_CAPI_ACCESS_TOKEN'),
+  metaTestEventCode: optionalEnv('META_TEST_EVENT_CODE'),
+  tikTokPixelId: optionalEnv('TIKTOK_PIXEL_ID') || optionalEnv('VITE_TIKTOK_PIXEL_ID'),
+  tikTokEventsAccessToken: optionalEnv('TIKTOK_EVENTS_ACCESS_TOKEN'),
+  tikTokAdvertiserId: optionalEnv('TIKTOK_ADVERTISER_ID'),
+  tikTokTestEventCode: optionalEnv('TIKTOK_TEST_EVENT_CODE'),
+  googleAdsDeveloperToken: optionalEnv('GOOGLE_ADS_DEVELOPER_TOKEN'),
+  googleAdsClientId: optionalEnv('GOOGLE_ADS_CLIENT_ID'),
+  googleAdsClientSecret: optionalEnv('GOOGLE_ADS_CLIENT_SECRET'),
+  googleAdsRefreshToken: optionalEnv('GOOGLE_ADS_REFRESH_TOKEN'),
+  googleAdsCustomerId: optionalEnv('GOOGLE_ADS_CUSTOMER_ID'),
+  googleAdsLoginCustomerId: optionalEnv('GOOGLE_ADS_LOGIN_CUSTOMER_ID'),
+  googleAdsPurchaseConversionActionId: optionalEnv('GOOGLE_ADS_PURCHASE_CONVERSION_ACTION_ID'),
+  googleAdsApiVersion: process.env.GOOGLE_ADS_API_VERSION || 'v22',
 } as const;

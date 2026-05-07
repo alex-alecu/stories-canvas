@@ -1,7 +1,7 @@
 import type { Request } from 'express';
 import Stripe from 'stripe';
 import { config } from '../config.js';
-import type { StoryPackOffer } from '../../shared/types.js';
+import type { BillingCheckoutMarketingPayload, StoryPackOffer } from '../../shared/types.js';
 import { getBillingCustomer, upsertBillingCustomer } from './billingStorage.js';
 
 let stripeClient: Stripe | null = null;
@@ -21,6 +21,11 @@ export function getStripe(): Stripe {
 
   return stripeClient;
 }
+
+type CheckoutMarketingContext = BillingCheckoutMarketingPayload & {
+  clientIp?: string;
+  userAgent?: string;
+};
 
 function normalizeBaseUrl(value: string | undefined): string | undefined {
   const trimmed = value?.trim();
@@ -66,11 +71,48 @@ export async function getOrCreateStripeCustomer(userId: string, email: string | 
   return customer.id;
 }
 
+function compactMetadataValue(value: unknown, maxLength = 500): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  return trimmed.slice(0, maxLength);
+}
+
+function buildMarketingMetadata(marketing: CheckoutMarketingContext | undefined): Record<string, string> {
+  if (!marketing) return {};
+
+  const attribution = marketing.attribution ?? {};
+  const entries: Record<string, string | undefined> = {
+    marketingConsent: marketing.consent?.marketing ? 'granted' : 'denied',
+    marketingConsentAt: compactMetadataValue(marketing.consent?.decidedAt, 100),
+    marketingEventId: compactMetadataValue(marketing.eventId, 120),
+    utmSource: compactMetadataValue(attribution.utmSource, 255),
+    utmMedium: compactMetadataValue(attribution.utmMedium, 255),
+    utmCampaign: compactMetadataValue(attribution.utmCampaign, 255),
+    utmTerm: compactMetadataValue(attribution.utmTerm, 255),
+    utmContent: compactMetadataValue(attribution.utmContent, 255),
+    gclid: compactMetadataValue(attribution.gclid, 255),
+    gbraid: compactMetadataValue(attribution.gbraid, 255),
+    wbraid: compactMetadataValue(attribution.wbraid, 255),
+    fbclid: compactMetadataValue(attribution.fbclid, 255),
+    ttclid: compactMetadataValue(attribution.ttclid, 255),
+    landingPage: compactMetadataValue(attribution.landingPage, 500),
+    referrer: compactMetadataValue(attribution.referrer, 500),
+    clientIp: compactMetadataValue(marketing.clientIp, 120),
+    userAgent: compactMetadataValue(marketing.userAgent, 500),
+  };
+
+  return Object.fromEntries(
+    Object.entries(entries).filter((entry): entry is [string, string] => typeof entry[1] === 'string'),
+  );
+}
+
 export async function createStoryPackCheckoutSession(params: {
   req: Request;
   userId: string;
   email?: string;
   offer: StoryPackOffer;
+  marketing?: CheckoutMarketingContext;
 }): Promise<{ checkoutUrl: string; checkoutSessionId: string }> {
   const stripe = getStripe();
   const customerId = await getOrCreateStripeCustomer(params.userId, params.email);
@@ -80,11 +122,12 @@ export async function createStoryPackCheckoutSession(params: {
     mode: 'payment',
     customer: customerId,
     client_reference_id: params.userId,
-    success_url: `${baseUrl}/billing?checkout=success`,
+    success_url: `${baseUrl}/billing?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: `${baseUrl}/billing?checkout=cancelled`,
     metadata: {
       userId: params.userId,
       offerSlug: params.offer.slug,
+      ...buildMarketingMetadata(params.marketing),
     },
     line_items: [
       {

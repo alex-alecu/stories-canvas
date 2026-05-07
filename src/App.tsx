@@ -1,6 +1,8 @@
 import { lazy, Suspense } from 'react';
 import { Routes, Route } from 'react-router-dom';
 import Header from './components/Header';
+import MarketingConsentBanner from './components/MarketingConsentBanner';
+import MarketingRouteTracker from './components/MarketingRouteTracker';
 import BrowserThemeSync from './components/BrowserThemeSync';
 import ErrorBoundary from './components/ErrorBoundary';
 import Home from './pages/Home';
@@ -25,6 +27,7 @@ export default function App() {
   return (
     <ErrorBoundary>
       <BrowserThemeSync />
+      <MarketingRouteTracker />
       <Header />
       <Suspense fallback={<RouteFallback />}>
         <Routes>
@@ -38,6 +41,7 @@ export default function App() {
           <Route path="/admin" element={<Admin />} />
         </Routes>
       </Suspense>
+      <MarketingConsentBanner />
     </ErrorBoundary>
   );
 }

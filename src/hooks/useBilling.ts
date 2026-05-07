@@ -3,6 +3,7 @@ import type {
   AdminOverview,
   AdminUserDetail,
   AdminUserSummary,
+  BillingCheckoutMarketingPayload,
   BillingCheckoutResponse,
   BillingHistoryResponse,
   BillingOverview,
@@ -46,7 +47,7 @@ export function useBillingHistory(enabled = true) {
 
 export function useCreateCheckoutSession() {
   return useMutation({
-    mutationFn: (payload: { offerSlug: StoryPackOffer['slug'] }) => fetchJson<BillingCheckoutResponse>('/api/billing/checkout', {
+    mutationFn: (payload: { offerSlug: StoryPackOffer['slug'] } & BillingCheckoutMarketingPayload) => fetchJson<BillingCheckoutResponse>('/api/billing/checkout', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),

@@ -279,7 +279,7 @@ export interface StoryPackOffer {
   description: string;
   credits: number;
   priceMinor: number;
-  currency: 'ron';
+  currency: string;
   isActive: boolean;
 }
 
@@ -303,11 +303,37 @@ export interface BillingPurchase {
   id: string;
   offerSlug: StoryPackOffer['slug'];
   amountMinor: number;
-  currency: 'ron';
+  currency: string;
   creditsGranted: number;
   status: 'pending' | 'completed' | 'failed';
   createdAt: string;
   fulfilledAt?: string;
+}
+
+export interface MarketingAttribution {
+  utmSource?: string;
+  utmMedium?: string;
+  utmCampaign?: string;
+  utmTerm?: string;
+  utmContent?: string;
+  gclid?: string;
+  gbraid?: string;
+  wbraid?: string;
+  fbclid?: string;
+  ttclid?: string;
+  landingPage?: string;
+  referrer?: string;
+}
+
+export interface MarketingConsentState {
+  marketing: boolean;
+  decidedAt?: string;
+}
+
+export interface BillingCheckoutMarketingPayload {
+  attribution?: MarketingAttribution;
+  consent?: MarketingConsentState;
+  eventId?: string;
 }
 
 export interface BillingOverview {
@@ -347,7 +373,7 @@ export interface AdminUserStoryCostSummary {
 
 export interface AdminUserCostMetrics {
   revenueMinor: number;
-  revenueCurrency: 'ron';
+  revenueCurrency: string;
   costUsdMicros: number;
   inputTokens: number;
   outputTokens: number;

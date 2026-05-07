@@ -20,10 +20,15 @@ export function formatCredits(count: number, t: Pick<Translations, 'creditSingul
   return `${count} ${count === 1 ? t.creditSingular : t.creditPlural}`;
 }
 
-export function formatLocalizedPrice(priceMinor: number, language: Language): string {
+function normalizeCurrency(currency: string | undefined): string {
+  const code = (currency || 'ron').trim().toUpperCase();
+  return /^[A-Z]{3}$/.test(code) ? code : 'RON';
+}
+
+export function formatLocalizedPrice(priceMinor: number, language: Language, currency = 'ron'): string {
   return new Intl.NumberFormat(language, {
     style: 'currency',
-    currency: 'RON',
+    currency: normalizeCurrency(currency),
   }).format(priceMinor / 100);
 }
 

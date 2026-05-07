@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import {
@@ -14,6 +15,12 @@ import {
   getOfferCopy,
   getPurchaseStatusLabel,
 } from '../i18n/billingCopy';
+import {
+  createMarketingEventId,
+  getCheckoutMarketingPayload,
+  trackInitiateCheckout,
+  trackPurchaseSuccessOnce,
+} from '../lib/marketing';
 import type { StoryPackOffer } from '../types';
 
 function getBannerCopy(
@@ -54,9 +61,16 @@ export default function BillingContent() {
   const [searchParams] = useSearchParams();
   const checkoutState = searchParams.get('checkout');
   const reason = searchParams.get('reason');
+  const checkoutSessionId = searchParams.get('session_id');
   const { data: billingOverview, isLoading: overviewLoading } = useBillingOverview(!!user);
   const { data: billingHistory, isLoading: historyLoading } = useBillingHistory(!!user);
   const checkout = useCreateCheckoutSession();
+
+  useEffect(() => {
+    if (checkoutState === 'success' && checkoutSessionId) {
+      trackPurchaseSuccessOnce({ checkoutSessionId });
+    }
+  }, [checkoutState, checkoutSessionId]);
 
   if (overviewLoading || historyLoading) {
     return (
@@ -74,7 +88,18 @@ export default function BillingContent() {
   const historyListClassName = 'mt-4 max-h-96 space-y-3 overflow-y-auto overscroll-contain pr-2';
 
   const handleCheckout = async (offer: StoryPackOffer) => {
-    const result = await checkout.mutateAsync({ offerSlug: offer.slug });
+    const eventId = createMarketingEventId('checkout');
+    trackInitiateCheckout({
+      eventId,
+      offer,
+      value: offer.priceMinor / 100,
+      currency: offer.currency,
+    });
+
+    const result = await checkout.mutateAsync({
+      offerSlug: offer.slug,
+      ...getCheckoutMarketingPayload(eventId),
+    });
     window.location.assign(result.checkoutUrl);
   };
 
@@ -131,7 +156,7 @@ export default function BillingContent() {
                       <p className="mt-1 text-xs uppercase tracking-[0.18em] text-primary-500">{formatCredits(offer.credits, t)}</p>
                     </div>
                     <p className="text-2xl font-extrabold leading-none text-gray-900 break-words dark:text-gray-100">
-                      {formatLocalizedPrice(offer.priceMinor, language)}
+                      {formatLocalizedPrice(offer.priceMinor, language, offer.currency)}
                     </p>
                   </div>
                   <p className="mt-3 min-h-16 text-sm text-gray-500 dark:text-gray-400">{offerCopy.description}</p>
@@ -190,7 +215,7 @@ export default function BillingContent() {
                     <div className="flex items-center justify-between gap-3">
                       <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{offerName}</p>
                       <span className="text-sm font-semibold text-primary-600 dark:text-primary-300">
-                        {formatLocalizedPrice(purchase.amountMinor, language)}
+                        {formatLocalizedPrice(purchase.amountMinor, language, purchase.currency)}
                       </span>
                     </div>
                     <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">

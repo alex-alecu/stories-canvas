@@ -1,5 +1,6 @@
 import { Router, type Request, type Response } from 'express';
 import type Stripe from 'stripe';
+import type { BillingCheckoutMarketingPayload, MarketingAttribution, MarketingConsentState } from '../../shared/types.js';
 import { config } from '../config.js';
 import { requireAuth } from '../middleware/auth.js';
 import {
@@ -17,6 +18,7 @@ import {
   isStripeConfigured,
   verifyStripeWebhookEvent,
 } from '../services/stripe.js';
+import { sendPurchaseConversions } from '../services/marketingConversions.js';
 
 const router = Router();
 export const billingWebhookRouter = Router();
@@ -41,6 +43,88 @@ export const billingStripeOps = {
   isStripeConfigured,
   verifyStripeWebhookEvent,
 };
+
+export const billingMarketingOps = {
+  sendPurchaseConversions,
+};
+
+const MARKETING_ATTRIBUTION_KEYS = [
+  'utmSource',
+  'utmMedium',
+  'utmCampaign',
+  'utmTerm',
+  'utmContent',
+  'gclid',
+  'gbraid',
+  'wbraid',
+  'fbclid',
+  'ttclid',
+  'landingPage',
+  'referrer',
+] as const satisfies ReadonlyArray<keyof MarketingAttribution>;
+
+function compactString(value: unknown, maxLength = 500): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  return trimmed.slice(0, maxLength);
+}
+
+function parseMarketingConsent(value: unknown): MarketingConsentState | undefined {
+  if (!value || typeof value !== 'object') return undefined;
+  const source = value as Record<string, unknown>;
+  if (typeof source.marketing !== 'boolean') return undefined;
+
+  return {
+    marketing: source.marketing,
+    decidedAt: compactString(source.decidedAt, 100),
+  };
+}
+
+function parseMarketingAttribution(value: unknown): MarketingAttribution | undefined {
+  if (!value || typeof value !== 'object') return undefined;
+
+  const source = value as Record<string, unknown>;
+  const attribution: MarketingAttribution = {};
+  for (const key of MARKETING_ATTRIBUTION_KEYS) {
+    const maxLength = key === 'landingPage' || key === 'referrer' ? 500 : 255;
+    const compacted = compactString(source[key], maxLength);
+    if (compacted) {
+      attribution[key] = compacted;
+    }
+  }
+
+  return Object.keys(attribution).length > 0 ? attribution : undefined;
+}
+
+function getClientIp(req: Request): string | undefined {
+  const forwardedFor = req.headers['x-forwarded-for'];
+  if (typeof forwardedFor === 'string' && forwardedFor.trim()) {
+    return forwardedFor.split(',')[0]?.trim().slice(0, 120) || undefined;
+  }
+
+  if (Array.isArray(forwardedFor) && forwardedFor[0]) {
+    return forwardedFor[0].split(',')[0]?.trim().slice(0, 120) || undefined;
+  }
+
+  return req.ip?.slice(0, 120);
+}
+
+function parseCheckoutMarketingPayload(req: Request): BillingCheckoutMarketingPayload & { clientIp?: string; userAgent?: string } {
+  const source = req.body as Record<string, unknown>;
+
+  return {
+    consent: parseMarketingConsent(source.consent),
+    attribution: parseMarketingAttribution(source.attribution),
+    eventId: compactString(source.eventId, 120),
+    clientIp: getClientIp(req),
+    userAgent: compactString(req.get('user-agent'), 500),
+  };
+}
+
+function getSessionEmail(session: Stripe.Checkout.Session): string | undefined {
+  return session.customer_details?.email ?? undefined;
+}
 
 router.get('/offers', async (_req: Request, res: Response) => {
   try {
@@ -120,6 +204,7 @@ router.post('/checkout', requireAuth, async (req: Request, res: Response) => {
       userId: req.authUser.id,
       email: req.authUser.email,
       offer,
+      marketing: parseCheckoutMarketingPayload(req),
     });
 
     res.json({
@@ -158,16 +243,29 @@ billingWebhookRouter.post('/', async (req: Request, res: Response) => {
       }
 
       if (session.payment_status === 'paid') {
-        await billingStorageOps.fulfillStoryPackPurchase({
+        const purchaseParams = {
           userId,
           offerSlug: offerSlug as 'pack_5' | 'pack_12' | 'pack_20',
           stripeCheckoutSessionId: session.id,
           stripePaymentIntentId: typeof session.payment_intent === 'string' ? session.payment_intent : undefined,
           stripeCustomerId: typeof session.customer === 'string' ? session.customer : undefined,
           amountMinor: session.amount_total ?? 0,
-          currency: 'ron',
+          currency: typeof session.currency === 'string' ? session.currency : 'ron',
           metadata: session.metadata ?? {},
-        });
+        };
+
+        const fulfillment = await billingStorageOps.fulfillStoryPackPurchase(purchaseParams);
+
+        if (!fulfillment.already_fulfilled) {
+          try {
+            await billingMarketingOps.sendPurchaseConversions({
+              ...purchaseParams,
+              email: getSessionEmail(session),
+            });
+          } catch (conversionError) {
+            console.error('Failed to send marketing purchase conversions:', conversionError);
+          }
+        }
       }
     }
 

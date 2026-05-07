@@ -14,7 +14,7 @@ interface StoryPackOfferRow {
   description: string;
   credits: number;
   price_minor: number;
-  currency: 'ron';
+  currency: string;
   is_active: boolean;
 }
 
@@ -38,7 +38,7 @@ interface BillingPurchaseRow {
   id: string;
   offer_slug: StoryPackOffer['slug'];
   amount_minor: number;
-  currency: 'ron';
+  currency: string;
   credits_granted: number;
   status: BillingPurchase['status'];
   created_at: string;
@@ -415,7 +415,7 @@ export async function fulfillStoryPackPurchase(params: {
   stripePaymentIntentId?: string;
   stripeCustomerId?: string;
   amountMinor: number;
-  currency: 'ron';
+  currency: string;
   metadata?: Record<string, unknown>;
 }): Promise<FulfillStoryPackPurchaseRow> {
   const supabase = getSupabase();

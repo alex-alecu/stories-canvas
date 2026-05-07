@@ -62,7 +62,7 @@ function OfferEditor({
           <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">{formatCredits(offer.credits, t)}</h3>
         </div>
         <span className="rounded-full bg-primary-50 dark:bg-primary-900/30 px-3 py-1 text-xs font-semibold text-primary-600 dark:text-primary-300">
-          {formatLocalizedPrice(offer.priceMinor, language)}
+          {formatLocalizedPrice(offer.priceMinor, language, offer.currency)}
         </span>
       </div>
 
@@ -366,7 +366,7 @@ export default function Admin() {
                           <div key={purchase.id} className="rounded-2xl border border-gray-100 px-4 py-3 dark:border-gray-800">
                             <div className="flex items-center justify-between gap-3">
                               <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{offerName}</p>
-                              <span className="text-sm text-primary-600 dark:text-primary-300">{formatLocalizedPrice(purchase.amountMinor, language)}</span>
+                              <span className="text-sm text-primary-600 dark:text-primary-300">{formatLocalizedPrice(purchase.amountMinor, language, purchase.currency)}</span>
                             </div>
                             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                               {formatCredits(purchase.creditsGranted, t)} · {getPurchaseStatusLabel(purchase.status, t)} · {formatLocalizedDate(purchase.createdAt, language, t.adminNever)}
