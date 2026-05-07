@@ -28,7 +28,7 @@ export default function PublicStoriesShowcase({ stories, isLoading }: PublicStor
 
   return (
     <section className="mt-10 md:mt-14 rounded-[2rem] border border-primary-100/80 dark:border-primary-800/50 bg-white/75 dark:bg-surface-dark-elevated/80 backdrop-blur-xl shadow-xl shadow-primary-100/40 dark:shadow-primary-950/20 overflow-hidden">
-      <div className={`px-6 py-6 md:px-8 md:py-7 bg-gradient-to-r from-primary-50/90 via-white/80 to-warm-50/80 dark:from-primary-900/20 dark:via-surface-dark-elevated/80 dark:to-warm-500/10 ${
+      <div className={`px-6 py-6 md:px-8 md:py-7 ${
         showStoryGrid ? 'border-b border-primary-100/80 dark:border-primary-800/40' : ''
       }`}>
         <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
