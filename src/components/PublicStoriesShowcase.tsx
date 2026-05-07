@@ -24,14 +24,13 @@ export default function PublicStoriesShowcase({ stories, isLoading }: PublicStor
   const { t } = useLanguage();
   const visibleStories = stories.slice(0, 4);
   const showSkeletons = isLoading && visibleStories.length === 0;
-
-  if (!showSkeletons && visibleStories.length === 0) {
-    return null;
-  }
+  const showStoryGrid = showSkeletons || visibleStories.length > 0;
 
   return (
     <section className="mt-10 md:mt-14 rounded-[2rem] border border-primary-100/80 dark:border-primary-800/50 bg-white/75 dark:bg-surface-dark-elevated/80 backdrop-blur-xl shadow-xl shadow-primary-100/40 dark:shadow-primary-950/20 overflow-hidden">
-      <div className="px-6 py-6 md:px-8 md:py-7 border-b border-primary-100/80 dark:border-primary-800/40 bg-gradient-to-r from-primary-50/90 via-white/80 to-warm-50/80 dark:from-primary-900/20 dark:via-surface-dark-elevated/80 dark:to-warm-500/10">
+      <div className={`px-6 py-6 md:px-8 md:py-7 bg-gradient-to-r from-primary-50/90 via-white/80 to-warm-50/80 dark:from-primary-900/20 dark:via-surface-dark-elevated/80 dark:to-warm-500/10 ${
+        showStoryGrid ? 'border-b border-primary-100/80 dark:border-primary-800/40' : ''
+      }`}>
         <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div className="max-w-2xl">
             <span className="inline-flex items-center rounded-full border border-primary-200 dark:border-primary-700/60 bg-white/70 dark:bg-surface-dark-accent/70 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-primary-600 dark:text-primary-300">
@@ -57,13 +56,15 @@ export default function PublicStoriesShowcase({ stories, isLoading }: PublicStor
         </div>
       </div>
 
-      <div className="px-6 py-6 md:px-8 md:py-8">
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6">
-          {showSkeletons
-            ? Array.from({ length: 4 }).map((_, index) => <ShowcaseSkeleton key={index} />)
-            : visibleStories.map((story) => <StoryCard key={story.id} story={story} />)}
+      {showStoryGrid && (
+        <div className="px-6 py-6 md:px-8 md:py-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6">
+            {showSkeletons
+              ? Array.from({ length: 4 }).map((_, index) => <ShowcaseSkeleton key={index} />)
+              : visibleStories.map((story) => <StoryCard key={story.id} story={story} />)}
+          </div>
         </div>
-      </div>
+      )}
     </section>
   );
 }
