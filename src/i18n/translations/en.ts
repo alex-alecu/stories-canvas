@@ -176,6 +176,10 @@ const en: Translations = {
   regenerateAssetsFailed: 'Asset regeneration failed. Please try again.',
 
   storyIdeaButton: 'Inspire me',
+  marketingConsentTitle: 'Marketing cookies',
+  marketingConsentBody: 'We use marketing pixels only with your consent to measure purchases and improve ads.',
+  marketingConsentReject: 'Reject',
+  marketingConsentAccept: 'Accept',
   creditSingular: 'credit',
   creditPlural: 'credits',
   storyModeFast: 'Fast',

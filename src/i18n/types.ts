@@ -197,6 +197,12 @@ export interface Translations {
   // Story ideas
   storyIdeaButton: string;
 
+  // Marketing consent
+  marketingConsentTitle: string;
+  marketingConsentBody: string;
+  marketingConsentReject: string;
+  marketingConsentAccept: string;
+
   // Billing and credits
   creditSingular: string;
   creditPlural: string;
