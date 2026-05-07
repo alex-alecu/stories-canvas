@@ -1,5 +1,4 @@
 import { getSupabase } from './supabase.js';
-import sharp from 'sharp';
 import { config } from '../config.js';
 import {
   normalizeVoiceKey,
@@ -16,15 +15,14 @@ import {
   type VoiceKey,
 } from '../../shared/types.js';
 import {
-  COVER_IMAGE_VARIANTS,
   MEDIA_CACHE_MAX_AGE_SECONDS,
-  getCoverImageVariantFilename,
   isCoverImageSourceFilename,
 } from '../utils/storyMedia.js';
+import { generateCoverImageVariantSources, STORY_IMAGES_BUCKET } from './coverImageVariants.js';
 import { parseArtStyle } from './storyStyle.js';
 import { EMPTY_STORY_USAGE_TOTALS, normalizeStoryUsageTotals } from './storyUsage.js';
 
-const BUCKET = 'story-images';
+const BUCKET = STORY_IMAGES_BUCKET;
 const TRANSIENT_HTTP_STATUSES = new Set([502, 503, 504]);
 
 interface SupabaseErrorLike {
@@ -652,30 +650,14 @@ async function generateCoverImageSources(
   sourceFilename: string,
   sourceBuffer: Buffer,
 ): Promise<void> {
-  const sources: StoryImageSources = {
-    full: getImageUrl(userId, storyId, sourceFilename),
-  };
-
-  for (const [variant, options] of Object.entries(COVER_IMAGE_VARIANTS)) {
-    const filename = getCoverImageVariantFilename(variant as keyof typeof COVER_IMAGE_VARIANTS);
-    const buffer = await sharp(sourceBuffer)
-      .resize({
-        width: options.width,
-        height: options.height,
-        fit: 'cover',
-        position: 'centre',
-        withoutEnlargement: true,
-      })
-      .webp({
-        quality: 74,
-        effort: 5,
-        smartSubsample: true,
-      })
-      .toBuffer();
-
-    await uploadStorageObject(getStoryStoragePath(userId, storyId, filename), buffer, 'image/webp');
-    sources[variant as keyof typeof COVER_IMAGE_VARIANTS] = getImageUrl(userId, storyId, filename);
-  }
+  const sources = await generateCoverImageVariantSources({
+    sourceBuffer,
+    fullUrl: getImageUrl(userId, storyId, sourceFilename),
+    uploadVariant: async ({ filename, buffer, contentType }) => {
+      await uploadStorageObject(getStoryStoragePath(userId, storyId, filename), buffer, contentType);
+      return getImageUrl(userId, storyId, filename);
+    },
+  });
 
   const { error } = await getSupabase()
     .from('stories')

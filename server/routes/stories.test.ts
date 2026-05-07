@@ -910,6 +910,54 @@ test('GET /api/stories/public keeps search and limit working together', async (t
   ]);
 });
 
+test('GET /api/stories/public preserves cover image sources in summaries', async (t) => {
+  const dataDir = mkdtempSync(path.join(os.tmpdir(), 'stories-public-cover-sources-'));
+  const harness = await createStoriesHarness(dataDir, { useSupabase: true });
+
+  t.after(async () => {
+    await harness.close();
+    await fs.rm(dataDir, { recursive: true, force: true });
+  });
+
+  t.mock.method(harness.storiesModule.storageOps, 'listPublicStories', async () => [
+    makeStoryMeta({
+      id: 'story-with-sources',
+      status: 'completed',
+      isPublic: true,
+      coverImage: 'https://cdn.example/story/page-01.png',
+      coverImageSources: {
+        full: 'https://cdn.example/story/page-01.png',
+        thumb: 'https://cdn.example/story/cover-thumb.webp',
+        card: 'https://cdn.example/story/cover-card.webp',
+      },
+    }),
+  ]);
+
+  const response = await fetch(`${harness.baseUrl}/api/stories/public?limit=4`);
+
+  assert.equal(response.status, 200);
+  const stories = await response.json() as Array<{ id: string; coverImageSources?: Record<string, string> }>;
+  assert.deepEqual(stories, [{
+    id: 'story-with-sources',
+    prompt: 'A calm bedtime story.',
+    status: 'completed',
+    createdAt: '2026-03-29T00:00:00.000Z',
+    title: 'Test Story',
+    coverImage: 'https://cdn.example/story/page-01.png',
+    coverImageSources: {
+      full: 'https://cdn.example/story/page-01.png',
+      thumb: 'https://cdn.example/story/cover-thumb.webp',
+      card: 'https://cdn.example/story/cover-card.webp',
+    },
+    totalPages: 1,
+    completedPages: 1,
+    isPublic: true,
+    hasAudio: false,
+    assetsStale: false,
+    viewCount: 0,
+  }]);
+});
+
 test('POST /api/stories/:id/review-script is no longer publicly exposed', async (t) => {
   const dataDir = mkdtempSync(path.join(os.tmpdir(), 'stories-review-removed-'));
   const harness = await createStoriesHarness(dataDir);

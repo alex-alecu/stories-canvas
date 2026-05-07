@@ -18,6 +18,10 @@ const LONG_LIVED_STATIC_ASSET = /^logo-(?:big|text)-\d+\.(?:avif|webp|png)$/;
 function setStaticCacheHeaders(res: express.Response, filePath: string): void {
   const fileName = path.basename(filePath);
 
+  if (fileName.endsWith('.avif')) {
+    res.setHeader('Content-Type', 'image/avif');
+  }
+
   if (fileName === 'service-worker.js' || fileName === 'index.html') {
     res.setHeader('Cache-Control', 'no-cache');
     return;

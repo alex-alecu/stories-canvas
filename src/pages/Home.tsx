@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import StoryInput from '../components/StoryInput';
 import StoryGrid from '../components/StoryGrid';
@@ -17,6 +17,8 @@ import type { ArtStyleKey, StoryMode, StoryStatus, VoiceKey } from '../../shared
 import { readStorageItem, removeStorageItem, writeStorageItem } from '../lib/browserStorage';
 
 const GENERATING_STORY_KEY = 'stories-canvas:generatingStoryId';
+const PUBLIC_STORY_SHOWCASE_FETCH_LIMIT = 8;
+const PUBLIC_STORY_SHOWCASE_DISPLAY_LIMIT = 4;
 
 function getStoredGeneratingId(): string | null {
   return readStorageItem(GENERATING_STORY_KEY);
@@ -42,8 +44,21 @@ export default function Home() {
   const [shouldLoadPublicStories, setShouldLoadPublicStories] = useState(false);
   const publicStoriesRef = useRef<HTMLDivElement | null>(null);
   const shouldLoadUserStories = !isSupabaseConfigured || !!user;
-  const { data: stories = [], isLoading, isSuccess: hasLoadedStories } = useStories(shouldLoadUserStories);
-  const { data: publicStories = [], isLoading: isLoadingPublicStories } = usePublicStories(undefined, 4, shouldLoadPublicStories);
+  const {
+    data: stories = [],
+    isLoading,
+    isFetched: hasSettledStories,
+    isSuccess: hasLoadedStories,
+  } = useStories(shouldLoadUserStories);
+  const hasSettledUserStories = !shouldLoadUserStories || hasSettledStories;
+  const {
+    data: publicStories = [],
+    isLoading: isLoadingPublicStories,
+  } = usePublicStories(
+    undefined,
+    PUBLIC_STORY_SHOWCASE_FETCH_LIMIT,
+    shouldLoadPublicStories && hasSettledUserStories,
+  );
   const createStory = useCreateStory();
   const cancelStory = useCancelStory();
   const cancelDeletingStory = useCancelStory();
@@ -81,14 +96,18 @@ export default function Home() {
   }, [clearGeneratingStoryTracking, generatingStoryId, hasLoadedStories, stories]);
 
   useEffect(() => {
-    if (shouldLoadPublicStories) {
+    if (shouldLoadPublicStories || !hasSettledUserStories) {
       return;
     }
 
     const target = publicStoriesRef.current;
-    if (!target || !('IntersectionObserver' in window)) {
-      const timeoutId = window.setTimeout(() => setShouldLoadPublicStories(true), 1200);
-      return () => window.clearTimeout(timeoutId);
+    if (!target) {
+      return;
+    }
+
+    if (!('IntersectionObserver' in window)) {
+      setShouldLoadPublicStories(true);
+      return;
     }
 
     const observer = new IntersectionObserver(
@@ -98,12 +117,12 @@ export default function Home() {
           observer.disconnect();
         }
       },
-      { rootMargin: '600px 0px' },
+      { rootMargin: '100px 0px' },
     );
 
     observer.observe(target);
     return () => observer.disconnect();
-  }, [shouldLoadPublicStories]);
+  }, [hasSettledUserStories, shouldLoadPublicStories]);
 
   const handleCreateStory = useCallback(async (prompt: string, age: number, style: ArtStyleKey, storyMode: StoryMode, voice?: VoiceKey) => {
     try {
@@ -199,6 +218,13 @@ export default function Home() {
     ? !!user && (isLoading || stories.length > 0)
     : isLoading || stories.length > 0;
   const isDeletingStory = deleteStory.isPending || cancelDeletingStory.isPending;
+  const userStoryIds = useMemo(() => new Set(stories.map(story => story.id)), [stories]);
+  const visiblePublicStories = useMemo(
+    () => publicStories
+      .filter(story => !userStoryIds.has(story.id))
+      .slice(0, PUBLIC_STORY_SHOWCASE_DISPLAY_LIMIT),
+    [publicStories, userStoryIds],
+  );
 
   return (
     <div className="min-h-screen p-4 md:p-8 relative">
@@ -256,8 +282,8 @@ export default function Home() {
 
         <div ref={publicStoriesRef}>
           <PublicStoriesShowcase
-            stories={publicStories}
-            isLoading={shouldLoadPublicStories && isLoadingPublicStories}
+            stories={visiblePublicStories}
+            isLoading={shouldLoadPublicStories && hasSettledUserStories && isLoadingPublicStories}
           />
         </div>
       </div>

@@ -12,6 +12,7 @@
     "dev:client": "vite",
     "test:server": "tsx --test server/**/*.test.ts",
     "build": "vite build && tsup",
+    "backfill:cover-images": "tsx --env-file=.env server/scripts/backfillCoverImages.ts",
     "migrate:railway": "sh -c 'test -n \"$SUPABASE_ACCESS_TOKEN\" || { echo \"SUPABASE_ACCESS_TOKEN is required\"; exit 1; }; test -n \"$SUPABASE_PROJECT_REF\" || { echo \"SUPABASE_PROJECT_REF is required\"; exit 1; }; test -n \"$SUPABASE_DB_PASSWORD\" || { echo \"SUPABASE_DB_PASSWORD is required\"; exit 1; }; supabase link --project-ref \"$SUPABASE_PROJECT_REF\" --password \"$SUPABASE_DB_PASSWORD\" --yes && supabase db push --password \"$SUPABASE_DB_PASSWORD\" --yes'",
     "start": "node dist-server/index.js",
     "preview": "vite preview"

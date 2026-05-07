@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { StorySummary } from '../types';
 import { useLanguage } from '../i18n/LanguageContext';
@@ -7,6 +8,38 @@ interface StoryCardProps {
   story: StorySummary;
   onDelete?: (id: string) => void;
   onTogglePublic?: (id: string, isPublic: boolean) => void;
+}
+
+function useNearViewport(rootMargin = '200px 0px') {
+  const targetRef = useRef<HTMLDivElement | null>(null);
+  const [isNearViewport, setIsNearViewport] = useState(false);
+
+  useEffect(() => {
+    if (isNearViewport) {
+      return;
+    }
+
+    const target = targetRef.current;
+    if (!target || !('IntersectionObserver' in window)) {
+      setIsNearViewport(true);
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry?.isIntersecting) {
+          setIsNearViewport(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin },
+    );
+
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, [isNearViewport, rootMargin]);
+
+  return { targetRef, isNearViewport };
 }
 
 function StatusBadge({ status, completedPages, totalPages }: { status: string; completedPages: number; totalPages: number }) {
@@ -90,6 +123,8 @@ export default function StoryCard({ story, onDelete, onTogglePublic }: StoryCard
     coverSources?.thumb ? `${coverSources.thumb} 320w` : null,
     coverSources?.card ? `${coverSources.card} 640w` : null,
   ].filter(Boolean).join(', ');
+  const { targetRef, isNearViewport } = useNearViewport();
+  const shouldRenderCover = Boolean(coverSrc && isNearViewport);
 
   return (
     <div className="rounded-2xl overflow-hidden shadow-md hover:shadow-xl dark:shadow-primary-900/20 dark:hover:shadow-primary-800/30 transition-all duration-300 bg-white dark:bg-surface-dark-elevated">
@@ -97,10 +132,10 @@ export default function StoryCard({ story, onDelete, onTogglePublic }: StoryCard
         to={`/story/${story.id}`}
         className="group block"
       >
-        <div className="aspect-[4/3] relative overflow-hidden bg-gradient-to-br from-primary-100 to-warm-100 dark:from-primary-900/40 dark:to-warm-500/20">
-          {coverSrc ? (
+        <div ref={targetRef} className="aspect-[4/3] relative overflow-hidden bg-gradient-to-br from-primary-100 to-warm-100 dark:from-primary-900/40 dark:to-warm-500/20">
+          {shouldRenderCover ? (
             <img
-              src={coverSrc}
+              src={coverSrc!}
               srcSet={coverSrcSet || undefined}
               sizes="(min-width: 1280px) 288px, (min-width: 640px) 50vw, 100vw"
               alt={story.title || t.generatingStory}
@@ -110,7 +145,7 @@ export default function StoryCard({ story, onDelete, onTogglePublic }: StoryCard
               loading="lazy"
               decoding="async"
             />
-          ) : (
+          ) : !coverSrc ? (
             <div className="w-full h-full flex items-center justify-center">
               <div className="text-center p-4">
                 {story.status === 'failed' ? (
@@ -123,7 +158,7 @@ export default function StoryCard({ story, onDelete, onTogglePublic }: StoryCard
                 )}
               </div>
             </div>
-          )}
+          ) : null}
           <div
             className="absolute top-3 left-3 inline-flex items-center gap-1.5 rounded-full bg-black/35 px-2.5 py-1 text-xs font-bold text-white/90 backdrop-blur-sm"
             aria-label={`${viewCount} ${t.viewsLabel}`}
