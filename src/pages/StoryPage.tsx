@@ -197,6 +197,9 @@ export default function StoryPage() {
         storyMessage={story.progressMessage}
         voice={story.voice}
         storyStatus={story.status}
+        likeCount={story.likeCount ?? 0}
+        dislikeCount={story.dislikeCount ?? 0}
+        myReaction={story.myReaction ?? null}
       />
     );
   }

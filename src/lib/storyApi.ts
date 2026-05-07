@@ -6,6 +6,8 @@ import type {
   StoryAssets,
   StoryMeta,
   StoryMode,
+  StoryReaction,
+  StoryReactionResponse,
   StoryViewResponse,
   VoiceKey,
 } from '../types';
@@ -51,6 +53,25 @@ export async function recordStoryView(id: string): Promise<StoryViewResponse> {
     headers: authHeaders,
   });
   if (!res.ok) throw new Error('Failed to record story view');
+  return res.json();
+}
+
+export async function setStoryReaction({
+  id,
+  reaction,
+}: {
+  id: string;
+  reaction: StoryReaction | null;
+}): Promise<StoryReactionResponse> {
+  const authHeaders = await getAuthHeaders();
+  const res = await fetch(`/api/stories/${id}/reaction`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...authHeaders },
+    body: JSON.stringify({ reaction }),
+  });
+  if (!res.ok) {
+    throw await readError(res, 'Failed to update story reaction');
+  }
   return res.json();
 }
 

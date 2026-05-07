@@ -61,6 +61,10 @@ export interface Translations {
   keepOffline: string;
   removeFromDevice: string;
   viewsLabel: string;
+  likeStory: string;
+  dislikeStory: string;
+  signInToReact: string;
+  reactionUpdateFailed: string;
 
   // Story grid
   noStoriesYet: string;

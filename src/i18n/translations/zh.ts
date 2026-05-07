@@ -56,6 +56,10 @@ const zh: Translations = {
   keepOffline: "Keep offline",
   removeFromDevice: "Remove from device",
   viewsLabel: "views",
+  likeStory: 'Like',
+  dislikeStory: 'Dislike',
+  signInToReact: 'Sign in to like or dislike stories',
+  reactionUpdateFailed: 'Could not update your reaction',
 
   noStoriesYet: '还没有故事',
   createFirstStory: '在上方创建你的第一个故事吧！',

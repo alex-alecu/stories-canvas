@@ -79,6 +79,9 @@ function normalizeStoryMetaVoice(story: StoryMeta): StoryMeta {
     usageTotals: normalizeStoryUsageTotals(story.usageTotals),
     generationInputs: story.generationInputs,
     viewCount: normalizeCount(story.viewCount),
+    likeCount: normalizeCount(story.likeCount),
+    dislikeCount: normalizeCount(story.dislikeCount),
+    myReaction: null,
   };
 }
 
@@ -175,6 +178,8 @@ export async function createStory(
     generationInputs,
     usageTotals: { ...EMPTY_STORY_USAGE_TOTALS },
     viewCount: 0,
+    likeCount: 0,
+    dislikeCount: 0,
     scenarioRevision: 0,
     renderedScenarioRevision: 0,
   };
@@ -209,6 +214,8 @@ export async function saveScenario(
     generationInputs: existing?.generationInputs ?? options.generationInputs,
     usageTotals: normalizeStoryUsageTotals(existing?.usageTotals ?? options.usageTotals),
     viewCount: normalizeCount(existing?.viewCount),
+    likeCount: normalizeCount(existing?.likeCount),
+    dislikeCount: normalizeCount(existing?.dislikeCount),
   };
   await fs.writeFile(path.join(dir, 'scenario.json'), JSON.stringify(meta, null, 2));
 }

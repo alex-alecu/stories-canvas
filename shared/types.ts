@@ -6,6 +6,7 @@ export type ArtStyleKey = 'disney-pixar' | 'watercolor' | 'storybook' | 'anime' 
 
 export type VoiceKey = 'bunica' | 'jora' | 'serban' | 'corina';
 export type StoryMode = 'fast' | 'pro' | 'pro_audio';
+export type StoryReaction = 'like' | 'dislike';
 export type StoryUsageProvider = 'gemini' | 'elevenlabs';
 export type StoryUsageSource = 'initial_generation' | 'retry' | 'regenerate_assets' | 'add_audio';
 export type StoryUsageStatus = 'succeeded' | 'failed';
@@ -30,6 +31,10 @@ export function isStoryMode(value: string | null | undefined): value is StoryMod
 
 export function getStoryModeCredits(mode: StoryMode): number {
   return STORY_MODE_CREDITS[mode];
+}
+
+export function isStoryReaction(value: unknown): value is StoryReaction {
+  return value === 'like' || value === 'dislike';
 }
 
 export type LegacyVoiceKey = 'grandma' | 'grandpa' | 'dad' | 'mom' | 'whisper';
@@ -205,6 +210,9 @@ export interface StoryMeta {
   generationInputs?: StoryGenerationInputs;
   usageTotals?: StoryUsageTotals;
   viewCount?: number;
+  likeCount?: number;
+  dislikeCount?: number;
+  myReaction?: StoryReaction | null;
 }
 
 export interface StoryDetail extends StoryMeta {
@@ -271,6 +279,13 @@ export interface GenerateAudioResponse {
 export interface StoryViewResponse {
   id: string;
   viewCount: number;
+}
+
+export interface StoryReactionResponse {
+  id: string;
+  likeCount: number;
+  dislikeCount: number;
+  myReaction: StoryReaction | null;
 }
 
 export interface StoryPackOffer {

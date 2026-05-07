@@ -56,6 +56,10 @@ const sv: Translations = {
   keepOffline: "Keep offline",
   removeFromDevice: "Remove from device",
   viewsLabel: "views",
+  likeStory: 'Like',
+  dislikeStory: 'Dislike',
+  signInToReact: 'Sign in to like or dislike stories',
+  reactionUpdateFailed: 'Could not update your reaction',
 
   noStoriesYet: 'Inga sagor ännu',
   createFirstStory: 'Skapa din första saga ovan!',

@@ -3,6 +3,7 @@ import type { StoryImageSources, StoryStatus } from '../../shared/types';
 export type {
   PageStatus,
   StoryStatus,
+  StoryReaction,
   Character,
   Page,
   Scenario,
@@ -17,6 +18,7 @@ export type {
   RegenerateAssetsResponse,
   GenerateAudioResponse,
   StoryViewResponse,
+  StoryReactionResponse,
   StoryMode,
   VoiceKey,
   StoryPackOffer,
@@ -49,4 +51,7 @@ export interface StorySummary {
   hasAudio?: boolean;
   assetsStale?: boolean;
   viewCount?: number;
+  likeCount?: number;
+  dislikeCount?: number;
+  myReaction?: StoryReaction | null;
 }

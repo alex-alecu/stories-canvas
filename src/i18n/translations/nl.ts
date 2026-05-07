@@ -56,6 +56,10 @@ const nl: Translations = {
   keepOffline: "Keep offline",
   removeFromDevice: "Remove from device",
   viewsLabel: "views",
+  likeStory: 'Like',
+  dislikeStory: 'Dislike',
+  signInToReact: 'Sign in to like or dislike stories',
+  reactionUpdateFailed: 'Could not update your reaction',
 
   noStoriesYet: 'Nog geen verhalen',
   createFirstStory: 'Maak je eerste verhaal hierboven!',

@@ -61,6 +61,10 @@ const ro: Translations = {
   keepOffline: 'Păstrează offline',
   removeFromDevice: 'Elimină de pe dispozitiv',
   viewsLabel: 'views',
+  likeStory: 'Like',
+  dislikeStory: 'Dislike',
+  signInToReact: 'Sign in to like or dislike stories',
+  reactionUpdateFailed: 'Could not update your reaction',
 
   // Story grid
   noStoriesYet: 'Nicio poveste încă',

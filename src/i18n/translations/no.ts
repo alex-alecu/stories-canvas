@@ -56,6 +56,10 @@ const no: Translations = {
   keepOffline: "Keep offline",
   removeFromDevice: "Remove from device",
   viewsLabel: "views",
+  likeStory: 'Like',
+  dislikeStory: 'Dislike',
+  signInToReact: 'Sign in to like or dislike stories',
+  reactionUpdateFailed: 'Could not update your reaction',
 
   noStoriesYet: 'Ingen historier ennå',
   createFirstStory: 'Lag din første historie ovenfor!',

@@ -56,6 +56,10 @@ const cs: Translations = {
   keepOffline: "Keep offline",
   removeFromDevice: "Remove from device",
   viewsLabel: "views",
+  likeStory: 'Like',
+  dislikeStory: 'Dislike',
+  signInToReact: 'Sign in to like or dislike stories',
+  reactionUpdateFailed: 'Could not update your reaction',
 
   noStoriesYet: 'Zatím žádné příběhy',
   createFirstStory: 'Vytvořte svůj první příběh výše!',

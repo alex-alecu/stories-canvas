@@ -3,9 +3,11 @@ import { Swiper, SwiperSlide } from 'swiper/react';
 import { Navigation, Keyboard } from 'swiper/modules';
 import type { Swiper as SwiperType } from 'swiper';
 import { Link, useNavigate } from 'react-router-dom';
-import type { Scenario, GenerationProgress, StoryStatus } from '../types';
+import type { Scenario, GenerationProgress, StoryReaction, StoryStatus } from '../types';
 import { useLanguage } from '../i18n/LanguageContext';
 import { useFontSize, type FontSize } from '../contexts/FontSizeContext';
+import { useAuth } from '../contexts/AuthContext';
+import { useStoryReaction } from '../hooks/useStories';
 import FontSizeControl from './FontSizeControl';
 import { readStoredBoolean, readStoredNumber, writeStorageItem } from '../lib/browserStorage';
 import { formatStoryStatusMessage } from '../i18n/storyStatusCopy';
@@ -29,6 +31,20 @@ function getStoredPlaybackRate(): number {
   );
 }
 
+function formatReactionCount(count: number): string {
+  const safeCount = Math.max(0, Math.trunc(count));
+  if (safeCount >= 1_000_000) {
+    return `${(safeCount / 1_000_000).toFixed(safeCount >= 10_000_000 ? 0 : 1).replace(/\.0$/, '')}M`;
+  }
+  if (safeCount >= 10_000) {
+    return `${Math.round(safeCount / 1_000)}K`;
+  }
+  if (safeCount >= 1_000) {
+    return `${(safeCount / 1_000).toFixed(1).replace(/\.0$/, '')}K`;
+  }
+  return safeCount.toLocaleString();
+}
+
 interface StoryViewerProps {
   storyId: string;
   scenario: Scenario;
@@ -37,6 +53,9 @@ interface StoryViewerProps {
   storyMessage?: string;
   voice?: string;
   storyStatus: StoryStatus;
+  likeCount?: number;
+  dislikeCount?: number;
+  myReaction?: StoryReaction | null;
 }
 
 const fontSizeClasses: Record<FontSize, string> = {
@@ -45,11 +64,25 @@ const fontSizeClasses: Record<FontSize, string> = {
   large: 'text-xl md:text-2xl lg:text-3xl',
 };
 
-export default function StoryViewer({ storyId, scenario, isGenerating, progress, storyMessage, voice, storyStatus }: StoryViewerProps) {
+export default function StoryViewer({
+  storyId,
+  scenario,
+  isGenerating,
+  progress,
+  storyMessage,
+  voice,
+  storyStatus,
+  likeCount = 0,
+  dislikeCount = 0,
+  myReaction = null,
+}: StoryViewerProps) {
   const { t } = useLanguage();
+  const { user } = useAuth();
   const { fontSize } = useFontSize();
   const [showFontSize, setShowFontSize] = useState(false);
   const [showTools, setShowTools] = useState(false);
+  const [showReactionFailed, setShowReactionFailed] = useState(false);
+  const { mutate: mutateReaction, isPending: reactionPending } = useStoryReaction(storyId);
   const autoOpenedToolsRef = useRef(false);
   const popoverRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -311,6 +344,26 @@ export default function StoryViewer({ storyId, scenario, isGenerating, progress,
     playPageAudio(currentPageNumber, currentPageAudioUrl);
   }, [currentPageNumber, currentPageAudioUrl, playPageAudio]);
 
+  const canReact = !!user && storyStatus === 'completed';
+  const showReactions = storyStatus === 'completed';
+
+  const handleReaction = useCallback((reaction: StoryReaction) => {
+    if (!canReact || reactionPending) return;
+
+    mutateReaction(
+      { id: storyId, reaction: myReaction === reaction ? null : reaction },
+      {
+        onError: () => setShowReactionFailed(true),
+      },
+    );
+  }, [canReact, myReaction, mutateReaction, reactionPending, storyId]);
+
+  useEffect(() => {
+    if (!showReactionFailed) return;
+    const timer = setTimeout(() => setShowReactionFailed(false), 4000);
+    return () => clearTimeout(timer);
+  }, [showReactionFailed]);
+
   // Cleanup audio on unmount
   useEffect(() => {
     return () => {
@@ -454,14 +507,68 @@ export default function StoryViewer({ storyId, scenario, isGenerating, progress,
         <div className="hidden sm:block bg-black/40 backdrop-blur-sm text-white px-4 py-2 rounded-full text-sm font-semibold max-w-[40vw] truncate">
           {scenario.title}
         </div>
+        {showReactions && (
+          <div
+            className="flex h-10 items-center rounded-full bg-black/40 text-white backdrop-blur-sm overflow-hidden"
+            role="group"
+            aria-label={`${t.likeStory} / ${t.dislikeStory}`}
+          >
+            <button
+              type="button"
+              onClick={() => handleReaction('like')}
+              className={`flex h-10 items-center gap-1.5 px-3 text-xs font-semibold transition-colors ${
+                myReaction === 'like'
+                  ? 'bg-primary-500 text-white'
+                  : canReact
+                    ? 'hover:bg-black/60 text-white/90'
+                    : 'text-white/55 cursor-not-allowed'
+              }`}
+              aria-label={canReact ? t.likeStory : t.signInToReact}
+              aria-pressed={myReaction === 'like'}
+              aria-disabled={!canReact || reactionPending}
+              disabled={reactionPending}
+              title={canReact ? t.likeStory : t.signInToReact}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M7 10v12" />
+                <path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2h0a3.13 3.13 0 0 1 3 3.88Z" />
+              </svg>
+              <span>{formatReactionCount(likeCount)}</span>
+            </button>
+            <div className="h-5 w-px bg-white/15" />
+            <button
+              type="button"
+              onClick={() => handleReaction('dislike')}
+              className={`flex h-10 items-center gap-1.5 px-3 text-xs font-semibold transition-colors ${
+                myReaction === 'dislike'
+                  ? 'bg-white/20 text-white'
+                  : canReact
+                    ? 'hover:bg-black/60 text-white/90'
+                    : 'text-white/55 cursor-not-allowed'
+              }`}
+              aria-label={canReact ? t.dislikeStory : t.signInToReact}
+              aria-pressed={myReaction === 'dislike'}
+              aria-disabled={!canReact || reactionPending}
+              disabled={reactionPending}
+              title={canReact ? t.dislikeStory : t.signInToReact}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M17 14V2" />
+                <path d="M9 18.12 10 14H4.17a2 2 0 0 1-1.92-2.56l2.33-8A2 2 0 0 1 6.5 2H20a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2.76a2 2 0 0 0-1.79 1.11L12 22h0a3.13 3.13 0 0 1-3-3.88Z" />
+              </svg>
+              <span>{formatReactionCount(dislikeCount)}</span>
+            </button>
+          </div>
+        )}
         <button
           onClick={() => setShowTools(true)}
           className="relative bg-black/40 hover:bg-black/60 backdrop-blur-sm text-white w-10 h-10 rounded-full flex items-center justify-center transition-colors"
           aria-label={t.storyTools}
         >
-          {/* Grid/gallery icon */}
+          {/* Settings icon */}
           <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+            <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
           </svg>
           {/* Error indicator dot */}
           {hasErrors && (
@@ -480,6 +587,12 @@ export default function StoryViewer({ storyId, scenario, isGenerating, progress,
       {issueMessage && !showAudioFailed && (
         <div className="absolute bottom-32 right-4 z-50 max-w-sm bg-amber-500/90 backdrop-blur-sm text-black px-3 py-2 rounded-2xl text-xs font-medium shadow-lg">
           {issueMessage}
+        </div>
+      )}
+
+      {showReactionFailed && (
+        <div className="absolute top-16 right-4 z-50 bg-red-500/80 backdrop-blur-sm text-white px-3 py-1.5 rounded-full text-xs font-medium">
+          {t.reactionUpdateFailed}
         </div>
       )}
 

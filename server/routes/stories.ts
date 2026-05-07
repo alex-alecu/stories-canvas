@@ -29,13 +29,15 @@ import type {
   StoryGenerationInputs,
   StoryMeta,
   StoryMode,
+  StoryReaction,
+  StoryReactionResponse,
   StoryStatus,
   StoryUsageSource,
   StoryUsageTotals,
   StoryAssets,
   VoiceKey,
 } from '../../shared/types.js';
-import { DEFAULT_AGE, getStoryModeCredits, getVoiceName, isStoryMode, normalizeVoiceKey } from '../../shared/types.js';
+import { DEFAULT_AGE, getStoryModeCredits, getVoiceName, isStoryMode, isStoryReaction, normalizeVoiceKey } from '../../shared/types.js';
 import { MEDIA_CACHE_CONTROL, getPageAudioFilename, getPageImageFilename, pageHasAudio } from '../utils/storyMedia.js';
 import { buildStoryGenerationInputs, recordStoryUsage, type StoryUsageStorage } from '../services/storyUsage.js';
 
@@ -88,6 +90,19 @@ export const storageOps = {
   ),
   incrementStoryViewCount: async (storyId: string) => (
     config.useSupabase ? sbStorage.incrementStoryViewCount(storyId) : fsStorage.incrementStoryViewCount(storyId)
+  ),
+  getStoryReaction: async (storyId: string, userId: string) => (
+    config.useSupabase ? sbStorage.getStoryReaction(storyId, userId) : null
+  ),
+  setStoryReaction: async (storyId: string, userId: string, reaction: StoryReaction | null) => (
+    config.useSupabase
+      ? sbStorage.setStoryReaction(storyId, userId, reaction)
+      : {
+          id: storyId,
+          likeCount: 0,
+          dislikeCount: 0,
+          myReaction: null,
+        } satisfies StoryReactionResponse
   ),
 };
 
@@ -307,6 +322,8 @@ function toStorySummary(story: StoryMeta) {
     hasAudio: storyHasAudio(story),
     assetsStale: storyAssetsAreStale(story),
     viewCount: story.viewCount ?? 0,
+    likeCount: story.likeCount ?? 0,
+    dislikeCount: story.dislikeCount ?? 0,
   };
 }
 
@@ -2004,6 +2021,47 @@ router.post('/:id/view', optionalAuth, async (req: Request, res: Response) => {
   }
 });
 
+// PATCH /api/stories/:id/reaction - Set, switch, or clear the signed-in user's reaction
+router.patch('/:id/reaction', optionalAuth, async (req: Request, res: Response) => {
+  try {
+    if (!req.authUser) {
+      res.status(401).json({ error: 'Authentication required' });
+      return;
+    }
+
+    const story = await getStory(req.params.id as string);
+    if (!story) {
+      res.status(404).json({ error: 'Story not found' });
+      return;
+    }
+
+    if (!canReadStory(story, req.authUser.id)) {
+      res.status(404).json({ error: 'Story not found' });
+      return;
+    }
+
+    if (story.status !== 'completed') {
+      res.status(400).json({ error: 'Only completed stories can be liked or disliked' });
+      return;
+    }
+
+    const rawReaction = req.body && typeof req.body === 'object'
+      ? (req.body as { reaction?: unknown }).reaction
+      : undefined;
+    if (rawReaction !== null && !isStoryReaction(rawReaction)) {
+      res.status(400).json({ error: 'reaction must be "like", "dislike", or null' });
+      return;
+    }
+
+    const reaction = rawReaction ?? null;
+    const result = await storageOps.setStoryReaction(story.id, req.authUser.id, reaction);
+    res.json(result);
+  } catch (error) {
+    console.error('Failed to update story reaction:', error);
+    res.status(500).json({ error: 'Failed to update story reaction' });
+  }
+});
+
 // GET /api/stories/:id - Get story details (ownership check for private stories)
 router.get('/:id', optionalAuth, async (req: Request, res: Response) => {
   try {
@@ -2017,6 +2075,10 @@ router.get('/:id', optionalAuth, async (req: Request, res: Response) => {
       res.status(404).json({ error: 'Story not found' });
       return;
     }
+
+    story.myReaction = req.authUser
+      ? await storageOps.getStoryReaction(story.id, req.authUser.id)
+      : null;
 
     // Enrich pages with image URLs
     if (story.scenario?.pages) {

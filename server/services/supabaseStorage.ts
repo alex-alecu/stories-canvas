@@ -8,12 +8,15 @@ import {
   type StoryImageSources,
   type StoryMeta,
   type StoryMode,
+  type StoryReaction,
+  type StoryReactionResponse,
   type StoryStatus,
   type StoryUsageEvent,
   type StoryUsageTotals,
   type Scenario,
   type VoiceKey,
 } from '../../shared/types.js';
+import { isStoryReaction } from '../../shared/types.js';
 import {
   MEDIA_CACHE_MAX_AGE_SECONDS,
   isCoverImageSourceFilename,
@@ -205,6 +208,8 @@ export async function createStory(
     usage_image_cost_usd_micros: 0,
     usage_audio_cost_usd_micros: 0,
     view_count: 0,
+    like_count: 0,
+    dislike_count: 0,
     scenario_revision: 0,
     rendered_scenario_revision: 0,
     current_phase: 'Generating story scenario...',
@@ -341,6 +346,8 @@ interface StoryRow {
   usage_image_cost_usd_micros: number | null;
   usage_audio_cost_usd_micros: number | null;
   view_count: number | string | null;
+  like_count: number | string | null;
+  dislike_count: number | string | null;
 }
 
 function normalizeCount(value: unknown): number {
@@ -412,6 +419,9 @@ function rowToStoryMeta(row: StoryRow): StoryMeta {
       audioCostUsdMicros: row.usage_audio_cost_usd_micros ?? 0,
     }),
     viewCount: normalizeCount(row.view_count),
+    likeCount: normalizeCount(row.like_count),
+    dislikeCount: normalizeCount(row.dislike_count),
+    myReaction: null,
   };
 }
 
@@ -465,6 +475,47 @@ export async function incrementStoryViewCount(id: string): Promise<number> {
 
   if (error) throw new Error(`Failed to increment story view count: ${error.message}`);
   return normalizeCount(data);
+}
+
+export async function getStoryReaction(storyId: string, userId: string): Promise<StoryReaction | null> {
+  const supabase = getSupabase();
+  const { data, error } = await supabase
+    .from('story_reactions')
+    .select('reaction')
+    .eq('story_id', storyId)
+    .eq('user_id', userId)
+    .single();
+
+  if (error) {
+    if (error.code === 'PGRST116') return null;
+    throw new Error(`Failed to get story reaction: ${error.message}`);
+  }
+
+  const reaction = (data as { reaction?: unknown } | null)?.reaction;
+  return isStoryReaction(reaction) ? reaction : null;
+}
+
+export async function setStoryReaction(
+  storyId: string,
+  userId: string,
+  reaction: StoryReaction | null,
+): Promise<StoryReactionResponse> {
+  const supabase = getSupabase();
+  const { data, error } = await supabase.rpc('set_story_reaction', {
+    p_story_id: storyId,
+    p_user_id: userId,
+    p_reaction: reaction,
+  });
+
+  if (error) throw new Error(`Failed to update story reaction: ${error.message}`);
+
+  const row = Array.isArray(data) ? data[0] : data;
+  return {
+    id: storyId,
+    likeCount: normalizeCount((row as { like_count?: unknown } | null)?.like_count),
+    dislikeCount: normalizeCount((row as { dislike_count?: unknown } | null)?.dislike_count),
+    myReaction: reaction,
+  };
 }
 
 function mergeStoryUsageTotals(

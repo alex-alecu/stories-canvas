@@ -6,7 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
-import type { Page, Scenario, StoryMeta } from '../../shared/types.js';
+import type { Page, Scenario, StoryMeta, StoryReaction } from '../../shared/types.js';
 
 process.env.GEMINI_API_KEY ??= 'test-key';
 
@@ -810,6 +810,162 @@ test('POST /api/stories/:id/view rejects private non-owner stories without incre
   assert.equal(incremented, false);
 });
 
+test('PATCH /api/stories/:id/reaction requires authentication', async (t) => {
+  const dataDir = mkdtempSync(path.join(os.tmpdir(), 'stories-reaction-auth-'));
+  const harness = await createStoriesHarness(dataDir, { useSupabase: true });
+
+  t.after(async () => {
+    await harness.close();
+    await fs.rm(dataDir, { recursive: true, force: true });
+  });
+
+  const response = await fetch(`${harness.baseUrl}/api/stories/story-reaction-auth/reaction`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ reaction: 'like' }),
+  });
+
+  assert.equal(response.status, 401);
+});
+
+test('PATCH /api/stories/:id/reaction rejects private non-owner stories', async (t) => {
+  const dataDir = mkdtempSync(path.join(os.tmpdir(), 'stories-reaction-private-'));
+  const harness = await createStoriesHarness(dataDir, {
+    useSupabase: true,
+    __testAuthUser: { id: 'viewer-user', email: 'viewer@example.test' },
+  });
+
+  t.after(async () => {
+    await harness.close();
+    await fs.rm(dataDir, { recursive: true, force: true });
+  });
+
+  let updated = false;
+  t.mock.method(harness.storiesModule.storageOps, 'getStory', async () => makeStoryMeta({
+    id: 'story-reaction-private',
+    status: 'completed',
+    userId: 'owner-user',
+    isPublic: false,
+  }));
+  t.mock.method(harness.storiesModule.storageOps, 'setStoryReaction', async () => {
+    updated = true;
+    return {
+      id: 'story-reaction-private',
+      likeCount: 1,
+      dislikeCount: 0,
+      myReaction: 'like' as StoryReaction,
+    };
+  });
+
+  const response = await fetch(`${harness.baseUrl}/api/stories/story-reaction-private/reaction`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ reaction: 'like' }),
+  });
+
+  assert.equal(response.status, 404);
+  assert.deepEqual(await response.json(), { error: 'Story not found' });
+  assert.equal(updated, false);
+});
+
+test('PATCH /api/stories/:id/reaction sets, switches, and clears one user reaction', async (t) => {
+  const dataDir = mkdtempSync(path.join(os.tmpdir(), 'stories-reaction-update-'));
+  const harness = await createStoriesHarness(dataDir, {
+    useSupabase: true,
+    __testAuthUser: { id: 'reacting-user', email: 'reacting@example.test' },
+  });
+
+  t.after(async () => {
+    await harness.close();
+    await fs.rm(dataDir, { recursive: true, force: true });
+  });
+
+  const reactions = new Map<string, StoryReaction>();
+  t.mock.method(harness.storiesModule.storageOps, 'getStory', async () => makeStoryMeta({
+    id: 'story-reaction-update',
+    status: 'completed',
+    isPublic: true,
+  }));
+  t.mock.method(harness.storiesModule.storageOps, 'setStoryReaction', async (
+    storyId: string,
+    userId: string,
+    reaction: StoryReaction | null,
+  ) => {
+    if (reaction) {
+      reactions.set(`${storyId}:${userId}`, reaction);
+    } else {
+      reactions.delete(`${storyId}:${userId}`);
+    }
+
+    const values = [...reactions.values()];
+    return {
+      id: storyId,
+      likeCount: values.filter(value => value === 'like').length,
+      dislikeCount: values.filter(value => value === 'dislike').length,
+      myReaction: reaction,
+    };
+  });
+
+  async function patchReaction(reaction: StoryReaction | null) {
+    const response = await fetch(`${harness.baseUrl}/api/stories/story-reaction-update/reaction`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reaction }),
+    });
+    assert.equal(response.status, 200);
+    return response.json() as Promise<{ likeCount: number; dislikeCount: number; myReaction: StoryReaction | null }>;
+  }
+
+  assert.deepEqual(await patchReaction('like'), {
+    id: 'story-reaction-update',
+    likeCount: 1,
+    dislikeCount: 0,
+    myReaction: 'like',
+  });
+  assert.deepEqual(await patchReaction('dislike'), {
+    id: 'story-reaction-update',
+    likeCount: 0,
+    dislikeCount: 1,
+    myReaction: 'dislike',
+  });
+  assert.deepEqual(await patchReaction(null), {
+    id: 'story-reaction-update',
+    likeCount: 0,
+    dislikeCount: 0,
+    myReaction: null,
+  });
+});
+
+test('GET /api/stories/:id includes reaction counts and signed-in viewer reaction', async (t) => {
+  const dataDir = mkdtempSync(path.join(os.tmpdir(), 'stories-reaction-detail-'));
+  const harness = await createStoriesHarness(dataDir, {
+    useSupabase: true,
+    __testAuthUser: { id: 'reaction-viewer', email: 'viewer@example.test' },
+  });
+
+  t.after(async () => {
+    await harness.close();
+    await fs.rm(dataDir, { recursive: true, force: true });
+  });
+
+  t.mock.method(harness.storiesModule.storageOps, 'getStory', async () => makeStoryMeta({
+    id: 'story-reaction-detail',
+    status: 'completed',
+    isPublic: true,
+    likeCount: 4,
+    dislikeCount: 2,
+  }));
+  t.mock.method(harness.storiesModule.storageOps, 'getStoryReaction', async () => 'like' as StoryReaction);
+
+  const response = await fetch(`${harness.baseUrl}/api/stories/story-reaction-detail`);
+
+  assert.equal(response.status, 200);
+  const story = await response.json() as StoryMeta;
+  assert.equal(story.likeCount, 4);
+  assert.equal(story.dislikeCount, 2);
+  assert.equal(story.myReaction, 'like');
+});
+
 test('GET /api/stories/mine includes view counts in summaries', async (t) => {
   const dataDir = mkdtempSync(path.join(os.tmpdir(), 'stories-mine-view-count-'));
   const harness = await createStoriesHarness(dataDir, {
@@ -955,6 +1111,8 @@ test('GET /api/stories/public preserves cover image sources in summaries', async
     hasAudio: false,
     assetsStale: false,
     viewCount: 0,
+    likeCount: 0,
+    dislikeCount: 0,
   }]);
 });
 

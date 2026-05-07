@@ -247,6 +247,9 @@ function summarizeStory(story: StoryMeta): StorySummary {
     hasAudio: pages.some(page => !!page.audioUrl),
     assetsStale: story.assetsStale,
     viewCount: story.viewCount ?? 0,
+    likeCount: story.likeCount ?? 0,
+    dislikeCount: story.dislikeCount ?? 0,
+    myReaction: null,
   };
 }
 
