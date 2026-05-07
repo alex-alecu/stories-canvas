@@ -17,7 +17,6 @@ import type { ArtStyleKey, StoryMode, StoryStatus, VoiceKey } from '../../shared
 import { readStorageItem, removeStorageItem, writeStorageItem } from '../lib/browserStorage';
 
 const GENERATING_STORY_KEY = 'stories-canvas:generatingStoryId';
-const PUBLIC_STORY_SHOWCASE_FETCH_LIMIT = 8;
 const PUBLIC_STORY_SHOWCASE_DISPLAY_LIMIT = 4;
 
 function getStoredGeneratingId(): string | null {
@@ -56,7 +55,7 @@ export default function Home() {
     isLoading: isLoadingPublicStories,
   } = usePublicStories(
     undefined,
-    PUBLIC_STORY_SHOWCASE_FETCH_LIMIT,
+    PUBLIC_STORY_SHOWCASE_DISPLAY_LIMIT,
     shouldLoadPublicStories && hasSettledUserStories,
   );
   const createStory = useCreateStory();
@@ -218,12 +217,11 @@ export default function Home() {
     ? !!user && (isLoading || stories.length > 0)
     : isLoading || stories.length > 0;
   const isDeletingStory = deleteStory.isPending || cancelDeletingStory.isPending;
-  const userStoryIds = useMemo(() => new Set(stories.map(story => story.id)), [stories]);
   const visiblePublicStories = useMemo(
-    () => publicStories
-      .filter(story => !userStoryIds.has(story.id))
+    () => [...publicStories]
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
       .slice(0, PUBLIC_STORY_SHOWCASE_DISPLAY_LIMIT),
-    [publicStories, userStoryIds],
+    [publicStories],
   );
 
   return (
