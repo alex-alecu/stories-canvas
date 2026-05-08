@@ -93,10 +93,13 @@ export interface StoryPromptContext {
 }
 
 export interface CanonicalBeatSheet {
+  sourceAnalysisVersion?: number;
   requiredCharacters: string[];
   requiredLocations: string[];
   magicalObjects: string[];
+  identityConstraints?: string[];
   eventOrder: string[];
+  canonicalEnding?: string[];
   forbiddenSubstitutions: string[];
   softenableBeats: string[];
   fidelityWarnings: string[];
@@ -178,7 +181,9 @@ function formatCanonicalBeatSheet(source: RetellingSourcePromptContext): string 
     formatBeatSheetList('Required characters/roles', beatSheet.requiredCharacters),
     formatBeatSheetList('Required locations', beatSheet.requiredLocations),
     formatBeatSheetList('Magical objects and mechanics', beatSheet.magicalObjects),
+    formatBeatSheetList('Canonical identity constraints', beatSheet.identityConstraints ?? []),
     formatBeatSheetList('Required event order', beatSheet.eventOrder),
+    formatBeatSheetList('Canonical ending', beatSheet.canonicalEnding ?? []),
     formatBeatSheetList('Forbidden substitutions', beatSheet.forbiddenSubstitutions),
     formatBeatSheetList('Age-safe softening allowed', beatSheet.softenableBeats),
     formatBeatSheetList('Fidelity warnings', beatSheet.fidelityWarnings),

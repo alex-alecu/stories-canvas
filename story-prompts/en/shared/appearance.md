@@ -6,7 +6,7 @@
 
 ## Character Visual Rules
 
-- Maximum 3 main characters.
+- Keep original-story casts small: maximum 3 main characters unless Faithful Public-Domain Retelling Rules require more canonical roles.
 - Character types may be children, adults, elders, families, animals, vehicles with faces, or fantastical creatures. Choose what fits the premise and target age; do not default to a cast made only of children.
 - Prefer visually stable character designs: clear silhouettes, distinctive colors, memorable proportions, and one or two recognizable details.
 - Each main character needs a detailed physical description: exact colors and patterns, proportions, eye/hair/fur details, distinctive features, clothing, and accessories when relevant.
@@ -19,9 +19,9 @@
 - Every page text must stay aligned with its page's imagePrompt and characters array.
 - If a page text changes during revision, update that page's imagePrompt and characters list to match.
 - Every imagePrompt must fully restate the visible characters and describe a complete environment, not a blank backdrop.
-- Include camera framing, lighting, rich environmental detail, and lower-frame-safe composition for text overlay.
-- Compose the scene so the main characters stay in the upper two-thirds of the frame and the lower portion carries supporting environment details for the text overlay.
-- Do not put text, letters, symbols, or readable words inside the image description.
+- Include camera framing, lighting, rich environmental detail, and a clean lower third reserved for app layout after generation.
+- Compose the scene so the main characters stay in the upper two-thirds of the frame and the lower portion stays visually quiet with supporting environment details.
+- Do not put readable or pseudo-readable text, letters, symbols, labels, captions, signs, book/page lettering, banners, plaques, UI, typography, or handwriting inside the image description.
 - Avoid very complex physical interactions such as tight hugs or precise hand-holding; prefer simpler staging and proximity.
 - Include background life that fits the age and setting: gentle ambient activity for younger ages, richer environmental storytelling and brief extras for older ages.
 

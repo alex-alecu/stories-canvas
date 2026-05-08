@@ -84,10 +84,13 @@ test('story prompt assembly includes source grounding only for faithful retellin
       sourceUrl: 'https://ro.wikisource.org/wiki/Greuceanu',
       licenseNote: 'Public-domain Romanian folklore text hosted on Wikisource.',
       canonicalBeatSheet: {
+        sourceAnalysisVersion: 2,
         requiredCharacters: ['Greuceanu', 'Imparatul Rosu', 'Faurul Pamantului'],
         requiredLocations: ['curtea imparatului'],
         magicalObjects: ['soarele si luna furate'],
+        identityConstraints: ['Greuceanu ramane viteaz matur, nu copil.'],
         eventOrder: ['zmeii fura lumina', 'Greuceanu infrange zmeii', 'lumina revine'],
+        canonicalEnding: ['Lumina revine pe cer.'],
         forbiddenSubstitutions: ['Nu inlocui zmeii cu un singur zmeu prietenos.'],
         softenableBeats: ['Luptele pot fi non-grafice.'],
         fidelityWarnings: ['Pastreaza recuperarea soarelui si lunii.'],
@@ -102,9 +105,13 @@ test('story prompt assembly includes source grounding only for faithful retellin
   assert.match(systemInstruction, /Title: Greuceanu/);
   assert.match(systemInstruction, /Provider: wikisource/);
   assert.match(systemInstruction, /Faurul Pamantului/);
+  assert.match(systemInstruction, /Greuceanu ramane viteaz matur, nu copil/);
+  assert.match(systemInstruction, /Lumina revine pe cer/);
   assert.match(systemInstruction, /Nu inlocui zmeii cu un singur zmeu prietenos/);
+  assert.match(systemInstruction, /small-cast preference for original stories does not override source fidelity/i);
   assert.match(reviewPrompt, /For faithful public-domain retellings, prompt fidelity means preserving the canonical source beats/);
   assert.match(reviewPrompt, /fireflies, a trade, or a new helper who solves the mission/);
+  assert.match(reviewPrompt, /turning Harap-Alb from the crai's youngest son\/young prince into a small child/);
 });
 
 test('story prompt assembly preserves the selected illustration style in system rules', async () => {
@@ -121,7 +128,7 @@ test('story prompt assembly preserves the selected illustration style in system 
 
   assert.match(systemInstruction, /Soft watercolor illustration style/);
   assert.match(systemInstruction, /Later pages in the same location must repeat that spatial layout faithfully/);
-  assert.match(systemInstruction, /Do not put text, letters, symbols, or readable words inside the image description/);
+  assert.match(systemInstruction, /Do not put readable or pseudo-readable text, letters, symbols, labels, captions/);
 });
 
 test('story prompt assembly uses the 7-plus scenario prompt for older selected ages', async () => {
@@ -268,6 +275,44 @@ test('generateScenarioWithMetadataWithModel grounds Greuceanu through the source
   assert.match(calls[0].systemInstruction, /Faithful Public-Domain Retelling Rules/);
   assert.match(calls[0].systemInstruction, /Faurul Pământului|Faurul Pamantului/);
   assert.match(calls[0].systemInstruction, /Nu reduce zmeii la un singur zmeu prietenos/);
+  assert.match(calls[0].systemInstruction, /Canonical ending/);
+});
+
+test('generateScenarioWithMetadataWithModel grounds Harap-Alb with canonical identity and ending', async () => {
+  const scenarioModule = await import('./scenario.js');
+  const calls: Array<{ prompt: string; systemInstruction: string }> = [];
+
+  const generateJSON = async (
+    prompt: string,
+    systemInstruction: string,
+  ): Promise<any> => {
+    calls.push({ prompt, systemInstruction });
+    if (calls.length === 1) return makeScenario({ targetAge: 5, title: 'Povestea lui Harap-Alb' });
+    return {
+      needsRewrite: false,
+      summary: 'Scenario is already strong.',
+      changedPageNumbers: [],
+      issues: [],
+    };
+  };
+
+  const result = await scenarioModule.generateScenarioWithMetadataWithModel(
+    'Adapteaza fidel Povestea lui Harap-Alb cat mai aproape de original',
+    'ro',
+    5,
+    'storybook',
+    generateJSON as never,
+  );
+
+  assert.equal(result.retellingMode, 'faithful_retelling');
+  assert.equal(result.retellingSource?.title, 'Povestea lui Harap-Alb');
+  assert.equal(result.retellingSource?.sourceCacheHit, true);
+  assert.match(calls[0].systemInstruction, /Harap-Alb este fiul cel mic al craiului/);
+  assert.match(calls[0].systemInstruction, /nu un baietel mic/);
+  assert.match(calls[0].systemInstruction, /Gerilă/);
+  assert.match(calls[0].systemInstruction, /fata Împăratului Roș/);
+  assert.match(calls[0].systemInstruction, /apa vie/);
+  assert.match(calls[0].systemInstruction, /nunta/);
 });
 
 test('generateScenarioWithModel keeps editorial review internal to the writing phase', async () => {
@@ -434,4 +479,46 @@ test('validateScenario rejects age-6 pages that are too long for the overlay bud
   const issues = validateScenario(scenario, 6);
 
   assert.ok(issues.some(issue => issue.code === 'page.text.ageLength'));
+});
+
+test('validateScenario keeps original casts small but allows expanded retelling casts', async () => {
+  const {
+    MAX_RETELLING_SCENARIO_CHARACTERS,
+    validateScenario,
+  } = await import('./scenarioValidation.js');
+
+  const retellingCastScenario = makeScenario({
+    characters: [
+      ...makeScenario().characters,
+      {
+        name: 'Magic Horse',
+        role: 'canonical helper',
+        appearance: 'Tall chestnut horse with bright eyes.',
+        clothing: 'Simple woven reins.',
+        personality: 'Wise and loyal.',
+        characterSheetPrompt: 'Character sheet prompt for Magic Horse.',
+      },
+      {
+        name: "Red Emperor's Daughter",
+        role: 'canonical princess',
+        appearance: 'Young royal woman with long dark hair.',
+        clothing: 'Red embroidered court dress.',
+        personality: 'Clever and brave.',
+        characterSheetPrompt: "Character sheet prompt for Red Emperor's Daughter.",
+      },
+    ],
+    pages: makeValidPages().map((page, index) => index === 2
+      ? { ...page, characters: ['Mia', 'Pip', 'Magic Horse'] }
+      : index === 4
+        ? { ...page, characters: ['Mia', 'Pip', "Red Emperor's Daughter"] }
+        : page),
+  });
+
+  const originalIssues = validateScenario(retellingCastScenario, 3);
+  const retellingIssues = validateScenario(retellingCastScenario, 3, {
+    maxCharacters: MAX_RETELLING_SCENARIO_CHARACTERS,
+  });
+
+  assert.ok(originalIssues.some(issue => issue.code === 'characters.max'));
+  assert.ok(!retellingIssues.some(issue => issue.code === 'characters.max'));
 });

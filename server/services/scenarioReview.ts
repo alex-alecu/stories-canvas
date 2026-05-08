@@ -234,9 +234,11 @@ export async function rewriteScenarioFromReviewWithModel(
       type: 'OBJECT',
       properties: {
         title: { type: 'STRING', description: 'Story title' },
-        targetAge: { type: 'INTEGER', description: 'Target age of the child' },
+        targetAge: { type: 'INTEGER', description: 'Target age of the reader' },
         characters: {
           type: 'ARRAY',
+          description:
+            'Main visual characters. Keep original stories small; faithful retellings may include required canonical roles.',
           items: {
             type: 'OBJECT',
             properties: {

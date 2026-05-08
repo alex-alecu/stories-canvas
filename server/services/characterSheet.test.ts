@@ -58,6 +58,8 @@ test('generateAllCharacterSheets sanitizes outbound prompts without mutating sto
   assert.doesNotMatch(prompts[1], /Cenușăreasa/u);
   assert.doesNotMatch(prompts[0], /Disney|Pixar/u);
   assert.doesNotMatch(prompts[1], /Disney|Pixar/u);
-  assert.match(prompts[0], /No text or labels in the image\./);
-  assert.match(prompts[1], /No text or labels in the image\./);
+  assert.match(prompts[0], /Absolutely no readable or pseudo-readable text/);
+  assert.match(prompts[1], /Absolutely no readable or pseudo-readable text/);
+  assert.match(prompts[0], /typography/);
+  assert.match(prompts[1], /typography/);
 });

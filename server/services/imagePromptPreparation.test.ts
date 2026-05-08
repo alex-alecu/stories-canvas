@@ -92,7 +92,8 @@ test('prepareCharacterSheetImagePrompt removes text labels and protected names',
   );
 
   assert.match(prompt, /character two/);
-  assert.match(prompt, /No text or labels in the image\./);
+  assert.match(prompt, /Absolutely no readable or pseudo-readable text/);
+  assert.match(prompt, /typography/);
   assert.doesNotMatch(prompt, /Cinderella/u);
   assert.doesNotMatch(prompt, /Disney|Pixar/u);
   assert.doesNotMatch(prompt, /Label at the bottom/u);
@@ -118,6 +119,24 @@ test('prepareSceneImagePrompt sanitizes raw imagePrompt and reference labels', (
   assert.doesNotMatch(prompt, /Cenușăreasa/u);
   assert.doesNotMatch(prompt, /Zâna Bună/u);
   assert.doesNotMatch(prompt, /Disney|Pixar/u);
+});
+
+test('prepareSceneImagePrompt removes text overlay trigger wording', () => {
+  const page = makePage();
+  page.imagePrompt = 'Bambi walks across a wooden bridge. Lower-frame-safe composition for text overlay with a blank caption area at the bottom.';
+
+  const prompt = prepareSceneImagePrompt(
+    page,
+    makeCharacters(),
+    false,
+    ['Bambi'],
+    'Classic hand-drawn storybook illustration',
+  );
+
+  assert.match(prompt, /clean lower third reserved for app layout after generation/);
+  assert.match(prompt, /Absolutely no readable or pseudo-readable text/);
+  assert.doesNotMatch(prompt, /text overlay/iu);
+  assert.doesNotMatch(prompt, /caption area/iu);
 });
 
 test('prepareSceneImagePrompt infers repeated legacy names against page character order', () => {

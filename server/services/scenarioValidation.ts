@@ -13,8 +13,14 @@ export interface ScenarioTextRules {
 
 export const MIN_SCENARIO_PAGES = 6;
 export const MAX_SCENARIO_PAGES = 20;
-export const MAX_SCENARIO_CHARACTERS = 3;
+export const MAX_ORIGINAL_SCENARIO_CHARACTERS = 3;
+export const MAX_RETELLING_SCENARIO_CHARACTERS = 14;
+export const MAX_SCENARIO_CHARACTERS = MAX_ORIGINAL_SCENARIO_CHARACTERS;
 export const OVERLAY_SAFE_MAX_CHARS = 320;
+
+export interface ScenarioValidationOptions {
+  maxCharacters?: number;
+}
 
 function normalizeWhitespace(value: string | undefined): string {
   return (value ?? '').replace(/\s+/g, ' ').trim();
@@ -78,10 +84,12 @@ export function normalizeScenarioWhitespace(scenario: Scenario): Scenario {
 export function validateScenario(
   rawScenario: Scenario,
   expectedAge: number,
+  options: ScenarioValidationOptions = {},
 ): ScenarioValidationIssue[] {
   const scenario = normalizeScenarioWhitespace(rawScenario);
   const issues: ScenarioValidationIssue[] = [];
   const textRules = getScenarioTextRules(expectedAge);
+  const maxCharacters = options.maxCharacters ?? MAX_SCENARIO_CHARACTERS;
   const characters = Array.isArray(scenario.characters) ? scenario.characters : [];
   const pages = Array.isArray(scenario.pages) ? scenario.pages : [];
 
@@ -115,11 +123,11 @@ export function validateScenario(
     });
   }
 
-  if (characters.length > MAX_SCENARIO_CHARACTERS) {
+  if (characters.length > maxCharacters) {
     issues.push({
       code: 'characters.max',
       path: 'characters',
-      message: `no more than ${MAX_SCENARIO_CHARACTERS} main characters are allowed`,
+      message: `no more than ${maxCharacters} main characters are allowed`,
     });
   }
 

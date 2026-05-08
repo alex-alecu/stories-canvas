@@ -14,10 +14,13 @@ function makeSearchBeatSheet() {
     provider: 'Wikisource',
     sourceUrl: 'https://en.wikisource.org/wiki/The_Lost_Crown',
     licenseNote: 'Public-domain source hosted on Wikisource.',
+    sourceAnalysisVersion: 2,
     requiredCharacters: ['The youngest prince', 'the queen'],
     requiredLocations: ['the old forest'],
     magicalObjects: ['the lost crown'],
+    identityConstraints: ['The youngest prince remains a young royal, not a small child.'],
     eventOrder: ['The crown is stolen.', 'The prince follows the trail.', 'The crown is restored.'],
+    canonicalEnding: ['The crown is restored to the queen.'],
     forbiddenSubstitutions: ['Do not replace the crown with a new trinket.'],
     softenableBeats: ['Danger can be non-graphic.'],
     fidelityWarnings: ['Keep the recovery of the crown as the ending.'],
@@ -78,6 +81,137 @@ test('Greuceanu resolves from the committed manifest without live fetch or model
   assert.ok(source?.canonicalBeatSheet.requiredCharacters.includes('Faurul Pământului'));
   assert.equal(generateCalls, 0);
   assert.equal(fetchCalls, 0);
+});
+
+test('Harap-Alb resolves from the complete committed manifest beat sheet', async () => {
+  const { config } = await import('../config.js');
+  const storySources = await import('./storySources.js');
+  Object.assign(config, { useSupabase: false });
+
+  let generateCalls = 0;
+  let fetchCalls = 0;
+  const source = await storySources.resolveRetellingSource(
+    {
+      userPrompt: 'Adapteaza fidel Povestea lui Harap-Alb cat mai aproape de original',
+      language: 'ro',
+    },
+    {
+      generateJSON: async () => {
+        generateCalls += 1;
+        throw new Error('Unexpected source analysis');
+      },
+      fetchFn: async () => {
+        fetchCalls += 1;
+        throw new Error('Unexpected source fetch');
+      },
+    },
+  );
+
+  assert.equal(source?.title, 'Povestea lui Harap-Alb');
+  assert.equal(source?.sourceCacheHit, true);
+  assert.equal(source?.canonicalBeatSheet.sourceAnalysisVersion, storySources.SOURCE_ANALYSIS_VERSION);
+  assert.ok(source?.canonicalBeatSheet.identityConstraints?.some(beat => /tanar fecior de crai|print/i.test(beat)));
+  assert.ok(source?.canonicalBeatSheet.eventOrder.some(beat => /Gerilă|Flămânzilă|Setilă|Ochila/i.test(beat)));
+  assert.ok(source?.canonicalBeatSheet.canonicalEnding?.some(beat => /invi|readuce la viata|nunta/i.test(beat)));
+  assert.equal(generateCalls, 0);
+  assert.equal(fetchCalls, 0);
+});
+
+test('stale cached beat sheets without versioned endings are rejected', async () => {
+  const storySources = await import('./storySources.js');
+
+  assert.equal(storySources.isUsableCanonicalBeatSheet({
+    requiredCharacters: ['Harap-Alb'],
+    requiredLocations: ['curtea lui Verde-imparat'],
+    magicalObjects: ['calul nazdravan'],
+    eventOrder: ['bridge test', 'well oath', 'stag quest'],
+    forbiddenSubstitutions: [],
+    softenableBeats: [],
+    fidelityWarnings: [],
+  }), false);
+
+  assert.equal(storySources.isUsableCanonicalBeatSheet({
+    sourceAnalysisVersion: storySources.SOURCE_ANALYSIS_VERSION,
+    requiredCharacters: ['Harap-Alb'],
+    requiredLocations: ['curtea lui Verde-imparat'],
+    magicalObjects: ['calul nazdravan'],
+    identityConstraints: ['Harap-Alb remains a young prince.'],
+    eventOrder: ['bridge test', 'well oath', 'true ending'],
+    canonicalEnding: ['Harap-Alb is revived and Spânul is defeated.'],
+    forbiddenSubstitutions: [],
+    softenableBeats: [],
+    fidelityWarnings: [],
+  }), true);
+});
+
+test('source analysis reads later chunks so long sources keep their canonical ending', async () => {
+  const { config } = await import('../config.js');
+  const storySources = await import('./storySources.js');
+  Object.assign(config, {
+    useSupabase: false,
+    sourceAnalysisModel: 'gemini-3.1-flash-lite',
+  });
+
+  const longSourceText = `${'Opening bridge test. '.repeat(2200)}\n\n${'Middle impossible quests. '.repeat(2200)}\n\nENDING_MARKER The hero is revived with living water and the false servant is defeated.`;
+  const calls: Array<{ prompt: string; options?: JSONGenerationOptions }> = [];
+
+  const source = await storySources.resolveRetellingSource(
+    {
+      userPrompt: 'Retell The Long Tale faithfully',
+      language: 'en',
+    },
+    {
+      generateJSON: async <T>(
+        prompt: string,
+        _systemInstruction: string,
+        _schema: Record<string, unknown>,
+        options?: JSONGenerationOptions,
+      ) => {
+        calls.push({ prompt, options });
+        const hasEnding = prompt.includes('ENDING_MARKER');
+        return {
+          title: 'The Long Tale',
+          author: 'Anonymous',
+          sourceAnalysisVersion: storySources.SOURCE_ANALYSIS_VERSION,
+          requiredCharacters: ['The young prince', 'the false servant'],
+          requiredLocations: ['the royal road'],
+          magicalObjects: ['living water'],
+          identityConstraints: ['The young prince remains a young royal, not a small child.'],
+          eventOrder: hasEnding
+            ? ['The hero is revived with living water.', 'The false servant is defeated.']
+            : ['The bridge test begins.', 'The false servant traps the hero.', 'The impossible quests begin.'],
+          canonicalEnding: hasEnding
+            ? ['The hero is revived with living water and the false servant is defeated.']
+            : [],
+          forbiddenSubstitutions: ['Do not skip the revival.'],
+          softenableBeats: ['The defeat can be non-graphic.'],
+          fidelityWarnings: ['Keep the ending.'],
+        } as T;
+      },
+      fetchFn: async (url) => {
+        const href = String(url);
+        if (href.includes('opensearch')) {
+          return {
+            ok: true,
+            json: async () => ['The Long Tale', ['The Long Tale'], [''], ['https://en.wikisource.org/wiki/The_Long_Tale']],
+            text: async () => '',
+          } as Response;
+        }
+
+        return {
+          ok: true,
+          json: async () => ({ query: { pages: [{ extract: longSourceText }] } }),
+          text: async () => longSourceText,
+        } as Response;
+      },
+    },
+  );
+
+  assert.equal(source?.title, 'The Long Tale');
+  assert.ok(calls.length > 1);
+  assert.ok(calls.every(call => call.options?.tools === undefined));
+  assert.ok(source?.canonicalBeatSheet.eventOrder.some(beat => /revived/i.test(beat)));
+  assert.ok(source?.canonicalBeatSheet.canonicalEnding?.some(beat => /living water/i.test(beat)));
 });
 
 test('unknown public-domain requests try trusted providers before Gemini Search fallback', async () => {

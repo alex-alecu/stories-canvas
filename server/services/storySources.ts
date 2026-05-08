@@ -13,7 +13,9 @@ import type {
 import type { StoryUsageStatus } from '../../shared/types.js';
 
 const MANIFEST_PATH = join(process.cwd(), 'story-sources', 'manifest.json');
-const MAX_SOURCE_TEXT_CHARS = 45_000;
+const SOURCE_TEXT_CHUNK_CHARS = 30_000;
+const SOURCE_TEXT_CHUNK_OVERLAP_CHARS = 800;
+export const SOURCE_ANALYSIS_VERSION = 2;
 
 export type RetellingMode = 'original' | 'faithful_retelling';
 
@@ -81,10 +83,13 @@ interface RetellingClassification {
 interface RawSourceAnalysis {
   title?: unknown;
   author?: unknown;
+  sourceAnalysisVersion?: unknown;
   requiredCharacters?: unknown;
   requiredLocations?: unknown;
   magicalObjects?: unknown;
+  identityConstraints?: unknown;
   eventOrder?: unknown;
+  canonicalEnding?: unknown;
   forbiddenSubstitutions?: unknown;
   softenableBeats?: unknown;
   fidelityWarnings?: unknown;
@@ -208,19 +213,46 @@ function normalizeStringArray(value: unknown): string[] {
     .filter(Boolean);
 }
 
-function normalizeBeatSheet(raw: RawSourceAnalysis): CanonicalBeatSheet {
+function normalizeSourceAnalysisVersion(value: unknown, fallback: number | undefined): number | undefined {
+  if (typeof value === 'number' && Number.isInteger(value)) return value;
+  if (typeof value === 'string') {
+    const parsed = Number.parseInt(value, 10);
+    if (Number.isInteger(parsed)) return parsed;
+  }
+  return fallback;
+}
+
+function normalizeBeatSheet(
+  raw: RawSourceAnalysis,
+  options: { sourceAnalysisVersion?: number } = { sourceAnalysisVersion: SOURCE_ANALYSIS_VERSION },
+): CanonicalBeatSheet {
   return {
+    sourceAnalysisVersion: normalizeSourceAnalysisVersion(raw.sourceAnalysisVersion, options.sourceAnalysisVersion),
     requiredCharacters: normalizeStringArray(raw.requiredCharacters),
     requiredLocations: normalizeStringArray(raw.requiredLocations),
     magicalObjects: normalizeStringArray(raw.magicalObjects),
+    identityConstraints: normalizeStringArray(raw.identityConstraints),
     eventOrder: normalizeStringArray(raw.eventOrder),
+    canonicalEnding: normalizeStringArray(raw.canonicalEnding),
     forbiddenSubstitutions: normalizeStringArray(raw.forbiddenSubstitutions),
     softenableBeats: normalizeStringArray(raw.softenableBeats),
     fidelityWarnings: normalizeStringArray(raw.fidelityWarnings),
   };
 }
 
-function sourceFromCacheRow(row: SourceCacheRow): ResolvedRetellingSource {
+export function isUsableCanonicalBeatSheet(beatSheet: CanonicalBeatSheet): boolean {
+  return beatSheet.sourceAnalysisVersion === SOURCE_ANALYSIS_VERSION
+    && beatSheet.requiredCharacters.length > 0
+    && beatSheet.eventOrder.length >= 3
+    && (beatSheet.canonicalEnding?.length ?? 0) > 0;
+}
+
+function sourceFromCacheRow(row: SourceCacheRow): ResolvedRetellingSource | undefined {
+  const canonicalBeatSheet = normalizeBeatSheet(row.canonical_beat_sheet as RawSourceAnalysis, {
+    sourceAnalysisVersion: undefined,
+  });
+  if (!isUsableCanonicalBeatSheet(canonicalBeatSheet)) return undefined;
+
   return {
     title: row.title,
     author: row.author ?? undefined,
@@ -229,7 +261,7 @@ function sourceFromCacheRow(row: SourceCacheRow): ResolvedRetellingSource {
     licenseNote: row.license_note,
     sourceTextHash: row.source_text_hash,
     sourceCacheHit: true,
-    canonicalBeatSheet: row.canonical_beat_sheet,
+    canonicalBeatSheet,
   };
 }
 
@@ -280,6 +312,7 @@ async function writeCachedSource(source: ResolvedRetellingSource, language: Supp
 
 function sourceFromManifestBeatSheet(source: ManifestStorySource): ResolvedRetellingSource | undefined {
   if (!source.canonicalBeatSheet) return undefined;
+  if (!isUsableCanonicalBeatSheet(source.canonicalBeatSheet)) return undefined;
 
   return {
     title: source.title,
@@ -455,15 +488,74 @@ async function findTrustedProviderSource(
     ?? (await findProjectGutenbergSource(titleQuery, language, fetchFn).catch(() => undefined));
 }
 
+function splitSourceTextIntoChunks(sourceText: string): string[] {
+  if (sourceText.length <= SOURCE_TEXT_CHUNK_CHARS) return [sourceText];
+
+  const chunks: string[] = [];
+  let start = 0;
+  while (start < sourceText.length) {
+    const hardEnd = Math.min(sourceText.length, start + SOURCE_TEXT_CHUNK_CHARS);
+    const nextBreak = sourceText.lastIndexOf('\n\n', hardEnd);
+    const end = nextBreak > start + SOURCE_TEXT_CHUNK_CHARS * 0.65 ? nextBreak : hardEnd;
+    chunks.push(sourceText.slice(start, end).trim());
+    if (end >= sourceText.length) break;
+    start = Math.max(0, end - SOURCE_TEXT_CHUNK_OVERLAP_CHARS);
+  }
+
+  return chunks.filter(Boolean);
+}
+
+function appendUnique(target: string[], values: string[]): void {
+  const seen = new Set(target.map(value => value.toLocaleLowerCase()));
+  for (const value of values) {
+    const key = value.toLocaleLowerCase();
+    if (seen.has(key)) continue;
+    target.push(value);
+    seen.add(key);
+  }
+}
+
+function mergeBeatSheets(beatSheets: CanonicalBeatSheet[]): CanonicalBeatSheet {
+  const merged: CanonicalBeatSheet = {
+    sourceAnalysisVersion: SOURCE_ANALYSIS_VERSION,
+    requiredCharacters: [],
+    requiredLocations: [],
+    magicalObjects: [],
+    identityConstraints: [],
+    eventOrder: [],
+    canonicalEnding: [],
+    forbiddenSubstitutions: [],
+    softenableBeats: [],
+    fidelityWarnings: [],
+  };
+
+  for (const beatSheet of beatSheets) {
+    appendUnique(merged.requiredCharacters, beatSheet.requiredCharacters);
+    appendUnique(merged.requiredLocations, beatSheet.requiredLocations);
+    appendUnique(merged.magicalObjects, beatSheet.magicalObjects);
+    appendUnique(merged.identityConstraints!, beatSheet.identityConstraints ?? []);
+    appendUnique(merged.eventOrder, beatSheet.eventOrder);
+    appendUnique(merged.canonicalEnding!, beatSheet.canonicalEnding ?? []);
+    appendUnique(merged.forbiddenSubstitutions, beatSheet.forbiddenSubstitutions);
+    appendUnique(merged.softenableBeats, beatSheet.softenableBeats);
+    appendUnique(merged.fidelityWarnings, beatSheet.fidelityWarnings);
+  }
+
+  return merged;
+}
+
 const sourceAnalysisSchema = {
   type: 'OBJECT',
   properties: {
     title: { type: 'STRING' },
     author: { type: 'STRING' },
+    sourceAnalysisVersion: { type: 'INTEGER' },
     requiredCharacters: { type: 'ARRAY', items: { type: 'STRING' } },
     requiredLocations: { type: 'ARRAY', items: { type: 'STRING' } },
     magicalObjects: { type: 'ARRAY', items: { type: 'STRING' } },
+    identityConstraints: { type: 'ARRAY', items: { type: 'STRING' } },
     eventOrder: { type: 'ARRAY', items: { type: 'STRING' } },
+    canonicalEnding: { type: 'ARRAY', items: { type: 'STRING' } },
     forbiddenSubstitutions: { type: 'ARRAY', items: { type: 'STRING' } },
     softenableBeats: { type: 'ARRAY', items: { type: 'STRING' } },
     fidelityWarnings: { type: 'ARRAY', items: { type: 'STRING' } },
@@ -471,10 +563,13 @@ const sourceAnalysisSchema = {
   required: [
     'title',
     'author',
+    'sourceAnalysisVersion',
     'requiredCharacters',
     'requiredLocations',
     'magicalObjects',
+    'identityConstraints',
     'eventOrder',
+    'canonicalEnding',
     'forbiddenSubstitutions',
     'softenableBeats',
     'fidelityWarnings',
@@ -486,37 +581,45 @@ async function analyzeSourceText(
   sourceText: string,
   options: SourceResolverOptions,
 ): Promise<ResolvedRetellingSource | undefined> {
-  const compactText = sourceText.slice(0, MAX_SOURCE_TEXT_CHARS);
-  const raw = await options.generateJSON<RawSourceAnalysis>(
-    [
-      'Extract a canonical beat sheet for a faithful children\'s retelling of this public-domain story.',
-      'Preserve named roles, event order, magical object mechanics, antagonist count/roles, and ending.',
-      'List only source-grounded facts. Do not invent new helpers or shortcuts.',
-      '',
-      `Title: ${source.title}`,
-      `Author/collector: ${source.author ?? 'unknown'}`,
-      `Source URL: ${source.sourceUrl}`,
-      '',
-      'Source text:',
-      compactText,
-    ].join('\n'),
-    'Return only compact JSON for source grounding.',
-    sourceAnalysisSchema,
-    {
-      model: config.sourceAnalysisModel,
-      temperature: 0.1,
-      onUsage: options.onUsage,
-    },
-  );
+  const chunks = splitSourceTextIntoChunks(sourceText);
+  const rawAnalyses: RawSourceAnalysis[] = [];
 
-  const beatSheet = normalizeBeatSheet(raw);
-  if (beatSheet.eventOrder.length < 3 || beatSheet.requiredCharacters.length === 0) {
+  for (let index = 0; index < chunks.length; index++) {
+    rawAnalyses.push(await options.generateJSON<RawSourceAnalysis>(
+      [
+        'Extract a canonical beat sheet fragment for a faithful children\'s retelling of this public-domain story.',
+        'Preserve named roles, event order, magical object mechanics, antagonist count/roles, character identities, relationships, social roles, and ending.',
+        'List only source-grounded facts found in this chunk. Do not invent new helpers or shortcuts.',
+        'If this chunk contains the story ending, include it in canonicalEnding. If it does not, leave canonicalEnding empty.',
+        `Set sourceAnalysisVersion to ${SOURCE_ANALYSIS_VERSION}.`,
+        '',
+        `Title: ${source.title}`,
+        `Author/collector: ${source.author ?? 'unknown'}`,
+        `Source URL: ${source.sourceUrl}`,
+        `Source chunk: ${index + 1} of ${chunks.length}`,
+        '',
+        'Source text chunk:',
+        chunks[index],
+      ].join('\n'),
+      'Return only compact JSON for source grounding.',
+      sourceAnalysisSchema,
+      {
+        model: config.sourceAnalysisModel,
+        temperature: 0.1,
+        onUsage: options.onUsage,
+      },
+    ));
+  }
+
+  const beatSheet = mergeBeatSheets(rawAnalyses.map(raw => normalizeBeatSheet(raw)));
+  if (!isUsableCanonicalBeatSheet(beatSheet)) {
     return undefined;
   }
 
+  const firstRaw = rawAnalyses[0] ?? {};
   return {
-    title: typeof raw.title === 'string' && raw.title.trim() ? raw.title.trim() : source.title,
-    author: typeof raw.author === 'string' && raw.author.trim() ? raw.author.trim() : source.author,
+    title: typeof firstRaw.title === 'string' && firstRaw.title.trim() ? firstRaw.title.trim() : source.title,
+    author: typeof firstRaw.author === 'string' && firstRaw.author.trim() ? firstRaw.author.trim() : source.author,
     provider: source.provider,
     sourceUrl: source.sourceUrl,
     licenseNote: source.licenseNote,
@@ -536,10 +639,13 @@ const searchSourceSchema = {
     provider: { type: 'STRING' },
     sourceUrl: { type: 'STRING' },
     licenseNote: { type: 'STRING' },
+    sourceAnalysisVersion: { type: 'INTEGER' },
     requiredCharacters: { type: 'ARRAY', items: { type: 'STRING' } },
     requiredLocations: { type: 'ARRAY', items: { type: 'STRING' } },
     magicalObjects: { type: 'ARRAY', items: { type: 'STRING' } },
+    identityConstraints: { type: 'ARRAY', items: { type: 'STRING' } },
     eventOrder: { type: 'ARRAY', items: { type: 'STRING' } },
+    canonicalEnding: { type: 'ARRAY', items: { type: 'STRING' } },
     forbiddenSubstitutions: { type: 'ARRAY', items: { type: 'STRING' } },
     softenableBeats: { type: 'ARRAY', items: { type: 'STRING' } },
     fidelityWarnings: { type: 'ARRAY', items: { type: 'STRING' } },
@@ -552,10 +658,13 @@ const searchSourceSchema = {
     'provider',
     'sourceUrl',
     'licenseNote',
+    'sourceAnalysisVersion',
     'requiredCharacters',
     'requiredLocations',
     'magicalObjects',
+    'identityConstraints',
     'eventOrder',
+    'canonicalEnding',
     'forbiddenSubstitutions',
     'softenableBeats',
     'fidelityWarnings',
@@ -571,6 +680,8 @@ async function searchPublicDomainSource(
     [
       `Find a trusted public-domain source for the classic story "${titleQuery}" in language ${language}.`,
       'Prefer Wikisource or Project Gutenberg. Return a faithful canonical beat sheet from the public-domain source.',
+      'Preserve character identities, relationships, social roles, event order, mechanics, and canonical ending.',
+      `Set sourceAnalysisVersion to ${SOURCE_ANALYSIS_VERSION}.`,
       'If you cannot verify a public-domain or compatible source, set isPublicDomain=false and confidence below 0.7.',
     ].join('\n'),
     'Use Google Search only to verify public-domain story sources. Return JSON only.',
@@ -597,7 +708,7 @@ async function searchPublicDomainSource(
       : 'gemini_search';
 
   const beatSheet = normalizeBeatSheet(raw);
-  if (beatSheet.eventOrder.length < 3 || beatSheet.requiredCharacters.length === 0) {
+  if (!isUsableCanonicalBeatSheet(beatSheet)) {
     return undefined;
   }
 

@@ -16,6 +16,7 @@
       "sourceUrl": "https://ro.wikisource.org/wiki/Greuceanu",
       "licenseNote": "Public-domain Romanian folklore text collected by Petre Ispirescu, hosted on Wikisource.",
       "canonicalBeatSheet": {
+        "sourceAnalysisVersion": 2,
         "requiredCharacters": [
           "Greuceanu",
           "Împăratul Roșu",
@@ -38,6 +39,12 @@
           "cheia care deschide inchisoarea astrilor",
           "capcanele zmeoaicelor"
         ],
+        "identityConstraints": [
+          "Greuceanu este viteazul matur care se infatiseaza imparatului, nu un copil sau un printulet.",
+          "Împăratul Roșu ramane imparatul pagubit care cere recuperarea soarelui si lunii.",
+          "Faurul Pământului ramane mesterul/mentorul care il ajuta pe Greuceanu cu arme si sfat.",
+          "Zmeii si zmeoaicele raman adversari primejdiosi, nu prieteni sau negustori."
+        ],
         "eventOrder": [
           "Imparatul Rosu anunta ca zmeii au furat soarele si luna si promite rasplata celui care le aduce inapoi.",
           "Greuceanu se infatiseaza la imparat si porneste in cautare, insotit de fratele sau.",
@@ -49,6 +56,10 @@
           "Pe drumul de intoarcere, zmeoaicele incearca sa-l omoare prin capcane prefacute in pom, gradina, apa sau alte ispite.",
           "Greuceanu dejuca toate capcanele si se intoarce cu dovada izbandei.",
           "Ordinea lumii este refacuta, iar Greuceanu primeste recunoasterea promisa."
+        ],
+        "canonicalEnding": [
+          "Greuceanu scapa de capcanele zmeoaicelor si se intoarce cu dovada izbandei.",
+          "Soarele si luna sunt din nou pe cer, lumina lumii este refacuta, iar Greuceanu primeste recunoasterea promisa."
         ],
         "forbiddenSubstitutions": [
           "Nu reduce zmeii la un singur zmeu prietenos sau negociabil.",
@@ -106,7 +117,96 @@
       ],
       "provider": "wikisource",
       "sourceUrl": "https://ro.wikisource.org/wiki/Povestea_lui_Harap-Alb",
-      "licenseNote": "Public-domain Romanian literary fairy tale by Ion Creanga, hosted on Wikisource."
+      "licenseNote": "Public-domain Romanian literary fairy tale by Ion Creanga, hosted on Wikisource.",
+      "canonicalBeatSheet": {
+        "sourceAnalysisVersion": 2,
+        "requiredCharacters": [
+          "craiul",
+          "fiul cel mic al craiului / Harap-Alb",
+          "calul nazdravan",
+          "Sfânta Duminică",
+          "Spânul",
+          "Verde-împărat",
+          "Împăratul Roș",
+          "fata Împăratului Roș",
+          "Gerilă",
+          "Flămânzilă",
+          "Setilă",
+          "Ochila",
+          "Păsări-Lăți-Lungilă"
+        ],
+        "requiredLocations": [
+          "curtea craiului",
+          "podul unde craiul se ascunde in piele de urs",
+          "grajdul si locul jăraticului",
+          "fântâna unde Spânul il pacaleste",
+          "curtea lui Verde-împărat",
+          "Grădina Ursului",
+          "Pădurea Cerbului",
+          "drumul spre Împăratul Roș",
+          "curtea Împăratului Roș",
+          "camera de arama infierbantata",
+          "locul probei macului si nisipului"
+        ],
+        "magicalObjects": [
+          "pielea de urs folosita la proba de la pod",
+          "tava cu jăratic care arata calul adevarat",
+          "calul nazdravan",
+          "obrăzarul si sabia lui Statu-Palmă-Barbă-Cot",
+          "salățile din Grădina Ursului",
+          "pielea si capul cerbului fermecat",
+          "apa vie si apa moarta",
+          "smicelele de mar dulce"
+        ],
+        "identityConstraints": [
+          "Harap-Alb este fiul cel mic al craiului, un tanar fecior de crai / print aflat la proba maturizarii, nu un baietel mic.",
+          "Harap-Alb nu trebuie redenumit generic si nu trebuie transformat in copil doar pentru ca cititorul are varsta mica.",
+          "Spânul ramane antagonistul viclean care il constrange prin juramant pe Harap-Alb si ii ia identitatea.",
+          "Calul nazdravan este aliatul principal care il sfatuieste si actioneaza decisiv la final.",
+          "Sfânta Duminică ramane ajutorul sacru/mentorul care il sprijina la probele imposibile.",
+          "Prietenii nazdravani intalniti pe drum catre Împăratul Roș au roluri concrete in trecerea probelor."
+        ],
+        "eventOrder": [
+          "Craiul isi testeaza fiii la pod, ascuns intr-o piele de urs; doar fiul cel mic trece proba.",
+          "Fiul cel mic ajuta o batrana, Sfânta Duminică, iar ea il indruma sa aleaga calul care mananca jaratic.",
+          "Calul slab mananca jaratic, se dovedeste nazdravan si il poarta pe fiul craiului la drum.",
+          "In padure, Spânul il pacaleste pe fiul craiului sa coboare in fantana si il obliga prin juramant sa ii devina sluga.",
+          "Fiul craiului primeste numele Harap-Alb, iar Spânul se da drept nepotul lui Verde-împărat.",
+          "La curtea lui Verde-împărat, Spânul il trimite pe Harap-Alb la probe primejdioase ca sa scape de el.",
+          "Harap-Alb aduce salățile din Grădina Ursului cu ajutorul Sfintei Duminici.",
+          "Harap-Alb aduce pielea si capul cerbului fermecat, folosind sfatul si uneltele primite de la Sfânta Duminică.",
+          "Spânul il trimite pe Harap-Alb sa o aduca pe fata Împăratului Roș.",
+          "Pe drum, Harap-Alb cruta vietati mici si isi castiga ajutoare; apoi ii ia cu el pe Gerilă, Flămânzilă, Setilă, Ochila si Păsări-Lăți-Lungilă.",
+          "La curtea Împăratului Roș, ajutoarele il scapa din camera incinsa, consuma mancarea si bautura uriasa, aleg macul din nisip si trec probele fetei.",
+          "Fata Împăratului Roș descopera cine este Harap-Alb si merge cu el spre Verde-împărat.",
+          "Spânul il ucide pe Harap-Alb cand adevarul iese la iveala.",
+          "Fata Împăratului Roș il invie pe Harap-Alb cu apa vie, apa moarta si smicelele de mar dulce.",
+          "Calul nazdravan il pedepseste pe Spân, iar Harap-Alb este recunoscut in adevarata lui identitate.",
+          "Harap-Alb se casatoreste cu fata Împăratului Roș si urmeaza ospatul de bucurie."
+        ],
+        "canonicalEnding": [
+          "Spânul il ucide pe Harap-Alb dupa ce fata Împăratului Roș dezvaluie adevarul.",
+          "Fata Împăratului Roș il readuce la viata pe Harap-Alb cu apa vie, apa moarta si smicelele de mar dulce.",
+          "Calul nazdravan il pedepseste pe Spân, Harap-Alb isi recastiga identitatea de fiu de crai, iar nunta cu fata Împăratului Roș incheie povestea."
+        ],
+        "forbiddenSubstitutions": [
+          "Nu transforma Harap-Alb intr-un baietel mic; pastreaza-l ca fiu tanar de crai / print.",
+          "Nu elimina drumul spre Împăratul Roș, ajutoarele nazdravane sau fata Împăratului Roș intr-o retelling fidela.",
+          "Nu inlocui moartea si invierea lui Harap-Alb cu simpla alungare a Spânului inainte ca adevarul sa iasa la iveala.",
+          "Nu face calul un simplu decor; calul trebuie sa aiba rol decisiv in orientare si in pedepsirea Spânului.",
+          "Nu transforma Spânul intr-un farsor inofensiv sau intr-un adversar care pleaca doar certat."
+        ],
+        "softenableBeats": [
+          "Moartea si invierea pot fi formulate non-grafic ca o lovitura vrajmasa, o cadere in somn greu si readucerea la viata.",
+          "Pedepsirea Spânului de catre cal poate fi prezentata ca alungare spectaculoasa sau infrangere magica, fara detalii violente.",
+          "Probele grele pot ramane tensionate, dar descrise cu limbaj potrivit copiilor."
+        ],
+        "fidelityWarnings": [
+          "O versiune fidela trebuie sa ajunga dincolo de probele cu ursul si cerbul, pana la Împăratul Roș, fata lui, ajutoarele nazdravane, moartea/invierea lui Harap-Alb si pedepsirea Spânului.",
+          "Finalul nu este doar demascarea Spânului la curtea lui Verde-împărat; adevaratul final include invierea lui Harap-Alb si nunta cu fata Împăratului Roș.",
+          "Varsta cititorului poate simplifica limbajul, dar nu poate schimba identitatea lui Harap-Alb din tanar fiu de crai in copil mic."
+        ]
+      }
     },
     {
       "id": "en-alice",

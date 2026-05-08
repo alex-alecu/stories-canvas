@@ -10,8 +10,10 @@ import {
 import { resolveRetellingSource, type ResolvedRetellingSource } from './storySources.js';
 import {
   formatScenarioValidationIssues,
+  MAX_RETELLING_SCENARIO_CHARACTERS,
   normalizeScenarioWhitespace,
   validateScenario,
+  type ScenarioValidationOptions,
 } from './scenarioValidation.js';
 import {
   reviewScenarioWithModel as runScenarioReviewWithModel,
@@ -25,7 +27,7 @@ const scenarioSchema = {
   type: 'OBJECT',
   properties: {
     title: { type: 'STRING', description: 'Story title' },
-    targetAge: { type: 'INTEGER', description: 'Target age of the child' },
+    targetAge: { type: 'INTEGER', description: 'Target age of the reader' },
     characters: {
       type: 'ARRAY',
       items: {
@@ -63,7 +65,8 @@ const scenarioSchema = {
           'characterSheetPrompt',
         ],
       },
-      description: 'Main characters (max 3)',
+      description:
+        'Main visual characters. Keep original stories small; faithful retellings may include required canonical roles.',
     },
     pages: {
       type: 'ARRAY',
@@ -165,6 +168,12 @@ function stripPageRuntimeFields(scenario: Scenario): Scenario {
   };
 }
 
+function getScenarioValidationOptions(context: StoryPromptContext): ScenarioValidationOptions {
+  return context.retellingSource
+    ? { maxCharacters: MAX_RETELLING_SCENARIO_CHARACTERS }
+    : {};
+}
+
 async function generateDraftScenario(
   context: StoryPromptContext,
   systemInstruction: string,
@@ -193,7 +202,7 @@ async function generateRepairScenario(
   generateJSON: GenerateJSONFn,
   usageCallbacks?: ScenarioUsageCallbacks,
 ): Promise<Scenario> {
-  const issues = validateScenario(draftScenario, context.targetAge);
+  const issues = validateScenario(draftScenario, context.targetAge, getScenarioValidationOptions(context));
 
   return generateJSON<Scenario>(
     buildRepairScenarioPrompt(context, normalizeScenarioWhitespace(draftScenario), issues, repairPass),
@@ -217,7 +226,8 @@ async function enforceHardValidation(
   usageCallbacks?: ScenarioUsageCallbacks,
 ): Promise<Scenario> {
   let currentScenario = normalizeScenarioWhitespace(stripPageRuntimeFields(candidateScenario));
-  let issues = validateScenario(currentScenario, context.targetAge);
+  const validationOptions = getScenarioValidationOptions(context);
+  let issues = validateScenario(currentScenario, context.targetAge, validationOptions);
 
   if (issues.length === 0) {
     return currentScenario;
@@ -234,7 +244,7 @@ async function enforceHardValidation(
     );
 
     currentScenario = normalizeScenarioWhitespace(stripPageRuntimeFields(currentScenario));
-    issues = validateScenario(currentScenario, context.targetAge);
+    issues = validateScenario(currentScenario, context.targetAge, validationOptions);
     if (issues.length === 0) {
       return currentScenario;
     }
@@ -265,7 +275,11 @@ async function applyEditorialReview(
   const rewrittenScenario = normalizeScenarioWhitespace(stripPageRuntimeFields(
     await rewriteScenarioFromReviewWithModel(context, normalizedScenario, review, generateJSON, usageCallbacks?.onRewriteUsage),
   ));
-  const finalIssues = validateScenario(rewrittenScenario, context.targetAge);
+  const finalIssues = validateScenario(
+    rewrittenScenario,
+    context.targetAge,
+    getScenarioValidationOptions(context),
+  );
   if (finalIssues.length > 0) {
     throw new Error(
       `Scenario failed final validation after review rewrite: ${formatScenarioValidationIssues(finalIssues)}`,

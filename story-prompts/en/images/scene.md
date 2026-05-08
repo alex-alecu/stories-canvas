@@ -11,7 +11,7 @@ ENVIRONMENT: This must be a complete, richly detailed scene - like a frame from 
 
 BACKGROUND LIFE: Include secondary characters and living details in the background to make the world feel alive - other animals, people, creatures, or environmental activity appropriate to the setting. These background elements should add depth and atmosphere without distracting from the main characters.
 
-COMPOSITION: Position the main characters in the upper two-thirds of the frame. The lower portion of the image will have a text overlay, so keep character faces and critical visual elements out of the bottom third. Place supporting environment details (ground, path, floor, grass) in the lower area instead.
+COMPOSITION: Position the main characters in the upper two-thirds of the frame. Keep character faces and critical visual elements out of the bottom third. Leave a clean lower third reserved for app layout after generation, using only quiet supporting environment details there (ground, path, floor, grass).
 
 CHARACTER APPEARANCE (HIGHEST PRIORITY):
 - The character reference sheets are the absolute authority for character appearance. Always match them exactly.
@@ -22,4 +22,4 @@ STYLE & ENVIRONMENT CONSISTENCY:
 - Maintain the same art style across all scenes: same rendering quality, same color saturation, same lighting approach
 - Use the same visual language: same line weight, same level of detail, same background style
 {{previous_scene_continuity}}Style: {{style_description}}.
-4:3 aspect ratio composition. No text or words in the image.
+4:3 aspect ratio composition. Absolutely no readable or pseudo-readable text, letters, symbols, labels, captions, signs, book/page lettering, banners, plaques, UI, typography, handwriting, or words anywhere in the image.
