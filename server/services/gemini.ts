@@ -22,8 +22,10 @@ const IMAGE_SAFETY_SETTINGS: SafetySetting[] = [
 export { ai };
 
 export interface JSONGenerationOptions {
+  model?: string;
   temperature?: number;
   thinkingConfig?: ThinkingConfig;
+  tools?: unknown[];
   maxRetries?: number;
   onUsage?: (usage: {
     model: string;
@@ -263,6 +265,7 @@ export async function generateJSON<T>(
   options: JSONGenerationOptions = {},
 ): Promise<T> {
   const maxRetries = options.maxRetries ?? config.maxRetries;
+  const model = options.model ?? config.scenarioModel;
   let lastError: Error | null = null;
   let thinkingConfig = options.thinkingConfig;
   let thinkingFallbackUsed = false;
@@ -271,7 +274,7 @@ export async function generateJSON<T>(
   while (remainingRetries > 0) {
     try {
       const response = await ai.models.generateContent({
-        model: config.scenarioModel,
+        model,
         contents: prompt,
         config: {
           systemInstruction,
@@ -279,6 +282,7 @@ export async function generateJSON<T>(
           responseMimeType: 'application/json',
           responseSchema: schema as any,
           thinkingConfig,
+          tools: options.tools as any,
         },
       });
 
@@ -290,7 +294,7 @@ export async function generateJSON<T>(
       if (options.onUsage) {
         const usage = extractUsageMetadata(response as { usageMetadata?: unknown });
         await options.onUsage({
-          model: config.scenarioModel,
+          model,
           status: 'succeeded',
           inputTokens: usage.inputTokens,
           outputTokens: usage.outputTokens,

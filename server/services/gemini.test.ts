@@ -31,16 +31,20 @@ test('generateJSON passes story controls through to Gemini', async () => {
         required: ['ok'],
       },
       {
+        model: 'gemini-3.1-flash-lite',
         temperature: 0.6,
         thinkingConfig: { thinkingBudget: 512 },
+        tools: [{ googleSearch: {} }],
         maxRetries: 1,
       },
     );
 
     assert.deepEqual(result, { ok: true });
     assert.equal(calls.length, 1);
+    assert.equal(calls[0].model, 'gemini-3.1-flash-lite');
     assert.equal(calls[0].config.temperature, 0.6);
     assert.deepEqual(calls[0].config.thinkingConfig, { thinkingBudget: 512 });
+    assert.deepEqual(calls[0].config.tools, [{ googleSearch: {} }]);
   } finally {
     (gemini.ai.models as { generateContent: typeof original }).generateContent = original;
   }

@@ -4,7 +4,7 @@ import { config } from '../config.js';
 import * as fsStorage from '../utils/storage.js';
 import * as sbStorage from '../services/supabaseStorage.js';
 import { getCharacterSheetFilename } from '../services/characterSheet.js';
-import { generateScenario } from '../services/scenario.js';
+import { generateScenario, generateScenarioWithMetadata, type GeneratedScenarioResult } from '../services/scenario.js';
 import { generateAllCharacterSheets } from '../services/characterSheet.js';
 import { finishTrackedGeneration, getTrackedGeneration, isGenerationActive, startTrackedGeneration } from '../services/generationRegistry.js';
 import { generateAllSceneImages, retryFailedSceneImages } from '../services/sceneGenerator.js';
@@ -37,7 +37,7 @@ import type {
   StoryAssets,
   VoiceKey,
 } from '../../shared/types.js';
-import { DEFAULT_AGE, getStoryModeCredits, getVoiceName, isStoryMode, isStoryReaction, normalizeVoiceKey } from '../../shared/types.js';
+import { DEFAULT_AGE, DEFAULT_ART_STYLE, getStoryModeCredits, getVoiceName, isStoryMode, isStoryReaction, normalizeVoiceKey } from '../../shared/types.js';
 import { MEDIA_CACHE_CONTROL, getPageAudioFilename, getPageImageFilename, pageHasAudio } from '../utils/storyMedia.js';
 import { buildStoryGenerationInputs, recordStoryUsage, type StoryUsageStorage } from '../services/storyUsage.js';
 
@@ -47,6 +47,7 @@ const ADD_AUDIO_CREDIT_COST = 1;
 
 export const scenarioOps = {
   generateScenario,
+  generateScenarioWithMetadata,
 };
 
 export const illustrationOps = {
@@ -128,6 +129,7 @@ async function saveScenario(
     renderedScenarioRevision?: number;
     storyMode?: StoryMode;
     creditCost?: number;
+    generationInputs?: StoryGenerationInputs;
   } = {},
 ): Promise<void> {
   if (config.useSupabase) {
@@ -138,6 +140,7 @@ async function saveScenario(
       renderedScenarioRevision: options.renderedScenarioRevision,
       storyMode: options.storyMode,
       creditCost: options.creditCost,
+      generationInputs: options.generationInputs,
     });
   } else {
     await fsStorage.saveScenario(storyId, scenario, status, prompt, options);
@@ -198,6 +201,7 @@ async function updateStoryScenario(
     renderedScenarioRevision?: number;
     storyMode?: StoryMode;
     creditCost?: number;
+    generationInputs?: StoryGenerationInputs;
   } = {},
 ): Promise<void> {
   if (config.useSupabase) {
@@ -208,6 +212,7 @@ async function updateStoryScenario(
       renderedScenarioRevision: options.renderedScenarioRevision,
       storyMode: options.storyMode,
       creditCost: options.creditCost,
+      generationInputs: options.generationInputs,
     });
   } else {
     await fsStorage.updateStoryScenario(storyId, scenario, status, prompt, options);
@@ -478,6 +483,29 @@ function buildGenerationInputsSnapshot(
   });
 }
 
+function applyScenarioGroundingInputs(
+  inputs: StoryGenerationInputs,
+  result: GeneratedScenarioResult,
+): StoryGenerationInputs {
+  if (!result.retellingSource) {
+    return {
+      ...inputs,
+      retellingMode: 'original',
+    };
+  }
+
+  return {
+    ...inputs,
+    retellingMode: 'faithful_retelling',
+    sourceTitle: result.retellingSource.title,
+    sourceProvider: result.retellingSource.provider,
+    sourceUrl: result.retellingSource.sourceUrl,
+    sourceLicense: result.retellingSource.licenseNote,
+    sourceTextHash: result.retellingSource.sourceTextHash,
+    sourceCacheHit: result.retellingSource.sourceCacheHit,
+  };
+}
+
 function createUsageRecorder(storyId: string, userId: string | undefined, source: StoryUsageSource) {
   async function safeRecord(operationLabel: string, record: () => Promise<void>): Promise<void> {
     try {
@@ -488,7 +516,7 @@ function createUsageRecorder(storyId: string, userId: string | undefined, source
   }
 
   return {
-    recordText: async (operation: 'scenario_draft' | 'scenario_validation_repair' | 'scenario_review' | 'scenario_review_rewrite', usage: {
+    recordText: async (operation: 'source_analysis' | 'scenario_draft' | 'scenario_validation_repair' | 'scenario_review' | 'scenario_review_rewrite', usage: {
       model: string;
       status: 'succeeded' | 'failed';
       inputTokens: number;
@@ -881,7 +909,7 @@ async function runGenerationPipeline(
     });
 
     if (signal.aborted) throw new Error('Generation cancelled');
-    const scenario = await scenarioOps.generateScenario(
+    const scenarioResult = await scenarioOps.generateScenarioWithMetadata(
       prompt,
       language,
       age,
@@ -898,11 +926,25 @@ async function runGenerationPipeline(
         }).catch(() => {});
       },
       {
+        onSourceAnalysisUsage: usage => usageRecorder.recordText('source_analysis', usage),
         onDraftUsage: usage => usageRecorder.recordText('scenario_draft', usage),
         onValidationRepairUsage: usage => usageRecorder.recordText('scenario_validation_repair', usage),
         onReviewUsage: usage => usageRecorder.recordText('scenario_review', usage),
         onRewriteUsage: usage => usageRecorder.recordText('scenario_review_rewrite', usage),
       },
+    );
+    const scenario = scenarioResult.scenario;
+    const groundedGenerationInputs = applyScenarioGroundingInputs(
+      buildGenerationInputsSnapshot(
+        prompt,
+        language ?? 'ro',
+        age ?? DEFAULT_AGE,
+        style ?? DEFAULT_ART_STYLE,
+        storyMode,
+        voice,
+        pro,
+      ),
+      scenarioResult,
     );
     await saveScenario(storyId, scenario, 'generating_characters', prompt, {
       voice,
@@ -912,6 +954,7 @@ async function runGenerationPipeline(
       renderedScenarioRevision: 0,
       storyMode,
       creditCost,
+      generationInputs: groundedGenerationInputs,
     });
 
     if (signal.aborted) throw new Error('Generation cancelled');

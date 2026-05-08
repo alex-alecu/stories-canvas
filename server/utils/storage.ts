@@ -211,7 +211,7 @@ export async function saveScenario(
     storyMode: options.storyMode ?? existing?.storyMode,
     creditCost: options.creditCost ?? existing?.creditCost,
     creditRefundedAt: existing?.creditRefundedAt,
-    generationInputs: existing?.generationInputs ?? options.generationInputs,
+    generationInputs: options.generationInputs ?? existing?.generationInputs,
     usageTotals: normalizeStoryUsageTotals(existing?.usageTotals ?? options.usageTotals),
     viewCount: normalizeCount(existing?.viewCount),
     likeCount: normalizeCount(existing?.likeCount),

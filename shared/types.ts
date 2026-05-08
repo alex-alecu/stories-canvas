@@ -11,6 +11,7 @@ export type StoryUsageProvider = 'gemini' | 'elevenlabs';
 export type StoryUsageSource = 'initial_generation' | 'retry' | 'regenerate_assets' | 'add_audio';
 export type StoryUsageStatus = 'succeeded' | 'failed';
 export type StoryUsageOperation =
+  | 'source_analysis'
   | 'scenario_draft'
   | 'scenario_validation_repair'
   | 'scenario_review'
@@ -150,6 +151,13 @@ export interface StoryGenerationInputs {
   imageModelPro: string;
   audioModel?: string;
   pricingVersion: string;
+  retellingMode?: 'original' | 'faithful_retelling';
+  sourceTitle?: string;
+  sourceProvider?: string;
+  sourceUrl?: string;
+  sourceLicense?: string;
+  sourceTextHash?: string;
+  sourceCacheHit?: boolean;
 }
 
 export interface StoryUsageTotals {

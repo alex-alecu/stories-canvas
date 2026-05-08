@@ -65,6 +65,7 @@ export const STORY_GENERATOR_TEMPLATE = loadPromptMarkdown('en/operations/story-
 
 const SHARED_APPEARANCE_INSTRUCTION_TEMPLATE = loadPromptMarkdown('en/shared/appearance.md');
 const SHARED_LANGUAGE_INSTRUCTION_TEMPLATE = loadPromptMarkdown('en/shared/language.md');
+const SHARED_RETELLING_INSTRUCTION_TEMPLATE = loadPromptMarkdown('en/shared/retelling.md');
 const STORY_SYSTEM_INSTRUCTION_TEMPLATE = loadPromptMarkdown('en/system/story-system.md');
 const STORY_REVIEW_SYSTEM_INSTRUCTION_TEMPLATE = loadPromptMarkdown('en/system/story-review-system.md');
 const DRAFT_SCENARIO_PROMPT_TEMPLATE = loadPromptMarkdown('en/operations/draft-scenario.md');
@@ -88,6 +89,26 @@ export interface StoryPromptContext {
   style: ArtStyleKey;
   styleDescription: string;
   userPrompt: string;
+  retellingSource?: RetellingSourcePromptContext;
+}
+
+export interface CanonicalBeatSheet {
+  requiredCharacters: string[];
+  requiredLocations: string[];
+  magicalObjects: string[];
+  eventOrder: string[];
+  forbiddenSubstitutions: string[];
+  softenableBeats: string[];
+  fidelityWarnings: string[];
+}
+
+export interface RetellingSourcePromptContext {
+  title: string;
+  author?: string;
+  provider: string;
+  sourceUrl: string;
+  licenseNote: string;
+  canonicalBeatSheet: CanonicalBeatSheet;
 }
 
 export function resolveStoryLanguage(language?: string): SupportedStoryLanguage {
@@ -103,6 +124,7 @@ export function buildStoryPromptContext(
   language?: string,
   age?: number,
   style?: ArtStyleKey,
+  retellingSource?: RetellingSourcePromptContext,
 ): StoryPromptContext {
   const resolvedStyle = style ?? DEFAULT_ART_STYLE;
 
@@ -112,6 +134,7 @@ export function buildStoryPromptContext(
     style: resolvedStyle,
     styleDescription: ART_STYLES[resolvedStyle],
     userPrompt: userPrompt.trim(),
+    retellingSource,
   };
 }
 
@@ -144,12 +167,44 @@ function buildSharedLanguageInstruction(context: StoryPromptContext): string {
   });
 }
 
+function formatBeatSheetList(label: string, values: string[]): string {
+  if (values.length === 0) return `${label}: none specified`;
+  return `${label}:\n${values.map(value => `- ${value}`).join('\n')}`;
+}
+
+function formatCanonicalBeatSheet(source: RetellingSourcePromptContext): string {
+  const beatSheet = source.canonicalBeatSheet;
+  return [
+    formatBeatSheetList('Required characters/roles', beatSheet.requiredCharacters),
+    formatBeatSheetList('Required locations', beatSheet.requiredLocations),
+    formatBeatSheetList('Magical objects and mechanics', beatSheet.magicalObjects),
+    formatBeatSheetList('Required event order', beatSheet.eventOrder),
+    formatBeatSheetList('Forbidden substitutions', beatSheet.forbiddenSubstitutions),
+    formatBeatSheetList('Age-safe softening allowed', beatSheet.softenableBeats),
+    formatBeatSheetList('Fidelity warnings', beatSheet.fidelityWarnings),
+  ].join('\n\n');
+}
+
+function buildSharedRetellingInstruction(context: StoryPromptContext): string | undefined {
+  if (!context.retellingSource) return undefined;
+
+  return renderPromptTemplate(SHARED_RETELLING_INSTRUCTION_TEMPLATE, {
+    source_title: context.retellingSource.title,
+    source_author: context.retellingSource.author ?? 'unknown',
+    source_provider: context.retellingSource.provider,
+    source_url: context.retellingSource.sourceUrl,
+    source_license: context.retellingSource.licenseNote,
+    canonical_beat_sheet: formatCanonicalBeatSheet(context.retellingSource),
+  });
+}
+
 function buildStoryCommonInstruction(context: StoryPromptContext): string {
   return [
     buildScenarioInstruction(context),
     buildSharedAppearanceInstruction(context),
     buildSharedLanguageInstruction(context),
-  ].join('\n\n');
+    buildSharedRetellingInstruction(context),
+  ].filter((section): section is string => Boolean(section)).join('\n\n');
 }
 
 export function buildStorySystemInstruction(context: StoryPromptContext): string {

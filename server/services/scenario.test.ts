@@ -65,8 +65,46 @@ test('story prompt assembly keeps age scenario, appearance, and language rules t
   assert.match(systemInstruction, /keep appearance, clothing, characterSheetPrompt, and imagePrompt visually originalized/i);
   assert.match(draftPrompt, /Target age: 6/);
   assert.match(draftPrompt, /Classic hand-drawn storybook illustration/);
-  assert.match(draftPrompt, /Write an original story unless the user explicitly asks for a retelling\./);
+  assert.match(draftPrompt, /If the system context includes Faithful Public-Domain Retelling Rules, adapt that source faithfully/);
   assert.match(draftPrompt, /A brave bunny follows a lantern through the rain\./);
+});
+
+test('story prompt assembly includes source grounding only for faithful retellings', async () => {
+  const storyPrompt = await import('./storyPrompt.js');
+
+  const context = storyPrompt.buildStoryPromptContext(
+    'Creeaza povestea lui Greuceanu cat mai aproape de original.',
+    'ro',
+    5,
+    'storybook',
+    {
+      title: 'Greuceanu',
+      author: 'Petre Ispirescu',
+      provider: 'wikisource',
+      sourceUrl: 'https://ro.wikisource.org/wiki/Greuceanu',
+      licenseNote: 'Public-domain Romanian folklore text hosted on Wikisource.',
+      canonicalBeatSheet: {
+        requiredCharacters: ['Greuceanu', 'Imparatul Rosu', 'Faurul Pamantului'],
+        requiredLocations: ['curtea imparatului'],
+        magicalObjects: ['soarele si luna furate'],
+        eventOrder: ['zmeii fura lumina', 'Greuceanu infrange zmeii', 'lumina revine'],
+        forbiddenSubstitutions: ['Nu inlocui zmeii cu un singur zmeu prietenos.'],
+        softenableBeats: ['Luptele pot fi non-grafice.'],
+        fidelityWarnings: ['Pastreaza recuperarea soarelui si lunii.'],
+      },
+    },
+  );
+
+  const systemInstruction = storyPrompt.buildStorySystemInstruction(context);
+  const reviewPrompt = storyPrompt.buildScenarioReviewPrompt(context, makeScenario({ targetAge: 5 }));
+
+  assert.match(systemInstruction, /Faithful Public-Domain Retelling Rules/);
+  assert.match(systemInstruction, /Title: Greuceanu/);
+  assert.match(systemInstruction, /Provider: wikisource/);
+  assert.match(systemInstruction, /Faurul Pamantului/);
+  assert.match(systemInstruction, /Nu inlocui zmeii cu un singur zmeu prietenos/);
+  assert.match(reviewPrompt, /For faithful public-domain retellings, prompt fidelity means preserving the canonical source beats/);
+  assert.match(reviewPrompt, /fireflies, a trade, or a new helper who solves the mission/);
 });
 
 test('story prompt assembly preserves the selected illustration style in system rules', async () => {
@@ -194,6 +232,42 @@ test('generateScenarioWithModel uses draft, repair, and review settings in order
   assert.deepEqual(calls[2].options?.thinkingConfig, { thinkingBudget: config.scenarioReviewThinkingBudget });
   assert.match(calls[2].prompt, /Mode: Review this scenario before illustration generation\./);
   assert.ok(scenario.pages.every(page => page.status === 'pending'));
+});
+
+test('generateScenarioWithMetadataWithModel grounds Greuceanu through the source manifest', async () => {
+  const scenarioModule = await import('./scenario.js');
+  const calls: Array<{ prompt: string; systemInstruction: string }> = [];
+
+  const generateJSON = async (
+    prompt: string,
+    systemInstruction: string,
+  ): Promise<any> => {
+    calls.push({ prompt, systemInstruction });
+    if (calls.length === 1) return makeScenario({ targetAge: 5 });
+    return {
+      needsRewrite: false,
+      summary: 'Scenario is already strong.',
+      changedPageNumbers: [],
+      issues: [],
+    };
+  };
+
+  const result = await scenarioModule.generateScenarioWithMetadataWithModel(
+    'Creeaza povestea lui grauceanu cat mai aproape de original.',
+    'ro',
+    5,
+    'storybook',
+    generateJSON as never,
+  );
+
+  assert.equal(result.retellingMode, 'faithful_retelling');
+  assert.equal(result.retellingSource?.title, 'Greuceanu');
+  assert.equal(result.retellingSource?.provider, 'wikisource');
+  assert.equal(result.retellingSource?.sourceCacheHit, true);
+  assert.equal(calls.length, 2);
+  assert.match(calls[0].systemInstruction, /Faithful Public-Domain Retelling Rules/);
+  assert.match(calls[0].systemInstruction, /Faurul Pământului|Faurul Pamantului/);
+  assert.match(calls[0].systemInstruction, /Nu reduce zmeii la un singur zmeu prietenos/);
 });
 
 test('generateScenarioWithModel keeps editorial review internal to the writing phase', async () => {

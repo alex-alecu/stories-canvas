@@ -41,6 +41,13 @@ function makeStoryMeta(overrides: Partial<StoryMeta> = {}): StoryMeta {
   };
 }
 
+function makeGeneratedScenarioResult(scenario = makeScenario()) {
+  return {
+    scenario,
+    retellingMode: 'original' as const,
+  };
+}
+
 async function createStoriesHarness(dataDir: string, configOverrides: Record<string, unknown> = {}) {
   const express = (await import('express')).default;
   const { config } = await import('../config.js');
@@ -131,7 +138,7 @@ test('POST /api/stories stores canonical narrator keys unchanged', async (t) => 
     await fs.rm(dataDir, { recursive: true, force: true });
   });
 
-  t.mock.method(harness.storiesModule.scenarioOps, 'generateScenario', async () => makeScenario());
+  t.mock.method(harness.storiesModule.scenarioOps, 'generateScenarioWithMetadata', async () => makeGeneratedScenarioResult());
   t.mock.method(harness.storiesModule.illustrationOps, 'generateAllCharacterSheets', async () => []);
   t.mock.method(harness.storiesModule.illustrationOps, 'generateAllSceneImages', async () => {});
   t.mock.method(harness.storiesModule.audioOps, 'isElevenLabsConfigured', () => true);
@@ -171,7 +178,7 @@ test('POST /api/stories normalizes legacy narrator keys before persistence', asy
     await fs.rm(dataDir, { recursive: true, force: true });
   });
 
-  t.mock.method(harness.storiesModule.scenarioOps, 'generateScenario', async () => makeScenario());
+  t.mock.method(harness.storiesModule.scenarioOps, 'generateScenarioWithMetadata', async () => makeGeneratedScenarioResult());
   t.mock.method(harness.storiesModule.illustrationOps, 'generateAllCharacterSheets', async () => []);
   t.mock.method(harness.storiesModule.illustrationOps, 'generateAllSceneImages', async () => {});
   t.mock.method(harness.storiesModule.audioOps, 'isElevenLabsConfigured', () => true);
@@ -211,7 +218,7 @@ test('POST /api/stories stores fixed story mode credit costs', async (t) => {
     await fs.rm(dataDir, { recursive: true, force: true });
   });
 
-  t.mock.method(harness.storiesModule.scenarioOps, 'generateScenario', async () => makeScenario());
+  t.mock.method(harness.storiesModule.scenarioOps, 'generateScenarioWithMetadata', async () => makeGeneratedScenarioResult());
   t.mock.method(harness.storiesModule.illustrationOps, 'generateAllCharacterSheets', async () => []);
   t.mock.method(harness.storiesModule.illustrationOps, 'generateAllSceneImages', async () => {});
   t.mock.method(harness.storiesModule.audioOps, 'isElevenLabsConfigured', () => true);
@@ -266,7 +273,7 @@ test('POST /api/stories persists generation inputs and usage totals for filesyst
     }),
   ]);
 
-  t.mock.method(harness.storiesModule.scenarioOps, 'generateScenario', async (
+  t.mock.method(harness.storiesModule.scenarioOps, 'generateScenarioWithMetadata', async (
     _prompt: string,
     _language: string | undefined,
     _age: number | undefined,
@@ -281,8 +288,24 @@ test('POST /api/stories persists generation inputs and usage totals for filesyst
         totalTokens: number;
         usageDetails: Record<string, unknown>;
       }) => void | Promise<void>;
+      onSourceAnalysisUsage?: (usage: {
+        model: string;
+        status: 'succeeded' | 'failed';
+        inputTokens: number;
+        outputTokens: number;
+        totalTokens: number;
+        usageDetails: Record<string, unknown>;
+      }) => void | Promise<void>;
     },
   ) => {
+    await usageCallbacks?.onSourceAnalysisUsage?.({
+      model: 'gemini-3.1-flash-lite',
+      status: 'succeeded',
+      inputTokens: 50,
+      outputTokens: 20,
+      totalTokens: 70,
+      usageDetails: { promptTokenCount: 50, candidatesTokenCount: 20, totalTokenCount: 70 },
+    });
     await usageCallbacks?.onDraftUsage?.({
       model: 'gemini-3.1-pro-preview',
       status: 'succeeded',
@@ -291,7 +314,28 @@ test('POST /api/stories persists generation inputs and usage totals for filesyst
       totalTokens: 200,
       usageDetails: { promptTokenCount: 120, candidatesTokenCount: 80, totalTokenCount: 200 },
     });
-    return scenario;
+    return {
+      scenario,
+      retellingMode: 'faithful_retelling' as const,
+      retellingSource: {
+        title: 'Greuceanu',
+        author: 'Petre Ispirescu',
+        provider: 'wikisource',
+        sourceUrl: 'https://ro.wikisource.org/wiki/Greuceanu',
+        licenseNote: 'Public-domain Romanian folklore text hosted on Wikisource.',
+        sourceTextHash: 'sha256-test-source',
+        sourceCacheHit: true,
+        canonicalBeatSheet: {
+          requiredCharacters: ['Greuceanu', 'Imparatul Rosu', 'Faurul Pamantului'],
+          requiredLocations: ['curtea imparatului'],
+          magicalObjects: ['soarele si luna furate'],
+          eventOrder: ['zmeii fura lumina', 'Greuceanu infrange zmeii', 'lumina revine'],
+          forbiddenSubstitutions: ['Nu inlocui zmeii cu un singur zmeu prietenos.'],
+          softenableBeats: ['Luptele pot fi non-grafice.'],
+          fidelityWarnings: ['Pastreaza recuperarea soarelui si lunii.'],
+        },
+      },
+    };
   });
 
   t.mock.method(harness.storiesModule.illustrationOps, 'generateAllCharacterSheets', async (
@@ -391,12 +435,12 @@ test('POST /api/stories persists generation inputs and usage totals for filesyst
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      prompt: '  Tell a gentle bedtime story about a dragon.  ',
+      prompt: '  Creeaza povestea lui Greuceanu cat mai aproape de original.  ',
       storyMode: 'pro_audio',
       voice: 'corina',
       age: 5,
       style: 'watercolor',
-      language: 'en',
+      language: 'ro',
     }),
   });
 
@@ -407,24 +451,32 @@ test('POST /api/stories persists generation inputs and usage totals for filesyst
     story => story.status === 'completed' && (story.usageTotals?.costUsdMicros ?? 0) > 0,
   );
 
-  assert.equal(savedStory.generationInputs?.prompt, 'Tell a gentle bedtime story about a dragon.');
-  assert.equal(savedStory.generationInputs?.language, 'en');
+  assert.equal(savedStory.generationInputs?.prompt, 'Creeaza povestea lui Greuceanu cat mai aproape de original.');
+  assert.equal(savedStory.generationInputs?.language, 'ro');
   assert.equal(savedStory.generationInputs?.age, 5);
   assert.equal(savedStory.generationInputs?.artStyle, 'watercolor');
   assert.equal(savedStory.generationInputs?.storyMode, 'pro_audio');
   assert.equal(savedStory.generationInputs?.voice, 'corina');
   assert.equal(savedStory.generationInputs?.audioEnabled, true);
   assert.equal(savedStory.generationInputs?.proModel, true);
-  assert.equal(savedStory.usageTotals?.inputTokens, 142);
-  assert.equal(savedStory.usageTotals?.outputTokens, 80);
-  assert.equal(savedStory.usageTotals?.totalTokens, 222);
+  assert.equal(savedStory.generationInputs?.retellingMode, 'faithful_retelling');
+  assert.equal(savedStory.generationInputs?.sourceTitle, 'Greuceanu');
+  assert.equal(savedStory.generationInputs?.sourceProvider, 'wikisource');
+  assert.equal(savedStory.generationInputs?.sourceUrl, 'https://ro.wikisource.org/wiki/Greuceanu');
+  assert.equal(savedStory.generationInputs?.sourceLicense, 'Public-domain Romanian folklore text hosted on Wikisource.');
+  assert.equal(savedStory.generationInputs?.sourceTextHash, 'sha256-test-source');
+  assert.equal(savedStory.generationInputs?.sourceCacheHit, true);
+  assert.equal(savedStory.usageTotals?.inputTokens, 192);
+  assert.equal(savedStory.usageTotals?.outputTokens, 100);
+  assert.equal(savedStory.usageTotals?.totalTokens, 292);
   assert.ok((savedStory.usageTotals?.textCostUsdMicros ?? 0) > 0);
   assert.ok((savedStory.usageTotals?.imageCostUsdMicros ?? 0) > 0);
   assert.ok((savedStory.usageTotals?.audioCostUsdMicros ?? 0) > 0);
 
   const usageEvents = await readUsageEvents(dataDir, body.id);
-  assert.equal(usageEvents.length, 4);
+  assert.equal(usageEvents.length, 5);
   assert.deepEqual(usageEvents.map(event => event.operation), [
+    'source_analysis',
     'scenario_draft',
     'character_sheet',
     'page_image',

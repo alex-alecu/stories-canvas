@@ -7,6 +7,7 @@ import {
   buildStorySystemInstruction,
   type StoryPromptContext,
 } from './storyPrompt.js';
+import { resolveRetellingSource, type ResolvedRetellingSource } from './storySources.js';
 import {
   formatScenarioValidationIssues,
   normalizeScenarioWhitespace,
@@ -106,6 +107,14 @@ export interface ScenarioProgressUpdate {
 type ScenarioProgressCallback = (update: ScenarioProgressUpdate) => void;
 
 export interface ScenarioUsageCallbacks {
+  onSourceAnalysisUsage?: (usage: {
+    model: string;
+    status: StoryUsageStatus;
+    inputTokens: number;
+    outputTokens: number;
+    totalTokens: number;
+    usageDetails: Record<string, unknown>;
+  }) => void | Promise<void>;
   onDraftUsage?: (usage: {
     model: string;
     status: StoryUsageStatus;
@@ -123,6 +132,12 @@ export interface ReviewedScenarioResult {
   scenario: Scenario;
   review: ScenarioReviewResult;
   rewritten: boolean;
+}
+
+export interface GeneratedScenarioResult {
+  scenario: Scenario;
+  retellingMode: 'original' | 'faithful_retelling';
+  retellingSource?: ResolvedRetellingSource;
 }
 
 function finalizeScenario(scenario: Scenario): Scenario {
@@ -264,7 +279,7 @@ async function applyEditorialReview(
   };
 }
 
-export async function generateScenarioWithModel(
+export async function generateScenarioWithMetadataWithModel(
   userPrompt: string,
   language: string | undefined,
   age: number | undefined,
@@ -272,8 +287,15 @@ export async function generateScenarioWithModel(
   generateJSON: GenerateJSONFn,
   _onProgress?: ScenarioProgressCallback,
   usageCallbacks?: ScenarioUsageCallbacks,
-): Promise<Scenario> {
-  const context = buildStoryPromptContext(userPrompt, language, age, style);
+): Promise<GeneratedScenarioResult> {
+  const baseContext = buildStoryPromptContext(userPrompt, language, age, style);
+  const retellingSource = await resolveRetellingSource(baseContext, {
+    generateJSON,
+    onUsage: usageCallbacks?.onSourceAnalysisUsage,
+  });
+  const context = retellingSource
+    ? buildStoryPromptContext(userPrompt, language, age, style, retellingSource)
+    : baseContext;
   const systemInstruction = buildStorySystemInstruction(context);
 
   const draftScenario = await generateDraftScenario(context, systemInstruction, generateJSON, usageCallbacks);
@@ -287,7 +309,33 @@ export async function generateScenarioWithModel(
 
   const reviewedScenario = await applyEditorialReview(context, validatedScenario, generateJSON, usageCallbacks);
 
-  return finalizeScenario(reviewedScenario.scenario);
+  return {
+    scenario: finalizeScenario(reviewedScenario.scenario),
+    retellingMode: retellingSource ? 'faithful_retelling' : 'original',
+    retellingSource,
+  };
+}
+
+export async function generateScenarioWithModel(
+  userPrompt: string,
+  language: string | undefined,
+  age: number | undefined,
+  style: ArtStyleKey | undefined,
+  generateJSON: GenerateJSONFn,
+  onProgress?: ScenarioProgressCallback,
+  usageCallbacks?: ScenarioUsageCallbacks,
+): Promise<Scenario> {
+  const result = await generateScenarioWithMetadataWithModel(
+    userPrompt,
+    language,
+    age,
+    style,
+    generateJSON,
+    onProgress,
+    usageCallbacks,
+  );
+
+  return result.scenario;
 }
 
 export async function reviewScenarioWithModel(
@@ -333,6 +381,25 @@ export async function generateScenario(
   usageCallbacks?: ScenarioUsageCallbacks,
 ): Promise<Scenario> {
   return generateScenarioWithModel(userPrompt, language, age, style, gemini.generateJSON, onProgress, usageCallbacks);
+}
+
+export async function generateScenarioWithMetadata(
+  userPrompt: string,
+  language?: string,
+  age?: number,
+  style?: ArtStyleKey,
+  onProgress?: ScenarioProgressCallback,
+  usageCallbacks?: ScenarioUsageCallbacks,
+): Promise<GeneratedScenarioResult> {
+  return generateScenarioWithMetadataWithModel(
+    userPrompt,
+    language,
+    age,
+    style,
+    gemini.generateJSON,
+    onProgress,
+    usageCallbacks,
+  );
 }
 
 export async function reviewScenario(

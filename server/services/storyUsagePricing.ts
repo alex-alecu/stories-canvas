@@ -19,7 +19,9 @@ interface ElevenLabsPrice {
 const GEMINI_TEXT_PRICING: Record<string, GeminiTextPrice> = {
   'gemini-3-pro-preview': { inputMicrosPerMillion: 2 * USD_MICROS_PER_USD, outputMicrosPerMillion: 12 * USD_MICROS_PER_USD },
   'gemini-3.1-pro-preview': { inputMicrosPerMillion: 2 * USD_MICROS_PER_USD, outputMicrosPerMillion: 12 * USD_MICROS_PER_USD },
+  'gemini-3.1-flash-lite': { inputMicrosPerMillion: 250_000, outputMicrosPerMillion: 1.5 * USD_MICROS_PER_USD },
   'gemini-2.5-pro': { inputMicrosPerMillion: 2 * USD_MICROS_PER_USD, outputMicrosPerMillion: 12 * USD_MICROS_PER_USD },
+  'gemini-2.5-flash-lite': { inputMicrosPerMillion: 100_000, outputMicrosPerMillion: 400_000 },
 };
 
 const GEMINI_IMAGE_PRICING: Record<string, GeminiImagePrice> = {

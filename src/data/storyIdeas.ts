@@ -21,11 +21,11 @@ const storyIdeasByLanguage: Partial<Record<Language, string[]>> = {
   ],
 
   ro: [
-    'Un fecior de împărat pleacă în lume să găsească Tinerețe fără Bătrânețe și Viață fără de Moarte. Călătorește prin tărâmuri fermecate, învinge zmei și descoperă că timpul este cel mai de preț dar al vieții.',
-    'Harap-Alb, fiul unui împărat, pornește într-o călătorie plină de încercări. Ajutat de Sfânta Duminică și de prieteni magici, trebuie să învingă pe Spân și să dovedească că este demn de tronul tatălui său.',
-    'Greuceanu, un viteaz născut din puteri magice, se luptă cu zmeii care au furat soarele și luna de pe cer. Cu curaj și iscusință, el aduce lumina înapoi în lume și salvează pe toți din întuneric.',
+    'Adaptează fidel basmul public-domain „Tinerețe fără Bătrânețe și Viață fără de Moarte” al lui Petre Ispirescu, păstrând dorința prințului, tărâmurile fermecate, interdicția încălcată și dorul de casă.',
+    'Adaptează fidel basmul public-domain „Povestea lui Harap-Alb” al lui Ion Creangă: drumul fiului de crai, Spânul, Sfânta Duminică, ajutoarele năzdrăvane, probele și recunoașterea finală.',
+    'Adaptează fidel basmul public-domain „Greuceanu” al lui Petre Ispirescu: Împăratul Roșu, Faurul Pământului, zmeii care au furat soarele și luna, capcanele zmeoaicelor și întoarcerea luminii în lume.',
     'Făt-Frumos pleacă să o salveze pe Ileana Cosânzeana, răpită de un zmeu cu șapte capete. Călare pe un cal năzdrăvan, traversează păduri fermecate și înfrânge răul cu puterea dragostei și a curajului.',
-    'Prâslea cel Voinic și Merele de Aur pornește să afle cine fură merele fermecate din grădina tatălui său. Coboară în adâncul pământului și descoperă un tărâm ascuns unde trebuie să învingă trei zmei.',
+    'Adaptează fidel basmul public-domain „Prâslea cel voinic și merele de aur” al lui Petre Ispirescu: paza merelor, coborârea pe tărâmul celălalt, zmeii, fetele de împărat și întoarcerea cu dovada.',
     'O capră cu trei iezi îi învață pe micuți să nu deschidă ușa străinilor. Lupul cel viclean reușește să îi păcălească, dar mama capră face totul pentru a-și salva copiii dintr-o situație periculoasă.',
     'Păcală, cel mai deștept și mai poznș țăran din sat, își păcălește vecinii cu glume și șmecherii. Dar lecțiile lui sunt mereu despre dreptate, generozitate și cum să râzi de prostia celor lacomi.',
     'Un pescar sărac găsește un pește de aur care îi îndeplinește orice dorință. Dar nevasta lui lacomă cere din ce în ce mai mult, până când totul se întoarce de unde a plecat.',

@@ -259,6 +259,7 @@ export async function updateStoryScenario(
     renderedScenarioRevision?: number;
     storyMode?: StoryMode;
     creditCost?: number;
+    generationInputs?: StoryGenerationInputs;
   } = {},
 ): Promise<void> {
   const supabase = getSupabase();
@@ -281,6 +282,10 @@ export async function updateStoryScenario(
 
   if (options.creditCost !== undefined) {
     updatePayload.credit_cost = options.creditCost;
+  }
+
+  if (options.generationInputs !== undefined) {
+    updatePayload.generation_inputs = options.generationInputs;
   }
 
   const { error } = await supabase

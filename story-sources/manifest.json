@@ -1,0 +1,125 @@
+{
+  "version": 1,
+  "sources": [
+    {
+      "id": "ro-greuceanu",
+      "language": "ro",
+      "title": "Greuceanu",
+      "author": "Petre Ispirescu",
+      "aliases": [
+        "greuceanu",
+        "grauceanu",
+        "povestea lui greuceanu",
+        "basmul greuceanu"
+      ],
+      "provider": "wikisource",
+      "sourceUrl": "https://ro.wikisource.org/wiki/Greuceanu",
+      "licenseNote": "Public-domain Romanian folklore text collected by Petre Ispirescu, hosted on Wikisource.",
+      "canonicalBeatSheet": {
+        "requiredCharacters": [
+          "Greuceanu",
+          "Împăratul Roșu",
+          "fratele lui Greuceanu sau Vlaicu",
+          "Faurul Pământului",
+          "zmeii",
+          "zmeoaicele"
+        ],
+        "requiredLocations": [
+          "curtea Împăratului Roșu",
+          "făurăria Faurului Pământului",
+          "taramul zmeilor",
+          "Codru Verde",
+          "drumul de intoarcere"
+        ],
+        "magicalObjects": [
+          "soarele si luna furate",
+          "palosul lui Greuceanu",
+          "semnul cutitului sau al obiectului lasat la rascruce",
+          "cheia care deschide inchisoarea astrilor",
+          "capcanele zmeoaicelor"
+        ],
+        "eventOrder": [
+          "Imparatul Rosu anunta ca zmeii au furat soarele si luna si promite rasplata celui care le aduce inapoi.",
+          "Greuceanu se infatiseaza la imparat si porneste in cautare, insotit de fratele sau.",
+          "Greuceanu cere ajutorul Faurului Pamantului, care ii pregateste arma si il sfatuieste.",
+          "La rascruce, Greuceanu lasa un semn pentru fratele sau si merge singur spre zmei.",
+          "Greuceanu se lupta pe rand cu zmeii, iar confruntarile escaladeaza pana la zmeul cel mare.",
+          "Dupa infrangerea zmeului cel mare, Greuceanu afla unde sunt inchise soarele si luna si obtine cheia.",
+          "Greuceanu elibereaza soarele si luna si le arunca inapoi pe cer.",
+          "Pe drumul de intoarcere, zmeoaicele incearca sa-l omoare prin capcane prefacute in pom, gradina, apa sau alte ispite.",
+          "Greuceanu dejuca toate capcanele si se intoarce cu dovada izbandei.",
+          "Ordinea lumii este refacuta, iar Greuceanu primeste recunoasterea promisa."
+        ],
+        "forbiddenSubstitutions": [
+          "Nu reduce zmeii la un singur zmeu prietenos sau negociabil.",
+          "Nu inlocui lupta si istetimea lui Greuceanu cu un schimb de obiecte stralucitoare.",
+          "Nu inventa un companion animal care rezolva misiunea in locul lui Greuceanu.",
+          "Nu elimina Faurul Pamantului, fratele si capcanele zmeoaicelor intr-o retelling fidela."
+        ],
+        "softenableBeats": [
+          "Executiile, decapitarile si sangele pot fi formulate ca infrangeri, alungari sau semne magice pentru copii mici.",
+          "Scenele de lupta pot ramane intense, dar non-grafice.",
+          "Capcanele zmeoaicelor pot fi prezentate ca vraji primejdioase, nu ca violenta explicita."
+        ],
+        "fidelityWarnings": [
+          "Povestea trebuie sa pastreze mecanica originala: zmeii fura astrii, Greuceanu ii infrange, afla cheia, elibereaza astrii si scapa de capcanele zmeoaicelor.",
+          "Finalul trebuie sa refaca lumina lumii si sa confirme izbanda lui Greuceanu, nu doar sa ofere o morala generica despre bunatate."
+        ]
+      }
+    },
+    {
+      "id": "ro-praslea",
+      "language": "ro",
+      "title": "Praslea cel voinic si merele de aur",
+      "author": "Petre Ispirescu",
+      "aliases": [
+        "praslea",
+        "praslea cel voinic",
+        "merele de aur"
+      ],
+      "provider": "wikisource",
+      "sourceUrl": "https://ro.wikisource.org/wiki/Pr%C3%A2slea_cel_voinic_%C8%99i_merele_de_aur",
+      "licenseNote": "Public-domain Romanian folklore text collected by Petre Ispirescu, hosted on Wikisource."
+    },
+    {
+      "id": "ro-tinerete-fara-batranete",
+      "language": "ro",
+      "title": "Tinerete fara batranete si viata fara de moarte",
+      "author": "Petre Ispirescu",
+      "aliases": [
+        "tinerete fara batranete",
+        "viata fara de moarte"
+      ],
+      "provider": "wikisource",
+      "sourceUrl": "https://ro.wikisource.org/wiki/Tinere%C8%9Be_f%C4%83r%C4%83_b%C4%83tr%C3%A2ne%C8%9Be_%C8%99i_via%C8%9B%C4%83_f%C4%83r%C4%83_de_moarte",
+      "licenseNote": "Public-domain Romanian folklore text collected by Petre Ispirescu, hosted on Wikisource."
+    },
+    {
+      "id": "ro-harap-alb",
+      "language": "ro",
+      "title": "Povestea lui Harap-Alb",
+      "author": "Ion Creanga",
+      "aliases": [
+        "harap alb",
+        "harap-alb",
+        "povestea lui harap alb"
+      ],
+      "provider": "wikisource",
+      "sourceUrl": "https://ro.wikisource.org/wiki/Povestea_lui_Harap-Alb",
+      "licenseNote": "Public-domain Romanian literary fairy tale by Ion Creanga, hosted on Wikisource."
+    },
+    {
+      "id": "en-alice",
+      "language": "en",
+      "title": "Alice's Adventures in Wonderland",
+      "author": "Lewis Carroll",
+      "aliases": [
+        "alice in wonderland",
+        "alice's adventures in wonderland"
+      ],
+      "provider": "project_gutenberg",
+      "sourceUrl": "https://www.gutenberg.org/files/11/11-0.txt",
+      "licenseNote": "Public-domain Project Gutenberg text in the United States."
+    }
+  ]
+}

@@ -51,6 +51,7 @@ export const config = {
   scenarioReviewTemperature: numberEnv('SCENARIO_REVIEW_TEMPERATURE', 0.2, Number.parseFloat),
   scenarioThinkingBudget: numberEnv('SCENARIO_THINKING_BUDGET', 1024, raw => Number.parseInt(raw, 10)),
   scenarioReviewThinkingBudget: numberEnv('SCENARIO_REVIEW_THINKING_BUDGET', 1024, raw => Number.parseInt(raw, 10)),
+  sourceAnalysisModel: process.env.SOURCE_ANALYSIS_MODEL || 'gemini-3.1-flash-lite',
 
   // Supabase configuration
   supabaseUrl,
