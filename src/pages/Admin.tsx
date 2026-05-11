@@ -388,11 +388,11 @@ export default function Admin() {
                             <div className="flex items-center justify-between gap-3">
                               <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{getLedgerReasonLabel(entry.reason, t)}</p>
                               <span className={`text-sm font-semibold ${entry.delta > 0 ? 'text-green-600 dark:text-green-300' : 'text-red-600 dark:text-red-300'}`}>
-                                {entry.delta > 0 ? '+' : ''}{entry.delta}
+                                {entry.delta > 0 ? '+' : '-'}{formatCredits(Math.abs(entry.delta), t)}
                               </span>
                             </div>
                             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                              {t.billingBalanceAfter}: {entry.balanceAfter} · {formatLocalizedDate(entry.createdAt, language, t.adminNever)}
+                              {t.billingBalanceAfter}: {formatCredits(entry.balanceAfter, t)} · {formatLocalizedDate(entry.createdAt, language, t.adminNever)}
                             </p>
                             {entry.note && (
                               <p className="mt-2 text-xs text-gray-600 dark:text-gray-300">{entry.note}</p>

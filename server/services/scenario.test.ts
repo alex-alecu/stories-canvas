@@ -12,7 +12,11 @@ function makeValidPages(): Page[] {
     { pageNumber: 3, text: 'Mia ran after it, but her first jump was too small.', imagePrompt: 'Prompt 3', characters: ['Mia'], status: 'pending' },
     { pageNumber: 4, text: 'She asked Pip the rabbit for help, but the branch still shook.', imagePrompt: 'Prompt 4', characters: ['Mia', 'Pip'], status: 'pending' },
     { pageNumber: 5, text: 'Then Mia stacked two boxes, climbed carefully, and reached the knot.', imagePrompt: 'Prompt 5', characters: ['Mia', 'Pip'], status: 'pending' },
-    { pageNumber: 6, text: 'Back on the grass, Mia flew the kite again and shared the breeze with Pip.', imagePrompt: 'Prompt 6', characters: ['Mia', 'Pip'], status: 'pending' },
+    { pageNumber: 6, text: 'The kite fluttered free, but its tail had twisted into a loop.', imagePrompt: 'Prompt 6', characters: ['Mia', 'Pip'], status: 'pending' },
+    { pageNumber: 7, text: 'Pip held the string while Mia smoothed every ribbon flat.', imagePrompt: 'Prompt 7', characters: ['Mia', 'Pip'], status: 'pending' },
+    { pageNumber: 8, text: 'They counted to three and gave the kite a gentle toss.', imagePrompt: 'Prompt 8', characters: ['Mia', 'Pip'], status: 'pending' },
+    { pageNumber: 9, text: 'This time it climbed high and painted loops in the sky.', imagePrompt: 'Prompt 9', characters: ['Mia', 'Pip'], status: 'pending' },
+    { pageNumber: 10, text: 'Back on the grass, Mia shared the breeze with Pip.', imagePrompt: 'Prompt 10', characters: ['Mia', 'Pip'], status: 'pending' },
   ];
 }
 
@@ -178,12 +182,13 @@ test('shared age ranges expose only the grouped UI choices', async () => {
   ]);
 });
 
-test('story generator template keeps the reusable under-10 prompt guidance', async () => {
+test('story generator template keeps the reusable exact-10-page prompt guidance', async () => {
   const storyPrompt = await import('./storyPrompt.js');
 
   assert.match(storyPrompt.STORY_GENERATOR_TEMPLATE, /Write an original \{\{language\}\} story for children age \{\{age\}\}\./);
   assert.match(storyPrompt.STORY_GENERATOR_TEMPLATE, /Center it on one clear problem, quest, or test\./);
   assert.match(storyPrompt.STORY_GENERATOR_TEMPLATE, /Keep danger gentle and non-graphic/);
+  assert.match(storyPrompt.STORY_GENERATOR_TEMPLATE, /\{\{output_contract\}\}/);
   assert.match(storyPrompt.STORY_GENERATOR_TEMPLATE, /\{\{user_prompt\}\}/);
 });
 

@@ -7,6 +7,7 @@ Open on a memorable image, use repetition or a rule-of-three pattern, and let th
 Before answering, silently plan the beat sheet page by page so the arc lands cleanly.
 Make the inciting problem happen early, include at least one failed attempt, and reserve the last page for the emotional resolution.
 For faithful retellings, the failed attempt, climax, and resolution must come from the source beat sheet, not from a newly invented shortcut.
+Return exactly 10 pages, numbered 1 through 10.
 Output only the final JSON.
 
 User story request:

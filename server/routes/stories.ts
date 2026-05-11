@@ -8,7 +8,8 @@ import { generateScenario, generateScenarioWithMetadata, type GeneratedScenarioR
 import { generateAllCharacterSheets } from '../services/characterSheet.js';
 import { finishTrackedGeneration, getTrackedGeneration, isGenerationActive, startTrackedGeneration } from '../services/generationRegistry.js';
 import { generateAllSceneImages, retryFailedSceneImages } from '../services/sceneGenerator.js';
-import { generateAllPageAudio, retryMissingAudio, isElevenLabsConfigured } from '../services/elevenlabs.js';
+import { generateAllPageAudio, generatePageAudio, retryMissingAudio, savePageAudio, isElevenLabsConfigured } from '../services/elevenlabs.js';
+import { reviewPageText } from '../services/pageTextReview.js';
 import {
   consumeCredits,
   getUserCreditBalance,
@@ -23,6 +24,9 @@ import type {
   CreateStoryRequest,
   GenerateAudioResponse,
   GenerationProgress,
+  Page,
+  RegeneratePageAudioResponse,
+  RegeneratePageImageResponse,
   RegenerateAssetsResponse,
   RetryStoryResponse,
   Scenario,
@@ -37,13 +41,25 @@ import type {
   StoryAssets,
   VoiceKey,
 } from '../../shared/types.js';
-import { DEFAULT_AGE, DEFAULT_ART_STYLE, getStoryModeCredits, getVoiceName, isStoryMode, isStoryReaction, normalizeVoiceKey } from '../../shared/types.js';
+import {
+  DEFAULT_AGE,
+  DEFAULT_ART_STYLE,
+  getStoryAudioCreditCost,
+  getStoryCreditCost,
+  getStoryImageCreditCost,
+  getStoryImagePageCreditCost,
+  getVoiceName,
+  isStoryMode,
+  isStoryReaction,
+  normalizeVoiceKey,
+  roundCreditAmount,
+} from '../../shared/types.js';
 import { MEDIA_CACHE_CONTROL, getPageAudioFilename, getPageImageFilename, pageHasAudio } from '../utils/storyMedia.js';
 import { buildStoryGenerationInputs, recordStoryUsage, type StoryUsageStorage } from '../services/storyUsage.js';
+import { getScenarioTextRules, OVERLAY_SAFE_MAX_CHARS } from '../services/scenarioValidation.js';
 
 const router = Router();
 const SSE_CLOSE_DELAY_MS = 2_000;
-const ADD_AUDIO_CREDIT_COST = 1;
 
 export const scenarioOps = {
   generateScenario,
@@ -59,8 +75,14 @@ export const illustrationOps = {
 
 export const audioOps = {
   generateAllPageAudio,
+  generatePageAudio,
   retryMissingAudio,
+  savePageAudio,
   isElevenLabsConfigured,
+};
+
+export const pageTextReviewOps = {
+  reviewPageText,
 };
 
 export const storyStyleOps = {
@@ -312,15 +334,23 @@ function storyAssetsAreStale(story: Pick<StoryMeta, 'scenario' | 'scenarioRevisi
 }
 
 function toStorySummary(story: StoryMeta) {
+  const firstPageRevision = story.scenario?.pages?.[0]?.imageRevision;
   const coverImage = story.coverImage ?? getCoverImageUrl(story);
+  const coverImageSources = story.coverImageSources
+    ? {
+        thumb: story.coverImageSources.thumb ? appendMediaRevision(story.coverImageSources.thumb, firstPageRevision) : undefined,
+        card: story.coverImageSources.card ? appendMediaRevision(story.coverImageSources.card, firstPageRevision) : undefined,
+        full: story.coverImageSources.full ? appendMediaRevision(story.coverImageSources.full, firstPageRevision) : undefined,
+      }
+    : undefined;
   return {
     id: story.id,
     prompt: story.prompt,
     status: story.status,
     createdAt: story.createdAt,
     title: story.scenario?.title,
-    coverImage,
-    coverImageSources: story.coverImageSources,
+    coverImage: coverImage ? appendMediaRevision(coverImage, firstPageRevision) : undefined,
+    coverImageSources,
     totalPages: story.scenario?.pages?.length ?? 0,
     completedPages: story.scenario?.pages?.filter(p => p.status === 'completed').length ?? 0,
     isPublic: story.isPublic,
@@ -435,8 +465,100 @@ function cloneScenarioForAssetRefresh(scenario: Scenario): Scenario {
       imagePrompt: page.imagePrompt,
       characters: [...page.characters],
       status: 'pending',
+      imageRevision: page.imageRevision,
+      audioRevision: page.audioRevision,
     })),
   };
+}
+
+function normalizePageRevision(value: unknown): number {
+  return typeof value === 'number' && Number.isInteger(value) && value > 0 ? value : 0;
+}
+
+function incrementPageRevision(value: unknown): number {
+  return normalizePageRevision(value) + 1;
+}
+
+function appendMediaRevision(url: string, revision: unknown): string {
+  const normalizedRevision = normalizePageRevision(revision);
+  if (normalizedRevision <= 0) return url;
+  return `${url}${url.includes('?') ? '&' : '?'}v=${normalizedRevision}`;
+}
+
+function findScenarioPage(scenario: Scenario, pageNumber: number): Page | undefined {
+  return scenario.pages.find(page => page.pageNumber === pageNumber);
+}
+
+function cloneScenarioWithUpdatedPage(
+  scenario: Scenario,
+  pageNumber: number,
+  update: (page: Page) => Page,
+): Scenario {
+  return {
+    ...scenario,
+    pages: scenario.pages.map(page => (
+      page.pageNumber === pageNumber ? update({ ...page, characters: [...page.characters] }) : page
+    )),
+  };
+}
+
+function getCompletedPageCount(scenario: Scenario): number {
+  return scenario.pages.filter(page => page.status === 'completed').length;
+}
+
+function getFailedPageNumbers(scenario: Scenario): number[] {
+  return scenario.pages.filter(page => page.status === 'failed').map(page => page.pageNumber);
+}
+
+async function persistScenarioAfterPageMutation(storyId: string, story: StoryMeta, scenario: Scenario): Promise<void> {
+  await updateStoryScenario(storyId, scenario, 'completed', story.prompt, {
+    voice: story.voice,
+    artStyle: story.artStyle,
+    language: story.language,
+    scenarioRevision: getScenarioRevision(story),
+    renderedScenarioRevision: getRenderedScenarioRevision(story),
+    storyMode: story.storyMode,
+    creditCost: story.creditCost,
+    generationInputs: story.generationInputs,
+  });
+
+  if (config.useSupabase) {
+    await storageOps.updateStoryProgress(storyId, {
+      status: 'completed',
+      completed_pages: getCompletedPageCount(scenario),
+      failed_pages: getFailedPageNumbers(scenario),
+    });
+  }
+}
+
+async function refundRegenerationCharge(userId: string | undefined, storyId: string, amount: number, note: string): Promise<void> {
+  if (!config.useSupabase || !userId || amount <= 0) return;
+
+  try {
+    await billingOps.grantCredits(userId, amount, {
+      reason: 'story_refund',
+      storyId,
+      note,
+    });
+  } catch (error) {
+    console.error(`Failed to refund regeneration charge for ${storyId}:`, error);
+  }
+}
+
+function getSafeStoryMode(story: Pick<StoryMeta, 'storyMode'>): StoryMode {
+  return story.storyMode ?? 'fast';
+}
+
+function getPageTextValidationError(text: string, targetAge: number): string | null {
+  if (!text) return 'Page text cannot be empty';
+  const textRules = getScenarioTextRules(targetAge);
+  if (text.length > textRules.maxChars) {
+    return `Page text must be ${textRules.maxChars} characters or less for this age`;
+  }
+  if (text.length > OVERLAY_SAFE_MAX_CHARS) {
+    return `Page text must be ${OVERLAY_SAFE_MAX_CHARS} characters or less`;
+  }
+  return null;
 }
 
 function buildInitialProgress(storyId: string, story: StoryMeta): GenerationProgress {
@@ -773,7 +895,7 @@ router.post('/', optionalAuth, async (req: Request, res: Response) => {
     const storyAge = typeof age === 'number' && age > 0 && age <= 12 ? age : DEFAULT_AGE;
     const storyStyle = storyStyleOps.resolveArtStyle(typeof style === 'string' ? style : undefined);
     const storyMode = resolveRequestedStoryMode(request);
-    const creditCost = getStoryModeCredits(storyMode);
+    const creditCost = getStoryCreditCost(storyMode);
     const storyVoice = storyMode === 'pro_audio'
       ? normalizeVoiceKey(typeof voice === 'string' ? voice : undefined)
       : undefined;
@@ -887,7 +1009,7 @@ async function runGenerationPipeline(
   age?: number,
   style?: ArtStyleKey,
   storyMode: StoryMode = 'fast',
-  creditCost = getStoryModeCredits(storyMode),
+  creditCost = getStoryCreditCost(storyMode),
   voice?: VoiceKey,
   pro = storyModeUsesProModel(storyMode),
 ): Promise<void> {
@@ -1234,24 +1356,64 @@ router.post('/:id/regenerate-assets', optionalAuth, async (req: Request, res: Re
       return;
     }
 
+    const pageCount = story.scenario.pages.length;
+    const regenerationCost = roundCreditAmount(
+      getStoryImageCreditCost(getSafeStoryMode(story), pageCount)
+        + (story.voice ? getStoryAudioCreditCost(pageCount) : 0),
+    );
+    let availableCredits = 0;
+    if (config.useSupabase) {
+      try {
+        const charge = await billingOps.consumeCredits(req.authUser!.id, regenerationCost, {
+          reason: 'story_regenerate_assets',
+          storyId,
+          note: `pages:${pageCount}`,
+        });
+        availableCredits = charge.available_credits;
+      } catch (error) {
+        if (error instanceof InsufficientCreditsError) {
+          const balance = await billingOps.getUserCreditBalance(req.authUser!.id).catch(() => ({ availableCredits: 0 }));
+          res.status(402).json({
+            error: 'Not enough credits to regenerate this story',
+            requiredCredits: regenerationCost,
+            availableCredits: balance.availableCredits,
+          });
+          return;
+        }
+        throw error;
+      }
+    }
+
     const refreshedScenario = cloneScenarioForAssetRefresh(story.scenario);
-    await updateStoryScenario(storyId, refreshedScenario, 'generating_characters', story.prompt, {
-      voice: story.voice,
-      artStyle: story.artStyle,
-      language: story.language,
-      scenarioRevision: getScenarioRevision(story),
-      renderedScenarioRevision: getRenderedScenarioRevision(story),
-    });
+    try {
+      await updateStoryScenario(storyId, refreshedScenario, 'generating_characters', story.prompt, {
+        voice: story.voice,
+        artStyle: story.artStyle,
+        language: story.language,
+        scenarioRevision: getScenarioRevision(story),
+        renderedScenarioRevision: getRenderedScenarioRevision(story),
+      });
+    } catch (error) {
+      await refundRegenerationCharge(
+        req.authUser?.id,
+        storyId,
+        regenerationCost,
+        'Automatic refund after asset regeneration setup failed.',
+      );
+      throw error;
+    }
 
     res.json({
       status: 'generating_characters',
+      chargedCredits: regenerationCost,
+      availableCredits,
     } as RegenerateAssetsResponse);
 
     runRegenerateAssetsPipeline(storyId, {
       ...story,
       status: 'generating_characters',
       scenario: refreshedScenario,
-    }).catch(error => {
+    }, regenerationCost, req.authUser?.id).catch(error => {
       console.error(`Asset regeneration pipeline failed for ${storyId}:`, error);
     });
   } catch (error) {
@@ -1260,7 +1422,12 @@ router.post('/:id/regenerate-assets', optionalAuth, async (req: Request, res: Re
   }
 });
 
-async function runRegenerateAssetsPipeline(storyId: string, story: StoryMeta): Promise<void> {
+async function runRegenerateAssetsPipeline(
+  storyId: string,
+  story: StoryMeta,
+  chargedCredits = 0,
+  chargedUserId?: string,
+): Promise<void> {
   const controller = startTrackedGeneration(storyId);
   const { signal } = controller;
   const usageRecorder = createUsageRecorder(storyId, story.userId, 'regenerate_assets');
@@ -1444,6 +1611,13 @@ async function runRegenerateAssetsPipeline(storyId: string, story: StoryMeta): P
     const isCancelled = signal.aborted;
     const status = isCancelled ? 'completed' : 'failed';
     console.error(`Asset regeneration pipeline ${isCancelled ? 'cancelled' : 'failed'} for ${storyId}:`, isCancelled ? 'cancelled by user' : error);
+
+    await refundRegenerationCharge(
+      chargedUserId,
+      storyId,
+      chargedCredits,
+      `Automatic refund after asset regeneration ${isCancelled ? 'was cancelled' : 'failed'}.`,
+    );
 
     try {
       await updateStoryStatus(storyId, status);
@@ -1786,26 +1960,27 @@ router.post('/:id/generate-audio', optionalAuth, async (req: Request, res: Respo
       return;
     }
 
+    const creditCost = getStoryAudioCreditCost(pagesNeedingAudio.length);
     const controller = startTrackedGeneration(storyId);
     let availableCredits = 0;
     let chargedCredits = 0;
 
     if (config.useSupabase) {
       try {
-        const charge = await billingOps.consumeCredits(req.authUser.id, ADD_AUDIO_CREDIT_COST, {
+        const charge = await billingOps.consumeCredits(req.authUser.id, creditCost, {
           reason: 'story_add_audio',
           storyId,
           note: requestedVoice,
         });
         availableCredits = charge.available_credits;
-        chargedCredits = ADD_AUDIO_CREDIT_COST;
+        chargedCredits = creditCost;
       } catch (error) {
         if (error instanceof InsufficientCreditsError) {
           const balance = await billingOps.getUserCreditBalance(req.authUser.id).catch(() => ({ availableCredits: 0 }));
           finishTrackedGeneration(storyId);
           res.status(402).json({
             error: 'Not enough credits to add narration',
-            requiredCredits: ADD_AUDIO_CREDIT_COST,
+            requiredCredits: creditCost,
             availableCredits: balance.availableCredits,
           });
           return;
@@ -1963,6 +2138,460 @@ async function runAudioGenerationPipeline(
   }
 }
 
+// POST /api/stories/:id/pages/:pageNumber/regenerate-image - Regenerate one page image from owner feedback
+router.post('/:id/pages/:pageNumber/regenerate-image', optionalAuth, async (req: Request, res: Response) => {
+  try {
+    if (config.useSupabase && !req.authUser) {
+      res.status(401).json({ error: 'Authentication required' });
+      return;
+    }
+
+    const storyId = req.params.id as string;
+    const pageNumber = Number.parseInt(req.params.pageNumber as string, 10);
+    if (!Number.isInteger(pageNumber) || pageNumber <= 0) {
+      res.status(400).json({ error: 'A valid page number is required' });
+      return;
+    }
+
+    const story = await getStory(storyId);
+    if (!story) {
+      res.status(404).json({ error: 'Story not found' });
+      return;
+    }
+
+    if (config.useSupabase && story.userId !== req.authUser?.id) {
+      res.status(403).json({ error: 'Forbidden' });
+      return;
+    }
+
+    if (story.status !== 'completed') {
+      res.status(400).json({ error: 'Story must be completed to regenerate a page image' });
+      return;
+    }
+
+    if (!story.scenario) {
+      res.status(400).json({ error: 'Story has no scenario data' });
+      return;
+    }
+
+    const page = findScenarioPage(story.scenario, pageNumber);
+    if (!page) {
+      res.status(404).json({ error: 'Page not found' });
+      return;
+    }
+
+    if (isGenerationActive(storyId)) {
+      res.status(409).json({ error: 'A generation is already in progress' });
+      return;
+    }
+
+    const feedback = typeof req.body?.feedback === 'string'
+      ? req.body.feedback.replace(/\s+/g, ' ').trim()
+      : '';
+    if (!feedback) {
+      res.status(400).json({ error: 'Feedback is required' });
+      return;
+    }
+    if (feedback.length > 800) {
+      res.status(400).json({ error: 'Feedback must be 800 characters or less' });
+      return;
+    }
+
+    const review = await pageTextReviewOps.reviewPageText({
+      text: feedback,
+      targetAge: story.scenario.targetAge,
+      language: story.language,
+      purpose: 'image_feedback',
+    });
+    if (!review.allowed) {
+      res.status(400).json({
+        error: review.explanation || 'Feedback is not appropriate for a children story',
+        reasonCode: review.reasonCode,
+      });
+      return;
+    }
+
+    const chargedCredits = roundCreditAmount(getStoryImagePageCreditCost(getSafeStoryMode(story)));
+    let availableCredits = 0;
+    if (config.useSupabase) {
+      try {
+        const charge = await billingOps.consumeCredits(req.authUser!.id, chargedCredits, {
+          reason: 'story_regenerate_image',
+          storyId,
+          note: `page:${pageNumber}`,
+        });
+        availableCredits = charge.available_credits;
+      } catch (error) {
+        if (error instanceof InsufficientCreditsError) {
+          const balance = await billingOps.getUserCreditBalance(req.authUser!.id).catch(() => ({ availableCredits: 0 }));
+          res.status(402).json({
+            error: 'Not enough credits to regenerate this image',
+            requiredCredits: chargedCredits,
+            availableCredits: balance.availableCredits,
+          });
+          return;
+        }
+        throw error;
+      }
+    }
+
+    const controller = startTrackedGeneration(storyId);
+    res.json({
+      status: 'generating_images',
+      pageNumber,
+      chargedCredits,
+      availableCredits,
+    } as RegeneratePageImageResponse);
+
+    runRegeneratePageImagePipeline(storyId, story, pageNumber, feedback, chargedCredits, req.authUser?.id, controller)
+      .catch(error => {
+        console.error(`Page image regeneration pipeline failed for ${storyId} page ${pageNumber}:`, error);
+      });
+  } catch (error) {
+    console.error('Failed to start page image regeneration:', error);
+    res.status(500).json({ error: 'Failed to start page image regeneration' });
+  }
+});
+
+async function runRegeneratePageImagePipeline(
+  storyId: string,
+  story: StoryMeta,
+  pageNumber: number,
+  feedback: string,
+  chargedCredits: number,
+  chargedUserId: string | undefined,
+  controller = startTrackedGeneration(storyId),
+): Promise<void> {
+  const { signal } = controller;
+  const usageRecorder = createUsageRecorder(storyId, story.userId, 'regenerate_page_image');
+
+  try {
+    if (!story.scenario) throw new Error('Story has no scenario data');
+
+    const styleDescription = storyStyleOps.getStoryArtStyleDescription(story);
+    const pro = getSafeStoryMode(story) !== 'fast';
+    const scenarioForGeneration = cloneScenarioWithUpdatedPage(story.scenario, pageNumber, page => ({
+      ...page,
+      imagePrompt: `${page.imagePrompt}\n\nUser feedback for this regeneration: ${feedback}`,
+    }));
+
+    await updateStoryStatus(storyId, 'generating_images');
+    await sendProgressUpdate(storyId, {
+      storyId,
+      status: 'generating_images',
+      currentPhase: 'Regenerating page image...',
+      completedPages: 0,
+      totalPages: 1,
+      failedPages: [],
+      message: `Regenerating image for page ${pageNumber}...`,
+      pageNumber,
+      pageStatus: 'generating',
+    });
+
+    let completedPages = 0;
+    const failedPages: number[] = [];
+    let lastImageFailureMessage: string | undefined;
+
+    const regeneratedCount = await illustrationOps.retryFailedSceneImages(
+      storyId,
+      scenarioForGeneration.pages,
+      scenarioForGeneration.characters,
+      [pageNumber],
+      styleDescription,
+      (progress) => {
+        if (progress.pageStatus === 'completed') {
+          completedPages++;
+        } else if (progress.pageStatus === 'failed' && progress.pageNumber !== undefined) {
+          failedPages.push(progress.pageNumber);
+          if (progress.message) lastImageFailureMessage = progress.message;
+        }
+
+        sendProgressUpdate(storyId, {
+          storyId,
+          status: 'generating_images',
+          currentPhase: 'Regenerating page image...',
+          completedPages,
+          totalPages: 1,
+          failedPages,
+          message: progress.message || '',
+          pageNumber: progress.pageNumber,
+          pageStatus: progress.pageStatus,
+        }).catch(() => {});
+      },
+      story.userId,
+      signal,
+      pro,
+      (page, usage) => usageRecorder.recordPageImage(page.pageNumber, usage),
+      (_character, usage) => usageRecorder.recordCharacterSheet(usage),
+    );
+
+    if (signal.aborted) throw new Error('Generation cancelled');
+    if (regeneratedCount < 1) {
+      throw new Error(lastImageFailureMessage || 'Page image could not be regenerated');
+    }
+
+    const updatedScenario = cloneScenarioWithUpdatedPage(story.scenario, pageNumber, page => ({
+      ...page,
+      status: 'completed',
+      imageRevision: incrementPageRevision(page.imageRevision),
+    }));
+
+    await persistScenarioAfterPageMutation(storyId, story, updatedScenario);
+    await sendProgressUpdate(storyId, {
+      storyId,
+      status: 'completed',
+      currentPhase: 'Done!',
+      completedPages: 1,
+      totalPages: 1,
+      failedPages: [],
+      message: `Page ${pageNumber} image regenerated successfully.`,
+      pageNumber,
+      pageStatus: 'completed',
+    });
+  } catch (error) {
+    const isCancelled = signal.aborted;
+    await refundRegenerationCharge(
+      chargedUserId,
+      storyId,
+      chargedCredits,
+      `Automatic refund after page ${pageNumber} image regeneration ${isCancelled ? 'was cancelled' : 'failed'}.`,
+    );
+
+    try {
+      if (story.scenario) {
+        await persistScenarioAfterPageMutation(storyId, story, story.scenario);
+      } else {
+        await updateStoryStatus(storyId, 'completed');
+      }
+    } catch {}
+
+    sendSSE(storyId, {
+      storyId,
+      status: 'completed',
+      currentPhase: isCancelled ? 'Cancelled' : 'Failed',
+      completedPages: 0,
+      totalPages: 1,
+      failedPages: [],
+      message: isCancelled ? 'Page image regeneration cancelled' : (error instanceof Error ? error.message : 'Page image regeneration failed'),
+      pageNumber,
+      pageStatus: 'failed',
+    });
+  } finally {
+    finishTrackedGeneration(storyId);
+    scheduleStoryConnectionCleanup(storyId);
+  }
+}
+
+// PATCH /api/stories/:id/pages/:pageNumber/script-audio - Edit one page script and regenerate same-voice audio
+router.patch('/:id/pages/:pageNumber/script-audio', optionalAuth, async (req: Request, res: Response) => {
+  try {
+    if (config.useSupabase && !req.authUser) {
+      res.status(401).json({ error: 'Authentication required' });
+      return;
+    }
+
+    const storyId = req.params.id as string;
+    const pageNumber = Number.parseInt(req.params.pageNumber as string, 10);
+    if (!Number.isInteger(pageNumber) || pageNumber <= 0) {
+      res.status(400).json({ error: 'A valid page number is required' });
+      return;
+    }
+
+    const story = await getStory(storyId);
+    if (!story) {
+      res.status(404).json({ error: 'Story not found' });
+      return;
+    }
+
+    if (config.useSupabase && story.userId !== req.authUser?.id) {
+      res.status(403).json({ error: 'Forbidden' });
+      return;
+    }
+
+    if (story.status !== 'completed') {
+      res.status(400).json({ error: 'Story must be completed to edit page audio' });
+      return;
+    }
+
+    if (!story.scenario) {
+      res.status(400).json({ error: 'Story has no scenario data' });
+      return;
+    }
+
+    const page = findScenarioPage(story.scenario, pageNumber);
+    if (!page) {
+      res.status(404).json({ error: 'Page not found' });
+      return;
+    }
+
+    const voiceKey = normalizeVoiceKey(story.voice);
+    if (!voiceKey) {
+      res.status(400).json({ error: 'Story has no narrator voice. Add narration first.' });
+      return;
+    }
+
+    if (!audioOps.isElevenLabsConfigured()) {
+      res.status(503).json({ error: 'Audio generation service is not configured' });
+      return;
+    }
+
+    if (isGenerationActive(storyId)) {
+      res.status(409).json({ error: 'A generation is already in progress' });
+      return;
+    }
+
+    const text = typeof req.body?.text === 'string'
+      ? req.body.text.replace(/\s+/g, ' ').trim()
+      : '';
+    const validationError = getPageTextValidationError(text, story.scenario.targetAge);
+    if (validationError) {
+      res.status(400).json({ error: validationError });
+      return;
+    }
+
+    const review = await pageTextReviewOps.reviewPageText({
+      text,
+      targetAge: story.scenario.targetAge,
+      language: story.language,
+      purpose: 'page_text',
+    });
+    if (!review.allowed) {
+      res.status(400).json({
+        error: review.explanation || 'Page text is not appropriate for a children story',
+        reasonCode: review.reasonCode,
+      });
+      return;
+    }
+
+    const chargedCredits = getStoryAudioCreditCost(1);
+    let availableCredits = 0;
+    if (config.useSupabase) {
+      try {
+        const charge = await billingOps.consumeCredits(req.authUser!.id, chargedCredits, {
+          reason: 'story_regenerate_audio',
+          storyId,
+          note: `page:${pageNumber}`,
+        });
+        availableCredits = charge.available_credits;
+      } catch (error) {
+        if (error instanceof InsufficientCreditsError) {
+          const balance = await billingOps.getUserCreditBalance(req.authUser!.id).catch(() => ({ availableCredits: 0 }));
+          res.status(402).json({
+            error: 'Not enough credits to regenerate this page audio',
+            requiredCredits: chargedCredits,
+            availableCredits: balance.availableCredits,
+          });
+          return;
+        }
+        throw error;
+      }
+    }
+
+    const controller = startTrackedGeneration(storyId);
+    res.json({
+      status: 'generating_audio',
+      pageNumber,
+      chargedCredits,
+      availableCredits,
+    } as RegeneratePageAudioResponse);
+
+    runRegeneratePageAudioPipeline(storyId, story, pageNumber, text, voiceKey, chargedCredits, req.authUser?.id, controller)
+      .catch(error => {
+        console.error(`Page audio regeneration pipeline failed for ${storyId} page ${pageNumber}:`, error);
+      });
+  } catch (error) {
+    console.error('Failed to start page audio regeneration:', error);
+    res.status(500).json({ error: 'Failed to start page audio regeneration' });
+  }
+});
+
+async function runRegeneratePageAudioPipeline(
+  storyId: string,
+  story: StoryMeta,
+  pageNumber: number,
+  text: string,
+  voiceKey: VoiceKey,
+  chargedCredits: number,
+  chargedUserId: string | undefined,
+  controller = startTrackedGeneration(storyId),
+): Promise<void> {
+  const { signal } = controller;
+  const usageRecorder = createUsageRecorder(storyId, story.userId, 'regenerate_page_audio');
+
+  try {
+    if (!story.scenario) throw new Error('Story has no scenario data');
+
+    await updateStoryStatus(storyId, 'generating_audio');
+    await sendProgressUpdate(storyId, {
+      storyId,
+      status: 'generating_audio',
+      currentPhase: 'Regenerating page narration...',
+      completedPages: 0,
+      totalPages: 1,
+      failedPages: [],
+      message: `Recording narration for page ${pageNumber} with ${getVoiceName(voiceKey)}...`,
+      pageNumber,
+      pageStatus: 'generating',
+    });
+
+    if (signal.aborted) throw new Error('Generation cancelled');
+    const audioBuffer = await audioOps.generatePageAudio(text, voiceKey, usage => usageRecorder.recordPageAudio(pageNumber, usage));
+    if (signal.aborted) throw new Error('Generation cancelled');
+    const audioUrl = await audioOps.savePageAudio(storyId, getPageAudioFilename(pageNumber), audioBuffer, story.userId);
+
+    const updatedScenario = cloneScenarioWithUpdatedPage(story.scenario, pageNumber, page => ({
+      ...page,
+      text,
+      audioUrl,
+      audioRevision: incrementPageRevision(page.audioRevision),
+    }));
+
+    await persistScenarioAfterPageMutation(storyId, story, updatedScenario);
+    await sendProgressUpdate(storyId, {
+      storyId,
+      status: 'completed',
+      currentPhase: 'Done!',
+      completedPages: 1,
+      totalPages: 1,
+      failedPages: [],
+      message: `Page ${pageNumber} script and narration updated successfully.`,
+      pageNumber,
+      pageStatus: 'completed',
+    });
+  } catch (error) {
+    const isCancelled = signal.aborted;
+    await refundRegenerationCharge(
+      chargedUserId,
+      storyId,
+      chargedCredits,
+      `Automatic refund after page ${pageNumber} audio regeneration ${isCancelled ? 'was cancelled' : 'failed'}.`,
+    );
+
+    try {
+      if (story.scenario) {
+        await persistScenarioAfterPageMutation(storyId, story, story.scenario);
+      } else {
+        await updateStoryStatus(storyId, 'completed');
+      }
+    } catch {}
+
+    sendSSE(storyId, {
+      storyId,
+      status: 'completed',
+      currentPhase: isCancelled ? 'Cancelled' : 'Failed',
+      completedPages: 0,
+      totalPages: 1,
+      failedPages: [],
+      message: isCancelled ? 'Page audio regeneration cancelled' : (error instanceof Error ? error.message : 'Page audio regeneration failed'),
+      pageNumber,
+      pageStatus: 'failed',
+    });
+  } finally {
+    finishTrackedGeneration(storyId);
+    scheduleStoryConnectionCleanup(storyId);
+  }
+}
+
 // GET /api/stories/:id/assets - List all stored assets (character sheets, images)
 router.get('/:id/assets', optionalAuth, async (req: Request, res: Response) => {
   try {
@@ -1996,7 +2625,7 @@ router.get('/:id/assets', optionalAuth, async (req: Request, res: Response) => {
         for (const page of story.scenario.pages) {
           assets.pageImages.push({
             pageNumber: page.pageNumber,
-            url: getPageImageUrl(storyId, page.pageNumber, story.userId),
+            url: appendMediaRevision(getPageImageUrl(storyId, page.pageNumber, story.userId), page.imageRevision),
           });
         }
       }
@@ -2024,9 +2653,10 @@ router.get('/:id/assets', optionalAuth, async (req: Request, res: Response) => {
         const numStr = filename.replace('page-', '').replace('.png', '');
         const pageNumber = parseInt(numStr, 10);
         if (!isNaN(pageNumber)) {
+          const page = story.scenario?.pages.find(item => item.pageNumber === pageNumber);
           assets.pageImages.push({
             pageNumber,
-            url: getPageImageUrl(storyId, pageNumber, story.userId),
+            url: appendMediaRevision(getPageImageUrl(storyId, pageNumber, story.userId), page?.imageRevision),
           });
         }
       }
@@ -2127,10 +2757,16 @@ router.get('/:id', optionalAuth, async (req: Request, res: Response) => {
     if (story.scenario?.pages) {
       for (const page of story.scenario.pages) {
         if (page.status === 'completed') {
-          page.imageUrl = getPageImageUrl(story.id, page.pageNumber, story.userId);
+          page.imageUrl = appendMediaRevision(
+            getPageImageUrl(story.id, page.pageNumber, story.userId),
+            page.imageRevision,
+          );
         }
         if (pageHasAudio(page)) {
-          page.audioUrl = getPageAudioUrl(story.id, page.pageNumber, story.userId);
+          page.audioUrl = appendMediaRevision(
+            getPageAudioUrl(story.id, page.pageNumber, story.userId),
+            page.audioRevision,
+          );
         }
       }
     }

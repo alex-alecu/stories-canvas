@@ -12,20 +12,20 @@ interface StoryPackOfferRow {
   slug: StoryPackOffer['slug'];
   name: string;
   description: string;
-  credits: number;
+  credits: number | string;
   price_minor: number;
   currency: string;
   is_active: boolean;
 }
 
 interface CreditBalanceRow {
-  available_credits: number;
+  available_credits: number | string;
 }
 
 interface CreditLedgerRow {
   id: string;
-  delta: number;
-  balance_after: number;
+  delta: number | string;
+  balance_after: number | string;
   reason: string;
   note: string | null;
   story_id: string | null;
@@ -39,7 +39,7 @@ interface BillingPurchaseRow {
   offer_slug: StoryPackOffer['slug'];
   amount_minor: number;
   currency: string;
-  credits_granted: number;
+  credits_granted: number | string;
   status: BillingPurchase['status'];
   created_at: string;
   fulfilled_at: string | null;
@@ -75,7 +75,7 @@ function rowToOffer(row: StoryPackOfferRow): StoryPackOffer {
     slug: row.slug,
     name: row.name,
     description: row.description,
-    credits: row.credits,
+    credits: normalizeCreditAmount(row.credits),
     priceMinor: row.price_minor,
     currency: row.currency,
     isActive: row.is_active,
@@ -85,8 +85,8 @@ function rowToOffer(row: StoryPackOfferRow): StoryPackOffer {
 function rowToLedgerEntry(row: CreditLedgerRow): CreditLedgerEntry {
   return {
     id: row.id,
-    delta: row.delta,
-    balanceAfter: row.balance_after,
+    delta: normalizeCreditAmount(row.delta),
+    balanceAfter: normalizeCreditAmount(row.balance_after),
     reason: row.reason,
     note: row.note ?? undefined,
     storyId: row.story_id ?? undefined,
@@ -102,11 +102,22 @@ function rowToPurchase(row: BillingPurchaseRow): BillingPurchase {
     offerSlug: row.offer_slug,
     amountMinor: row.amount_minor,
     currency: row.currency,
-    creditsGranted: row.credits_granted,
+    creditsGranted: normalizeCreditAmount(row.credits_granted),
     status: row.status,
     createdAt: row.created_at,
     fulfilledAt: row.fulfilled_at ?? undefined,
   };
+}
+
+function normalizeCreditAmount(value: unknown): number {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return Math.round(value * 10) / 10;
+  }
+  if (typeof value === 'string') {
+    const parsed = Number.parseFloat(value);
+    return Number.isFinite(parsed) ? Math.round(parsed * 10) / 10 : 0;
+  }
+  return 0;
 }
 
 export async function listStoryPackOffers(options: { includeInactive?: boolean } = {}): Promise<StoryPackOffer[]> {
@@ -167,7 +178,7 @@ export async function getUserCreditBalance(userId: string): Promise<CreditBalanc
   }
 
   return {
-    availableCredits: data?.available_credits ?? 0,
+    availableCredits: normalizeCreditAmount(data?.available_credits),
   };
 }
 
@@ -264,7 +275,7 @@ export async function grantCredits(
     throw new Error('Credit grant did not return a result');
   }
 
-  return row;
+  return { ...row, available_credits: normalizeCreditAmount(row.available_credits) };
 }
 
 export async function consumeCredits(
@@ -298,7 +309,7 @@ export async function consumeCredits(
     throw new Error('Credit consumption did not return a result');
   }
 
-  return row;
+  return { ...row, available_credits: normalizeCreditAmount(row.available_credits) };
 }
 
 export async function refundStoryCredits(storyId: string, note?: string): Promise<RefundStoryCreditsRow> {
@@ -313,7 +324,9 @@ export async function refundStoryCredits(storyId: string, note?: string): Promis
   }
 
   const [row] = (data ?? []) as RefundStoryCreditsRow[];
-  return row ?? { refunded: false, ledger_id: null, available_credits: null };
+  return row
+    ? { ...row, available_credits: row.available_credits === null ? null : normalizeCreditAmount(row.available_credits) }
+    : { refunded: false, ledger_id: null, available_credits: null };
 }
 
 export async function getBillingCustomer(userId: string): Promise<{ stripeCustomerId: string } | null> {
@@ -439,7 +452,10 @@ export async function fulfillStoryPackPurchase(params: {
     throw new Error('Purchase fulfillment did not return a result');
   }
 
-  return row;
+  return {
+    ...row,
+    available_credits: row.available_credits === null ? null : normalizeCreditAmount(row.available_credits),
+  };
 }
 
 export async function updateStoryPackOffer(

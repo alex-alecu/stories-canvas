@@ -5,6 +5,7 @@ import { useStoryGeneration } from '../hooks/useStoryGeneration';
 import StoryViewer from '../components/StoryViewer';
 import GenerationProgress from '../components/GenerationProgress';
 import { useLanguage } from '../i18n/LanguageContext';
+import { useAuth } from '../contexts/AuthContext';
 import { warmMediaCache } from '../lib/serviceWorker';
 import { downloadStoryForOffline } from '../lib/offlineStories';
 
@@ -31,6 +32,7 @@ export default function StoryPage() {
   const recordStoryView = useRecordStoryView();
   const navigate = useNavigate();
   const { t } = useLanguage();
+  const { user } = useAuth();
   const lastWarmupKeyRef = useRef<string | null>(null);
   const lastAutoDownloadKeyRef = useRef<string | null>(null);
 
@@ -200,6 +202,8 @@ export default function StoryPage() {
         likeCount={story.likeCount ?? 0}
         dislikeCount={story.dislikeCount ?? 0}
         myReaction={story.myReaction ?? null}
+        storyMode={story.storyMode}
+        canManageStory={!!user && !!story.userId && story.userId === user.id}
       />
     );
   }

@@ -9,7 +9,7 @@ import {
   DEFAULT_ART_STYLE,
   DEFAULT_VOICE_KEY,
   getAgeGroup,
-  getStoryModeCredits,
+  getStoryCreditCost,
   VOICE_OPTIONS,
   type ArtStyleKey,
   type StoryMode,
@@ -47,7 +47,7 @@ export default function StoryInput({ onSubmit, isLoading }: StoryInputProps) {
   const { t, language } = useLanguage();
   const navigate = useNavigate();
   const location = useLocation();
-  const requiredCredits = getStoryModeCredits(storyMode);
+  const requiredCredits = getStoryCreditCost(storyMode);
   const availableCredits = billingOverview?.balance.availableCredits ?? 0;
   const hasEnoughCredits = !user || !billingOverview || availableCredits >= requiredCredits;
 
@@ -232,9 +232,9 @@ export default function StoryInput({ onSubmit, isLoading }: StoryInputProps) {
 
               <div className="flex flex-wrap gap-2">
                 {([
-                  { key: 'fast', label: t.storyModeFast, detail: formatCredits(1, t) },
-                  { key: 'pro', label: t.storyModePro, detail: formatCredits(2, t) },
-                  { key: 'pro_audio', label: t.storyModeProAudio, detail: formatCredits(3, t) },
+                  { key: 'fast', label: t.storyModeFast, detail: t.storyModeFastSummary },
+                  { key: 'pro', label: t.storyModePro, detail: t.storyModeProSummary },
+                  { key: 'pro_audio', label: t.storyModeProAudio, detail: t.storyModeProAudioSummary },
                 ] as const).map((option) => (
                   <button
                     key={option.key}

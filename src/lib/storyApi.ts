@@ -2,6 +2,8 @@ import type {
   CreateStoryResponse,
   GenerateAudioResponse,
   RegenerateAssetsResponse,
+  RegeneratePageAudioResponse,
+  RegeneratePageImageResponse,
   RetryStoryResponse,
   StoryAssets,
   StoryMeta,
@@ -174,6 +176,48 @@ export async function generateStoryAudio({ id, voice }: { id: string; voice: Voi
   });
   if (!res.ok) {
     throw await readError(res, 'Failed to generate narration');
+  }
+  return res.json();
+}
+
+export async function regeneratePageImage({
+  id,
+  pageNumber,
+  feedback,
+}: {
+  id: string;
+  pageNumber: number;
+  feedback: string;
+}): Promise<RegeneratePageImageResponse> {
+  const authHeaders = await getAuthHeaders();
+  const res = await fetch(`/api/stories/${id}/pages/${pageNumber}/regenerate-image`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders },
+    body: JSON.stringify({ feedback }),
+  });
+  if (!res.ok) {
+    throw await readError(res, 'Failed to regenerate page image');
+  }
+  return res.json();
+}
+
+export async function regeneratePageAudio({
+  id,
+  pageNumber,
+  text,
+}: {
+  id: string;
+  pageNumber: number;
+  text: string;
+}): Promise<RegeneratePageAudioResponse> {
+  const authHeaders = await getAuthHeaders();
+  const res = await fetch(`/api/stories/${id}/pages/${pageNumber}/script-audio`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...authHeaders },
+    body: JSON.stringify({ text }),
+  });
+  if (!res.ok) {
+    throw await readError(res, 'Failed to update page script and narration');
   }
   return res.json();
 }

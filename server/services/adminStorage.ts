@@ -44,6 +44,17 @@ function getDisplayName(user: AuthUserLike): string | undefined {
     || undefined;
 }
 
+function normalizeCreditAmount(value: unknown): number {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return Math.round(value * 10) / 10;
+  }
+  if (typeof value === 'string') {
+    const parsed = Number.parseFloat(value);
+    return Number.isFinite(parsed) ? Math.round(parsed * 10) / 10 : 0;
+  }
+  return 0;
+}
+
 async function listMatchingAuthUsers(query: string, limit: number): Promise<AuthUserLike[]> {
   const supabase = getSupabase();
   const normalizedQuery = query.trim().toLowerCase();
@@ -127,7 +138,7 @@ export async function searchUsers(query: string, limit = 20): Promise<AdminUserS
     throw new Error(`Failed to load user roles: ${rolesError.message}`);
   }
 
-  const balanceMap = new Map((balances ?? []).map((row) => [row.user_id, row.available_credits]));
+  const balanceMap = new Map((balances ?? []).map((row) => [row.user_id, normalizeCreditAmount(row.available_credits)]));
   const adminSet = new Set((roles ?? []).map(row => row.user_id));
 
   return filtered.map((user) => ({

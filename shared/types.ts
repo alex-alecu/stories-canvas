@@ -8,7 +8,7 @@ export type VoiceKey = 'bunica' | 'jora' | 'serban' | 'corina';
 export type StoryMode = 'fast' | 'pro' | 'pro_audio';
 export type StoryReaction = 'like' | 'dislike';
 export type StoryUsageProvider = 'gemini' | 'elevenlabs';
-export type StoryUsageSource = 'initial_generation' | 'retry' | 'regenerate_assets' | 'add_audio';
+export type StoryUsageSource = 'initial_generation' | 'retry' | 'regenerate_assets' | 'add_audio' | 'regenerate_page_image' | 'regenerate_page_audio';
 export type StoryUsageStatus = 'succeeded' | 'failed';
 export type StoryUsageOperation =
   | 'source_analysis'
@@ -26,12 +26,47 @@ export const STORY_MODE_CREDITS: Record<StoryMode, number> = {
   pro_audio: 3,
 };
 
+export const STORY_PAGE_TARGET_COUNT = 10;
+
+export const STORY_PAGE_CREDIT_COSTS = {
+  fastImage: 0.1,
+  proImage: 0.2,
+  audio: 0.1,
+} as const;
+
 export function isStoryMode(value: string | null | undefined): value is StoryMode {
   return value === 'fast' || value === 'pro' || value === 'pro_audio';
 }
 
 export function getStoryModeCredits(mode: StoryMode): number {
   return STORY_MODE_CREDITS[mode];
+}
+
+export function roundCreditAmount(amount: number): number {
+  return Math.round(amount * 10) / 10;
+}
+
+export function getStoryImagePageCreditCost(mode: StoryMode | undefined): number {
+  return mode === 'pro' || mode === 'pro_audio'
+    ? STORY_PAGE_CREDIT_COSTS.proImage
+    : STORY_PAGE_CREDIT_COSTS.fastImage;
+}
+
+export function getStoryAudioPageCreditCost(): number {
+  return STORY_PAGE_CREDIT_COSTS.audio;
+}
+
+export function getStoryImageCreditCost(mode: StoryMode | undefined, pageCount: number): number {
+  return roundCreditAmount(getStoryImagePageCreditCost(mode) * Math.max(0, pageCount));
+}
+
+export function getStoryAudioCreditCost(pageCount: number): number {
+  return roundCreditAmount(getStoryAudioPageCreditCost() * Math.max(0, pageCount));
+}
+
+export function getStoryCreditCost(mode: StoryMode, pageCount = STORY_PAGE_TARGET_COUNT): number {
+  const imageCost = getStoryImageCreditCost(mode, pageCount);
+  return roundCreditAmount(mode === 'pro_audio' ? imageCost + getStoryAudioCreditCost(pageCount) : imageCost);
 }
 
 export function isStoryReaction(value: unknown): value is StoryReaction {
@@ -128,6 +163,8 @@ export interface Page {
   status: PageStatus;
   imageUrl?: string;
   audioUrl?: string;
+  imageRevision?: number;
+  audioRevision?: number;
 }
 
 export interface Scenario {
@@ -275,11 +312,27 @@ export interface ReviewStoryResponse {
 
 export interface RegenerateAssetsResponse {
   status: StoryStatus;
+  chargedCredits?: number;
+  availableCredits?: number;
 }
 
 export interface GenerateAudioResponse {
   status: StoryStatus;
   generatedAudio: number;
+  chargedCredits: number;
+  availableCredits: number;
+}
+
+export interface RegeneratePageImageResponse {
+  status: StoryStatus;
+  pageNumber: number;
+  chargedCredits: number;
+  availableCredits: number;
+}
+
+export interface RegeneratePageAudioResponse {
+  status: StoryStatus;
+  pageNumber: number;
   chargedCredits: number;
   availableCredits: number;
 }

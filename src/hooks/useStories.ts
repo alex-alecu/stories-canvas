@@ -11,6 +11,8 @@ import {
   fetchUserStories,
   generateStoryAudio,
   recordStoryView,
+  regeneratePageAudio,
+  regeneratePageImage,
   regenerateStoryAssets,
   removeStory,
   retryStory,
@@ -130,6 +132,8 @@ export function useCreateStory() {
     mutationFn: createStory,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['stories'] });
+      queryClient.invalidateQueries({ queryKey: ['billing', 'me'] });
+      queryClient.invalidateQueries({ queryKey: ['billing', 'history'] });
     },
   });
 }
@@ -248,6 +252,8 @@ export function useRegenerateStoryAssets() {
       queryClient.invalidateQueries({ queryKey: ['story', id] });
       queryClient.invalidateQueries({ queryKey: ['story-assets', id] });
       queryClient.invalidateQueries({ queryKey: ['stories'] });
+      queryClient.invalidateQueries({ queryKey: ['billing', 'me'] });
+      queryClient.invalidateQueries({ queryKey: ['billing', 'history'] });
     },
   });
 }
@@ -260,6 +266,37 @@ export function useGenerateStoryAudio() {
       queryClient.invalidateQueries({ queryKey: ['story', variables.id] });
       queryClient.invalidateQueries({ queryKey: ['stories'] });
       queryClient.invalidateQueries({ queryKey: ['stories', 'mine'] });
+      queryClient.invalidateQueries({ queryKey: ['billing', 'me'] });
+      queryClient.invalidateQueries({ queryKey: ['billing', 'history'] });
+    },
+  });
+}
+
+export function useRegeneratePageImage() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: regeneratePageImage,
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['story', variables.id] });
+      queryClient.invalidateQueries({ queryKey: ['story-assets', variables.id] });
+      queryClient.invalidateQueries({ queryKey: ['stories'] });
+      queryClient.invalidateQueries({ queryKey: ['stories', 'mine'] });
+      queryClient.invalidateQueries({ queryKey: ['billing', 'me'] });
+      queryClient.invalidateQueries({ queryKey: ['billing', 'history'] });
+    },
+  });
+}
+
+export function useRegeneratePageAudio() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: regeneratePageAudio,
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['story', variables.id] });
+      queryClient.invalidateQueries({ queryKey: ['stories'] });
+      queryClient.invalidateQueries({ queryKey: ['stories', 'mine'] });
+      queryClient.invalidateQueries({ queryKey: ['billing', 'me'] });
+      queryClient.invalidateQueries({ queryKey: ['billing', 'history'] });
     },
   });
 }

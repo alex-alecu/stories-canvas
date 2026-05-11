@@ -1,10 +1,35 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import type { Scenario, GenerationProgress, StoryStatus } from '../types';
-import { DEFAULT_VOICE_KEY, VOICE_OPTIONS, type VoiceKey } from '../../shared/types';
-import { useGenerateStoryAudio, useRetryStory, useStoryAssets } from '../hooks/useStories';
+import { useLocation, useNavigate } from 'react-router-dom';
+import type { GenerationProgress, Page, Scenario, StoryMode, StoryReaction, StoryStatus } from '../types';
+import {
+  DEFAULT_VOICE_KEY,
+  VOICE_OPTIONS,
+  getStoryAudioCreditCost,
+  getStoryImagePageCreditCost,
+  normalizeVoiceKey,
+  type VoiceKey,
+} from '../../shared/types';
+import {
+  useGenerateStoryAudio,
+  useRegeneratePageAudio,
+  useRegeneratePageImage,
+  useRetryStory,
+  useStoryAssets,
+  useStoryReaction,
+} from '../hooks/useStories';
+import { useBillingOverview } from '../hooks/useBilling';
 import { useStoryGeneration } from '../hooks/useStoryGeneration';
+import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../i18n/LanguageContext';
+import { formatCredits } from '../i18n/billingCopy';
 import { formatStoryStatusMessage, getVoiceOptionText } from '../i18n/storyStatusCopy';
+import FontSizeControl from './FontSizeControl';
+
+const PAGE_FEEDBACK_MAX_CHARS = 800;
+const PAGE_TEXT_OVERLAY_MAX_CHARS = 320;
+
+type ToolsView = 'settings' | 'image' | 'audio';
+type OperationResult = 'success' | 'failed' | null;
 
 interface StoryToolsModalProps {
   isOpen: boolean;
@@ -16,6 +41,37 @@ interface StoryToolsModalProps {
   storyMessage?: string;
   voice?: string;
   storyStatus: StoryStatus;
+  currentPage?: Page;
+  storyMode?: StoryMode;
+  likeCount?: number;
+  dislikeCount?: number;
+  myReaction?: StoryReaction | null;
+  canManageStory?: boolean;
+}
+
+function formatReactionCount(count: number): string {
+  const safeCount = Math.max(0, Math.trunc(count));
+  if (safeCount >= 1_000_000) {
+    return `${(safeCount / 1_000_000).toFixed(safeCount >= 10_000_000 ? 0 : 1).replace(/\.0$/, '')}M`;
+  }
+  if (safeCount >= 10_000) {
+    return `${Math.round(safeCount / 1_000)}K`;
+  }
+  if (safeCount >= 1_000) {
+    return `${(safeCount / 1_000).toFixed(1).replace(/\.0$/, '')}K`;
+  }
+  return safeCount.toLocaleString();
+}
+
+function errorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error && error.message ? error.message : fallback;
+}
+
+function getPageTextMaxChars(targetAge: number): number {
+  if (targetAge <= 3) return 160;
+  if (targetAge <= 6) return 200;
+  if (targetAge <= 9) return 280;
+  return PAGE_TEXT_OVERLAY_MAX_CHARS;
 }
 
 export default function StoryToolsModal({
@@ -28,39 +84,109 @@ export default function StoryToolsModal({
   storyMessage,
   voice,
   storyStatus,
+  currentPage,
+  storyMode,
+  likeCount = 0,
+  dislikeCount = 0,
+  myReaction = null,
+  canManageStory = false,
 }: StoryToolsModalProps) {
   const { t } = useLanguage();
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [view, setView] = useState<ToolsView>('settings');
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const [retryTriggered, setRetryTriggered] = useState(false);
   const [audioTriggered, setAudioTriggered] = useState(false);
-  const [retryResult, setRetryResult] = useState<'success' | 'failed' | null>(null);
-  const [audioResult, setAudioResult] = useState<'success' | 'failed' | null>(null);
+  const [imageTriggered, setImageTriggered] = useState(false);
+  const [pageAudioTriggered, setPageAudioTriggered] = useState(false);
+  const [retryResult, setRetryResult] = useState<OperationResult>(null);
+  const [audioResult, setAudioResult] = useState<OperationResult>(null);
+  const [imageResult, setImageResult] = useState<OperationResult>(null);
+  const [pageAudioResult, setPageAudioResult] = useState<OperationResult>(null);
+  const [imageError, setImageError] = useState<string | null>(null);
+  const [pageAudioError, setPageAudioError] = useState<string | null>(null);
+  const [reactionError, setReactionError] = useState(false);
   const [selectedVoice, setSelectedVoice] = useState<VoiceKey>(DEFAULT_VOICE_KEY);
-  // Grace period: when true, ignores stale terminal statuses from the SSE's initial DB read
+  const [imageFeedback, setImageFeedback] = useState('');
+  const [pageText, setPageText] = useState(currentPage?.text ?? '');
   const [operationStarting, setOperationStarting] = useState(false);
   const operationStartingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const retryStory = useRetryStory();
   const generateAudio = useGenerateStoryAudio();
+  const regenerateImage = useRegeneratePageImage();
+  const regeneratePageAudio = useRegeneratePageAudio();
+  const { mutate: mutateReaction, isPending: reactionPending } = useStoryReaction(storyId);
+  const { data: billingOverview } = useBillingOverview(!!user);
   const { data: assets, isLoading: assetsLoading } = useStoryAssets(storyId, isOpen);
-  const isTrackingGeneration = retryTriggered || audioTriggered;
 
-  // Connect to SSE for background progress — delay until grace period ends to avoid
-  // the stale 'completed' status that the SSE endpoint reads from DB before the
-  // pipeline has a chance to update it.
+  const isTrackingGeneration = retryTriggered || audioTriggered || imageTriggered || pageAudioTriggered;
   const { progress: sseProgress } = useStoryGeneration(isTrackingGeneration && !operationStarting ? storyId : null);
   const activeProgress = isTrackingGeneration ? sseProgress : progress;
+  const storyVoice = normalizeVoiceKey(voice);
+  const availableCredits = billingOverview?.balance.availableCredits ?? 0;
+  const imageCost = getStoryImagePageCreditCost(storyMode);
+  const pageAudioCost = getStoryAudioCreditCost(1);
+  const pageTextMaxChars = getPageTextMaxChars(scenario.targetAge);
+  const addNarrationCost = getStoryAudioCreditCost(scenario.pages.filter(page => !page.audioUrl).length || scenario.pages.length);
+  const characterSheets = assets?.characterSheets ?? [];
+  const currentImageUrl = currentPage?.imageUrl || `/api/stories/${storyId}/images/page-${String(currentPage?.pageNumber ?? 1).padStart(2, '0')}.png`;
+  const currentVoiceLabel = storyVoice
+    ? getVoiceOptionText(VOICE_OPTIONS.find(option => option.key === storyVoice) ?? VOICE_OPTIONS[0], t).label
+    : 'Current voice';
 
-  // Clear the grace period timers on unmount
+  const canReact = !!user && storyStatus === 'completed';
+  const canUsePageActions = canManageStory && storyStatus === 'completed' && !isGenerating && !!currentPage;
+  const imageFeedbackTrimmed = imageFeedback.trim();
+  const pageTextTrimmed = pageText.replace(/\s+/g, ' ').trim();
+  const pageTextChanged = pageTextTrimmed !== (currentPage?.text ?? '').replace(/\s+/g, ' ').trim();
+  const pageTextInvalid = !pageTextTrimmed || pageTextTrimmed.length > pageTextMaxChars;
+
+  const isCreditShort = useCallback((cost: number) => (
+    !!user && !!billingOverview && availableCredits < cost
+  ), [availableCredits, billingOverview, user]);
+
+  const goToBilling = useCallback(() => {
+    const returnTo = `${location.pathname}${location.search}`;
+    navigate(`/profile?reason=insufficient-credits&returnTo=${encodeURIComponent(returnTo)}`);
+  }, [location.pathname, location.search, navigate]);
+
+  const startOperationGracePeriod = useCallback(() => {
+    setOperationStarting(true);
+    if (operationStartingTimerRef.current) clearTimeout(operationStartingTimerRef.current);
+    operationStartingTimerRef.current = setTimeout(() => setOperationStarting(false), 5000);
+  }, []);
+
+  const clearOperationGracePeriod = useCallback(() => {
+    setOperationStarting(false);
+    if (operationStartingTimerRef.current) {
+      clearTimeout(operationStartingTimerRef.current);
+      operationStartingTimerRef.current = null;
+    }
+  }, []);
+
   useEffect(() => {
     return () => {
       if (operationStartingTimerRef.current) clearTimeout(operationStartingTimerRef.current);
     };
   }, []);
 
-  // Detect when a background operation completes or fails.
-  // During the operationStarting grace period, ignore stale terminal statuses
-  // (the SSE may read the old 'completed' from DB before the pipeline updates it)
+  useEffect(() => {
+    setPageText(currentPage?.text ?? '');
+    setImageFeedback('');
+    setImageError(null);
+    setPageAudioError(null);
+    setImageResult(null);
+    setPageAudioResult(null);
+  }, [currentPage?.pageNumber, currentPage?.text]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setView('settings');
+  }, [isOpen]);
+
   useEffect(() => {
     if (!retryTriggered || operationStarting) return;
     if (sseProgress?.status === 'completed' || sseProgress?.status === 'failed') {
@@ -77,7 +203,24 @@ export default function StoryToolsModal({
     }
   }, [audioTriggered, operationStarting, sseProgress?.audioFailed, sseProgress?.status]);
 
-  // Auto-dismiss result messages after 5 seconds
+  useEffect(() => {
+    if (!imageTriggered || operationStarting || !currentPage) return;
+    if (sseProgress?.pageNumber !== currentPage.pageNumber) return;
+    if (sseProgress?.pageStatus === 'completed' || sseProgress?.pageStatus === 'failed') {
+      setImageResult(sseProgress.pageStatus === 'completed' ? 'success' : 'failed');
+      setImageTriggered(false);
+    }
+  }, [currentPage, imageTriggered, operationStarting, sseProgress?.pageNumber, sseProgress?.pageStatus]);
+
+  useEffect(() => {
+    if (!pageAudioTriggered || operationStarting || !currentPage) return;
+    if (sseProgress?.pageNumber !== currentPage.pageNumber) return;
+    if (sseProgress?.pageStatus === 'completed' || sseProgress?.pageStatus === 'failed') {
+      setPageAudioResult(sseProgress.pageStatus === 'completed' ? 'success' : 'failed');
+      setPageAudioTriggered(false);
+    }
+  }, [currentPage, operationStarting, pageAudioTriggered, sseProgress?.pageNumber, sseProgress?.pageStatus]);
+
   useEffect(() => {
     if (!retryResult) return;
     const timer = setTimeout(() => setRetryResult(null), 5000);
@@ -90,7 +233,12 @@ export default function StoryToolsModal({
     return () => clearTimeout(timer);
   }, [audioResult]);
 
-  // Error detection
+  useEffect(() => {
+    if (!reactionError) return;
+    const timer = setTimeout(() => setReactionError(false), 4000);
+    return () => clearTimeout(timer);
+  }, [reactionError]);
+
   const failedImageCount = useMemo(
     () => scenario.pages.filter(p => p.status === 'failed').length,
     [scenario.pages],
@@ -106,21 +254,19 @@ export default function StoryToolsModal({
     [scenario.pages, shouldHaveAudio],
   );
 
-  const hasErrors = failedImageCount > 0 || missingAudioCount > 0;
   const storyHasAudio = useMemo(
     () => scenario.pages.some(p => !!p.audioUrl),
     [scenario.pages],
   );
+
+  const hasErrors = failedImageCount > 0 || missingAudioCount > 0;
   const canStartAddNarration = storyStatus === 'completed'
+    && canManageStory
     && !isGenerating
     && !voice
     && !storyHasAudio
     && scenario.pages.length > 0;
   const showAddNarration = canStartAddNarration || audioTriggered || audioResult !== null;
-
-  // Is the retry currently running?
-  // During the grace period (operationStarting), we show retrying state even though the SSE
-  // may not yet reflect the pipeline's in-progress status.
   const isRetrying = retryTriggered && (
     operationStarting ||
     activeProgress?.status === 'generating_images' ||
@@ -130,45 +276,29 @@ export default function StoryToolsModal({
     operationStarting ||
     activeProgress?.status === 'generating_audio'
   );
+  const isRegeneratingImage = imageTriggered && (
+    operationStarting ||
+    activeProgress?.status === 'generating_images'
+  );
+  const isRegeneratingPageAudio = pageAudioTriggered && (
+    operationStarting ||
+    activeProgress?.status === 'generating_audio'
+  );
+  const isBusy = isRetrying || isAddingNarration || isRegeneratingImage || isRegeneratingPageAudio;
 
-  // Any background operation running?
-  const isBusy = isRetrying || isAddingNarration;
-
-  // Character sheets that are NOT page images (the "intermediate" images)
-  const characterSheets = assets?.characterSheets ?? [];
-
-  // Close on Escape — generation continues in the background on the server
   useEffect(() => {
     if (!isOpen) return;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        if (lightboxUrl) {
-          setLightboxUrl(null);
-        } else {
-          onClose();
-        }
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      if (lightboxUrl) {
+        setLightboxUrl(null);
+      } else {
+        onClose();
       }
     };
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, lightboxUrl, onClose]);
-
-  const startOperationGracePeriod = useCallback(() => {
-    setOperationStarting(true);
-    // Grace period: ignore stale terminal statuses from the SSE's initial DB read.
-    // Pipelines typically update status within 1-2 seconds, but allow extra time
-    // for network latency and DB round-trips.
-    if (operationStartingTimerRef.current) clearTimeout(operationStartingTimerRef.current);
-    operationStartingTimerRef.current = setTimeout(() => setOperationStarting(false), 5000);
-  }, []);
-
-  const clearOperationGracePeriod = useCallback(() => {
-    setOperationStarting(false);
-    if (operationStartingTimerRef.current) {
-      clearTimeout(operationStartingTimerRef.current);
-      operationStartingTimerRef.current = null;
-    }
-  }, []);
 
   const handleRetry = useCallback(async () => {
     setRetryTriggered(true);
@@ -183,6 +313,10 @@ export default function StoryToolsModal({
 
   const handleGenerateAudio = useCallback(async () => {
     if (!canStartAddNarration) return;
+    if (isCreditShort(addNarrationCost)) {
+      goToBilling();
+      return;
+    }
     setAudioTriggered(true);
     setAudioResult(null);
     startOperationGracePeriod();
@@ -193,27 +327,534 @@ export default function StoryToolsModal({
       setAudioResult('failed');
       clearOperationGracePeriod();
     }
-  }, [canStartAddNarration, clearOperationGracePeriod, generateAudio, selectedVoice, startOperationGracePeriod, storyId]);
+  }, [
+    addNarrationCost,
+    canStartAddNarration,
+    clearOperationGracePeriod,
+    generateAudio,
+    goToBilling,
+    isCreditShort,
+    selectedVoice,
+    startOperationGracePeriod,
+    storyId,
+  ]);
+
+  const handleReaction = useCallback((reaction: StoryReaction) => {
+    if (!canReact || reactionPending) return;
+    mutateReaction(
+      { id: storyId, reaction: myReaction === reaction ? null : reaction },
+      { onError: () => setReactionError(true) },
+    );
+  }, [canReact, myReaction, mutateReaction, reactionPending, storyId]);
+
+  const handleImageSubmit = useCallback(async () => {
+    if (!currentPage || !canUsePageActions) return;
+    if (isCreditShort(imageCost)) {
+      goToBilling();
+      return;
+    }
+    if (!imageFeedbackTrimmed) {
+      setImageError('Feedback is required.');
+      return;
+    }
+    if (imageFeedbackTrimmed.length > PAGE_FEEDBACK_MAX_CHARS) {
+      setImageError(`Feedback must be ${PAGE_FEEDBACK_MAX_CHARS} characters or less.`);
+      return;
+    }
+
+    setImageTriggered(true);
+    setImageResult(null);
+    setImageError(null);
+    startOperationGracePeriod();
+    try {
+      await regenerateImage.mutateAsync({
+        id: storyId,
+        pageNumber: currentPage.pageNumber,
+        feedback: imageFeedbackTrimmed,
+      });
+    } catch (error) {
+      setImageTriggered(false);
+      setImageResult('failed');
+      setImageError(errorMessage(error, 'Could not regenerate this image.'));
+      clearOperationGracePeriod();
+    }
+  }, [
+    canUsePageActions,
+    clearOperationGracePeriod,
+    currentPage,
+    goToBilling,
+    imageCost,
+    imageFeedbackTrimmed,
+    isCreditShort,
+    regenerateImage,
+    startOperationGracePeriod,
+    storyId,
+  ]);
+
+  const handlePageAudioSubmit = useCallback(async () => {
+    if (!currentPage || !canUsePageActions || !storyVoice) return;
+    if (isCreditShort(pageAudioCost)) {
+      goToBilling();
+      return;
+    }
+    if (pageTextInvalid) {
+      setPageAudioError(`Page text must be between 1 and ${pageTextMaxChars} characters.`);
+      return;
+    }
+
+    setPageAudioTriggered(true);
+    setPageAudioResult(null);
+    setPageAudioError(null);
+    startOperationGracePeriod();
+    try {
+      await regeneratePageAudio.mutateAsync({
+        id: storyId,
+        pageNumber: currentPage.pageNumber,
+        text: pageTextTrimmed,
+      });
+    } catch (error) {
+      setPageAudioTriggered(false);
+      setPageAudioResult('failed');
+      setPageAudioError(errorMessage(error, 'Could not update this page.'));
+      clearOperationGracePeriod();
+    }
+  }, [
+    canUsePageActions,
+    clearOperationGracePeriod,
+    currentPage,
+    goToBilling,
+    isCreditShort,
+    pageAudioCost,
+    pageTextInvalid,
+    pageTextMaxChars,
+    pageTextTrimmed,
+    regeneratePageAudio,
+    startOperationGracePeriod,
+    storyId,
+    storyVoice,
+  ]);
 
   if (!isOpen) return null;
 
+  const renderProgress = (label: string) => (
+    <div className="mt-4 rounded-lg border border-white/10 bg-white/[0.04] p-3">
+      <div className="flex items-center gap-2">
+        <div className="h-4 w-4 rounded-full border-2 border-primary-400/30 border-t-primary-400 animate-spin" />
+        <span className="text-sm text-white/75">{label}</span>
+      </div>
+      {activeProgress?.totalPages ? (
+        <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-white/10">
+          <div
+            className="h-full rounded-full bg-primary-500 transition-all duration-300"
+            style={{ width: `${Math.round((activeProgress.completedPages / activeProgress.totalPages) * 100)}%` }}
+          />
+        </div>
+      ) : null}
+      {activeProgress?.message && (
+        <p className="mt-2 text-xs text-white/45">{formatStoryStatusMessage(activeProgress.message, t)}</p>
+      )}
+    </div>
+  );
+
+  const renderResult = (result: OperationResult, success: string, failed: string) => {
+    if (!result) return null;
+    return (
+      <div className={`mt-4 rounded-lg px-3 py-2 text-sm ${
+        result === 'success'
+          ? 'bg-green-500/15 text-green-300'
+          : 'bg-red-500/15 text-red-300'
+      }`}>
+        {result === 'success' ? success : failed}
+      </div>
+    );
+  };
+
+  const renderActionRow = ({
+    title,
+    description,
+    cost,
+    disabled,
+    disabledMessage,
+    onOpen,
+  }: {
+    title: string;
+    description: string;
+    cost: number;
+    disabled?: boolean;
+    disabledMessage?: string;
+    onOpen: () => void;
+  }) => {
+    const insufficient = isCreditShort(cost);
+    return (
+      <div className="flex flex-col gap-3 rounded-lg border border-white/10 bg-white/[0.04] p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <h4 className="text-sm font-semibold text-white">{title}</h4>
+            <span className="rounded-full bg-white/10 px-2 py-0.5 text-xs text-white/65">{formatCredits(cost, t)}</span>
+          </div>
+          <p className="mt-1 text-sm text-white/55">{disabled ? disabledMessage : description}</p>
+        </div>
+        <button
+          type="button"
+          onClick={insufficient ? goToBilling : onOpen}
+          disabled={isBusy || disabled}
+          className="inline-flex h-10 shrink-0 items-center justify-center rounded-lg bg-primary-500 px-4 text-sm font-bold text-white transition-colors hover:bg-primary-600 disabled:cursor-not-allowed disabled:bg-primary-500/45"
+        >
+          {insufficient ? 'Get credits' : 'Open'}
+        </button>
+      </div>
+    );
+  };
+
+  const renderSettingsView = () => (
+    <div className="space-y-5">
+      <section className="rounded-lg border border-white/10 bg-white/[0.04] p-4">
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/35">Story</p>
+        <h3 className="mt-2 text-lg font-bold leading-snug text-white">{scenario.title}</h3>
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          <div className="flex h-10 items-center overflow-hidden rounded-lg border border-white/10 bg-black/25 text-white">
+            <button
+              type="button"
+              onClick={() => handleReaction('like')}
+              className={`flex h-10 items-center gap-1.5 px-3 text-xs font-semibold transition-colors ${
+                myReaction === 'like'
+                  ? 'bg-primary-500 text-white'
+                  : canReact
+                    ? 'hover:bg-white/10 text-white/90'
+                    : 'text-white/45 cursor-not-allowed'
+              }`}
+              aria-label={canReact ? t.likeStory : t.signInToReact}
+              aria-pressed={myReaction === 'like'}
+              disabled={reactionPending}
+              title={canReact ? t.likeStory : t.signInToReact}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M7 10v12" />
+                <path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2h0a3.13 3.13 0 0 1 3 3.88Z" />
+              </svg>
+              <span>{formatReactionCount(likeCount)}</span>
+            </button>
+            <div className="h-5 w-px bg-white/15" />
+            <button
+              type="button"
+              onClick={() => handleReaction('dislike')}
+              className={`flex h-10 items-center gap-1.5 px-3 text-xs font-semibold transition-colors ${
+                myReaction === 'dislike'
+                  ? 'bg-white/20 text-white'
+                  : canReact
+                    ? 'hover:bg-white/10 text-white/90'
+                    : 'text-white/45 cursor-not-allowed'
+              }`}
+              aria-label={canReact ? t.dislikeStory : t.signInToReact}
+              aria-pressed={myReaction === 'dislike'}
+              disabled={reactionPending}
+              title={canReact ? t.dislikeStory : t.signInToReact}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M17 14V2" />
+                <path d="M9 18.12 10 14H4.17a2 2 0 0 1-1.92-2.56l2.33-8A2 2 0 0 1 6.5 2H20a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2.76a2 2 0 0 0-1.79 1.11L12 22h0a3.13 3.13 0 0 1-3-3.88Z" />
+              </svg>
+              <span>{formatReactionCount(dislikeCount)}</span>
+            </button>
+          </div>
+          {reactionError && (
+            <span className="text-xs text-red-300">{t.reactionUpdateFailed}</span>
+          )}
+        </div>
+      </section>
+
+      <section className="rounded-lg border border-white/10 bg-white/[0.04] p-4">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/35">Reading</p>
+            <h3 className="mt-1 text-sm font-semibold text-white">{t.fontSize}</h3>
+          </div>
+          <FontSizeControl variant="overlay" />
+        </div>
+      </section>
+
+      <section className="rounded-lg border border-white/10 bg-white/[0.04] p-4">
+        <div className="flex items-start gap-3">
+          <button
+            type="button"
+            onClick={() => currentPage?.imageUrl && setLightboxUrl(currentPage.imageUrl)}
+            className="h-20 w-16 shrink-0 overflow-hidden rounded-lg bg-black/30"
+            aria-label="Open current page image"
+          >
+            {currentPage ? (
+              <img src={currentImageUrl} alt={`Page ${currentPage.pageNumber}`} className="h-full w-full object-cover" />
+            ) : null}
+          </button>
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/35">Current page</p>
+            <h3 className="mt-1 text-sm font-semibold text-white">
+              Page {currentPage?.pageNumber ?? '-'} / {scenario.pages.length}
+            </h3>
+            <p className="mt-1 line-clamp-2 text-sm text-white/55">{currentPage?.text}</p>
+          </div>
+        </div>
+
+        <div className="mt-4 space-y-3">
+          {renderActionRow({
+            title: 'Regenerate image',
+            description: 'Give feedback and recreate only this page illustration.',
+            cost: imageCost,
+            disabled: !canUsePageActions,
+            disabledMessage: canManageStory
+              ? 'Page actions are available after generation finishes.'
+              : 'Sign in as the story owner to recreate this page.',
+            onOpen: () => setView('image'),
+          })}
+          {renderActionRow({
+            title: 'Audio & script',
+            description: 'Edit this page text and regenerate narration with the same voice.',
+            cost: pageAudioCost,
+            disabled: !storyVoice || !canUsePageActions,
+            disabledMessage: !canManageStory
+              ? 'Sign in as the story owner to recreate this page.'
+              : storyVoice
+                ? 'Page actions are available after generation finishes.'
+                : 'Add narration first to keep a consistent story voice.',
+            onOpen: () => setView('audio'),
+          })}
+        </div>
+      </section>
+
+      {showAddNarration && (
+        <section className="rounded-lg border border-white/10 bg-white/[0.04] p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h3 className="text-sm font-semibold text-white">{t.addNarration}</h3>
+              <p className="mt-1 text-sm text-white/55">{t.creditsRequiredLabel}: {formatCredits(addNarrationCost, t)}</p>
+            </div>
+            {isCreditShort(addNarrationCost) && (
+              <span className="rounded-full bg-amber-500/15 px-2 py-1 text-xs text-amber-200">Not enough credits</span>
+            )}
+          </div>
+
+          <label htmlFor="story-tools-voice-select" className="mt-4 block text-sm text-white/70">
+            {t.selectVoice}
+          </label>
+          <select
+            id="story-tools-voice-select"
+            value={selectedVoice}
+            onChange={(event) => setSelectedVoice(event.target.value as VoiceKey)}
+            disabled={isBusy || !canStartAddNarration}
+            className="mt-2 w-full rounded-lg border border-white/10 bg-white/10 px-3 py-2 text-sm text-white focus:border-primary-300 focus:outline-none disabled:opacity-50"
+          >
+            {VOICE_OPTIONS.map((option) => {
+              const { label, description } = getVoiceOptionText(option, t);
+              return (
+                <option key={option.key} value={option.key} className="bg-[#1a1a2e] text-white">
+                  {label} - {description}
+                </option>
+              );
+            })}
+          </select>
+
+          {isAddingNarration && renderProgress(t.generatingNarration)}
+          {renderResult(audioResult, t.narrationSuccess, t.narrationGenerationFailed)}
+
+          <div className="mt-4 flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={handleGenerateAudio}
+              disabled={isBusy || !canStartAddNarration}
+              className="rounded-lg bg-primary-500 px-5 py-2 text-sm font-bold text-white transition-colors hover:bg-primary-600 disabled:cursor-not-allowed disabled:bg-primary-500/45"
+            >
+              {isCreditShort(addNarrationCost) ? 'Get credits' : isAddingNarration ? t.generatingNarration : t.generateNarration}
+            </button>
+          </div>
+        </section>
+      )}
+
+      {hasErrors && canManageStory && (
+        <section className="rounded-lg border border-amber-400/20 bg-amber-500/[0.08] p-4">
+          <h3 className="text-sm font-semibold text-white">{t.storyStatus}</h3>
+          <p className="mt-1 text-sm text-white/60">{t.retryDescription}</p>
+          {storyMessage && (
+            <p className="mt-2 text-sm text-amber-300">{storyMessage}</p>
+          )}
+          <div className="mt-3 flex flex-wrap gap-2">
+            {failedImageCount > 0 && (
+              <span className="rounded-full bg-red-500/15 px-3 py-1 text-xs font-medium text-red-300">
+                {failedImageCount} {t.failedImages}
+              </span>
+            )}
+            {missingAudioCount > 0 && (
+              <span className="rounded-full bg-orange-500/15 px-3 py-1 text-xs font-medium text-orange-300">
+                {missingAudioCount} {t.missingAudio}
+              </span>
+            )}
+          </div>
+          {isRetrying && activeProgress && renderProgress(t.retrying)}
+          {renderResult(retryResult, t.retrySuccess, t.retryFailed)}
+          <button
+            type="button"
+            onClick={handleRetry}
+            disabled={isBusy}
+            className="mt-4 rounded-lg bg-primary-500 px-5 py-2 text-sm font-bold text-white transition-colors hover:bg-primary-600 disabled:cursor-not-allowed disabled:bg-primary-500/45"
+          >
+            {isRetrying ? t.retrying : t.retry}
+          </button>
+        </section>
+      )}
+
+      <section>
+        <h3 className="mb-3 text-sm font-semibold text-white">{t.referenceImages}</h3>
+        {assetsLoading ? (
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+            {[1, 2, 3].map(i => (
+              <div key={i} className="aspect-square rounded-lg bg-white/5 animate-pulse" />
+            ))}
+          </div>
+        ) : characterSheets.length > 0 ? (
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+            {characterSheets.map((sheet) => (
+              <button
+                key={sheet.url}
+                type="button"
+                onClick={() => setLightboxUrl(sheet.url)}
+                className="group relative aspect-square cursor-pointer overflow-hidden rounded-lg bg-white/5 transition-all hover:ring-2 hover:ring-primary-400"
+              >
+                <img src={sheet.url} alt={sheet.name} className="h-full w-full object-cover" loading="lazy" />
+                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-2">
+                  <p className="truncate text-xs font-medium text-white">{sheet.name}</p>
+                  <p className="text-[10px] text-white/50">{t.characterSheet}</p>
+                </div>
+              </button>
+            ))}
+          </div>
+        ) : (
+          <p className="rounded-lg bg-white/[0.04] p-4 text-center text-sm text-white/45">{t.noReferenceImages}</p>
+        )}
+      </section>
+    </div>
+  );
+
+  const renderImageView = () => (
+    <div className="space-y-4">
+      <div className="overflow-hidden rounded-lg border border-white/10 bg-black/30">
+        <img src={currentImageUrl} alt={`Page ${currentPage?.pageNumber ?? ''}`} className="max-h-72 w-full object-contain" />
+      </div>
+      <div>
+        <div className="mb-2 flex items-center justify-between gap-3">
+          <label htmlFor="page-image-feedback" className="text-sm font-semibold text-white">Feedback</label>
+          <span className="text-xs text-white/45">{imageFeedback.length} / {PAGE_FEEDBACK_MAX_CHARS}</span>
+        </div>
+        <textarea
+          id="page-image-feedback"
+          value={imageFeedback}
+          onChange={(event) => setImageFeedback(event.target.value)}
+          maxLength={PAGE_FEEDBACK_MAX_CHARS}
+          rows={5}
+          placeholder="Describe what should change in this page image."
+          className="w-full resize-none rounded-lg border border-white/10 bg-white/10 px-3 py-2 text-sm text-white placeholder:text-white/35 focus:border-primary-300 focus:outline-none"
+        />
+      </div>
+      <div className="rounded-lg bg-white/[0.04] px-3 py-2 text-sm text-white/60">
+        Cost: <span className="font-semibold text-white">{formatCredits(imageCost, t)}</span>
+      </div>
+      {imageError && <p className="rounded-lg bg-red-500/15 px-3 py-2 text-sm text-red-300">{imageError}</p>}
+      {isRegeneratingImage && renderProgress('Regenerating image...')}
+      {renderResult(imageResult, 'Image regenerated successfully.', 'Image regeneration failed. Credits were refunded if no asset was saved.')}
+      <button
+        type="button"
+        onClick={handleImageSubmit}
+        disabled={!canUsePageActions || isBusy || regenerateImage.isPending || !imageFeedbackTrimmed}
+        className="w-full rounded-lg bg-primary-500 px-5 py-3 text-sm font-bold text-white transition-colors hover:bg-primary-600 disabled:cursor-not-allowed disabled:bg-primary-500/45"
+      >
+        {isCreditShort(imageCost) ? 'Get credits' : isRegeneratingImage ? 'Regenerating...' : 'Regenerate image'}
+      </button>
+    </div>
+  );
+
+  const renderAudioView = () => (
+    <div className="space-y-4">
+      <div className="rounded-lg border border-white/10 bg-white/[0.04] p-4">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/35">Voice</p>
+            <p className="mt-1 text-sm font-semibold text-white">{currentVoiceLabel}</p>
+          </div>
+          <span className="rounded-full bg-white/10 px-2 py-1 text-xs text-white/65">same voice</span>
+        </div>
+        {currentPage?.audioUrl && (
+          <audio controls src={currentPage.audioUrl} className="mt-4 w-full" />
+        )}
+      </div>
+
+      <div>
+        <div className="mb-2 flex items-center justify-between gap-3">
+          <label htmlFor="page-script-text" className="text-sm font-semibold text-white">Page text</label>
+          <span className={`text-xs ${pageText.length > pageTextMaxChars ? 'text-red-300' : 'text-white/45'}`}>
+            {pageText.length} / {pageTextMaxChars}
+          </span>
+        </div>
+        <textarea
+          id="page-script-text"
+          value={pageText}
+          onChange={(event) => setPageText(event.target.value)}
+          rows={7}
+          maxLength={pageTextMaxChars + 80}
+          className="w-full resize-none rounded-lg border border-white/10 bg-white/10 px-3 py-2 text-sm leading-relaxed text-white placeholder:text-white/35 focus:border-primary-300 focus:outline-none"
+        />
+      </div>
+      <div className="rounded-lg bg-white/[0.04] px-3 py-2 text-sm text-white/60">
+        Cost: <span className="font-semibold text-white">{formatCredits(pageAudioCost, t)}</span>
+      </div>
+      {!storyVoice && (
+        <p className="rounded-lg bg-amber-500/15 px-3 py-2 text-sm text-amber-200">Add narration first to keep the voice consistent.</p>
+      )}
+      {pageAudioError && <p className="rounded-lg bg-red-500/15 px-3 py-2 text-sm text-red-300">{pageAudioError}</p>}
+      {isRegeneratingPageAudio && renderProgress('Updating script and audio...')}
+      {renderResult(pageAudioResult, 'Script and narration updated successfully.', 'Script and narration update failed. Credits were refunded if no audio was saved.')}
+      <button
+        type="button"
+        onClick={handlePageAudioSubmit}
+        disabled={!storyVoice || !canUsePageActions || isBusy || regeneratePageAudio.isPending || pageTextInvalid || !pageTextChanged}
+        className="w-full rounded-lg bg-primary-500 px-5 py-3 text-sm font-bold text-white transition-colors hover:bg-primary-600 disabled:cursor-not-allowed disabled:bg-primary-500/45"
+      >
+        {isCreditShort(pageAudioCost) ? 'Get credits' : isRegeneratingPageAudio ? 'Updating...' : 'Update script & audio'}
+      </button>
+    </div>
+  );
+
+  const title = view === 'settings'
+    ? t.storyTools
+    : view === 'image'
+      ? 'Regenerate image'
+      : 'Audio & script';
+
   return (
     <>
-      {/* Modal backdrop */}
       <div
-        className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
-        onClick={(e) => {
-          if (e.target === e.currentTarget) onClose();
+        className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+        onClick={(event) => {
+          if (event.target === event.currentTarget) onClose();
         }}
       >
-        {/* Modal card */}
-        <div className="bg-[#1a1a2e] border border-white/10 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] overflow-hidden flex flex-col">
-          {/* Header */}
-          <div className="flex items-center justify-between px-6 py-4 border-b border-white/10">
-            <h2 className="text-white text-lg font-bold">{t.storyTools}</h2>
+        <div className="flex max-h-[85vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#1a1a2e] shadow-2xl">
+          <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
+            <div className="flex min-w-0 items-center gap-3">
+              {view !== 'settings' && (
+                <button
+                  type="button"
+                  onClick={() => setView('settings')}
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white/60 transition-colors hover:bg-white/10 hover:text-white"
+                  aria-label={t.back}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+                  </svg>
+                </button>
+              )}
+              <h2 className="truncate text-lg font-bold text-white">{title}</h2>
+            </div>
             <button
+              type="button"
               onClick={onClose}
-              className="text-white/50 hover:text-white w-8 h-8 rounded-full flex items-center justify-center hover:bg-white/10 transition-colors"
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white/50 transition-colors hover:bg-white/10 hover:text-white"
               aria-label="Close"
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -222,250 +863,21 @@ export default function StoryToolsModal({
             </button>
           </div>
 
-          {/* Scrollable content */}
-          <div className="overflow-y-auto flex-1 px-6 py-5 space-y-6">
-            {/* Add narration section — shown for completed owner stories with no audio */}
-            {showAddNarration && (
-              <div className="bg-white/5 border border-white/10 rounded-xl p-5">
-                <div className="flex items-start gap-3 mb-4">
-                  <div className="w-8 h-8 rounded-full bg-primary-500/20 flex items-center justify-center shrink-0 mt-0.5">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-primary-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 18.5a6.5 6.5 0 006.5-6.5V8a6.5 6.5 0 00-13 0v4a6.5 6.5 0 006.5 6.5z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M8 20h8M9 12v-1m3 1V8m3 4V9" />
-                    </svg>
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="text-white font-semibold text-sm mb-1">{t.addNarration}</h3>
-                    <p className="text-white/60 text-sm">{t.creditsRequiredLabel}: 1 {t.creditSingular}</p>
-                  </div>
-                </div>
-
-                <label htmlFor="story-tools-voice-select" className="block text-white/70 text-sm mb-2">
-                  {t.selectVoice}
-                </label>
-                <select
-                  id="story-tools-voice-select"
-                  value={selectedVoice}
-                  onChange={(e) => setSelectedVoice(e.target.value as VoiceKey)}
-                  disabled={isBusy || !canStartAddNarration}
-                  className="w-full bg-white/10 border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-primary-300 disabled:opacity-50"
-                >
-                  {VOICE_OPTIONS.map((option) => {
-                    const { label, description } = getVoiceOptionText(option, t);
-                    return (
-                      <option key={option.key} value={option.key} className="bg-[#1a1a2e] text-white">
-                        {label} - {description}
-                      </option>
-                    );
-                  })}
-                </select>
-
-                {isAddingNarration && (
-                  <div className="mt-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <div className="w-4 h-4 rounded-full border-2 border-primary-400/30 border-t-primary-400 animate-spin" />
-                      <span className="text-white/70 text-sm">{t.generatingNarration}</span>
-                    </div>
-                    {activeProgress?.totalPages ? (
-                      <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-primary-500 rounded-full transition-all duration-300"
-                          style={{ width: `${Math.round((activeProgress.completedPages / activeProgress.totalPages) * 100)}%` }}
-                        />
-                      </div>
-                    ) : null}
-                    {activeProgress?.message && (
-                      <p className="text-white/40 text-xs mt-1.5">{formatStoryStatusMessage(activeProgress.message, t)}</p>
-                    )}
-                  </div>
-                )}
-
-                {audioResult && (
-                  <div className={`flex items-center gap-2 mt-4 px-3 py-2 rounded-lg text-sm ${
-                    audioResult === 'success'
-                      ? 'bg-green-500/15 text-green-300'
-                      : 'bg-red-500/15 text-red-300'
-                  }`}>
-                    <span>{audioResult === 'success' ? t.narrationSuccess : t.narrationGenerationFailed}</span>
-                  </div>
-                )}
-
-                <div className="flex gap-3 mt-4">
-                  <button
-                    onClick={handleGenerateAudio}
-                    disabled={isBusy || !canStartAddNarration}
-                    className="bg-primary-500 hover:bg-primary-600 disabled:bg-primary-500/50 disabled:cursor-not-allowed text-white font-bold py-2 px-6 rounded-xl transition-colors text-sm"
-                  >
-                    {isAddingNarration ? t.generatingNarration : t.generateNarration}
-                  </button>
-                  <button
-                    onClick={onClose}
-                    className="bg-white/10 hover:bg-white/20 text-white py-2 px-6 rounded-xl transition-colors text-sm"
-                  >
-                    {t.back}
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Retry section — only shown when errors exist */}
-            {hasErrors && (
-              <div className="bg-white/5 border border-white/10 rounded-xl p-5">
-                <div className="flex items-start gap-3 mb-4">
-                  {/* Warning icon */}
-                  <div className="w-8 h-8 rounded-full bg-amber-500/20 flex items-center justify-center shrink-0 mt-0.5">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4.5c-.77-.833-2.694-.833-3.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                    </svg>
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="text-white font-semibold text-sm mb-1">{t.storyStatus}</h3>
-                    <p className="text-white/60 text-sm">{t.retryDescription}</p>
-                    {storyMessage && (
-                      <p className="text-amber-300 text-sm mt-2">{storyMessage}</p>
-                    )}
-                  </div>
-                </div>
-
-                {/* Error summary */}
-                <div className="flex flex-wrap gap-2 mb-4">
-                  {failedImageCount > 0 && (
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-500/15 text-red-300 text-xs font-medium">
-                      <span className="w-1.5 h-1.5 rounded-full bg-red-400" />
-                      {failedImageCount} {t.failedImages}
-                    </span>
-                  )}
-                  {missingAudioCount > 0 && (
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-orange-500/15 text-orange-300 text-xs font-medium">
-                      <span className="w-1.5 h-1.5 rounded-full bg-orange-400" />
-                      {missingAudioCount} {t.missingAudio}
-                    </span>
-                  )}
-                </div>
-
-                {/* Progress indicator during retry */}
-                {isRetrying && activeProgress && (
-                  <div className="mb-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <div className="w-4 h-4 rounded-full border-2 border-primary-400/30 border-t-primary-400 animate-spin" />
-                      <span className="text-white/70 text-sm">{t.retrying}</span>
-                    </div>
-                    {activeProgress.totalPages > 0 && (
-                      <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-primary-500 rounded-full transition-all duration-300"
-                          style={{ width: `${Math.round((activeProgress.completedPages / activeProgress.totalPages) * 100)}%` }}
-                        />
-                      </div>
-                    )}
-                    {activeProgress.message && (
-                      <p className="text-white/40 text-xs mt-1.5">{formatStoryStatusMessage(activeProgress.message, t)}</p>
-                    )}
-                  </div>
-                )}
-
-                {/* Retry result message */}
-                {retryResult && (
-                  <div className={`flex items-center gap-2 mb-4 px-3 py-2 rounded-lg text-sm ${
-                    retryResult === 'success'
-                      ? 'bg-green-500/15 text-green-300'
-                      : 'bg-red-500/15 text-red-300'
-                  }`}>
-                    {retryResult === 'success' ? (
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                      </svg>
-                    ) : (
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    )}
-                    <span>{retryResult === 'success' ? t.retrySuccess : t.retryFailed}</span>
-                  </div>
-                )}
-
-                {/* Buttons */}
-                <div className="flex gap-3">
-                  <button
-                    onClick={handleRetry}
-                    disabled={isBusy}
-                    className="bg-primary-500 hover:bg-primary-600 disabled:bg-primary-500/50 disabled:cursor-not-allowed text-white font-bold py-2 px-6 rounded-xl transition-colors text-sm"
-                  >
-                    {isRetrying ? t.retrying : t.retry}
-                  </button>
-                  <button
-                    onClick={onClose}
-                    className="bg-white/10 hover:bg-white/20 text-white py-2 px-6 rounded-xl transition-colors text-sm"
-                  >
-                    {t.back}
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Reference Images section */}
-            <div>
-              <h3 className="text-white font-semibold text-sm mb-3">{t.referenceImages}</h3>
-
-              {assetsLoading ? (
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                  {[1, 2, 3].map(i => (
-                    <div key={i} className="aspect-square rounded-xl bg-white/5 animate-pulse" />
-                  ))}
-                </div>
-              ) : characterSheets.length > 0 ? (
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                  {characterSheets.map((sheet) => (
-                    <button
-                      key={sheet.url}
-                      onClick={() => setLightboxUrl(sheet.url)}
-                      className="group relative aspect-square rounded-xl overflow-hidden bg-white/5 hover:ring-2 ring-primary-400 transition-all cursor-pointer"
-                    >
-                      <img
-                        src={sheet.url}
-                        alt={sheet.name}
-                        className="w-full h-full object-cover"
-                        loading="lazy"
-                      />
-                      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-2">
-                        <p className="text-white text-xs font-medium truncate">
-                          {sheet.name}
-                        </p>
-                        <p className="text-white/50 text-[10px]">{t.characterSheet}</p>
-                      </div>
-                      {/* Hover overlay */}
-                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-lg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
-                        </svg>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-8">
-                  <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center mx-auto mb-3">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white/30" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                    </svg>
-                  </div>
-                  <p className="text-white/40 text-sm">{t.noReferenceImages}</p>
-                </div>
-              )}
-            </div>
+          <div className="flex-1 overflow-y-auto px-5 py-5">
+            {view === 'settings' ? renderSettingsView() : view === 'image' ? renderImageView() : renderAudioView()}
           </div>
         </div>
       </div>
 
-      {/* Lightbox overlay */}
       {lightboxUrl && (
         <div
-          className="fixed inset-0 z-[70] bg-black/90 flex items-center justify-center p-4 cursor-pointer"
+          className="fixed inset-0 z-[70] flex cursor-pointer items-center justify-center bg-black/90 p-4"
           onClick={() => setLightboxUrl(null)}
         >
           <button
+            type="button"
             onClick={() => setLightboxUrl(null)}
-            className="absolute top-4 right-4 text-white/70 hover:text-white w-10 h-10 rounded-full bg-black/40 hover:bg-black/60 flex items-center justify-center transition-colors"
+            className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-black/40 text-white/70 transition-colors hover:bg-black/60 hover:text-white"
             aria-label="Close"
           >
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -475,8 +887,8 @@ export default function StoryToolsModal({
           <img
             src={lightboxUrl}
             alt="Full size preview"
-            className="max-w-full max-h-full object-contain rounded-lg"
-            onClick={(e) => e.stopPropagation()}
+            className="max-h-full max-w-full rounded-lg object-contain"
+            onClick={(event) => event.stopPropagation()}
           />
         </div>
       )}

@@ -3,6 +3,21 @@ import type { Language, Translations } from './types';
 
 const DEFAULT_ENGLISH_OFFER_COPY: Record<StoryPackOffer['slug'], { name: string; description: string }> = {
   pack_5: {
+    name: '5 credits',
+    description: 'Up to 50 fast pages, 25 pro pages, or 50 audio pages.',
+  },
+  pack_12: {
+    name: '12 credits',
+    description: 'Up to 120 fast pages, 60 pro pages, or 120 audio pages.',
+  },
+  pack_20: {
+    name: '20 credits',
+    description: 'Up to 200 fast pages, 100 pro pages, or 200 audio pages.',
+  },
+};
+
+const LEGACY_ENGLISH_OFFER_COPY: Record<StoryPackOffer['slug'], { name: string; description: string }> = {
+  pack_5: {
     name: '5 stories',
     description: 'Five credits for fast stories or upgraded modes.',
   },
@@ -17,7 +32,12 @@ const DEFAULT_ENGLISH_OFFER_COPY: Record<StoryPackOffer['slug'], { name: string;
 };
 
 export function formatCredits(count: number, t: Pick<Translations, 'creditSingular' | 'creditPlural'>): string {
-  return `${count} ${count === 1 ? t.creditSingular : t.creditPlural}`;
+  const rounded = Math.round(count * 10) / 10;
+  const formatted = new Intl.NumberFormat(undefined, {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 1,
+  }).format(rounded);
+  return `${formatted} ${rounded === 1 ? t.creditSingular : t.creditPlural}`;
 }
 
 function normalizeCurrency(currency: string | undefined): string {
@@ -60,8 +80,11 @@ export function getOfferCopy(
   };
 
   const englishDefaults = DEFAULT_ENGLISH_OFFER_COPY[offer.slug];
-  const shouldLocalizeName = !offer.name || offer.name === englishDefaults.name;
-  const shouldLocalizeDescription = !offer.description || offer.description === englishDefaults.description;
+  const legacyDefaults = LEGACY_ENGLISH_OFFER_COPY[offer.slug];
+  const shouldLocalizeName = !offer.name || offer.name === englishDefaults.name || offer.name === legacyDefaults.name;
+  const shouldLocalizeDescription = !offer.description
+    || offer.description === englishDefaults.description
+    || offer.description === legacyDefaults.description;
 
   return {
     name: shouldLocalizeName ? localizedDefaults[offer.slug].name : offer.name,
@@ -115,6 +138,12 @@ export function getLedgerReasonLabel(
       return t.billingReasonStoryCreate;
     case 'story_add_audio':
       return t.billingReasonStoryAddAudio;
+    case 'story_regenerate_assets':
+      return 'Regenerate story assets';
+    case 'story_regenerate_image':
+      return 'Regenerate page image';
+    case 'story_regenerate_audio':
+      return 'Regenerate page audio';
     case 'story_refund':
       return t.billingReasonStoryRefund;
     case 'admin_grant':

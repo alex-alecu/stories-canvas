@@ -340,7 +340,7 @@ interface StoryRow {
   scenario_revision: number | null;
   rendered_scenario_revision: number | null;
   story_mode: StoryMode | null;
-  credit_cost: number | null;
+  credit_cost: number | string | null;
   credit_refunded_at: string | null;
   generation_inputs: StoryGenerationInputs | null;
   usage_input_tokens: number | null;
@@ -363,6 +363,19 @@ function normalizeCount(value: unknown): number {
   if (typeof value === 'string') {
     const parsed = Number.parseInt(value, 10);
     return Number.isFinite(parsed) ? Math.max(0, parsed) : 0;
+  }
+
+  return 0;
+}
+
+function normalizeCreditAmount(value: unknown): number {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return Math.round(value * 10) / 10;
+  }
+
+  if (typeof value === 'string') {
+    const parsed = Number.parseFloat(value);
+    return Number.isFinite(parsed) ? Math.round(parsed * 10) / 10 : 0;
   }
 
   return 0;
@@ -411,7 +424,7 @@ function rowToStoryMeta(row: StoryRow): StoryMeta {
     renderedScenarioRevision,
     assetsStale: scenarioRevision > renderedScenarioRevision,
     storyMode: row.story_mode ?? undefined,
-    creditCost: row.credit_cost ?? undefined,
+    creditCost: row.credit_cost === null ? undefined : normalizeCreditAmount(row.credit_cost),
     creditRefundedAt: row.credit_refunded_at ?? undefined,
     generationInputs: row.generation_inputs ?? undefined,
     usageTotals: normalizeStoryUsageTotals({

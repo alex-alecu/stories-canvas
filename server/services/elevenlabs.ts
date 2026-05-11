@@ -155,7 +155,7 @@ export async function generatePageAudio(
   );
 }
 
-async function savePageAudio(storyId: string, filename: string, audioBuffer: Buffer, userId?: string): Promise<string> {
+export async function savePageAudio(storyId: string, filename: string, audioBuffer: Buffer, userId?: string): Promise<string> {
   if (config.useSupabase) {
     return uploadAudio(userId, storyId, filename, audioBuffer);
   } else {

@@ -93,7 +93,7 @@ const scenarioSchema = {
         },
         required: ['pageNumber', 'text', 'imagePrompt', 'characters'],
       },
-      description: 'Story pages (6-20 pages)',
+      description: 'Exactly 10 story pages',
     },
   },
   required: ['title', 'targetAge', 'characters', 'pages'],

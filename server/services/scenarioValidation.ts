@@ -11,8 +11,9 @@ export interface ScenarioTextRules {
   maxSentences: number;
 }
 
-export const MIN_SCENARIO_PAGES = 6;
-export const MAX_SCENARIO_PAGES = 20;
+export const REQUIRED_SCENARIO_PAGES = 10;
+export const MIN_SCENARIO_PAGES = REQUIRED_SCENARIO_PAGES;
+export const MAX_SCENARIO_PAGES = REQUIRED_SCENARIO_PAGES;
 export const MAX_ORIGINAL_SCENARIO_CHARACTERS = 3;
 export const MAX_RETELLING_SCENARIO_CHARACTERS = 14;
 export const MAX_SCENARIO_CHARACTERS = MAX_ORIGINAL_SCENARIO_CHARACTERS;
@@ -175,11 +176,11 @@ export function validateScenario(
     }
   }
 
-  if (pages.length < MIN_SCENARIO_PAGES || pages.length > MAX_SCENARIO_PAGES) {
+  if (pages.length !== REQUIRED_SCENARIO_PAGES) {
     issues.push({
       code: 'pages.range',
       path: 'pages',
-      message: `page count must be between ${MIN_SCENARIO_PAGES} and ${MAX_SCENARIO_PAGES}`,
+      message: `page count must be exactly ${REQUIRED_SCENARIO_PAGES}`,
     });
   }
 

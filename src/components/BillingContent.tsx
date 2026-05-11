@@ -116,7 +116,7 @@ export default function BillingContent() {
           </div>
           <div className="rounded-2xl bg-primary-50 px-5 py-4 text-primary-700 dark:bg-primary-900/30 dark:text-primary-200">
             <p className="text-xs uppercase tracking-[0.2em]">{t.availableCredits}</p>
-            <p className="mt-1 text-3xl font-extrabold">{billingOverview.balance.availableCredits}</p>
+            <p className="mt-1 text-3xl font-extrabold">{formatCredits(billingOverview.balance.availableCredits, t)}</p>
           </div>
         </div>
       </section>
@@ -242,10 +242,10 @@ export default function BillingContent() {
                   <div className="flex items-center justify-between gap-3">
                     <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{getLedgerReasonLabel(entry.reason, t)}</p>
                     <span className={`text-sm font-semibold ${entry.delta >= 0 ? 'text-green-600 dark:text-green-300' : 'text-red-600 dark:text-red-300'}`}>
-                      {entry.delta >= 0 ? '+' : ''}{entry.delta}
+                      {entry.delta >= 0 ? '+' : '-'}{formatCredits(Math.abs(entry.delta), t)}
                     </span>
                   </div>
-                  <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t.billingBalanceAfter}: {entry.balanceAfter}</p>
+                  <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t.billingBalanceAfter}: {formatCredits(entry.balanceAfter, t)}</p>
                   {entry.note && (
                     <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{entry.note}</p>
                   )}

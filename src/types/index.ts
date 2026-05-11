@@ -17,6 +17,8 @@ export type {
   ReviewStoryResponse,
   RegenerateAssetsResponse,
   GenerateAudioResponse,
+  RegeneratePageImageResponse,
+  RegeneratePageAudioResponse,
   StoryViewResponse,
   StoryReactionResponse,
   StoryMode,

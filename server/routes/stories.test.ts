@@ -511,7 +511,7 @@ test('POST /api/stories rejects Pro + Audio when narration is unavailable', asyn
   assert.equal(body.error, 'Audio generation service is not configured');
 });
 
-test('POST /api/stories/:id/generate-audio charges one credit and starts narration', async (t) => {
+test('POST /api/stories/:id/generate-audio charges prorated page credits and starts narration', async (t) => {
   const dataDir = mkdtempSync(path.join(os.tmpdir(), 'stories-audio-enabled-'));
   const harness = await createStoriesHarness(dataDir, {
     useSupabase: true,
@@ -540,9 +540,9 @@ test('POST /api/stories/:id/generate-audio charges one credit and starts narrati
   t.mock.method(harness.storiesModule.storageOps, 'updateStoryStatus', async () => {});
   t.mock.method(harness.storiesModule.storageOps, 'updateStoryProgress', async () => {});
   t.mock.method(harness.storiesModule.billingOps, 'consumeCredits', async (_userId: string, amount: number, params: { reason: string }) => {
-    assert.equal(amount, 1);
+    assert.equal(amount, 0.1);
     chargedReason = params.reason;
-    return { ledger_id: 'ledger-add-audio', available_credits: 4 };
+    return { ledger_id: 'ledger-add-audio', available_credits: 4.9 };
   });
   t.mock.method(harness.storiesModule.audioOps, 'isElevenLabsConfigured', () => true);
   t.mock.method(harness.storiesModule.audioOps, 'retryMissingAudio', async (_storyId: string, _pages: Page[], voiceKey: string) => {
@@ -565,8 +565,8 @@ test('POST /api/stories/:id/generate-audio charges one credit and starts narrati
   assert.deepEqual(body, {
     status: 'generating_audio',
     generatedAudio: 1,
-    chargedCredits: 1,
-    availableCredits: 4,
+    chargedCredits: 0.1,
+    availableCredits: 4.9,
   });
 
   await waitFor(async () => generatedVoice, value => value === 'serban');
@@ -615,9 +615,210 @@ test('POST /api/stories/:id/generate-audio returns 402 when credits are insuffic
   assert.equal(response.status, 402);
   const body = await response.json() as { error: string; requiredCredits: number; availableCredits: number };
   assert.equal(body.error, 'Not enough credits to add narration');
-  assert.equal(body.requiredCredits, 1);
+  assert.equal(body.requiredCredits, 0.1);
   assert.equal(body.availableCredits, 0);
   assert.equal(storedVoice, false);
+});
+
+test('POST /api/stories/:id/pages/:pageNumber/regenerate-image reviews feedback and increments image revision', async (t) => {
+  const dataDir = mkdtempSync(path.join(os.tmpdir(), 'stories-page-image-regenerate-'));
+  const harness = await createStoriesHarness(dataDir);
+  t.after(async () => {
+    await harness.close();
+    await fs.rm(dataDir, { recursive: true, force: true });
+  });
+
+  await writeStoryMeta(dataDir, {
+    id: 'story-page-image',
+    prompt: 'A story with one page.',
+    status: 'completed',
+    createdAt: '2026-03-29T00:00:00.000Z',
+    storyMode: 'fast',
+    scenario: makeScenario([makePage({ imageRevision: 0 })]),
+  });
+
+  let reviewedText = '';
+  let generatedPrompt = '';
+  t.mock.method(harness.storiesModule.pageTextReviewOps, 'reviewPageText', async (input: { text: string }) => {
+    reviewedText = input.text;
+    return { allowed: true };
+  });
+  t.mock.method(harness.storiesModule.illustrationOps, 'retryFailedSceneImages', async (
+    _storyId: string,
+    pages: Page[],
+    _characters: unknown,
+    pageNumbers: number[],
+    _style: unknown,
+    onProgress?: (progress: { pageNumber?: number; pageStatus?: string; message?: string }) => void,
+  ) => {
+    generatedPrompt = pages[0].imagePrompt;
+    assert.deepEqual(pageNumbers, [1]);
+    onProgress?.({ pageNumber: 1, pageStatus: 'completed', message: 'done' });
+    return 1;
+  });
+
+  const response = await fetch(`${harness.baseUrl}/api/stories/story-page-image/pages/1/regenerate-image`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ feedback: 'Make the moon brighter.' }),
+  });
+
+  assert.equal(response.status, 200);
+  const body = await response.json() as { status: string; pageNumber: number; chargedCredits: number };
+  assert.equal(body.status, 'generating_images');
+  assert.equal(body.pageNumber, 1);
+  assert.equal(body.chargedCredits, 0.1);
+
+  const updated = await waitFor(
+    () => readStoryMeta(dataDir, 'story-page-image'),
+    story => story.scenario?.pages[0]?.imageRevision === 1,
+  );
+  assert.equal(reviewedText, 'Make the moon brighter.');
+  assert.match(generatedPrompt, /User feedback for this regeneration: Make the moon brighter\./);
+  assert.equal(updated.scenario?.pages[0].status, 'completed');
+});
+
+test('PATCH /api/stories/:id/pages/:pageNumber/script-audio reviews text and updates the same-voice narration', async (t) => {
+  const dataDir = mkdtempSync(path.join(os.tmpdir(), 'stories-page-audio-regenerate-'));
+  const harness = await createStoriesHarness(dataDir, { elevenLabsApiKey: 'eleven-test-key' });
+  t.after(async () => {
+    await harness.close();
+    await fs.rm(dataDir, { recursive: true, force: true });
+  });
+
+  await writeStoryMeta(dataDir, {
+    id: 'story-page-audio',
+    prompt: 'A story with narration.',
+    status: 'completed',
+    createdAt: '2026-03-29T00:00:00.000Z',
+    voice: 'jora',
+    storyMode: 'pro_audio',
+    scenario: makeScenario([makePage({ audioUrl: '/old-audio.mp3', audioRevision: 0 })]),
+  });
+
+  let reviewedText = '';
+  let generatedText = '';
+  let generatedVoice = '';
+  t.mock.method(harness.storiesModule.pageTextReviewOps, 'reviewPageText', async (input: { text: string }) => {
+    reviewedText = input.text;
+    return { allowed: true };
+  });
+  t.mock.method(harness.storiesModule.audioOps, 'isElevenLabsConfigured', () => true);
+  t.mock.method(harness.storiesModule.audioOps, 'generatePageAudio', async (text: string, voiceKey: string) => {
+    generatedText = text;
+    generatedVoice = voiceKey;
+    return Buffer.from('audio');
+  });
+  t.mock.method(harness.storiesModule.audioOps, 'savePageAudio', async () => '/new-audio.mp3');
+
+  const response = await fetch(`${harness.baseUrl}/api/stories/story-page-audio/pages/1/script-audio`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text: 'The dragon waves softly at the stars.' }),
+  });
+
+  assert.equal(response.status, 200);
+  const body = await response.json() as { status: string; pageNumber: number; chargedCredits: number };
+  assert.equal(body.status, 'generating_audio');
+  assert.equal(body.pageNumber, 1);
+  assert.equal(body.chargedCredits, 0.1);
+
+  const updated = await waitFor(
+    () => readStoryMeta(dataDir, 'story-page-audio'),
+    story => story.scenario?.pages[0]?.audioRevision === 1,
+  );
+  assert.equal(reviewedText, 'The dragon waves softly at the stars.');
+  assert.equal(generatedText, 'The dragon waves softly at the stars.');
+  assert.equal(generatedVoice, 'jora');
+  assert.equal(updated.scenario?.pages[0].text, 'The dragon waves softly at the stars.');
+  assert.equal(updated.scenario?.pages[0].audioUrl, '/new-audio.mp3');
+});
+
+test('POST /api/stories/:id/pages/:pageNumber/regenerate-image blocks unsafe feedback before generation', async (t) => {
+  const dataDir = mkdtempSync(path.join(os.tmpdir(), 'stories-page-image-safety-'));
+  const harness = await createStoriesHarness(dataDir);
+  t.after(async () => {
+    await harness.close();
+    await fs.rm(dataDir, { recursive: true, force: true });
+  });
+
+  await writeStoryMeta(dataDir, {
+    id: 'story-page-image-safety',
+    prompt: 'A story with one page.',
+    status: 'completed',
+    createdAt: '2026-03-29T00:00:00.000Z',
+    scenario: makeScenario([makePage()]),
+  });
+
+  let generated = false;
+  t.mock.method(harness.storiesModule.pageTextReviewOps, 'reviewPageText', async () => ({
+    allowed: false,
+    reasonCode: 'profanity',
+    explanation: 'Please keep feedback child-friendly.',
+  }));
+  t.mock.method(harness.storiesModule.illustrationOps, 'retryFailedSceneImages', async () => {
+    generated = true;
+    return 1;
+  });
+
+  const response = await fetch(`${harness.baseUrl}/api/stories/story-page-image-safety/pages/1/regenerate-image`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ feedback: 'unsafe feedback' }),
+  });
+
+  assert.equal(response.status, 400);
+  const body = await response.json() as { error: string; reasonCode: string };
+  assert.equal(body.reasonCode, 'profanity');
+  assert.equal(body.error, 'Please keep feedback child-friendly.');
+  assert.equal(generated, false);
+});
+
+test('PATCH /api/stories/:id/pages/:pageNumber/script-audio returns 402 before audio when credits are insufficient', async (t) => {
+  const dataDir = mkdtempSync(path.join(os.tmpdir(), 'stories-page-audio-insufficient-'));
+  const harness = await createStoriesHarness(dataDir, {
+    useSupabase: true,
+    elevenLabsApiKey: 'eleven-test-key',
+    __testAuthUser: { id: 'user-page-audio', email: 'page-audio@example.test' },
+  });
+  t.after(async () => {
+    await harness.close();
+    await fs.rm(dataDir, { recursive: true, force: true });
+  });
+
+  const { InsufficientCreditsError } = await import('../services/billingStorage.js');
+  let generated = false;
+  t.mock.method(harness.storiesModule.storageOps, 'getStory', async () => makeStoryMeta({
+    id: 'story-page-audio-insufficient',
+    prompt: 'A story with narration.',
+    status: 'completed',
+    userId: 'user-page-audio',
+    voice: 'jora',
+    storyMode: 'pro_audio',
+    scenario: makeScenario([makePage({ audioUrl: '/old-audio.mp3' })]),
+  }));
+  t.mock.method(harness.storiesModule.pageTextReviewOps, 'reviewPageText', async () => ({ allowed: true }));
+  t.mock.method(harness.storiesModule.billingOps, 'consumeCredits', async () => {
+    throw new InsufficientCreditsError();
+  });
+  t.mock.method(harness.storiesModule.billingOps, 'getUserCreditBalance', async () => ({ availableCredits: 0 }));
+  t.mock.method(harness.storiesModule.audioOps, 'isElevenLabsConfigured', () => true);
+  t.mock.method(harness.storiesModule.audioOps, 'generatePageAudio', async () => {
+    generated = true;
+    return Buffer.from('audio');
+  });
+
+  const response = await fetch(`${harness.baseUrl}/api/stories/story-page-audio-insufficient/pages/1/script-audio`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text: 'A safe replacement page text.' }),
+  });
+
+  assert.equal(response.status, 402);
+  const body = await response.json() as { requiredCredits: number; availableCredits: number };
+  assert.equal(body.requiredCredits, 0.1);
+  assert.equal(body.availableCredits, 0);
+  assert.equal(generated, false);
 });
 
 test('POST /api/stories/:id/generate-audio rejects invalid voices before charging', async (t) => {
@@ -1218,7 +1419,10 @@ test('POST /api/stories/:id/regenerate-assets syncs renderedScenarioRevision to 
   });
 
   assert.equal(response.status, 200);
-  assert.deepEqual(await response.json(), { status: 'generating_characters' });
+  const responseBody = await response.json() as { status: string; chargedCredits: number; availableCredits: number };
+  assert.equal(responseBody.status, 'generating_characters');
+  assert.equal(responseBody.chargedCredits, 0.1);
+  assert.equal(responseBody.availableCredits, 0);
 
   const savedStory = await waitFor(
     () => readStoryMeta(dataDir, 'story-regenerate-assets'),

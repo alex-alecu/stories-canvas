@@ -3,12 +3,9 @@ import { Swiper, SwiperSlide } from 'swiper/react';
 import { Navigation, Keyboard } from 'swiper/modules';
 import type { Swiper as SwiperType } from 'swiper';
 import { Link, useNavigate } from 'react-router-dom';
-import type { Scenario, GenerationProgress, StoryReaction, StoryStatus } from '../types';
+import type { Scenario, GenerationProgress, StoryReaction, StoryMode, StoryStatus } from '../types';
 import { useLanguage } from '../i18n/LanguageContext';
 import { useFontSize, type FontSize } from '../contexts/FontSizeContext';
-import { useAuth } from '../contexts/AuthContext';
-import { useStoryReaction } from '../hooks/useStories';
-import FontSizeControl from './FontSizeControl';
 import { readStoredBoolean, readStoredNumber, writeStorageItem } from '../lib/browserStorage';
 import { formatStoryStatusMessage } from '../i18n/storyStatusCopy';
 import StoryToolsModal from './StoryToolsModal';
@@ -31,20 +28,6 @@ function getStoredPlaybackRate(): number {
   );
 }
 
-function formatReactionCount(count: number): string {
-  const safeCount = Math.max(0, Math.trunc(count));
-  if (safeCount >= 1_000_000) {
-    return `${(safeCount / 1_000_000).toFixed(safeCount >= 10_000_000 ? 0 : 1).replace(/\.0$/, '')}M`;
-  }
-  if (safeCount >= 10_000) {
-    return `${Math.round(safeCount / 1_000)}K`;
-  }
-  if (safeCount >= 1_000) {
-    return `${(safeCount / 1_000).toFixed(1).replace(/\.0$/, '')}K`;
-  }
-  return safeCount.toLocaleString();
-}
-
 interface StoryViewerProps {
   storyId: string;
   scenario: Scenario;
@@ -56,6 +39,8 @@ interface StoryViewerProps {
   likeCount?: number;
   dislikeCount?: number;
   myReaction?: StoryReaction | null;
+  storyMode?: StoryMode;
+  canManageStory?: boolean;
 }
 
 const fontSizeClasses: Record<FontSize, string> = {
@@ -75,17 +60,13 @@ export default function StoryViewer({
   likeCount = 0,
   dislikeCount = 0,
   myReaction = null,
+  storyMode,
+  canManageStory = false,
 }: StoryViewerProps) {
   const { t } = useLanguage();
-  const { user } = useAuth();
   const { fontSize } = useFontSize();
-  const [showFontSize, setShowFontSize] = useState(false);
   const [showTools, setShowTools] = useState(false);
-  const [showReactionFailed, setShowReactionFailed] = useState(false);
-  const { mutate: mutateReaction, isPending: reactionPending } = useStoryReaction(storyId);
   const autoOpenedToolsRef = useRef(false);
-  const popoverRef = useRef<HTMLDivElement>(null);
-  const buttonRef = useRef<HTMLButtonElement>(null);
   const swiperRef = useRef<SwiperType | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -113,11 +94,11 @@ export default function StoryViewer({
   }, [storyId]);
 
   useEffect(() => {
-    if (hasErrors && !autoOpenedToolsRef.current) {
+    if (hasErrors && canManageStory && !autoOpenedToolsRef.current) {
       autoOpenedToolsRef.current = true;
       setShowTools(true);
     }
-  }, [hasErrors]);
+  }, [canManageStory, hasErrors]);
 
   // Auto-play state (persisted to localStorage)
   const [autoPlay, setAutoPlay] = useState(getStoredAutoPlay);
@@ -344,26 +325,6 @@ export default function StoryViewer({
     playPageAudio(currentPageNumber, currentPageAudioUrl);
   }, [currentPageNumber, currentPageAudioUrl, playPageAudio]);
 
-  const canReact = !!user && storyStatus === 'completed';
-  const showReactions = storyStatus === 'completed';
-
-  const handleReaction = useCallback((reaction: StoryReaction) => {
-    if (!canReact || reactionPending) return;
-
-    mutateReaction(
-      { id: storyId, reaction: myReaction === reaction ? null : reaction },
-      {
-        onError: () => setShowReactionFailed(true),
-      },
-    );
-  }, [canReact, myReaction, mutateReaction, reactionPending, storyId]);
-
-  useEffect(() => {
-    if (!showReactionFailed) return;
-    const timer = setTimeout(() => setShowReactionFailed(false), 4000);
-    return () => clearTimeout(timer);
-  }, [showReactionFailed]);
-
   // Cleanup audio on unmount
   useEffect(() => {
     return () => {
@@ -374,31 +335,6 @@ export default function StoryViewer({
       }
     };
   }, []);
-
-  // Close popover on outside click
-  useEffect(() => {
-    if (!showFontSize) return;
-    const handleClick = (e: MouseEvent) => {
-      if (
-        popoverRef.current && !popoverRef.current.contains(e.target as Node) &&
-        buttonRef.current && !buttonRef.current.contains(e.target as Node)
-      ) {
-        setShowFontSize(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, [showFontSize]);
-
-  // Close popover on Escape
-  useEffect(() => {
-    if (!showFontSize) return;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setShowFontSize(false);
-    };
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [showFontSize]);
 
   return (
     <div
@@ -418,35 +354,9 @@ export default function StoryViewer({
         </svg>
       </Link>
 
-      {/* Font size button + popover */}
-      <div className="absolute top-4 left-16 z-50">
-        <button
-          ref={buttonRef}
-          onClick={() => setShowFontSize(prev => !prev)}
-          className={`bg-black/40 hover:bg-black/60 backdrop-blur-sm text-white w-10 h-10 rounded-full flex items-center justify-center transition-colors text-sm font-bold ${
-            showFontSize ? 'bg-black/60' : ''
-          }`}
-          aria-label={t.fontSize}
-          aria-expanded={showFontSize}
-        >
-          Aa
-        </button>
-        {/* Popover */}
-        <div
-          ref={popoverRef}
-          className={`absolute top-12 left-0 transition-all duration-200 ${
-            showFontSize
-              ? 'opacity-100 scale-100 translate-y-0'
-              : 'opacity-0 scale-95 -translate-y-1 pointer-events-none'
-          }`}
-        >
-          <FontSizeControl variant="overlay" />
-        </div>
-      </div>
-
       {/* Audio controls — only shown when the story has audio */}
       {hasAudio && (
-        <div className="absolute top-4 left-[7.5rem] z-50 flex items-center gap-2">
+        <div className="absolute top-4 left-16 z-50 flex items-center gap-2">
           {/* Auto-play toggle */}
           <button
             onClick={toggleAutoPlay}
@@ -502,64 +412,8 @@ export default function StoryViewer({
         </div>
       )}
 
-      {/* Story title + tools button */}
+      {/* Story tools button */}
       <div className="absolute top-4 right-4 z-50 flex items-center gap-2">
-        <div className="hidden sm:block bg-black/40 backdrop-blur-sm text-white px-4 py-2 rounded-full text-sm font-semibold max-w-[40vw] truncate">
-          {scenario.title}
-        </div>
-        {showReactions && (
-          <div
-            className="flex h-10 items-center rounded-full bg-black/40 text-white backdrop-blur-sm overflow-hidden"
-            role="group"
-            aria-label={`${t.likeStory} / ${t.dislikeStory}`}
-          >
-            <button
-              type="button"
-              onClick={() => handleReaction('like')}
-              className={`flex h-10 items-center gap-1.5 px-3 text-xs font-semibold transition-colors ${
-                myReaction === 'like'
-                  ? 'bg-primary-500 text-white'
-                  : canReact
-                    ? 'hover:bg-black/60 text-white/90'
-                    : 'text-white/55 cursor-not-allowed'
-              }`}
-              aria-label={canReact ? t.likeStory : t.signInToReact}
-              aria-pressed={myReaction === 'like'}
-              aria-disabled={!canReact || reactionPending}
-              disabled={reactionPending}
-              title={canReact ? t.likeStory : t.signInToReact}
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <path d="M7 10v12" />
-                <path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2h0a3.13 3.13 0 0 1 3 3.88Z" />
-              </svg>
-              <span>{formatReactionCount(likeCount)}</span>
-            </button>
-            <div className="h-5 w-px bg-white/15" />
-            <button
-              type="button"
-              onClick={() => handleReaction('dislike')}
-              className={`flex h-10 items-center gap-1.5 px-3 text-xs font-semibold transition-colors ${
-                myReaction === 'dislike'
-                  ? 'bg-white/20 text-white'
-                  : canReact
-                    ? 'hover:bg-black/60 text-white/90'
-                    : 'text-white/55 cursor-not-allowed'
-              }`}
-              aria-label={canReact ? t.dislikeStory : t.signInToReact}
-              aria-pressed={myReaction === 'dislike'}
-              aria-disabled={!canReact || reactionPending}
-              disabled={reactionPending}
-              title={canReact ? t.dislikeStory : t.signInToReact}
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <path d="M17 14V2" />
-                <path d="M9 18.12 10 14H4.17a2 2 0 0 1-1.92-2.56l2.33-8A2 2 0 0 1 6.5 2H20a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2.76a2 2 0 0 0-1.79 1.11L12 22h0a3.13 3.13 0 0 1-3-3.88Z" />
-              </svg>
-              <span>{formatReactionCount(dislikeCount)}</span>
-            </button>
-          </div>
-        )}
         <button
           onClick={() => setShowTools(true)}
           className="relative bg-black/40 hover:bg-black/60 backdrop-blur-sm text-white w-10 h-10 rounded-full flex items-center justify-center transition-colors"
@@ -587,12 +441,6 @@ export default function StoryViewer({
       {issueMessage && !showAudioFailed && (
         <div className="absolute bottom-32 right-4 z-50 max-w-sm bg-amber-500/90 backdrop-blur-sm text-black px-3 py-2 rounded-2xl text-xs font-medium shadow-lg">
           {issueMessage}
-        </div>
-      )}
-
-      {showReactionFailed && (
-        <div className="absolute top-16 right-4 z-50 bg-red-500/80 backdrop-blur-sm text-white px-3 py-1.5 rounded-full text-xs font-medium">
-          {t.reactionUpdateFailed}
         </div>
       )}
 
@@ -667,6 +515,12 @@ export default function StoryViewer({
           storyMessage={storyMessage}
           voice={voice}
           storyStatus={storyStatus}
+          currentPage={currentPage}
+          storyMode={storyMode}
+          likeCount={likeCount}
+          dislikeCount={dislikeCount}
+          myReaction={myReaction}
+          canManageStory={canManageStory}
         />
       )}
 
