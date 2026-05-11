@@ -10,8 +10,13 @@ test('getArtStyleDescription returns the stored non-default style description', 
 });
 
 test('getArtStyleDescription falls back to the default style when none is stored', () => {
-  assert.equal(resolveArtStyle(undefined), 'disney-pixar');
-  assert.equal(getArtStyleDescription(undefined), ART_STYLES['disney-pixar']);
+  assert.equal(resolveArtStyle(undefined), 'storybook');
+  assert.equal(getArtStyleDescription(undefined), ART_STYLES.storybook);
+});
+
+test('Disney-labeled style uses unbranded generation instructions', () => {
+  assert.doesNotMatch(ART_STYLES['disney-pixar'], /Disney|Pixar/u);
+  assert.match(ART_STYLES['disney-pixar'], /stylized 3D animation/u);
 });
 
 test('retry image style selection uses the persisted story artStyle', () => {

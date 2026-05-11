@@ -19,12 +19,12 @@ import { getRandomStoryIdea } from '../data/storyIdeas';
 import { getVoiceOptionText } from '../i18n/storyStatusCopy';
 import { formatCredits } from '../i18n/billingCopy';
 
-const STYLE_KEYS: ArtStyleKey[] = ['disney-pixar', 'watercolor', 'storybook', 'anime', 'colored-pencil', 'paper-cutout'];
+const STYLE_KEYS = ['storybook', 'disney-pixar', 'anime', 'colored-pencil', 'paper-cutout'] as const satisfies ReadonlyArray<ArtStyleKey>;
+type SelectableArtStyleKey = (typeof STYLE_KEYS)[number];
 
-const styleTranslationMap: Record<ArtStyleKey, keyof ReturnType<typeof useLanguage>['t']> = {
-  'disney-pixar': 'styleDisneyPixar',
-  'watercolor': 'styleWatercolor',
+const styleTranslationMap: Record<SelectableArtStyleKey, keyof ReturnType<typeof useLanguage>['t']> = {
   'storybook': 'styleStorybook',
+  'disney-pixar': 'styleDisneyPixar',
   'anime': 'styleAnime',
   'colored-pencil': 'styleColoredPencil',
   'paper-cutout': 'stylePaperCutout',

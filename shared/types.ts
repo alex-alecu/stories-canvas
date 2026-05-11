@@ -83,7 +83,7 @@ export function getVoiceName(voiceKey: VoiceKey): string {
 }
 
 export const ART_STYLES: Record<ArtStyleKey, string> = {
-  'disney-pixar': 'Disney/Pixar 3D animation style with warm, vibrant colors, round and friendly character designs',
+  'disney-pixar': 'Warm family-friendly stylized 3D animation with rounded character shapes, expressive faces, cinematic lighting, richly detailed environments, and gentle vibrant colors',
   'watercolor': 'Soft watercolor illustration style with delicate washes of color, dreamy atmosphere, and gentle brushstrokes',
   'storybook': 'Classic hand-drawn storybook illustration with detailed line work, warm colors, and a nostalgic feel',
   'anime': 'Soft anime style with large expressive eyes, vibrant colors, and gentle cel-shading',
@@ -91,7 +91,7 @@ export const ART_STYLES: Record<ArtStyleKey, string> = {
   'paper-cutout': 'Paper cutout collage style with layered textures, craft paper elements, and a handmade feel',
 };
 
-export const DEFAULT_ART_STYLE: ArtStyleKey = 'disney-pixar';
+export const DEFAULT_ART_STYLE: ArtStyleKey = 'storybook';
 export const DEFAULT_AGE = 3;
 
 export type AgeGroup = 'toddler' | 'young' | 'older' | 'preteen';

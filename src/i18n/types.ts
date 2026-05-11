@@ -20,7 +20,6 @@ export interface Translations {
   childAge: string;
   artStyle: string;
   styleDisneyPixar: string;
-  styleWatercolor: string;
   styleStorybook: string;
   styleAnime: string;
   styleColoredPencil: string;
