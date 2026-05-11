@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef, type ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import type { GenerationProgress, Page, Scenario, StoryMode, StoryReaction, StoryStatus } from '../types';
 import {
@@ -30,6 +30,7 @@ const PAGE_TEXT_OVERLAY_MAX_CHARS = 320;
 
 type ToolsView = 'settings' | 'image' | 'audio';
 type OperationResult = 'success' | 'failed' | null;
+type PageImageMode = Extract<StoryMode, 'fast' | 'pro'>;
 
 interface StoryToolsModalProps {
   isOpen: boolean;
@@ -74,6 +75,14 @@ function getPageTextMaxChars(targetAge: number): number {
   return PAGE_TEXT_OVERLAY_MAX_CHARS;
 }
 
+function formatTemplate(template: string, values: Record<string, number | string>): string {
+  return template.replace(/\{(\w+)\}/g, (_, key: string) => String(values[key] ?? `{${key}}`));
+}
+
+function getDefaultPageImageMode(storyMode?: StoryMode): PageImageMode {
+  return storyMode === 'pro' || storyMode === 'pro_audio' ? 'pro' : 'fast';
+}
+
 export default function StoryToolsModal({
   isOpen,
   onClose,
@@ -109,6 +118,7 @@ export default function StoryToolsModal({
   const [pageAudioError, setPageAudioError] = useState<string | null>(null);
   const [reactionError, setReactionError] = useState(false);
   const [selectedVoice, setSelectedVoice] = useState<VoiceKey>(DEFAULT_VOICE_KEY);
+  const [imageMode, setImageMode] = useState<PageImageMode>(() => getDefaultPageImageMode(storyMode));
   const [imageFeedback, setImageFeedback] = useState('');
   const [pageText, setPageText] = useState(currentPage?.text ?? '');
   const [operationStarting, setOperationStarting] = useState(false);
@@ -127,7 +137,7 @@ export default function StoryToolsModal({
   const activeProgress = isTrackingGeneration ? sseProgress : progress;
   const storyVoice = normalizeVoiceKey(voice);
   const availableCredits = billingOverview?.balance.availableCredits ?? 0;
-  const imageCost = getStoryImagePageCreditCost(storyMode);
+  const imageCost = getStoryImagePageCreditCost(imageMode);
   const pageAudioCost = getStoryAudioCreditCost(1);
   const pageTextMaxChars = getPageTextMaxChars(scenario.targetAge);
   const addNarrationCost = getStoryAudioCreditCost(scenario.pages.filter(page => !page.audioUrl).length || scenario.pages.length);
@@ -135,7 +145,7 @@ export default function StoryToolsModal({
   const currentImageUrl = currentPage?.imageUrl || `/api/stories/${storyId}/images/page-${String(currentPage?.pageNumber ?? 1).padStart(2, '0')}.png`;
   const currentVoiceLabel = storyVoice
     ? getVoiceOptionText(VOICE_OPTIONS.find(option => option.key === storyVoice) ?? VOICE_OPTIONS[0], t).label
-    : 'Current voice';
+    : t.currentVoice;
 
   const canReact = !!user && storyStatus === 'completed';
   const canUsePageActions = canManageStory && storyStatus === 'completed' && !isGenerating && !!currentPage;
@@ -181,6 +191,10 @@ export default function StoryToolsModal({
     setImageResult(null);
     setPageAudioResult(null);
   }, [currentPage?.pageNumber, currentPage?.text]);
+
+  useEffect(() => {
+    setImageMode(getDefaultPageImageMode(storyMode));
+  }, [storyId, storyMode]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -354,11 +368,11 @@ export default function StoryToolsModal({
       return;
     }
     if (!imageFeedbackTrimmed) {
-      setImageError('Feedback is required.');
+      setImageError(t.pageImageFeedbackRequired);
       return;
     }
     if (imageFeedbackTrimmed.length > PAGE_FEEDBACK_MAX_CHARS) {
-      setImageError(`Feedback must be ${PAGE_FEEDBACK_MAX_CHARS} characters or less.`);
+      setImageError(formatTemplate(t.pageImageFeedbackTooLong, { maxChars: PAGE_FEEDBACK_MAX_CHARS }));
       return;
     }
 
@@ -371,11 +385,12 @@ export default function StoryToolsModal({
         id: storyId,
         pageNumber: currentPage.pageNumber,
         feedback: imageFeedbackTrimmed,
+        mode: imageMode,
       });
     } catch (error) {
       setImageTriggered(false);
       setImageResult('failed');
-      setImageError(errorMessage(error, 'Could not regenerate this image.'));
+      setImageError(errorMessage(error, t.pageImageRegenerationError));
       clearOperationGracePeriod();
     }
   }, [
@@ -385,10 +400,12 @@ export default function StoryToolsModal({
     goToBilling,
     imageCost,
     imageFeedbackTrimmed,
+    imageMode,
     isCreditShort,
     regenerateImage,
     startOperationGracePeriod,
     storyId,
+    t,
   ]);
 
   const handlePageAudioSubmit = useCallback(async () => {
@@ -398,7 +415,7 @@ export default function StoryToolsModal({
       return;
     }
     if (pageTextInvalid) {
-      setPageAudioError(`Page text must be between 1 and ${pageTextMaxChars} characters.`);
+      setPageAudioError(formatTemplate(t.pageTextValidationError, { maxChars: pageTextMaxChars }));
       return;
     }
 
@@ -415,7 +432,7 @@ export default function StoryToolsModal({
     } catch (error) {
       setPageAudioTriggered(false);
       setPageAudioResult('failed');
-      setPageAudioError(errorMessage(error, 'Could not update this page.'));
+      setPageAudioError(errorMessage(error, t.pageAudioUpdateError));
       clearOperationGracePeriod();
     }
   }, [
@@ -432,6 +449,7 @@ export default function StoryToolsModal({
     startOperationGracePeriod,
     storyId,
     storyVoice,
+    t,
   ]);
 
   if (!isOpen) return null;
@@ -469,10 +487,36 @@ export default function StoryToolsModal({
     );
   };
 
+  const renderImageModeToggle = (disabled = false) => (
+    <div
+      className="inline-flex h-8 overflow-hidden rounded-lg border border-white/10 bg-black/25 p-0.5"
+      role="group"
+      aria-label={t.imageQualityMode}
+    >
+      {(['fast', 'pro'] as const).map(mode => (
+        <button
+          key={mode}
+          type="button"
+          onClick={() => setImageMode(mode)}
+          disabled={disabled}
+          className={`min-w-14 rounded-md px-2.5 text-xs font-semibold transition-colors ${
+            imageMode === mode
+              ? 'bg-primary-500 text-white'
+              : 'text-white/60 hover:bg-white/10 hover:text-white'
+          } disabled:cursor-not-allowed disabled:opacity-50`}
+          aria-pressed={imageMode === mode}
+        >
+          {mode === 'fast' ? t.storyModeFast : t.storyModePro}
+        </button>
+      ))}
+    </div>
+  );
+
   const renderActionRow = ({
     title,
     description,
     cost,
+    meta,
     disabled,
     disabledMessage,
     onOpen,
@@ -480,6 +524,7 @@ export default function StoryToolsModal({
     title: string;
     description: string;
     cost: number;
+    meta?: ReactNode;
     disabled?: boolean;
     disabledMessage?: string;
     onOpen: () => void;
@@ -491,6 +536,7 @@ export default function StoryToolsModal({
           <div className="flex flex-wrap items-center gap-2">
             <h4 className="text-sm font-semibold text-white">{title}</h4>
             <span className="rounded-full bg-white/10 px-2 py-0.5 text-xs text-white/65">{formatCredits(cost, t)}</span>
+            {meta}
           </div>
           <p className="mt-1 text-sm text-white/55">{disabled ? disabledMessage : description}</p>
         </div>
@@ -500,7 +546,7 @@ export default function StoryToolsModal({
           disabled={isBusy || disabled}
           className="inline-flex h-10 shrink-0 items-center justify-center rounded-lg bg-primary-500 px-4 text-sm font-bold text-white transition-colors hover:bg-primary-600 disabled:cursor-not-allowed disabled:bg-primary-500/45"
         >
-          {insufficient ? 'Get credits' : 'Open'}
+          {insufficient ? t.getCredits : t.openAction}
         </button>
       </div>
     );
@@ -509,7 +555,7 @@ export default function StoryToolsModal({
   const renderSettingsView = () => (
     <div className="space-y-5">
       <section className="rounded-lg border border-white/10 bg-white/[0.04] p-4">
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/35">Story</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/35">{t.storyToolsSectionStory}</p>
         <h3 className="mt-2 text-lg font-bold leading-snug text-white">{scenario.title}</h3>
         <div className="mt-4 flex flex-wrap items-center gap-2">
           <div className="flex h-10 items-center overflow-hidden rounded-lg border border-white/10 bg-black/25 text-white">
@@ -566,7 +612,7 @@ export default function StoryToolsModal({
       <section className="rounded-lg border border-white/10 bg-white/[0.04] p-4">
         <div className="flex items-center justify-between gap-4">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/35">Reading</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/35">{t.storyToolsSectionReading}</p>
             <h3 className="mt-1 text-sm font-semibold text-white">{t.fontSize}</h3>
           </div>
           <FontSizeControl variant="overlay" />
@@ -579,16 +625,19 @@ export default function StoryToolsModal({
             type="button"
             onClick={() => currentPage?.imageUrl && setLightboxUrl(currentPage.imageUrl)}
             className="h-20 w-16 shrink-0 overflow-hidden rounded-lg bg-black/30"
-            aria-label="Open current page image"
+            aria-label={t.openCurrentPageImage}
           >
             {currentPage ? (
-              <img src={currentImageUrl} alt={`Page ${currentPage.pageNumber}`} className="h-full w-full object-cover" />
+              <img src={currentImageUrl} alt={formatTemplate(t.pageImageAlt, { pageNumber: currentPage.pageNumber })} className="h-full w-full object-cover" />
             ) : null}
           </button>
           <div className="min-w-0 flex-1">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/35">Current page</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/35">{t.storyToolsSectionCurrentPage}</p>
             <h3 className="mt-1 text-sm font-semibold text-white">
-              Page {currentPage?.pageNumber ?? '-'} / {scenario.pages.length}
+              {formatTemplate(t.storyToolsCurrentPageCount, {
+                pageNumber: currentPage?.pageNumber ?? '-',
+                totalPages: scenario.pages.length,
+              })}
             </h3>
             <p className="mt-1 line-clamp-2 text-sm text-white/55">{currentPage?.text}</p>
           </div>
@@ -596,25 +645,26 @@ export default function StoryToolsModal({
 
         <div className="mt-4 space-y-3">
           {renderActionRow({
-            title: 'Regenerate image',
-            description: 'Give feedback and recreate only this page illustration.',
+            title: t.regeneratePageImageTitle,
+            description: t.regeneratePageImageDescription,
             cost: imageCost,
+            meta: renderImageModeToggle(isBusy || !canUsePageActions),
             disabled: !canUsePageActions,
             disabledMessage: canManageStory
-              ? 'Page actions are available after generation finishes.'
-              : 'Sign in as the story owner to recreate this page.',
+              ? t.pageActionsAvailableAfterGeneration
+              : t.signInAsOwnerToRecreatePage,
             onOpen: () => setView('image'),
           })}
           {renderActionRow({
-            title: 'Audio & script',
-            description: 'Edit this page text and regenerate narration with the same voice.',
+            title: t.audioAndScriptTitle,
+            description: t.audioAndScriptDescription,
             cost: pageAudioCost,
             disabled: !storyVoice || !canUsePageActions,
             disabledMessage: !canManageStory
-              ? 'Sign in as the story owner to recreate this page.'
+              ? t.signInAsOwnerToRecreatePage
               : storyVoice
-                ? 'Page actions are available after generation finishes.'
-                : 'Add narration first to keep a consistent story voice.',
+                ? t.pageActionsAvailableAfterGeneration
+                : t.addNarrationFirst,
             onOpen: () => setView('audio'),
           })}
         </div>
@@ -628,7 +678,7 @@ export default function StoryToolsModal({
               <p className="mt-1 text-sm text-white/55">{t.creditsRequiredLabel}: {formatCredits(addNarrationCost, t)}</p>
             </div>
             {isCreditShort(addNarrationCost) && (
-              <span className="rounded-full bg-amber-500/15 px-2 py-1 text-xs text-amber-200">Not enough credits</span>
+              <span className="rounded-full bg-amber-500/15 px-2 py-1 text-xs text-amber-200">{t.notEnoughCredits}</span>
             )}
           </div>
 
@@ -662,7 +712,7 @@ export default function StoryToolsModal({
               disabled={isBusy || !canStartAddNarration}
               className="rounded-lg bg-primary-500 px-5 py-2 text-sm font-bold text-white transition-colors hover:bg-primary-600 disabled:cursor-not-allowed disabled:bg-primary-500/45"
             >
-              {isCreditShort(addNarrationCost) ? 'Get credits' : isAddingNarration ? t.generatingNarration : t.generateNarration}
+              {isCreditShort(addNarrationCost) ? t.getCredits : isAddingNarration ? t.generatingNarration : t.generateNarration}
             </button>
           </div>
         </section>
@@ -735,11 +785,11 @@ export default function StoryToolsModal({
   const renderImageView = () => (
     <div className="space-y-4">
       <div className="overflow-hidden rounded-lg border border-white/10 bg-black/30">
-        <img src={currentImageUrl} alt={`Page ${currentPage?.pageNumber ?? ''}`} className="max-h-72 w-full object-contain" />
+        <img src={currentImageUrl} alt={formatTemplate(t.pageImageAlt, { pageNumber: currentPage?.pageNumber ?? '' })} className="max-h-72 w-full object-contain" />
       </div>
       <div>
         <div className="mb-2 flex items-center justify-between gap-3">
-          <label htmlFor="page-image-feedback" className="text-sm font-semibold text-white">Feedback</label>
+          <label htmlFor="page-image-feedback" className="text-sm font-semibold text-white">{t.feedbackLabel}</label>
           <span className="text-xs text-white/45">{imageFeedback.length} / {PAGE_FEEDBACK_MAX_CHARS}</span>
         </div>
         <textarea
@@ -748,23 +798,24 @@ export default function StoryToolsModal({
           onChange={(event) => setImageFeedback(event.target.value)}
           maxLength={PAGE_FEEDBACK_MAX_CHARS}
           rows={5}
-          placeholder="Describe what should change in this page image."
+          placeholder={t.pageImageFeedbackPlaceholder}
           className="w-full resize-none rounded-lg border border-white/10 bg-white/10 px-3 py-2 text-sm text-white placeholder:text-white/35 focus:border-primary-300 focus:outline-none"
         />
       </div>
-      <div className="rounded-lg bg-white/[0.04] px-3 py-2 text-sm text-white/60">
-        Cost: <span className="font-semibold text-white">{formatCredits(imageCost, t)}</span>
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-white/[0.04] px-3 py-2 text-sm text-white/60">
+        <span>{t.costLabel}: <span className="font-semibold text-white">{formatCredits(imageCost, t)}</span></span>
+        {renderImageModeToggle(isBusy)}
       </div>
       {imageError && <p className="rounded-lg bg-red-500/15 px-3 py-2 text-sm text-red-300">{imageError}</p>}
-      {isRegeneratingImage && renderProgress('Regenerating image...')}
-      {renderResult(imageResult, 'Image regenerated successfully.', 'Image regeneration failed. Credits were refunded if no asset was saved.')}
+      {isRegeneratingImage && renderProgress(t.regeneratingPageImage)}
+      {renderResult(imageResult, t.pageImageRegenerationSuccess, t.pageImageRegenerationFailed)}
       <button
         type="button"
         onClick={handleImageSubmit}
         disabled={!canUsePageActions || isBusy || regenerateImage.isPending || !imageFeedbackTrimmed}
         className="w-full rounded-lg bg-primary-500 px-5 py-3 text-sm font-bold text-white transition-colors hover:bg-primary-600 disabled:cursor-not-allowed disabled:bg-primary-500/45"
       >
-        {isCreditShort(imageCost) ? 'Get credits' : isRegeneratingImage ? 'Regenerating...' : 'Regenerate image'}
+        {isCreditShort(imageCost) ? t.getCredits : isRegeneratingImage ? t.regenerating : t.regeneratePageImageTitle}
       </button>
     </div>
   );
@@ -774,10 +825,10 @@ export default function StoryToolsModal({
       <div className="rounded-lg border border-white/10 bg-white/[0.04] p-4">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/35">Voice</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/35">{t.voiceLabel}</p>
             <p className="mt-1 text-sm font-semibold text-white">{currentVoiceLabel}</p>
           </div>
-          <span className="rounded-full bg-white/10 px-2 py-1 text-xs text-white/65">same voice</span>
+          <span className="rounded-full bg-white/10 px-2 py-1 text-xs text-white/65">{t.sameVoice}</span>
         </div>
         {currentPage?.audioUrl && (
           <audio controls src={currentPage.audioUrl} className="mt-4 w-full" />
@@ -786,7 +837,7 @@ export default function StoryToolsModal({
 
       <div>
         <div className="mb-2 flex items-center justify-between gap-3">
-          <label htmlFor="page-script-text" className="text-sm font-semibold text-white">Page text</label>
+          <label htmlFor="page-script-text" className="text-sm font-semibold text-white">{t.pageTextLabel}</label>
           <span className={`text-xs ${pageText.length > pageTextMaxChars ? 'text-red-300' : 'text-white/45'}`}>
             {pageText.length} / {pageTextMaxChars}
           </span>
@@ -801,21 +852,21 @@ export default function StoryToolsModal({
         />
       </div>
       <div className="rounded-lg bg-white/[0.04] px-3 py-2 text-sm text-white/60">
-        Cost: <span className="font-semibold text-white">{formatCredits(pageAudioCost, t)}</span>
+        {t.costLabel}: <span className="font-semibold text-white">{formatCredits(pageAudioCost, t)}</span>
       </div>
       {!storyVoice && (
-        <p className="rounded-lg bg-amber-500/15 px-3 py-2 text-sm text-amber-200">Add narration first to keep the voice consistent.</p>
+        <p className="rounded-lg bg-amber-500/15 px-3 py-2 text-sm text-amber-200">{t.addNarrationFirst}</p>
       )}
       {pageAudioError && <p className="rounded-lg bg-red-500/15 px-3 py-2 text-sm text-red-300">{pageAudioError}</p>}
-      {isRegeneratingPageAudio && renderProgress('Updating script and audio...')}
-      {renderResult(pageAudioResult, 'Script and narration updated successfully.', 'Script and narration update failed. Credits were refunded if no audio was saved.')}
+      {isRegeneratingPageAudio && renderProgress(t.updatingScriptAndAudio)}
+      {renderResult(pageAudioResult, t.scriptAndAudioUpdateSuccess, t.scriptAndAudioUpdateFailed)}
       <button
         type="button"
         onClick={handlePageAudioSubmit}
         disabled={!storyVoice || !canUsePageActions || isBusy || regeneratePageAudio.isPending || pageTextInvalid || !pageTextChanged}
         className="w-full rounded-lg bg-primary-500 px-5 py-3 text-sm font-bold text-white transition-colors hover:bg-primary-600 disabled:cursor-not-allowed disabled:bg-primary-500/45"
       >
-        {isCreditShort(pageAudioCost) ? 'Get credits' : isRegeneratingPageAudio ? 'Updating...' : 'Update script & audio'}
+        {isCreditShort(pageAudioCost) ? t.getCredits : isRegeneratingPageAudio ? t.updating : t.updateScriptAndAudio}
       </button>
     </div>
   );
@@ -823,8 +874,8 @@ export default function StoryToolsModal({
   const title = view === 'settings'
     ? t.storyTools
     : view === 'image'
-      ? 'Regenerate image'
-      : 'Audio & script';
+      ? t.regeneratePageImageTitle
+      : t.audioAndScriptTitle;
 
   return (
     <>
@@ -855,7 +906,7 @@ export default function StoryToolsModal({
               type="button"
               onClick={onClose}
               className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white/50 transition-colors hover:bg-white/10 hover:text-white"
-              aria-label="Close"
+              aria-label={t.close}
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -878,7 +929,7 @@ export default function StoryToolsModal({
             type="button"
             onClick={() => setLightboxUrl(null)}
             className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-black/40 text-white/70 transition-colors hover:bg-black/60 hover:text-white"
-            aria-label="Close"
+            aria-label={t.close}
           >
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -886,7 +937,7 @@ export default function StoryToolsModal({
           </button>
           <img
             src={lightboxUrl}
-            alt="Full size preview"
+            alt={t.fullSizePreview}
             className="max-h-full max-w-full rounded-lg object-contain"
             onClick={(event) => event.stopPropagation()}
           />

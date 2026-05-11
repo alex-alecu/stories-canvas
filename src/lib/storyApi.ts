@@ -184,16 +184,18 @@ export async function regeneratePageImage({
   id,
   pageNumber,
   feedback,
+  mode,
 }: {
   id: string;
   pageNumber: number;
   feedback: string;
+  mode: 'fast' | 'pro';
 }): Promise<RegeneratePageImageResponse> {
   const authHeaders = await getAuthHeaders();
   const res = await fetch(`/api/stories/${id}/pages/${pageNumber}/regenerate-image`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...authHeaders },
-    body: JSON.stringify({ feedback }),
+    body: JSON.stringify({ feedback, mode }),
   });
   if (!res.ok) {
     throw await readError(res, 'Failed to regenerate page image');

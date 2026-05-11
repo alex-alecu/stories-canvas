@@ -199,6 +199,47 @@ test('generateSceneImage does not soften-and-retry provider policy blocks', asyn
   assert.match(progressMessages.at(-1) ?? '', /prohibited-content policy/i);
 });
 
+test('generateSceneImage includes current page image as regeneration context', async () => {
+  const sceneGenerator = await import('./sceneGenerator.js');
+  let capturedPrompt = '';
+  let capturedReferenceImages: Array<{ data: string; mimeType: string }> = [];
+
+  const result = await sceneGenerator.generateSceneImage(
+    'story-current-reference',
+    makePage({ pageNumber: 1 }),
+    [] as Character[],
+    new Map(),
+    'Storybook illustration style',
+    undefined,
+    undefined,
+    undefined,
+    false,
+    {
+      generateImage: async (prompt, referenceImages) => {
+        capturedPrompt = prompt;
+        capturedReferenceImages = referenceImages;
+        return 'scene-image-base64';
+      },
+      retryOptions: {
+        retries: 0,
+        minTimeout: 0,
+        maxTimeout: 0,
+        randomize: false,
+      },
+      saveSceneImage: async () => {},
+      updatePageStatus: async () => {},
+    },
+    undefined,
+    'current-page-image-base64',
+  );
+
+  assert.equal(result, 'scene-image-base64');
+  assert.deepEqual(capturedReferenceImages, [
+    { data: 'current-page-image-base64', mimeType: 'image/png' },
+  ]);
+  assert.match(capturedPrompt, /current page image to preserve/);
+});
+
 test('generateSceneImage logs the exact prohibited prompt and provider-policy debug context', async () => {
   const sceneGenerator = await import('./sceneGenerator.js');
   const gemini = await import('./gemini.js');

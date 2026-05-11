@@ -88,6 +88,10 @@ type CharacterSheetUsageCallback = (character: Character, usage: {
   usageDetails: Record<string, unknown>;
 }) => void | Promise<void>;
 
+interface RetrySceneImageOptions {
+  includeCurrentSceneReference?: boolean;
+}
+
 function buildProviderFailureMessage(pageNumber: number, error: unknown): string {
   if (isImageSafetyBlockedError(error)) {
     return `Page ${pageNumber} could not be illustrated because the image provider blocked it with safety filters, even after retrying with a softened prompt. You can retry it from Story Tools.`;
@@ -146,6 +150,7 @@ export async function generateSceneImage(
   pro?: boolean,
   deps: SceneGenerationDeps = {},
   onUsage?: SceneUsageCallback,
+  currentSceneBase64?: string | null,
 ): Promise<string | null> {
   const pageFilename = getPageImageFilename(page.pageNumber);
   const runGenerateImage = deps.generateImage ?? generateImage;
@@ -160,10 +165,12 @@ export async function generateSceneImage(
 
   // Determine which scene references we have
   const hasPreviousScene = !!previousSceneBase64;
+  const hasCurrentScene = !!currentSceneBase64;
 
   // 1. Character reference sheets FIRST (authoritative source for character appearance)
   //    This primes the model on correct character appearance before seeing any drifted scenes
-  const maxCharSheets = hasPreviousScene ? 4 : 5;
+  const sceneReferenceCount = (hasCurrentScene ? 1 : 0) + (hasPreviousScene ? 1 : 0);
+  const maxCharSheets = Math.max(1, 5 - sceneReferenceCount);
   const includedCharNames: string[] = [];
   for (const charName of page.characters) {
     if (includedCharNames.length >= maxCharSheets) break;
@@ -174,12 +181,17 @@ export async function generateSceneImage(
     }
   }
 
-  // 2. Previous scene as environment/layout continuity reference
+  // 2. Current scene as the preservation/edit target for explicit page regeneration
+  if (hasCurrentScene) {
+    referenceImages.push({ data: currentSceneBase64!, mimeType: 'image/png' });
+  }
+
+  // 3. Previous scene as environment/layout continuity reference
   if (hasPreviousScene) {
     referenceImages.push({ data: previousSceneBase64!, mimeType: 'image/png' });
   }
 
-  const prompt = prepareSceneImagePrompt(page, characters, hasPreviousScene, includedCharNames, styleDescription);
+  const prompt = prepareSceneImagePrompt(page, characters, hasPreviousScene, includedCharNames, styleDescription, hasCurrentScene);
 
   try {
     const base64 = await pRetry(
@@ -318,6 +330,7 @@ export async function retryFailedSceneImages(
   pro?: boolean,
   onUsage?: SceneUsageCallback,
   onCharacterSheetUsage?: CharacterSheetUsageCallback,
+  options: RetrySceneImageOptions = {},
 ): Promise<number> {
   let retriedCount = 0;
 
@@ -363,6 +376,15 @@ export async function retryFailedSceneImages(
     const page = pages.find(p => p.pageNumber === failedPageNum);
     if (!page) continue;
 
+    let currentSceneBase64: string | null = null;
+    if (options.includeCurrentSceneReference) {
+      try {
+        currentSceneBase64 = await downloadImageForRetry(storyId, getPageImageFilename(failedPageNum), userId);
+      } catch {
+        currentSceneBase64 = null;
+      }
+    }
+
     // Download nearest previous completed page for continuity reference
     let previousSceneBase64: string | null = null;
     for (let i = failedPageNum - 1; i >= 1; i--) {
@@ -381,7 +403,7 @@ export async function retryFailedSceneImages(
       const result = await imageGenerationLimiter(() =>
         generateSceneImage(
           storyId, page, characters, characterSheets, styleDescription,
-          onProgress, userId, previousSceneBase64, pro, {}, onUsage,
+          onProgress, userId, previousSceneBase64, pro, {}, onUsage, currentSceneBase64,
         ),
       );
 

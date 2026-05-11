@@ -127,6 +127,9 @@ export function getLedgerReasonLabel(
     'billingReasonPackPurchase' |
     'billingReasonStoryCreate' |
     'billingReasonStoryAddAudio' |
+    'billingReasonStoryRegenerateAssets' |
+    'billingReasonStoryRegenerateImage' |
+    'billingReasonStoryRegenerateAudio' |
     'billingReasonStoryRefund' |
     'billingReasonAdminGrant'
   >,
@@ -139,11 +142,11 @@ export function getLedgerReasonLabel(
     case 'story_add_audio':
       return t.billingReasonStoryAddAudio;
     case 'story_regenerate_assets':
-      return 'Regenerate story assets';
+      return t.billingReasonStoryRegenerateAssets;
     case 'story_regenerate_image':
-      return 'Regenerate page image';
+      return t.billingReasonStoryRegenerateImage;
     case 'story_regenerate_audio':
-      return 'Regenerate page audio';
+      return t.billingReasonStoryRegenerateAudio;
     case 'story_refund':
       return t.billingReasonStoryRefund;
     case 'admin_grant':

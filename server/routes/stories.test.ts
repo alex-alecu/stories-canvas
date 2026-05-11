@@ -650,9 +650,17 @@ test('POST /api/stories/:id/pages/:pageNumber/regenerate-image reviews feedback 
     pageNumbers: number[],
     _style: unknown,
     onProgress?: (progress: { pageNumber?: number; pageStatus?: string; message?: string }) => void,
+    _userId?: string,
+    _signal?: AbortSignal,
+    pro?: boolean,
+    _onUsage?: unknown,
+    _onCharacterSheetUsage?: unknown,
+    options?: { includeCurrentSceneReference?: boolean },
   ) => {
     generatedPrompt = pages[0].imagePrompt;
     assert.deepEqual(pageNumbers, [1]);
+    assert.equal(pro, true);
+    assert.equal(options?.includeCurrentSceneReference, true);
     onProgress?.({ pageNumber: 1, pageStatus: 'completed', message: 'done' });
     return 1;
   });
@@ -660,14 +668,14 @@ test('POST /api/stories/:id/pages/:pageNumber/regenerate-image reviews feedback 
   const response = await fetch(`${harness.baseUrl}/api/stories/story-page-image/pages/1/regenerate-image`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ feedback: 'Make the moon brighter.' }),
+    body: JSON.stringify({ feedback: 'Make the moon brighter.', mode: 'pro' }),
   });
 
   assert.equal(response.status, 200);
   const body = await response.json() as { status: string; pageNumber: number; chargedCredits: number };
   assert.equal(body.status, 'generating_images');
   assert.equal(body.pageNumber, 1);
-  assert.equal(body.chargedCredits, 0.1);
+  assert.equal(body.chargedCredits, 0.2);
 
   const updated = await waitFor(
     () => readStoryMeta(dataDir, 'story-page-image'),

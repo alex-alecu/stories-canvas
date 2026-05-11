@@ -549,6 +549,12 @@ function getSafeStoryMode(story: Pick<StoryMeta, 'storyMode'>): StoryMode {
   return story.storyMode ?? 'fast';
 }
 
+function getRequestedPageImageMode(value: unknown, story: Pick<StoryMeta, 'storyMode'>): StoryMode {
+  if (value === 'fast') return 'fast';
+  if (value === 'pro') return 'pro';
+  return getSafeStoryMode(story) === 'fast' ? 'fast' : 'pro';
+}
+
 function getPageTextValidationError(text: string, targetAge: number): string | null {
   if (!text) return 'Page text cannot be empty';
   const textRules = getScenarioTextRules(targetAge);
@@ -2196,6 +2202,7 @@ router.post('/:id/pages/:pageNumber/regenerate-image', optionalAuth, async (req:
       res.status(400).json({ error: 'Feedback must be 800 characters or less' });
       return;
     }
+    const imageMode = getRequestedPageImageMode(req.body?.mode, story);
 
     const review = await pageTextReviewOps.reviewPageText({
       text: feedback,
@@ -2211,7 +2218,7 @@ router.post('/:id/pages/:pageNumber/regenerate-image', optionalAuth, async (req:
       return;
     }
 
-    const chargedCredits = roundCreditAmount(getStoryImagePageCreditCost(getSafeStoryMode(story)));
+    const chargedCredits = roundCreditAmount(getStoryImagePageCreditCost(imageMode));
     let availableCredits = 0;
     if (config.useSupabase) {
       try {
@@ -2243,7 +2250,7 @@ router.post('/:id/pages/:pageNumber/regenerate-image', optionalAuth, async (req:
       availableCredits,
     } as RegeneratePageImageResponse);
 
-    runRegeneratePageImagePipeline(storyId, story, pageNumber, feedback, chargedCredits, req.authUser?.id, controller)
+    runRegeneratePageImagePipeline(storyId, story, pageNumber, feedback, imageMode, chargedCredits, req.authUser?.id, controller)
       .catch(error => {
         console.error(`Page image regeneration pipeline failed for ${storyId} page ${pageNumber}:`, error);
       });
@@ -2258,6 +2265,7 @@ async function runRegeneratePageImagePipeline(
   story: StoryMeta,
   pageNumber: number,
   feedback: string,
+  imageMode: StoryMode,
   chargedCredits: number,
   chargedUserId: string | undefined,
   controller = startTrackedGeneration(storyId),
@@ -2269,7 +2277,7 @@ async function runRegeneratePageImagePipeline(
     if (!story.scenario) throw new Error('Story has no scenario data');
 
     const styleDescription = storyStyleOps.getStoryArtStyleDescription(story);
-    const pro = getSafeStoryMode(story) !== 'fast';
+    const pro = imageMode !== 'fast';
     const scenarioForGeneration = cloneScenarioWithUpdatedPage(story.scenario, pageNumber, page => ({
       ...page,
       imagePrompt: `${page.imagePrompt}\n\nUser feedback for this regeneration: ${feedback}`,
@@ -2323,6 +2331,7 @@ async function runRegeneratePageImagePipeline(
       pro,
       (page, usage) => usageRecorder.recordPageImage(page.pageNumber, usage),
       (_character, usage) => usageRecorder.recordCharacterSheet(usage),
+      { includeCurrentSceneReference: true },
     );
 
     if (signal.aborted) throw new Error('Generation cancelled');

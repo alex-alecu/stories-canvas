@@ -349,6 +349,7 @@ export function prepareSceneImagePrompt(
   hasPreviousScene: boolean,
   includedCharacterNames: string[],
   styleDescription?: string,
+  hasCurrentScene = false,
 ): string {
   const aliasMap = buildCharacterAliasMap(characters);
   const promptAwareAliasMap = buildPromptAwareAliasMap(page.imagePrompt, page.characters, aliasMap);
@@ -372,6 +373,13 @@ export function prepareSceneImagePrompt(
     }),
   );
   imageIndex += includedCharacterNames.length;
+
+  if (hasCurrentScene) {
+    referenceLabels.push(
+      `Image ${imageIndex}: current page image to preserve - This is the existing illustration for this same page. Keep the same core scene, character identities, environment, framing, and visual continuity while applying the requested regeneration feedback from the scene prompt. For character appearance, always defer to the character reference sheets above.`,
+    );
+    imageIndex += 1;
+  }
 
   if (hasPreviousScene) {
     referenceLabels.push(
