@@ -33,28 +33,28 @@ export function getVoiceSettings(voiceKey: VoiceKey): VoiceSettings {
       stability: 0.82,
       similarityBoost: 0.8,
       style: 0.18,
-      speed: 0.82,
+      speed: 0.95,
     },
     jora: {
       voiceId: config.voiceIds.jora,
       stability: 0.8,
       similarityBoost: 0.8,
       style: 0.2,
-      speed: 0.84,
+      speed: 0.96,
     },
     serban: {
       voiceId: config.voiceIds.serban,
       stability: 0.74,
       similarityBoost: 0.8,
       style: 0.38,
-      speed: 0.88,
+      speed: 0.98,
     },
     corina: {
       voiceId: config.voiceIds.corina,
       stability: 0.74,
       similarityBoost: 0.8,
       style: 0.42,
-      speed: 0.88,
+      speed: 0.98,
     },
   };
 
