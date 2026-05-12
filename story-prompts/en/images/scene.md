@@ -11,7 +11,7 @@ ENVIRONMENT: This must be a complete, richly detailed scene - like a frame from 
 
 BACKGROUND LIFE: Include secondary characters and living details in the background to make the world feel alive - other animals, people, creatures, or environmental activity appropriate to the setting. These background elements should add depth and atmosphere without distracting from the main characters.
 
-COMPOSITION: Position the main characters in the upper two-thirds of the frame. Keep character faces and critical visual elements out of the bottom third. Leave a clean lower third reserved for app layout after generation, using only quiet supporting environment details there (ground, path, floor, grass).
+COMPOSITION: Position the main characters in the upper two-thirds of the frame. Keep character faces, actions, story-critical objects, and other critical visual elements out of the bottom third. The bottom third must still be a complete, fully illustrated continuation of the scene, filled with natural noncritical environment details, texture, lighting, and depth. Never leave the bottom third blank, empty, flat, plain, clean, unused, or simplified for future text or app layout. Do not create a subtitle zone, text-safe zone, or empty lower-third panel.
 
 CHARACTER APPEARANCE (HIGHEST PRIORITY):
 - The character reference sheets are the absolute authority for character appearance. Always match them exactly.
@@ -22,4 +22,4 @@ STYLE & ENVIRONMENT CONSISTENCY:
 - Maintain the same art style across all scenes: same rendering quality, same color saturation, same lighting approach
 - Use the same visual language: same line weight, same level of detail, same background style
 {{previous_scene_continuity}}Style: {{style_description}}.
-4:3 aspect ratio composition. Absolutely no readable or pseudo-readable text, letters, symbols, labels, captions, signs, book/page lettering, banners, plaques, UI, typography, handwriting, or words anywhere in the image.
+4:3 aspect ratio composition. IMAGE TEXT BAN: Never write text in images. Never, never add readable or pseudo-readable text of any kind. Do not draw, paint, print, engrave, carve, emboss, label, signpost, caption, scribble, watermark, or imply letters, numbers, symbols, words, handwriting, typography, UI text, book/page lettering, banners, plaques, or signs anywhere in the image. If the scene includes books, papers, signs, labels, banners, screens, or plaques, they must be blank or purely decorative shapes with no marks that resemble writing.

@@ -19,8 +19,9 @@
 - Every page text must stay aligned with its page's imagePrompt and characters array.
 - If a page text changes during revision, update that page's imagePrompt and characters list to match.
 - Every imagePrompt must fully restate the visible characters and describe a complete environment, not a blank backdrop.
-- Include camera framing, lighting, rich environmental detail, and a clean lower third reserved for app layout after generation.
-- Compose the scene so the main characters stay in the upper two-thirds of the frame and the lower portion stays visually quiet with supporting environment details.
+- Include camera framing, lighting, and rich environmental detail across the full image, including the bottom third.
+- Compose the scene so the main characters and story-critical details stay in the upper two-thirds of the frame while the bottom third remains fully illustrated with natural, noncritical supporting environment details.
+- Never leave the bottom third blank, empty, flat, plain, clean, unused, or simplified for future text or app layout.
 - Do not put readable or pseudo-readable text, letters, symbols, labels, captions, signs, book/page lettering, banners, plaques, UI, typography, or handwriting inside the image description.
 - Avoid very complex physical interactions such as tight hugs or precise hand-holding; prefer simpler staging and proximity.
 - Include background life that fits the age and setting: gentle ambient activity for younger ages, richer environmental storytelling and brief extras for older ages.

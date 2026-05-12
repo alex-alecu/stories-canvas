@@ -129,35 +129,39 @@ const ICONIC_STORY_MOTIF_PATTERNS: Array<[RegExp, string]> = [
 const TEXT_TRIGGER_PATTERNS: Array<[RegExp, string]> = [
   [
     /\blower[- ]frame[- ]safe composition for text overlay\b/giu,
-    'clean lower third reserved for app layout after generation',
+    'full-scene composition with only noncritical illustrated environment in the bottom third',
   ],
   [
     /\blower[- ]frame[- ]safe composition\b/giu,
-    'clean lower-third composition',
+    'full-scene composition with important elements kept above the bottom third',
   ],
   [
     /\blower portion (?:of the image )?(?:will have|has|contains|carries|is reserved for) (?:a )?text overlay\b/giu,
-    'lower portion stays visually quiet for app layout after generation',
+    'lower portion remains fully illustrated with noncritical environment details',
   ],
   [
     /\bfor (?:a )?text overlay\b/giu,
-    'for app layout after generation',
+    'while keeping the scene fully illustrated',
   ],
   [
     /\btext overlay\b/giu,
-    'post-generation app layout area',
+    'noncritical composition area',
   ],
   [
     /\b(?:reserved|kept|left|blank)\s+(?:area|space|lower third|bottom third)?\s*(?:for|to hold)\s+(?:story\s+)?(?:text|words|captions?)\b/giu,
-    'clean quiet area for app layout after generation',
+    'fully illustrated noncritical environment area',
   ],
   [
     /\b(?:space|area)\s+for\s+(?:story\s+)?(?:text|words|captions?)\b/giu,
-    'quiet app layout area after generation',
+    'fully illustrated noncritical environment area',
+  ],
+  [
+    /\bblank\s+caption\s+area\b/giu,
+    'fully illustrated noncritical lower scenery',
   ],
   [
     /\bcaption area\b/giu,
-    'clean lower area',
+    'fully illustrated lower area',
   ],
 ];
 const PROMPT_NAME_STOP_WORDS = new Set([

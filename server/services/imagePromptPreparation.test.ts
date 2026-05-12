@@ -133,10 +133,17 @@ test('prepareSceneImagePrompt removes text overlay trigger wording', () => {
     'Classic hand-drawn storybook illustration',
   );
 
-  assert.match(prompt, /clean lower third reserved for app layout after generation/);
-  assert.match(prompt, /Absolutely no readable or pseudo-readable text/);
+  assert.match(prompt, /bottom third must still be a complete, fully illustrated continuation of the scene/);
+  assert.match(prompt, /Never leave the bottom third blank, empty, flat, plain, clean, unused, or simplified/);
+  assert.match(prompt, /noncritical illustrated environment in the bottom third/);
+  assert.match(prompt, /Never write text in images/);
+  assert.match(prompt, /Never, never add readable or pseudo-readable text of any kind/);
+  assert.match(prompt, /no marks that resemble writing/);
   assert.doesNotMatch(prompt, /text overlay/iu);
   assert.doesNotMatch(prompt, /caption area/iu);
+  assert.doesNotMatch(prompt, /reserved for app layout/iu);
+  assert.doesNotMatch(prompt, /blank caption/iu);
+  assert.doesNotMatch(prompt, /blank fully illustrated/iu);
 });
 
 test('prepareSceneImagePrompt infers repeated legacy names against page character order', () => {
