@@ -137,6 +137,7 @@ export default function StoryToolsModal({
   const activeProgress = isTrackingGeneration ? sseProgress : progress;
   const storyVoice = normalizeVoiceKey(voice);
   const availableCredits = billingOverview?.balance.availableCredits ?? 0;
+  const imageEntryCost = getStoryImagePageCreditCost('fast');
   const imageCost = getStoryImagePageCreditCost(imageMode);
   const pageAudioCost = getStoryAudioCreditCost(1);
   const pageTextMaxChars = getPageTextMaxChars(scenario.targetAge);
@@ -647,8 +648,7 @@ export default function StoryToolsModal({
           {renderActionRow({
             title: t.regeneratePageImageTitle,
             description: t.regeneratePageImageDescription,
-            cost: imageCost,
-            meta: renderImageModeToggle(isBusy || !canUsePageActions),
+            cost: imageEntryCost,
             disabled: !canUsePageActions,
             disabledMessage: canManageStory
               ? t.pageActionsAvailableAfterGeneration
