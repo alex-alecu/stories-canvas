@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef, type ReactNode } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import type { GenerationProgress, Page, Scenario, StoryMode, StoryReaction, StoryStatus } from '../types';
 import {
@@ -137,7 +137,6 @@ export default function StoryToolsModal({
   const activeProgress = isTrackingGeneration ? sseProgress : progress;
   const storyVoice = normalizeVoiceKey(voice);
   const availableCredits = billingOverview?.balance.availableCredits ?? 0;
-  const imageEntryCost = getStoryImagePageCreditCost('fast');
   const imageCost = getStoryImagePageCreditCost(imageMode);
   const pageAudioCost = getStoryAudioCreditCost(1);
   const pageTextMaxChars = getPageTextMaxChars(scenario.targetAge);
@@ -516,42 +515,31 @@ export default function StoryToolsModal({
   const renderActionRow = ({
     title,
     description,
-    cost,
-    meta,
     disabled,
     disabledMessage,
     onOpen,
   }: {
     title: string;
     description: string;
-    cost: number;
-    meta?: ReactNode;
     disabled?: boolean;
     disabledMessage?: string;
     onOpen: () => void;
-  }) => {
-    const insufficient = isCreditShort(cost);
-    return (
-      <div className="flex flex-col gap-3 rounded-lg border border-white/10 bg-white/[0.04] p-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <h4 className="text-sm font-semibold text-white">{title}</h4>
-            <span className="rounded-full bg-white/10 px-2 py-0.5 text-xs text-white/65">{formatCredits(cost, t)}</span>
-            {meta}
-          </div>
-          <p className="mt-1 text-sm text-white/55">{disabled ? disabledMessage : description}</p>
-        </div>
-        <button
-          type="button"
-          onClick={insufficient ? goToBilling : onOpen}
-          disabled={isBusy || disabled}
-          className="inline-flex h-10 shrink-0 items-center justify-center rounded-lg bg-primary-500 px-4 text-sm font-bold text-white transition-colors hover:bg-primary-600 disabled:cursor-not-allowed disabled:bg-primary-500/45"
-        >
-          {insufficient ? t.getCredits : t.openAction}
-        </button>
+  }) => (
+    <div className="flex flex-col gap-3 rounded-lg border border-white/10 bg-white/[0.04] p-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="min-w-0">
+        <h4 className="text-sm font-semibold text-white">{title}</h4>
+        <p className="mt-1 text-sm text-white/55">{disabled ? disabledMessage : description}</p>
       </div>
-    );
-  };
+      <button
+        type="button"
+        onClick={onOpen}
+        disabled={isBusy || disabled}
+        className="inline-flex h-10 shrink-0 items-center justify-center rounded-lg bg-primary-500 px-4 text-sm font-bold text-white transition-colors hover:bg-primary-600 disabled:cursor-not-allowed disabled:bg-primary-500/45"
+      >
+        {t.openAction}
+      </button>
+    </div>
+  );
 
   const renderSettingsView = () => (
     <div className="space-y-5">
@@ -648,7 +636,6 @@ export default function StoryToolsModal({
           {renderActionRow({
             title: t.regeneratePageImageTitle,
             description: t.regeneratePageImageDescription,
-            cost: imageEntryCost,
             disabled: !canUsePageActions,
             disabledMessage: canManageStory
               ? t.pageActionsAvailableAfterGeneration
@@ -658,7 +645,6 @@ export default function StoryToolsModal({
           {renderActionRow({
             title: t.audioAndScriptTitle,
             description: t.audioAndScriptDescription,
-            cost: pageAudioCost,
             disabled: !storyVoice || !canUsePageActions,
             disabledMessage: !canManageStory
               ? t.signInAsOwnerToRecreatePage
