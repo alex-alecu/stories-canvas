@@ -27,3 +27,15 @@ test('story usage migration adds story totals columns and usage events table con
   assert.match(sourceCacheSql, /canonical_beat_sheet JSONB NOT NULL/);
   assert.match(sourceCacheSql, /UNIQUE \(language, normalized_title\)/);
 });
+
+test('story reaction ambiguity fix uses constraint conflict target and service-only execution', async () => {
+  const migrationPath = path.join(process.cwd(), 'supabase', 'migrations', '019_fix_story_reaction_column_ambiguity.sql');
+  const sql = await fs.readFile(migrationPath, 'utf-8');
+
+  assert.match(sql, /CREATE OR REPLACE FUNCTION set_story_reaction\(/);
+  assert.match(sql, /ON CONFLICT ON CONSTRAINT story_reactions_pkey/);
+  assert.doesNotMatch(sql, /ON CONFLICT \(story_id, user_id\)/);
+  assert.match(sql, /REVOKE EXECUTE ON FUNCTION set_story_reaction\(UUID, UUID, TEXT, TEXT\) FROM anon;/);
+  assert.match(sql, /REVOKE EXECUTE ON FUNCTION set_story_reaction\(UUID, UUID, TEXT, TEXT\) FROM authenticated;/);
+  assert.match(sql, /GRANT EXECUTE ON FUNCTION set_story_reaction\(UUID, UUID, TEXT, TEXT\) TO service_role;/);
+});
