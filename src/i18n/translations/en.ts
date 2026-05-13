@@ -76,6 +76,10 @@ const en: Translations = {
   inProgress: 'In progress...',
   imageCouldNotGenerate: 'Image could not be generated',
   imageNotAvailable: 'Image not available',
+  publicPreviewGateTitle: 'Sign in to continue reading',
+  publicPreviewGateDescription: 'You can preview the first pages for free. Sign in to see the full public story.',
+  publicPreviewGateProgress: 'You have read {pageLimit} of {totalPages} pages.',
+  publicPreviewGateLogin: 'Sign in to continue',
 
   loginTitle: 'Sign In',
   loginSubtitle: 'Sign in to create and manage your stories',

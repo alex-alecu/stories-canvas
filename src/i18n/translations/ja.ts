@@ -76,6 +76,10 @@ const ja: Translations = {
   inProgress: '進行中...',
   imageCouldNotGenerate: '画像を生成できませんでした',
   imageNotAvailable: '画像が利用できません',
+  publicPreviewGateTitle: '続きを読むにはログインしてください',
+  publicPreviewGateDescription: '最初のページは無料でプレビューできます。公開ストーリーの全文を見るにはログインしてください。',
+  publicPreviewGateProgress: '{totalPages}ページ中{pageLimit}ページを読みました。',
+  publicPreviewGateLogin: 'ログインして続ける',
 
   loginTitle: 'ログイン',
   loginSubtitle: 'おはなしを作って管理するにはログインしてください',

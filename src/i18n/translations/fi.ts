@@ -76,6 +76,10 @@ const fi: Translations = {
   inProgress: 'Käynnissä...',
   imageCouldNotGenerate: 'Kuvaa ei voitu generoida',
   imageNotAvailable: 'Kuva ei saatavilla',
+  publicPreviewGateTitle: 'Kirjaudu sisään jatkaaksesi lukemista',
+  publicPreviewGateDescription: 'Voit esikatsella ensimmäiset sivut ilmaiseksi. Kirjaudu sisään nähdäksesi koko julkisen tarinan.',
+  publicPreviewGateProgress: 'Olet lukenut {pageLimit}/{totalPages} sivua.',
+  publicPreviewGateLogin: 'Kirjaudu sisään ja jatka',
 
   loginTitle: 'Kirjaudu sisään',
   loginSubtitle: 'Kirjaudu sisään luodaksesi ja hallitaksesi satujasi',

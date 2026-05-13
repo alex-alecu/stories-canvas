@@ -61,6 +61,7 @@ import { getScenarioTextRules, OVERLAY_SAFE_MAX_CHARS } from '../services/scenar
 
 const router = Router();
 const SSE_CLOSE_DELAY_MS = 2_000;
+const PUBLIC_STORY_PREVIEW_PAGE_LIMIT = 3;
 
 export const scenarioOps = {
   generateScenario,
@@ -375,6 +376,56 @@ function canReadStory(story: StoryMeta, viewerUserId?: string): boolean {
   }
 
   return true;
+}
+
+function getPublicStoryPreviewGate(story: StoryMeta, viewerUserId?: string) {
+  const totalPages = story.scenario?.pages.length ?? 0;
+  if (
+    !config.useSupabase ||
+    viewerUserId ||
+    !story.userId ||
+    !story.isPublic ||
+    totalPages <= PUBLIC_STORY_PREVIEW_PAGE_LIMIT
+  ) {
+    return undefined;
+  }
+
+  return {
+    pageLimit: PUBLIC_STORY_PREVIEW_PAGE_LIMIT,
+    totalPages,
+  };
+}
+
+function applyPublicStoryPreviewGate(story: StoryMeta, viewerUserId?: string): StoryMeta {
+  const publicPreviewGate = getPublicStoryPreviewGate(story, viewerUserId);
+  if (!publicPreviewGate || !story.scenario) {
+    return story;
+  }
+
+  return {
+    ...story,
+    scenario: {
+      ...story.scenario,
+      pages: story.scenario.pages
+        .slice(0, publicPreviewGate.pageLimit)
+        .map(page => ({ ...page })),
+    },
+    publicPreviewGate,
+  };
+}
+
+function canIncludeAssetForViewer(story: StoryMeta, pageNumber: number, viewerUserId?: string): boolean {
+  const publicPreviewGate = getPublicStoryPreviewGate(story, viewerUserId);
+  if (!publicPreviewGate || !story.scenario) {
+    return true;
+  }
+
+  const previewPageNumbers = new Set(
+    story.scenario.pages
+      .slice(0, publicPreviewGate.pageLimit)
+      .map(page => page.pageNumber),
+  );
+  return previewPageNumbers.has(pageNumber);
 }
 
 function isTerminalStoryStatus(status: StoryStatus): boolean {
@@ -2639,6 +2690,9 @@ router.get('/:id/assets', optionalAuth, async (req: Request, res: Response) => {
           });
         }
         for (const page of story.scenario.pages) {
+          if (!canIncludeAssetForViewer(story, page.pageNumber, req.authUser?.id)) {
+            continue;
+          }
           assets.pageImages.push({
             pageNumber: page.pageNumber,
             url: appendMediaRevision(getPageImageUrl(storyId, page.pageNumber, story.userId), page.imageRevision),
@@ -2668,7 +2722,7 @@ router.get('/:id/assets', optionalAuth, async (req: Request, res: Response) => {
       } else if (filename.startsWith('page-') && filename.endsWith('.png')) {
         const numStr = filename.replace('page-', '').replace('.png', '');
         const pageNumber = parseInt(numStr, 10);
-        if (!isNaN(pageNumber)) {
+        if (!isNaN(pageNumber) && canIncludeAssetForViewer(story, pageNumber, req.authUser?.id)) {
           const page = story.scenario?.pages.find(item => item.pageNumber === pageNumber);
           assets.pageImages.push({
             pageNumber,
@@ -2788,13 +2842,15 @@ router.get('/:id', optionalAuth, async (req: Request, res: Response) => {
       return;
     }
 
-    story.myReaction = req.authUser
+    const responseStory = applyPublicStoryPreviewGate(story, req.authUser?.id);
+
+    responseStory.myReaction = req.authUser
       ? await storageOps.getStoryReaction(story.id, req.authUser.id)
       : null;
 
     // Enrich pages with image URLs
-    if (story.scenario?.pages) {
-      for (const page of story.scenario.pages) {
+    if (responseStory.scenario?.pages) {
+      for (const page of responseStory.scenario.pages) {
         if (page.status === 'completed') {
           page.imageUrl = appendMediaRevision(
             getPageImageUrl(story.id, page.pageNumber, story.userId),
@@ -2810,7 +2866,7 @@ router.get('/:id', optionalAuth, async (req: Request, res: Response) => {
       }
     }
 
-    res.json(story);
+    res.json(responseStory);
   } catch (error) {
     console.error('Failed to get story:', error);
     res.status(500).json({ error: 'Failed to get story' });

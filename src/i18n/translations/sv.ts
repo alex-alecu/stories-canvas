@@ -76,6 +76,10 @@ const sv: Translations = {
   inProgress: 'Pågår...',
   imageCouldNotGenerate: 'Bilden kunde inte genereras',
   imageNotAvailable: 'Bild inte tillgänglig',
+  publicPreviewGateTitle: 'Logga in för att fortsätta läsa',
+  publicPreviewGateDescription: 'Du kan förhandsvisa de första sidorna gratis. Logga in för att se hela den offentliga berättelsen.',
+  publicPreviewGateProgress: 'Du har läst {pageLimit} av {totalPages} sidor.',
+  publicPreviewGateLogin: 'Logga in och fortsätt',
 
   loginTitle: 'Logga in',
   loginSubtitle: 'Logga in för att skapa och hantera dina sagor',

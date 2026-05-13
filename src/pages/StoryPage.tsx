@@ -23,7 +23,10 @@ export default function StoryPage() {
     };
   }, []);
   const { data: story, isLoading, error } = useStory(id);
-  const shouldWarmMediaCache = import.meta.env.PROD && story?.status === 'completed' && !story?.assetsStale;
+  const shouldWarmMediaCache = import.meta.env.PROD
+    && story?.status === 'completed'
+    && !story?.assetsStale
+    && !story?.publicPreviewGate;
   const { data: storyAssets } = useStoryAssets(id, shouldWarmMediaCache);
   const isGenerating = story?.status !== 'completed' && story?.status !== 'failed' && story?.status !== 'cancelled';
   const { progress } = useStoryGeneration(isGenerating ? id ?? null : null);
@@ -35,9 +38,10 @@ export default function StoryPage() {
   const { user } = useAuth();
   const lastWarmupKeyRef = useRef<string | null>(null);
   const lastAutoDownloadKeyRef = useRef<string | null>(null);
+  const storyReturnTo = `${location.pathname}${location.search}${location.hash}`;
 
   const warmupUrls = useMemo(() => {
-    if (story?.status !== 'completed' || story.assetsStale || !story.scenario) return [];
+    if (story?.status !== 'completed' || story.assetsStale || story.publicPreviewGate || !story.scenario) return [];
 
     const urls = new Set<string>();
     for (const page of story.scenario.pages) {
@@ -67,7 +71,7 @@ export default function StoryPage() {
   }, [warmupUrls]);
 
   useEffect(() => {
-    if (!story || story.status !== 'completed' || story.assetsStale || !story.scenario) return;
+    if (!story || story.status !== 'completed' || story.assetsStale || story.publicPreviewGate || !story.scenario) return;
 
     const autoDownloadKey = `${story.id}:${story.scenarioRevision ?? 0}:${story.renderedScenarioRevision ?? 0}`;
     if (lastAutoDownloadKeyRef.current === autoDownloadKey) return;
@@ -106,6 +110,14 @@ export default function StoryPage() {
       console.error('Failed to regenerate story assets:', error);
     }
   }, [id, regenerateAssets]);
+
+  const publicPreviewGate = useMemo(() => {
+    if (!story?.publicPreviewGate) return undefined;
+    return {
+      ...story.publicPreviewGate,
+      loginPath: `/login?returnTo=${encodeURIComponent(storyReturnTo)}`,
+    };
+  }, [story?.publicPreviewGate, storyReturnTo]);
 
   if (isLoading) {
     return (
@@ -204,6 +216,7 @@ export default function StoryPage() {
         myReaction={story.myReaction ?? null}
         storyMode={story.storyMode}
         canManageStory={!!user && !!story.userId && story.userId === user.id}
+        publicPreviewGate={publicPreviewGate}
       />
     );
   }

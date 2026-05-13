@@ -76,6 +76,10 @@ const de: Translations = {
   inProgress: 'In Bearbeitung...',
   imageCouldNotGenerate: 'Bild konnte nicht generiert werden',
   imageNotAvailable: 'Bild nicht verfügbar',
+  publicPreviewGateTitle: 'Melde dich an, um weiterzulesen',
+  publicPreviewGateDescription: 'Du kannst die ersten Seiten kostenlos ansehen. Melde dich an, um die ganze öffentliche Geschichte zu sehen.',
+  publicPreviewGateProgress: 'Du hast {pageLimit} von {totalPages} Seiten gelesen.',
+  publicPreviewGateLogin: 'Anmelden und weiterlesen',
 
   loginTitle: 'Anmelden',
   loginSubtitle: 'Melde dich an, um deine Geschichten zu erstellen und zu verwalten',

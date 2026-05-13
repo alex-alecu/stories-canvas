@@ -76,6 +76,10 @@ const pt: Translations = {
   inProgress: 'Em andamento...',
   imageCouldNotGenerate: 'A imagem não pôde ser gerada',
   imageNotAvailable: 'Imagem não disponível',
+  publicPreviewGateTitle: 'Inicia sessão para continuar a ler',
+  publicPreviewGateDescription: 'Podes pré-visualizar gratuitamente as primeiras páginas. Inicia sessão para ver a história pública completa.',
+  publicPreviewGateProgress: 'Leste {pageLimit} de {totalPages} páginas.',
+  publicPreviewGateLogin: 'Iniciar sessão e continuar',
 
   loginTitle: 'Entrar',
   loginSubtitle: 'Entre para criar e gerenciar suas histórias',

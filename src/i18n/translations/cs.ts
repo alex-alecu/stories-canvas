@@ -76,6 +76,10 @@ const cs: Translations = {
   inProgress: 'Probíhá...',
   imageCouldNotGenerate: 'Obrázek se nepodařilo vygenerovat',
   imageNotAvailable: 'Obrázek není dostupný',
+  publicPreviewGateTitle: 'Přihlaste se, abyste mohli pokračovat',
+  publicPreviewGateDescription: 'První stránky si můžete prohlédnout zdarma. Přihlaste se a zobrazíte celý veřejný příběh.',
+  publicPreviewGateProgress: 'Přečetli jste {pageLimit} z {totalPages} stránek.',
+  publicPreviewGateLogin: 'Přihlásit se a pokračovat',
 
   loginTitle: 'Přihlášení',
   loginSubtitle: 'Přihlaste se pro vytváření a správu svých příběhů',

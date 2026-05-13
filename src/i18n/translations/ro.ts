@@ -83,6 +83,10 @@ const ro: Translations = {
   inProgress: 'În progres...',
   imageCouldNotGenerate: 'Imaginea nu a putut fi generată',
   imageNotAvailable: 'Imaginea nu este disponibilă',
+  publicPreviewGateTitle: 'Conectează-te ca să continui lectura',
+  publicPreviewGateDescription: 'Poți previzualiza primele pagini gratuit. Conectează-te ca să vezi povestea publică completă.',
+  publicPreviewGateProgress: 'Ai citit {pageLimit} din {totalPages} pagini.',
+  publicPreviewGateLogin: 'Conectează-te și continuă',
 
   // Login
   loginTitle: 'Conectare',

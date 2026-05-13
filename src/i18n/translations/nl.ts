@@ -76,6 +76,10 @@ const nl: Translations = {
   inProgress: 'Bezig...',
   imageCouldNotGenerate: 'Afbeelding kon niet worden gegenereerd',
   imageNotAvailable: 'Afbeelding niet beschikbaar',
+  publicPreviewGateTitle: 'Log in om verder te lezen',
+  publicPreviewGateDescription: "Je kunt de eerste pagina's gratis bekijken. Log in om het volledige openbare verhaal te zien.",
+  publicPreviewGateProgress: "Je hebt {pageLimit} van {totalPages} pagina's gelezen.",
+  publicPreviewGateLogin: 'Inloggen en doorgaan',
 
   loginTitle: 'Inloggen',
   loginSubtitle: 'Log in om je verhalen te maken en beheren',

@@ -76,6 +76,10 @@ const es: Translations = {
   inProgress: 'En progreso...',
   imageCouldNotGenerate: 'La imagen no pudo ser generada',
   imageNotAvailable: 'Imagen no disponible',
+  publicPreviewGateTitle: 'Inicia sesión para seguir leyendo',
+  publicPreviewGateDescription: 'Puedes previsualizar las primeras páginas gratis. Inicia sesión para ver la historia pública completa.',
+  publicPreviewGateProgress: 'Has leído {pageLimit} de {totalPages} páginas.',
+  publicPreviewGateLogin: 'Iniciar sesión y continuar',
 
   loginTitle: 'Iniciar sesión',
   loginSubtitle: 'Inicia sesión para crear y gestionar tus cuentos',

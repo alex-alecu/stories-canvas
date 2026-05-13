@@ -41,6 +41,11 @@ interface StoryViewerProps {
   myReaction?: StoryReaction | null;
   storyMode?: StoryMode;
   canManageStory?: boolean;
+  publicPreviewGate?: {
+    pageLimit: number;
+    totalPages: number;
+    loginPath: string;
+  };
 }
 
 const fontSizeClasses: Record<FontSize, string> = {
@@ -48,6 +53,10 @@ const fontSizeClasses: Record<FontSize, string> = {
   medium: 'text-lg md:text-xl lg:text-2xl',
   large: 'text-xl md:text-2xl lg:text-3xl',
 };
+
+function formatTemplate(template: string, values: Record<string, number | string>): string {
+  return template.replace(/\{(\w+)\}/g, (_, key: string) => String(values[key] ?? `{${key}}`));
+}
 
 export default function StoryViewer({
   storyId,
@@ -62,6 +71,7 @@ export default function StoryViewer({
   myReaction = null,
   storyMode,
   canManageStory = false,
+  publicPreviewGate,
 }: StoryViewerProps) {
   const { t } = useLanguage();
   const { fontSize } = useFontSize();
@@ -153,6 +163,11 @@ export default function StoryViewer({
   const [playingPage, setPlayingPage] = useState<number | null>(null);
   const [audioLoading, setAudioLoading] = useState<number | null>(null);
   const [activeSlideIndex, setActiveSlideIndex] = useState(0);
+  const visiblePageCount = scenario.pages.length;
+  const slideCount = visiblePageCount + (publicPreviewGate ? 1 : 0);
+  const isPublicPreviewGateSlide = !!publicPreviewGate && activeSlideIndex >= visiblePageCount;
+  const previewLastPage = scenario.pages[visiblePageCount - 1];
+  const displayTotalPages = publicPreviewGate?.totalPages ?? scenario.pages.length;
 
   // Stop audio playback
   const stopAudio = useCallback(() => {
@@ -185,13 +200,13 @@ export default function StoryViewer({
   // Track whether user already attempted to navigate past the end (for keyboard double-press)
   const reachedEndRef = useRef(false);
   useEffect(() => {
-    if (activeSlideIndex !== scenario.pages.length - 1) {
+    if (activeSlideIndex !== slideCount - 1) {
       reachedEndRef.current = false;
     }
-  }, [activeSlideIndex, scenario.pages.length]);
+  }, [activeSlideIndex, slideCount]);
 
   // Only enable swipe/keyboard exit for multi-page stories on the last slide
-  const isLastSlide = scenario.pages.length > 1 && activeSlideIndex === scenario.pages.length - 1;
+  const isLastSlide = slideCount > 1 && activeSlideIndex === slideCount - 1;
 
   // Detect swipe past end on last slide (touch)
   useEffect(() => {
@@ -301,6 +316,9 @@ export default function StoryViewer({
   const handleSlideChange = useCallback((swiper: SwiperType) => {
     stopAudio();
     setActiveSlideIndex(swiper.activeIndex);
+    if (publicPreviewGate && swiper.activeIndex >= scenario.pages.length) {
+      return;
+    }
     if (autoPlayRef.current) {
       const currentPage = scenario.pages[swiper.activeIndex];
       if (currentPage?.audioUrl) {
@@ -312,12 +330,13 @@ export default function StoryViewer({
         }, 300);
       }
     }
-  }, [stopAudio, scenario.pages, playPageAudio]);
+  }, [stopAudio, publicPreviewGate, scenario.pages, playPageAudio]);
 
   // Current page helper for the global play button
-  const currentPage = scenario.pages[activeSlideIndex];
+  const currentPage = isPublicPreviewGateSlide ? undefined : scenario.pages[activeSlideIndex];
   const currentPageAudioUrl = currentPage?.audioUrl;
   const currentPageNumber = currentPage?.pageNumber;
+  const showAudioControls = hasAudio && !isPublicPreviewGateSlide;
 
   // Global play/pause handler for autoplay mode
   const handleGlobalPlayPause = useCallback(() => {
@@ -355,7 +374,7 @@ export default function StoryViewer({
       </Link>
 
       {/* Audio controls — only shown when the story has audio */}
-      {hasAudio && (
+      {showAudioControls && (
         <div className="absolute top-4 left-16 z-50 flex items-center gap-2">
           {/* Auto-play toggle */}
           <button
@@ -493,7 +512,7 @@ export default function StoryViewer({
                   </p>
                   <div className="flex items-center justify-center gap-3 mt-3">
                     <p className="text-white/40 text-xs">
-                      {page.pageNumber} / {scenario.pages.length}
+                      {page.pageNumber} / {displayTotalPages}
                     </p>
                   </div>
                 </div>
@@ -501,6 +520,51 @@ export default function StoryViewer({
             </div>
           </SwiperSlide>
         ))}
+
+        {publicPreviewGate && (
+          <SwiperSlide key="public-preview-gate">
+            <div className="relative h-full w-full overflow-hidden bg-black">
+              {previewLastPage?.status === 'completed' && (
+                <img
+                  src={previewLastPage.imageUrl || `/api/stories/${storyId}/images/page-${String(previewLastPage.pageNumber).padStart(2, '0')}.png`}
+                  alt=""
+                  aria-hidden="true"
+                  className="absolute inset-0 h-full w-full scale-105 object-cover opacity-40 blur-sm"
+                />
+              )}
+              <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/80 to-black" />
+              <div className="relative z-10 flex h-full items-center justify-center px-6 py-20">
+                <div className="w-full max-w-md rounded-lg border border-white/15 bg-black/60 p-6 text-center text-white shadow-2xl backdrop-blur-md md:p-8">
+                  <p className="text-sm font-semibold text-primary-200/90">
+                    {formatTemplate(t.publicPreviewGateProgress, {
+                      pageLimit: publicPreviewGate.pageLimit,
+                      totalPages: publicPreviewGate.totalPages,
+                    })}
+                  </p>
+                  <h2 className="mt-3 text-2xl font-extrabold leading-tight md:text-3xl">
+                    {t.publicPreviewGateTitle}
+                  </h2>
+                  <p className="mt-3 text-sm leading-6 text-white/75 md:text-base">
+                    {t.publicPreviewGateDescription}
+                  </p>
+                  <div className="mt-6 flex justify-center">
+                    <Link
+                      to={publicPreviewGate.loginPath}
+                      onClick={stopAudio}
+                      className="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg bg-primary-500 px-6 py-3 text-sm font-bold text-white transition-colors hover:bg-primary-600 focus:outline-none focus:ring-2 focus:ring-primary-200 focus:ring-offset-2 focus:ring-offset-black"
+                    >
+                      <span>{t.publicPreviewGateLogin}</span>
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.25} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M5 12h14" />
+                        <path d="m12 5 7 7-7 7" />
+                      </svg>
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </SwiperSlide>
+        )}
       </Swiper>
 
       {/* Story Tools modal */}

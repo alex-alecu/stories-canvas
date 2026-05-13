@@ -76,6 +76,10 @@ const zh: Translations = {
   inProgress: '进行中...',
   imageCouldNotGenerate: '图片无法生成',
   imageNotAvailable: '图片不可用',
+  publicPreviewGateTitle: '登录后继续阅读',
+  publicPreviewGateDescription: '你可以免费预览前几页。登录即可查看完整的公开故事。',
+  publicPreviewGateProgress: '你已阅读 {totalPages} 页中的 {pageLimit} 页。',
+  publicPreviewGateLogin: '登录并继续',
 
   loginTitle: '登录',
   loginSubtitle: '登录以创建和管理你的故事',

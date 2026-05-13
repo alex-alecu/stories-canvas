@@ -76,6 +76,10 @@ const it: Translations = {
   inProgress: 'In corso...',
   imageCouldNotGenerate: "L'immagine non è stata generata",
   imageNotAvailable: 'Immagine non disponibile',
+  publicPreviewGateTitle: 'Accedi per continuare a leggere',
+  publicPreviewGateDescription: "Puoi vedere gratuitamente le prime pagine. Accedi per vedere l'intera storia pubblica.",
+  publicPreviewGateProgress: 'Hai letto {pageLimit} di {totalPages} pagine.',
+  publicPreviewGateLogin: 'Accedi e continua',
 
   loginTitle: 'Accedi',
   loginSubtitle: 'Accedi per creare e gestire le tue storie',

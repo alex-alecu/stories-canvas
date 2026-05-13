@@ -76,6 +76,10 @@ const sk: Translations = {
   inProgress: 'Prebieha...',
   imageCouldNotGenerate: 'Obrázok sa nepodarilo vygenerovať',
   imageNotAvailable: 'Obrázok nie je dostupný',
+  publicPreviewGateTitle: 'Prihláste sa, aby ste mohli pokračovať',
+  publicPreviewGateDescription: 'Prvé stránky si môžete pozrieť zadarmo. Prihláste sa a zobrazíte si celý verejný príbeh.',
+  publicPreviewGateProgress: 'Prečítali ste {pageLimit} z {totalPages} strán.',
+  publicPreviewGateLogin: 'Prihlásiť sa a pokračovať',
 
   loginTitle: 'Prihlásenie',
   loginSubtitle: 'Prihláste sa na vytváranie a správu svojich príbehov',

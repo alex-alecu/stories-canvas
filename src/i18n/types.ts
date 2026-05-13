@@ -83,6 +83,10 @@ export interface Translations {
   inProgress: string;
   imageCouldNotGenerate: string;
   imageNotAvailable: string;
+  publicPreviewGateTitle: string;
+  publicPreviewGateDescription: string;
+  publicPreviewGateProgress: string;
+  publicPreviewGateLogin: string;
 
   // Login
   loginTitle: string;

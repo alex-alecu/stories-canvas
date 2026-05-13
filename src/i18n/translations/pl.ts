@@ -76,6 +76,10 @@ const pl: Translations = {
   inProgress: 'W toku...',
   imageCouldNotGenerate: 'Nie udało się wygenerować obrazu',
   imageNotAvailable: 'Obraz niedostępny',
+  publicPreviewGateTitle: 'Zaloguj się, aby czytać dalej',
+  publicPreviewGateDescription: 'Pierwsze strony możesz obejrzeć za darmo. Zaloguj się, aby zobaczyć całą publiczną historię.',
+  publicPreviewGateProgress: 'Przeczytano {pageLimit} z {totalPages} stron.',
+  publicPreviewGateLogin: 'Zaloguj się i kontynuuj',
 
   loginTitle: 'Zaloguj się',
   loginSubtitle: 'Zaloguj się, aby tworzyć i zarządzać swoimi opowieściami',

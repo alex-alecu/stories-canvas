@@ -1301,6 +1301,69 @@ test('GET /api/stories/:id includes reaction counts and signed-in viewer reactio
   assert.equal(story.myReaction, 'like');
 });
 
+test('GET /api/stories/:id returns only a three-page public preview for anonymous readers', async (t) => {
+  const dataDir = mkdtempSync(path.join(os.tmpdir(), 'stories-public-preview-anon-'));
+  const harness = await createStoriesHarness(dataDir, { useSupabase: true });
+
+  t.after(async () => {
+    await harness.close();
+    await fs.rm(dataDir, { recursive: true, force: true });
+  });
+
+  t.mock.method(harness.storiesModule.storageOps, 'getStory', async () => makeStoryMeta({
+    id: 'story-public-preview',
+    status: 'completed',
+    userId: 'story-owner',
+    isPublic: true,
+    scenario: makeScenario(Array.from({ length: 6 }, (_, index) => makePage({
+      pageNumber: index + 1,
+      text: `Page ${index + 1}`,
+    }))),
+  }));
+
+  const response = await fetch(`${harness.baseUrl}/api/stories/story-public-preview`);
+
+  assert.equal(response.status, 200);
+  const story = await response.json() as StoryMeta;
+  assert.deepEqual(story.scenario?.pages.map(page => page.pageNumber), [1, 2, 3]);
+  assert.deepEqual(story.publicPreviewGate, {
+    pageLimit: 3,
+    totalPages: 6,
+  });
+});
+
+test('GET /api/stories/:id returns the full public story for signed-in readers', async (t) => {
+  const dataDir = mkdtempSync(path.join(os.tmpdir(), 'stories-public-preview-auth-'));
+  const harness = await createStoriesHarness(dataDir, {
+    useSupabase: true,
+    __testAuthUser: { id: 'signed-in-reader', email: 'reader@example.test' },
+  });
+
+  t.after(async () => {
+    await harness.close();
+    await fs.rm(dataDir, { recursive: true, force: true });
+  });
+
+  t.mock.method(harness.storiesModule.storageOps, 'getStory', async () => makeStoryMeta({
+    id: 'story-public-full',
+    status: 'completed',
+    userId: 'story-owner',
+    isPublic: true,
+    scenario: makeScenario(Array.from({ length: 6 }, (_, index) => makePage({
+      pageNumber: index + 1,
+      text: `Page ${index + 1}`,
+    }))),
+  }));
+  t.mock.method(harness.storiesModule.storageOps, 'getStoryReaction', async () => null);
+
+  const response = await fetch(`${harness.baseUrl}/api/stories/story-public-full`);
+
+  assert.equal(response.status, 200);
+  const story = await response.json() as StoryMeta;
+  assert.deepEqual(story.scenario?.pages.map(page => page.pageNumber), [1, 2, 3, 4, 5, 6]);
+  assert.equal(story.publicPreviewGate, undefined);
+});
+
 test('GET /api/stories/mine includes view counts in summaries', async (t) => {
   const dataDir = mkdtempSync(path.join(os.tmpdir(), 'stories-mine-view-count-'));
   const harness = await createStoriesHarness(dataDir, {

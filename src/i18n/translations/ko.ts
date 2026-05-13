@@ -76,6 +76,10 @@ const ko: Translations = {
   inProgress: '진행 중...',
   imageCouldNotGenerate: '이미지를 생성할 수 없었습니다',
   imageNotAvailable: '이미지를 사용할 수 없습니다',
+  publicPreviewGateTitle: '계속 읽으려면 로그인하세요',
+  publicPreviewGateDescription: '첫 페이지들은 무료로 미리 볼 수 있습니다. 전체 공개 이야기를 보려면 로그인하세요.',
+  publicPreviewGateProgress: '총 {totalPages}페이지 중 {pageLimit}페이지를 읽었습니다.',
+  publicPreviewGateLogin: '로그인하고 계속하기',
 
   loginTitle: '로그인',
   loginSubtitle: '이야기를 만들고 관리하려면 로그인하세요',

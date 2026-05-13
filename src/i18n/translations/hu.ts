@@ -76,6 +76,10 @@ const hu: Translations = {
   inProgress: 'Folyamatban...',
   imageCouldNotGenerate: 'A kép nem generálható',
   imageNotAvailable: 'Kép nem elérhető',
+  publicPreviewGateTitle: 'Jelentkezz be a folytatáshoz',
+  publicPreviewGateDescription: 'Az első oldalakat ingyen megnézheted. Jelentkezz be a teljes nyilvános történethez.',
+  publicPreviewGateProgress: 'Elolvastál {pageLimit} oldalt a(z) {totalPages} oldalból.',
+  publicPreviewGateLogin: 'Bejelentkezés és folytatás',
 
   loginTitle: 'Bejelentkezés',
   loginSubtitle: 'Jelentkezz be a meséid létrehozásához és kezeléséhez',

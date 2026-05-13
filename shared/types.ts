@@ -175,6 +175,11 @@ export interface Scenario {
   pages: Page[];
 }
 
+export interface PublicStoryPreviewGate {
+  pageLimit: number;
+  totalPages: number;
+}
+
 export interface StoryGenerationInputs {
   prompt: string;
   language: string;
@@ -259,6 +264,7 @@ export interface StoryMeta {
   likeCount?: number;
   dislikeCount?: number;
   myReaction?: StoryReaction | null;
+  publicPreviewGate?: PublicStoryPreviewGate;
 }
 
 export interface StoryDetail extends StoryMeta {

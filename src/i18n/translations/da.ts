@@ -76,6 +76,10 @@ const da: Translations = {
   inProgress: 'I gang...',
   imageCouldNotGenerate: 'Billedet kunne ikke genereres',
   imageNotAvailable: 'Billede ikke tilgængeligt',
+  publicPreviewGateTitle: 'Log ind for at læse videre',
+  publicPreviewGateDescription: 'Du kan se de første sider gratis. Log ind for at se hele den offentlige historie.',
+  publicPreviewGateProgress: 'Du har læst {pageLimit} af {totalPages} sider.',
+  publicPreviewGateLogin: 'Log ind og fortsæt',
 
   loginTitle: 'Log ind',
   loginSubtitle: 'Log ind for at oprette og administrere dine historier',
