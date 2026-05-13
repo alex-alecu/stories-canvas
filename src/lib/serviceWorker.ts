@@ -27,7 +27,7 @@ export function registerServiceWorker(): void {
       return;
     }
 
-    window.setTimeout(register, 3000);
+    setTimeout(register, 3000);
   }, { once: true });
 }
 
@@ -52,7 +52,7 @@ export function warmMediaCache(urls: string[]): void {
     return;
   }
 
-  window.setTimeout(() => {
+  setTimeout(() => {
     void postWarmup();
   }, 0);
 }
@@ -103,7 +103,7 @@ async function postServiceWorkerMessage<T>(type: string, payload: Record<string,
 
   return new Promise<T>((resolve, reject) => {
     const channel = new MessageChannel();
-    const timeout = window.setTimeout(() => {
+    const timeout = setTimeout(() => {
       channel.port1.close();
       reject(new Error('Service worker response timed out'));
     }, 60_000);

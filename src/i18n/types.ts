@@ -15,6 +15,8 @@ export interface Translations {
   // Story input
   storyInputPlaceholder: string;
   storyInputGuestPlaceholder: string;
+  offlineHomeTitle: string;
+  offlineHomeDescription: string;
   createStory: string;
   creating: string;
   childAge: string;

@@ -1,4 +1,4 @@
-import type { StoryImageSources, StoryStatus } from '../../shared/types';
+import type { StoryImageSources, StoryReaction, StoryStatus } from '../../shared/types';
 
 export type {
   PageStatus,
