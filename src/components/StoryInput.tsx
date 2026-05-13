@@ -49,6 +49,14 @@ export default function StoryInput({ onSubmit, isLoading, isOffline = false }: S
   const navigate = useNavigate();
   const location = useLocation();
   const requiredCredits = getStoryCreditCost(storyMode);
+  const storyModeOptions = ([
+    { key: 'fast', label: t.storyModeFast },
+    { key: 'pro', label: t.storyModePro },
+    { key: 'pro_audio', label: t.storyModeProAudio },
+  ] as const).map((option) => ({
+    ...option,
+    credits: formatCredits(getStoryCreditCost(option.key), t),
+  }));
   const availableCredits = billingOverview?.balance.availableCredits ?? 0;
   const hasEnoughCredits = !user || !billingOverview || availableCredits >= requiredCredits;
 
@@ -248,11 +256,7 @@ export default function StoryInput({ onSubmit, isLoading, isOffline = false }: S
               </div>
 
               <div className="flex flex-wrap gap-2">
-                {([
-                  { key: 'fast', label: t.storyModeFast, detail: t.storyModeFastSummary },
-                  { key: 'pro', label: t.storyModePro, detail: t.storyModeProSummary },
-                  { key: 'pro_audio', label: t.storyModeProAudio, detail: t.storyModeProAudioSummary },
-                ] as const).map((option) => (
+                {storyModeOptions.map((option) => (
                   <button
                     key={option.key}
                     type="button"
@@ -264,7 +268,7 @@ export default function StoryInput({ onSubmit, isLoading, isOffline = false }: S
                         : 'border-gray-200 bg-white text-gray-500 dark:border-gray-700 dark:bg-surface-dark dark:text-gray-300'
                     }`}
                   >
-                    {option.label} · {option.detail}
+                    {option.label} - {option.credits}
                   </button>
                 ))}
               </div>

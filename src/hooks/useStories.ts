@@ -127,6 +127,7 @@ export function useStories(enabled = true) {
   return useQuery({
     queryKey: ['stories'],
     queryFn: fetchStoriesWithOfflineFallback,
+    networkMode: 'always',
     enabled,
     refetchInterval: isOnline ? 10_000 : false, // Poll for updates on generating stories
     retry: (failureCount) => isBrowserOnline() && failureCount < 2,
@@ -137,6 +138,7 @@ export function useUserStories(enabled = true) {
   return useQuery({
     queryKey: ['stories', 'mine'],
     queryFn: fetchUserStoriesWithOfflineFallback,
+    networkMode: 'always',
     enabled,
     retry: (failureCount) => isBrowserOnline() && failureCount < 2,
   });
@@ -146,6 +148,7 @@ export function useStory(id: string | undefined) {
   return useQuery({
     queryKey: ['story', id],
     queryFn: () => fetchStoryWithOfflineFallback(id!),
+    networkMode: 'always',
     enabled: !!id,
     retry: (failureCount) => isBrowserOnline() && failureCount < 2,
   });
@@ -191,6 +194,7 @@ export function usePublicStories(search?: string, limit?: number, enabled = true
   return useQuery({
     queryKey: ['stories', 'public', search ?? '', limit ?? 'all'],
     queryFn: () => fetchPublicStoriesWithOfflineFallback({ search, limit }),
+    networkMode: 'always',
     enabled,
     retry: (failureCount) => isBrowserOnline() && failureCount < 2,
   });
