@@ -517,22 +517,32 @@ export async function setStoryReaction(
   storyId: string,
   userId: string,
   reaction: StoryReaction | null,
+  feedback?: string | null,
 ): Promise<StoryReactionResponse> {
   const supabase = getSupabase();
   const { data, error } = await supabase.rpc('set_story_reaction', {
     p_story_id: storyId,
     p_user_id: userId,
     p_reaction: reaction,
+    p_feedback: reaction === 'dislike' ? feedback ?? null : null,
   });
 
   if (error) throw new Error(`Failed to update story reaction: ${error.message}`);
 
   const row = Array.isArray(data) ? data[0] : data;
+  const reactionRow = row as {
+    like_count?: unknown;
+    dislike_count?: unknown;
+    latest_dislike_feedback?: unknown;
+  } | null;
   return {
     id: storyId,
-    likeCount: normalizeCount((row as { like_count?: unknown } | null)?.like_count),
-    dislikeCount: normalizeCount((row as { dislike_count?: unknown } | null)?.dislike_count),
+    likeCount: normalizeCount(reactionRow?.like_count),
+    dislikeCount: normalizeCount(reactionRow?.dislike_count),
     myReaction: reaction,
+    feedback: typeof reactionRow?.latest_dislike_feedback === 'string'
+      ? reactionRow.latest_dislike_feedback
+      : null,
   };
 }
 

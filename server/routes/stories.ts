@@ -44,6 +44,7 @@ import type {
 import {
   DEFAULT_AGE,
   DEFAULT_ART_STYLE,
+  STORY_REACTION_FEEDBACK_MAX_CHARS,
   getStoryAudioCreditCost,
   getStoryCreditCost,
   getStoryImageCreditCost,
@@ -117,14 +118,20 @@ export const storageOps = {
   getStoryReaction: async (storyId: string, userId: string) => (
     config.useSupabase ? sbStorage.getStoryReaction(storyId, userId) : null
   ),
-  setStoryReaction: async (storyId: string, userId: string, reaction: StoryReaction | null) => (
+  setStoryReaction: async (
+    storyId: string,
+    userId: string,
+    reaction: StoryReaction | null,
+    feedback?: string | null,
+  ) => (
     config.useSupabase
-      ? sbStorage.setStoryReaction(storyId, userId, reaction)
+      ? sbStorage.setStoryReaction(storyId, userId, reaction, feedback)
       : {
           id: storyId,
           likeCount: 0,
           dislikeCount: 0,
           myReaction: null,
+          feedback: null,
         } satisfies StoryReactionResponse
   ),
 };
@@ -2736,7 +2743,30 @@ router.patch('/:id/reaction', optionalAuth, async (req: Request, res: Response) 
     }
 
     const reaction = rawReaction ?? null;
-    const result = await storageOps.setStoryReaction(story.id, req.authUser.id, reaction);
+    const rawFeedback = req.body && typeof req.body === 'object'
+      ? (req.body as { feedback?: unknown }).feedback
+      : undefined;
+    if (rawFeedback !== undefined && rawFeedback !== null && typeof rawFeedback !== 'string') {
+      res.status(400).json({ error: 'feedback must be a string' });
+      return;
+    }
+
+    const feedback = typeof rawFeedback === 'string'
+      ? rawFeedback.replace(/\s+/g, ' ').trim()
+      : null;
+    if (feedback && feedback.length > STORY_REACTION_FEEDBACK_MAX_CHARS) {
+      res.status(400).json({
+        error: `feedback must be ${STORY_REACTION_FEEDBACK_MAX_CHARS} characters or fewer`,
+      });
+      return;
+    }
+
+    const result = await storageOps.setStoryReaction(
+      story.id,
+      req.authUser.id,
+      reaction,
+      reaction === 'dislike' ? feedback : null,
+    );
     res.json(result);
   } catch (error) {
     console.error('Failed to update story reaction:', error);

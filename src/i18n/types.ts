@@ -64,6 +64,10 @@ export interface Translations {
   dislikeStory: string;
   signInToReact: string;
   reactionUpdateFailed: string;
+  dislikeFeedbackPlaceholder: string;
+  submitDislikeFeedback: string;
+  submittingDislikeFeedback: string;
+  dislikeFeedbackTooLong: string;
 
   // Story grid
   noStoriesYet: string;

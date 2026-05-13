@@ -6,7 +6,13 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
-import type { Page, Scenario, StoryMeta, StoryReaction } from '../../shared/types.js';
+import {
+  STORY_REACTION_FEEDBACK_MAX_CHARS,
+  type Page,
+  type Scenario,
+  type StoryMeta,
+  type StoryReaction,
+} from '../../shared/types.js';
 
 process.env.GEMINI_API_KEY ??= 'test-key';
 
@@ -1142,6 +1148,7 @@ test('PATCH /api/stories/:id/reaction sets, switches, and clears one user reacti
   });
 
   const reactions = new Map<string, StoryReaction>();
+  let latestFeedback: string | null = null;
   t.mock.method(harness.storiesModule.storageOps, 'getStory', async () => makeStoryMeta({
     id: 'story-reaction-update',
     status: 'completed',
@@ -1151,30 +1158,48 @@ test('PATCH /api/stories/:id/reaction sets, switches, and clears one user reacti
     storyId: string,
     userId: string,
     reaction: StoryReaction | null,
+    feedback?: string | null,
   ) => {
     if (reaction) {
       reactions.set(`${storyId}:${userId}`, reaction);
     } else {
       reactions.delete(`${storyId}:${userId}`);
     }
+    if (reaction === 'dislike' && feedback) {
+      latestFeedback = feedback;
+    }
 
     const values = [...reactions.values()];
-    return {
+    const response: {
+      id: string;
+      likeCount: number;
+      dislikeCount: number;
+      myReaction: StoryReaction | null;
+      feedback?: string | null;
+    } = {
       id: storyId,
       likeCount: values.filter(value => value === 'like').length,
       dislikeCount: values.filter(value => value === 'dislike').length,
       myReaction: reaction,
     };
+    if (reaction === 'dislike') response.feedback = latestFeedback;
+    return response;
   });
 
-  async function patchReaction(reaction: StoryReaction | null) {
+  async function patchReaction(reaction: StoryReaction | null, feedback?: unknown) {
+    const body = feedback === undefined ? { reaction } : { reaction, feedback };
     const response = await fetch(`${harness.baseUrl}/api/stories/story-reaction-update/reaction`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ reaction }),
+      body: JSON.stringify(body),
     });
     assert.equal(response.status, 200);
-    return response.json() as Promise<{ likeCount: number; dislikeCount: number; myReaction: StoryReaction | null }>;
+    return response.json() as Promise<{
+      likeCount: number;
+      dislikeCount: number;
+      myReaction: StoryReaction | null;
+      feedback?: string | null;
+    }>;
   }
 
   assert.deepEqual(await patchReaction('like'), {
@@ -1183,11 +1208,12 @@ test('PATCH /api/stories/:id/reaction sets, switches, and clears one user reacti
     dislikeCount: 0,
     myReaction: 'like',
   });
-  assert.deepEqual(await patchReaction('dislike'), {
+  assert.deepEqual(await patchReaction('dislike', '  The ending felt too abrupt.  '), {
     id: 'story-reaction-update',
     likeCount: 0,
     dislikeCount: 1,
     myReaction: 'dislike',
+    feedback: 'The ending felt too abrupt.',
   });
   assert.deepEqual(await patchReaction(null), {
     id: 'story-reaction-update',
@@ -1195,6 +1221,54 @@ test('PATCH /api/stories/:id/reaction sets, switches, and clears one user reacti
     dislikeCount: 0,
     myReaction: null,
   });
+});
+
+test('PATCH /api/stories/:id/reaction validates dislike feedback', async (t) => {
+  const dataDir = mkdtempSync(path.join(os.tmpdir(), 'stories-reaction-feedback-'));
+  const harness = await createStoriesHarness(dataDir, {
+    useSupabase: true,
+    __testAuthUser: { id: 'feedback-user', email: 'feedback@example.test' },
+  });
+
+  t.after(async () => {
+    await harness.close();
+    await fs.rm(dataDir, { recursive: true, force: true });
+  });
+
+  let updated = false;
+  t.mock.method(harness.storiesModule.storageOps, 'getStory', async () => makeStoryMeta({
+    id: 'story-reaction-feedback',
+    status: 'completed',
+    isPublic: true,
+  }));
+  t.mock.method(harness.storiesModule.storageOps, 'setStoryReaction', async () => {
+    updated = true;
+    return {
+      id: 'story-reaction-feedback',
+      likeCount: 0,
+      dislikeCount: 0,
+      myReaction: null,
+    };
+  });
+
+  const nonStringResponse = await fetch(`${harness.baseUrl}/api/stories/story-reaction-feedback/reaction`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ reaction: 'dislike', feedback: 123 }),
+  });
+  assert.equal(nonStringResponse.status, 400);
+  assert.deepEqual(await nonStringResponse.json(), { error: 'feedback must be a string' });
+
+  const longResponse = await fetch(`${harness.baseUrl}/api/stories/story-reaction-feedback/reaction`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ reaction: 'dislike', feedback: 'x'.repeat(STORY_REACTION_FEEDBACK_MAX_CHARS + 1) }),
+  });
+  assert.equal(longResponse.status, 400);
+  assert.deepEqual(await longResponse.json(), {
+    error: `feedback must be ${STORY_REACTION_FEEDBACK_MAX_CHARS} characters or fewer`,
+  });
+  assert.equal(updated, false);
 });
 
 test('GET /api/stories/:id includes reaction counts and signed-in viewer reaction', async (t) => {

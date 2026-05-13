@@ -1,8 +1,9 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef, type FormEvent } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import type { GenerationProgress, Page, Scenario, StoryMode, StoryReaction, StoryStatus } from '../types';
 import {
   DEFAULT_VOICE_KEY,
+  STORY_REACTION_FEEDBACK_MAX_CHARS,
   VOICE_OPTIONS,
   getStoryAudioCreditCost,
   getStoryImagePageCreditCost,
@@ -117,6 +118,9 @@ export default function StoryToolsModal({
   const [imageError, setImageError] = useState<string | null>(null);
   const [pageAudioError, setPageAudioError] = useState<string | null>(null);
   const [reactionError, setReactionError] = useState(false);
+  const [dislikeFeedbackOpen, setDislikeFeedbackOpen] = useState(false);
+  const [dislikeFeedback, setDislikeFeedback] = useState('');
+  const [dislikeFeedbackError, setDislikeFeedbackError] = useState<string | null>(null);
   const [selectedVoice, setSelectedVoice] = useState<VoiceKey>(DEFAULT_VOICE_KEY);
   const [imageMode, setImageMode] = useState<PageImageMode>(() => getDefaultPageImageMode(storyMode));
   const [imageFeedback, setImageFeedback] = useState('');
@@ -150,6 +154,7 @@ export default function StoryToolsModal({
   const canReact = !!user && storyStatus === 'completed';
   const canUsePageActions = canManageStory && storyStatus === 'completed' && !isGenerating && !!currentPage;
   const imageFeedbackTrimmed = imageFeedback.trim();
+  const dislikeFeedbackTrimmed = dislikeFeedback.replace(/\s+/g, ' ').trim();
   const pageTextTrimmed = pageText.replace(/\s+/g, ' ').trim();
   const pageTextChanged = pageTextTrimmed !== (currentPage?.text ?? '').replace(/\s+/g, ' ').trim();
   const pageTextInvalid = !pageTextTrimmed || pageTextTrimmed.length > pageTextMaxChars;
@@ -199,7 +204,19 @@ export default function StoryToolsModal({
   useEffect(() => {
     if (!isOpen) return;
     setView('settings');
+    setDislikeFeedbackOpen(false);
+    setDislikeFeedback('');
+    setDislikeFeedbackError(null);
+    setReactionError(false);
   }, [isOpen]);
+
+  useEffect(() => {
+    if (myReaction === 'dislike' && !reactionPending) {
+      setDislikeFeedbackOpen(false);
+      setDislikeFeedback('');
+      setDislikeFeedbackError(null);
+    }
+  }, [myReaction, reactionPending]);
 
   useEffect(() => {
     if (!retryTriggered || operationStarting) return;
@@ -355,11 +372,49 @@ export default function StoryToolsModal({
 
   const handleReaction = useCallback((reaction: StoryReaction) => {
     if (!canReact || reactionPending) return;
+    setReactionError(false);
+    if (reaction === 'dislike' && myReaction !== 'dislike') {
+      setDislikeFeedbackOpen(true);
+      setDislikeFeedbackError(null);
+      return;
+    }
+
+    setDislikeFeedbackOpen(false);
     mutateReaction(
       { id: storyId, reaction: myReaction === reaction ? null : reaction },
       { onError: () => setReactionError(true) },
     );
   }, [canReact, myReaction, mutateReaction, reactionPending, storyId]);
+
+  const handleDislikeFeedbackSubmit = useCallback((event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!canReact || reactionPending) return;
+    setReactionError(false);
+    setDislikeFeedbackError(null);
+
+    if (dislikeFeedbackTrimmed.length > STORY_REACTION_FEEDBACK_MAX_CHARS) {
+      setDislikeFeedbackError(formatTemplate(t.dislikeFeedbackTooLong, {
+        maxChars: STORY_REACTION_FEEDBACK_MAX_CHARS,
+      }));
+      return;
+    }
+
+    mutateReaction(
+      {
+        id: storyId,
+        reaction: 'dislike',
+        feedback: dislikeFeedbackTrimmed || null,
+      },
+      {
+        onSuccess: () => {
+          setDislikeFeedbackOpen(false);
+          setDislikeFeedback('');
+          setDislikeFeedbackError(null);
+        },
+        onError: () => setReactionError(true),
+      },
+    );
+  }, [canReact, dislikeFeedbackTrimmed, mutateReaction, reactionPending, storyId, t.dislikeFeedbackTooLong]);
 
   const handleImageSubmit = useCallback(async () => {
     if (!currentPage || !canUsePageActions) return;
@@ -547,51 +602,79 @@ export default function StoryToolsModal({
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/35">{t.storyToolsSectionStory}</p>
         <h3 className="mt-2 text-lg font-bold leading-snug text-white">{scenario.title}</h3>
         <div className="mt-4 flex flex-wrap items-center gap-2">
-          <div className="flex h-10 items-center overflow-hidden rounded-lg border border-white/10 bg-black/25 text-white">
-            <button
-              type="button"
-              onClick={() => handleReaction('like')}
-              className={`flex h-10 items-center gap-1.5 px-3 text-xs font-semibold transition-colors ${
-                myReaction === 'like'
-                  ? 'bg-primary-500 text-white'
-                  : canReact
-                    ? 'hover:bg-white/10 text-white/90'
-                    : 'text-white/45 cursor-not-allowed'
-              }`}
-              aria-label={canReact ? t.likeStory : t.signInToReact}
-              aria-pressed={myReaction === 'like'}
-              disabled={reactionPending}
-              title={canReact ? t.likeStory : t.signInToReact}
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <path d="M7 10v12" />
-                <path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2h0a3.13 3.13 0 0 1 3 3.88Z" />
-              </svg>
-              <span>{formatReactionCount(likeCount)}</span>
-            </button>
-            <div className="h-5 w-px bg-white/15" />
-            <button
-              type="button"
-              onClick={() => handleReaction('dislike')}
-              className={`flex h-10 items-center gap-1.5 px-3 text-xs font-semibold transition-colors ${
-                myReaction === 'dislike'
-                  ? 'bg-white/20 text-white'
-                  : canReact
-                    ? 'hover:bg-white/10 text-white/90'
-                    : 'text-white/45 cursor-not-allowed'
-              }`}
-              aria-label={canReact ? t.dislikeStory : t.signInToReact}
-              aria-pressed={myReaction === 'dislike'}
-              disabled={reactionPending}
-              title={canReact ? t.dislikeStory : t.signInToReact}
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <path d="M17 14V2" />
-                <path d="M9 18.12 10 14H4.17a2 2 0 0 1-1.92-2.56l2.33-8A2 2 0 0 1 6.5 2H20a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2.76a2 2 0 0 0-1.79 1.11L12 22h0a3.13 3.13 0 0 1-3-3.88Z" />
-              </svg>
-              <span>{formatReactionCount(dislikeCount)}</span>
-            </button>
-          </div>
+          {dislikeFeedbackOpen ? (
+            <form onSubmit={handleDislikeFeedbackSubmit} className="flex w-full flex-col gap-2 sm:flex-row sm:items-center">
+              <input
+                type="text"
+                value={dislikeFeedback}
+                onChange={(event) => {
+                  setDislikeFeedback(event.target.value);
+                  setDislikeFeedbackError(null);
+                }}
+                maxLength={STORY_REACTION_FEEDBACK_MAX_CHARS}
+                placeholder={t.dislikeFeedbackPlaceholder}
+                disabled={reactionPending}
+                className="h-10 min-w-0 flex-1 rounded-lg border border-white/10 bg-black/25 px-3 text-sm text-white outline-none transition-colors placeholder:text-white/35 focus:border-primary-400 disabled:cursor-not-allowed disabled:opacity-60"
+                autoFocus
+              />
+              <button
+                type="submit"
+                disabled={reactionPending}
+                className="inline-flex h-10 shrink-0 items-center justify-center rounded-lg bg-primary-500 px-4 text-sm font-bold text-white transition-colors hover:bg-primary-600 disabled:cursor-not-allowed disabled:bg-primary-500/45"
+              >
+                {reactionPending ? t.submittingDislikeFeedback : t.submitDislikeFeedback}
+              </button>
+            </form>
+          ) : (
+            <div className="flex h-10 items-center overflow-hidden rounded-lg border border-white/10 bg-black/25 text-white">
+              <button
+                type="button"
+                onClick={() => handleReaction('like')}
+                className={`flex h-10 items-center gap-1.5 px-3 text-xs font-semibold transition-colors ${
+                  myReaction === 'like'
+                    ? 'bg-primary-500 text-white'
+                    : canReact
+                      ? 'hover:bg-white/10 text-white/90'
+                      : 'text-white/45 cursor-not-allowed'
+                }`}
+                aria-label={canReact ? t.likeStory : t.signInToReact}
+                aria-pressed={myReaction === 'like'}
+                disabled={reactionPending}
+                title={canReact ? t.likeStory : t.signInToReact}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M7 10v12" />
+                  <path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2h0a3.13 3.13 0 0 1 3 3.88Z" />
+                </svg>
+                <span>{formatReactionCount(likeCount)}</span>
+              </button>
+              <div className="h-5 w-px bg-white/15" />
+              <button
+                type="button"
+                onClick={() => handleReaction('dislike')}
+                className={`flex h-10 items-center gap-1.5 px-3 text-xs font-semibold transition-colors ${
+                  myReaction === 'dislike'
+                    ? 'bg-white/20 text-white'
+                    : canReact
+                      ? 'hover:bg-white/10 text-white/90'
+                      : 'text-white/45 cursor-not-allowed'
+                }`}
+                aria-label={canReact ? t.dislikeStory : t.signInToReact}
+                aria-pressed={myReaction === 'dislike'}
+                disabled={reactionPending}
+                title={canReact ? t.dislikeStory : t.signInToReact}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M17 14V2" />
+                  <path d="M9 18.12 10 14H4.17a2 2 0 0 1-1.92-2.56l2.33-8A2 2 0 0 1 6.5 2H20a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2.76a2 2 0 0 0-1.79 1.11L12 22h0a3.13 3.13 0 0 1-3-3.88Z" />
+                </svg>
+                <span>{formatReactionCount(dislikeCount)}</span>
+              </button>
+            </div>
+          )}
+          {dislikeFeedbackError && (
+            <span className="text-xs text-red-300">{dislikeFeedbackError}</span>
+          )}
           {reactionError && (
             <span className="text-xs text-red-300">{t.reactionUpdateFailed}</span>
           )}

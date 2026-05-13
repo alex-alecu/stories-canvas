@@ -59,6 +59,10 @@ const de: Translations = {
   dislikeStory: 'Dislike',
   signInToReact: 'Sign in to like or dislike stories',
   reactionUpdateFailed: 'Could not update your reaction',
+  dislikeFeedbackPlaceholder: 'What could be better?',
+  submitDislikeFeedback: 'Send',
+  submittingDislikeFeedback: 'Sending...',
+  dislikeFeedbackTooLong: 'Feedback must be {maxChars} characters or fewer',
 
   noStoriesYet: 'Noch keine Geschichten',
   createFirstStory: 'Erstelle deine erste Geschichte oben!',

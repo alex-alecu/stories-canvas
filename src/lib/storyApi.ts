@@ -61,15 +61,17 @@ export async function recordStoryView(id: string): Promise<StoryViewResponse> {
 export async function setStoryReaction({
   id,
   reaction,
+  feedback,
 }: {
   id: string;
   reaction: StoryReaction | null;
+  feedback?: string | null;
 }): Promise<StoryReactionResponse> {
   const authHeaders = await getAuthHeaders();
   const res = await fetch(`/api/stories/${id}/reaction`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', ...authHeaders },
-    body: JSON.stringify({ reaction }),
+    body: JSON.stringify({ reaction, feedback }),
   });
   if (!res.ok) {
     throw await readError(res, 'Failed to update story reaction');

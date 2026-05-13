@@ -59,6 +59,10 @@ const ko: Translations = {
   dislikeStory: 'Dislike',
   signInToReact: 'Sign in to like or dislike stories',
   reactionUpdateFailed: 'Could not update your reaction',
+  dislikeFeedbackPlaceholder: 'What could be better?',
+  submitDislikeFeedback: 'Send',
+  submittingDislikeFeedback: 'Sending...',
+  dislikeFeedbackTooLong: 'Feedback must be {maxChars} characters or fewer',
 
   noStoriesYet: '아직 이야기가 없어요',
   createFirstStory: '위에서 첫 번째 이야기를 만들어보세요!',

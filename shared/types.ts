@@ -7,6 +7,7 @@ export type ArtStyleKey = 'disney-pixar' | 'watercolor' | 'storybook' | 'anime' 
 export type VoiceKey = 'bunica' | 'jora' | 'serban' | 'corina';
 export type StoryMode = 'fast' | 'pro' | 'pro_audio';
 export type StoryReaction = 'like' | 'dislike';
+export const STORY_REACTION_FEEDBACK_MAX_CHARS = 500;
 export type StoryUsageProvider = 'gemini' | 'elevenlabs';
 export type StoryUsageSource = 'initial_generation' | 'retry' | 'regenerate_assets' | 'add_audio' | 'regenerate_page_image' | 'regenerate_page_audio';
 export type StoryUsageStatus = 'succeeded' | 'failed';
@@ -347,6 +348,7 @@ export interface StoryReactionResponse {
   likeCount: number;
   dislikeCount: number;
   myReaction: StoryReaction | null;
+  feedback?: string | null;
 }
 
 export interface StoryPackOffer {
