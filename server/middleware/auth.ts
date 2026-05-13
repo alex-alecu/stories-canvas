@@ -1,4 +1,5 @@
 import type { Request, Response, NextFunction } from 'express';
+import crypto from 'crypto';
 import { config } from '../config.js';
 
 // Extend Express Request to include user info
@@ -13,6 +14,72 @@ declare global {
     }
   }
 }
+
+interface CachedAuthResult {
+  expiresAt: number;
+  authUser?: Express.Request['authUser'];
+}
+
+const AUTH_CACHE_MAX_ENTRIES = 1_000;
+const authResultCache = new Map<string, CachedAuthResult>();
+
+function getTokenCacheKey(token: string): string {
+  return crypto.createHash('sha256').update(token).digest('hex');
+}
+
+function getCachedAuthResult(cacheKey: string): { hit: boolean; authUser?: Express.Request['authUser'] } {
+  if (config.authCacheTtlMs <= 0) {
+    return { hit: false };
+  }
+
+  const cached = authResultCache.get(cacheKey);
+  if (!cached) {
+    return { hit: false };
+  }
+
+  if (cached.expiresAt <= Date.now()) {
+    authResultCache.delete(cacheKey);
+    return { hit: false };
+  }
+
+  return {
+    hit: true,
+    authUser: cached.authUser ? { ...cached.authUser } : undefined,
+  };
+}
+
+function setCachedAuthResult(cacheKey: string, authUser?: Express.Request['authUser']): void {
+  if (config.authCacheTtlMs <= 0) {
+    return;
+  }
+
+  authResultCache.set(cacheKey, {
+    expiresAt: Date.now() + config.authCacheTtlMs,
+    authUser: authUser ? { ...authUser } : undefined,
+  });
+
+  while (authResultCache.size > AUTH_CACHE_MAX_ENTRIES) {
+    const oldestKey = authResultCache.keys().next().value as string | undefined;
+    if (!oldestKey) break;
+    authResultCache.delete(oldestKey);
+  }
+}
+
+export function clearAuthResultCacheForTests(): void {
+  authResultCache.clear();
+}
+
+export const authOps = {
+  getUserForToken: async (token: string) => {
+    const { getSupabase } = await import('../services/supabase.js');
+    const supabase = getSupabase();
+    return supabase.auth.getUser(token);
+  },
+  resolveUserAccess: async (userId: string, email: string | undefined) => {
+    const { resolveUserAccess } = await import('../services/accessControl.js');
+    return resolveUserAccess(userId, email);
+  },
+};
 
 /**
  * Optional auth middleware: extracts and verifies the JWT from the Authorization header.
@@ -30,23 +97,30 @@ export async function optionalAuth(req: Request, _res: Response, next: NextFunct
       return next();
     }
 
-    // Dynamic import to avoid loading supabase when not configured
-    const { getSupabase } = await import('../services/supabase.js');
-    const supabase = getSupabase();
-
-    const { data: { user }, error } = await supabase.auth.getUser(token);
-    if (error || !user) {
+    const cacheKey = getTokenCacheKey(token);
+    const cached = getCachedAuthResult(cacheKey);
+    if (cached.hit) {
+      if (cached.authUser) {
+        req.authUser = cached.authUser;
+      }
       return next();
     }
 
-    const { resolveUserAccess } = await import('../services/accessControl.js');
-    const access = await resolveUserAccess(user.id, user.email);
+    const { data: { user }, error } = await authOps.getUserForToken(token);
+    if (error || !user) {
+      setCachedAuthResult(cacheKey);
+      return next();
+    }
 
-    req.authUser = {
+    const access = await authOps.resolveUserAccess(user.id, user.email);
+
+    const authUser = {
       id: user.id,
       email: user.email,
       isAdmin: access.isAdmin,
     };
+    req.authUser = authUser;
+    setCachedAuthResult(cacheKey, authUser);
   } catch {
     // Silently continue without auth
   }

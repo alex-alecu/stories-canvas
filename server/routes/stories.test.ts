@@ -58,6 +58,8 @@ async function createStoriesHarness(dataDir: string, configOverrides: Record<str
   const express = (await import('express')).default;
   const { config } = await import('../config.js');
   const generationRegistry = await import('../services/generationRegistry.js');
+  const authMiddleware = await import('../middleware/auth.js');
+  const requestLimits = await import('../utils/requestLimits.js');
   const storiesModule = await import('./stories.js');
   const authUser = configOverrides.__testAuthUser as { id: string; email?: string } | undefined;
 
@@ -69,7 +71,21 @@ async function createStoriesHarness(dataDir: string, configOverrides: Record<str
     dataDir,
     useSupabase: false,
     elevenLabsApiKey: undefined,
+    maxActiveGenerationsPerUser: 2,
+    readRateWindowMs: 60_000,
+    anonymousReadIpLimit: 300,
+    authenticatedReadUserLimit: 300,
+    authenticatedReadIpLimit: 600,
+    sseIpConnectionLimit: 10,
+    sseStoryIpConnectionLimit: 3,
+    authCacheTtlMs: 60_000,
     ...configOverrides,
+  });
+  authMiddleware.clearAuthResultCacheForTests();
+  requestLimits.resetRequestLimitersForTests();
+  Object.assign(storiesModule.generationSlotOps, {
+    claimGenerationSlot: async () => ({ activeCount: 1, limit: 2 }),
+    releaseGenerationSlot: async () => 0,
   });
 
   const app = express();
@@ -594,6 +610,7 @@ test('POST /api/stories/:id/generate-audio returns 402 when credits are insuffic
 
   const { InsufficientCreditsError } = await import('../services/billingStorage.js');
   let storedVoice = false;
+  let releasedSlot = false;
 
   t.mock.method(harness.storiesModule.storageOps, 'getStory', async () => makeStoryMeta({
     id: 'story-audio-insufficient',
@@ -610,6 +627,11 @@ test('POST /api/stories/:id/generate-audio returns 402 when credits are insuffic
     throw new InsufficientCreditsError();
   });
   t.mock.method(harness.storiesModule.billingOps, 'getUserCreditBalance', async () => ({ availableCredits: 0 }));
+  t.mock.method(harness.storiesModule.generationSlotOps, 'releaseGenerationSlot', async (storyId: string) => {
+    assert.equal(storyId, 'story-audio-insufficient');
+    releasedSlot = true;
+    return 1;
+  });
   t.mock.method(harness.storiesModule.audioOps, 'isElevenLabsConfigured', () => true);
 
   const response = await fetch(`${harness.baseUrl}/api/stories/story-audio-insufficient/generate-audio`, {
@@ -624,6 +646,55 @@ test('POST /api/stories/:id/generate-audio returns 402 when credits are insuffic
   assert.equal(body.requiredCredits, 0.1);
   assert.equal(body.availableCredits, 0);
   assert.equal(storedVoice, false);
+  assert.equal(releasedSlot, true);
+});
+
+test('POST /api/stories/:id/generate-audio returns 429 before charging when generation slots are full', async (t) => {
+  const dataDir = mkdtempSync(path.join(os.tmpdir(), 'stories-audio-slot-limit-'));
+  const harness = await createStoriesHarness(dataDir, {
+    useSupabase: true,
+    __testAuthUser: { id: 'user-slot-limit', email: 'slot-limit@example.test' },
+  });
+  t.after(async () => {
+    await harness.close();
+    await fs.rm(dataDir, { recursive: true, force: true });
+  });
+
+  const supabaseStorage = await import('../services/supabaseStorage.js');
+  let charged = false;
+
+  t.mock.method(harness.storiesModule.storageOps, 'getStory', async () => makeStoryMeta({
+    id: 'story-audio-slot-limit',
+    prompt: 'A story ready for narration.',
+    status: 'completed',
+    createdAt: '2026-03-29T00:00:00.000Z',
+    userId: 'user-slot-limit',
+    scenario: makeScenario([makePage()]),
+  }));
+  t.mock.method(harness.storiesModule.generationSlotOps, 'claimGenerationSlot', async () => {
+    throw new supabaseStorage.GenerationSlotLimitError(2, 2, 60);
+  });
+  t.mock.method(harness.storiesModule.billingOps, 'consumeCredits', async () => {
+    charged = true;
+    return { ledger_id: 'unexpected', available_credits: 0 };
+  });
+  t.mock.method(harness.storiesModule.audioOps, 'isElevenLabsConfigured', () => true);
+
+  const response = await fetch(`${harness.baseUrl}/api/stories/story-audio-slot-limit/generate-audio`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ voice: 'corina' }),
+  });
+
+  assert.equal(response.status, 429);
+  assert.equal(response.headers.get('retry-after'), '60');
+  assert.deepEqual(await response.json(), {
+    error: 'Too many active story generations',
+    activeGenerations: 2,
+    maxActiveGenerations: 2,
+    retryAfterSeconds: 60,
+  });
+  assert.equal(charged, false);
 });
 
 test('POST /api/stories/:id/pages/:pageNumber/regenerate-image reviews feedback and increments image revision', async (t) => {
@@ -1324,6 +1395,7 @@ test('GET /api/stories/:id returns only a three-page public preview for anonymou
   const response = await fetch(`${harness.baseUrl}/api/stories/story-public-preview`);
 
   assert.equal(response.status, 200);
+  assert.equal(response.headers.get('cache-control'), 'public, s-maxage=60, stale-while-revalidate=120');
   const story = await response.json() as StoryMeta;
   assert.deepEqual(story.scenario?.pages.map(page => page.pageNumber), [1, 2, 3]);
   assert.deepEqual(story.publicPreviewGate, {
@@ -1359,6 +1431,7 @@ test('GET /api/stories/:id returns the full public story for signed-in readers',
   const response = await fetch(`${harness.baseUrl}/api/stories/story-public-full`);
 
   assert.equal(response.status, 200);
+  assert.equal(response.headers.get('cache-control')?.includes('public') ?? false, false);
   const story = await response.json() as StoryMeta;
   assert.deepEqual(story.scenario?.pages.map(page => page.pageNumber), [1, 2, 3, 4, 5, 6]);
   assert.equal(story.publicPreviewGate, undefined);
@@ -1420,6 +1493,7 @@ test('GET /api/stories/public forwards the requested limit and returns that many
   const response = await fetch(`${harness.baseUrl}/api/stories/public?limit=4`);
 
   assert.equal(response.status, 200);
+  assert.equal(response.headers.get('cache-control'), 'public, s-maxage=30, stale-while-revalidate=120');
   const stories = await response.json() as Array<{ id: string; viewCount: number }>;
   assert.equal(stories.length, 4);
   assert.deepEqual(stories.map(story => story.id), [
@@ -1429,6 +1503,73 @@ test('GET /api/stories/public forwards the requested limit and returns that many
     'public-story-4',
   ]);
   assert.deepEqual(stories.map(story => story.viewCount), [5, 6, 7, 8]);
+});
+
+test('GET /api/stories/public rate limits anonymous reads before storage lookup', async (t) => {
+  const dataDir = mkdtempSync(path.join(os.tmpdir(), 'stories-public-rate-limit-'));
+  const harness = await createStoriesHarness(dataDir, {
+    useSupabase: true,
+    anonymousReadIpLimit: 1,
+    readRateWindowMs: 60_000,
+  });
+
+  t.after(async () => {
+    await harness.close();
+    await fs.rm(dataDir, { recursive: true, force: true });
+  });
+
+  let listCalls = 0;
+  t.mock.method(harness.storiesModule.storageOps, 'listPublicStories', async () => {
+    listCalls += 1;
+    return [];
+  });
+
+  const first = await fetch(`${harness.baseUrl}/api/stories/public`);
+  assert.equal(first.status, 200);
+  assert.deepEqual(await first.json(), []);
+
+  const second = await fetch(`${harness.baseUrl}/api/stories/public`);
+  assert.equal(second.status, 429);
+  assert.deepEqual(await second.json(), {
+    error: 'Too many requests',
+    retryAfterSeconds: 60,
+  });
+  assert.equal(listCalls, 1);
+});
+
+test('GET /api/stories/mine rate limits authenticated reads by user', async (t) => {
+  const dataDir = mkdtempSync(path.join(os.tmpdir(), 'stories-mine-rate-limit-'));
+  const harness = await createStoriesHarness(dataDir, {
+    useSupabase: true,
+    __testAuthUser: { id: 'rate-limited-user', email: 'limited@example.test' },
+    anonymousReadIpLimit: 100,
+    authenticatedReadIpLimit: 100,
+    authenticatedReadUserLimit: 1,
+    readRateWindowMs: 60_000,
+  });
+
+  t.after(async () => {
+    await harness.close();
+    await fs.rm(dataDir, { recursive: true, force: true });
+  });
+
+  let listCalls = 0;
+  t.mock.method(harness.storiesModule.storageOps, 'listStoriesByUser', async () => {
+    listCalls += 1;
+    return [];
+  });
+
+  const first = await fetch(`${harness.baseUrl}/api/stories/mine`);
+  assert.equal(first.status, 200);
+  assert.deepEqual(await first.json(), []);
+
+  const second = await fetch(`${harness.baseUrl}/api/stories/mine`);
+  assert.equal(second.status, 429);
+  assert.deepEqual(await second.json(), {
+    error: 'Too many requests',
+    retryAfterSeconds: 60,
+  });
+  assert.equal(listCalls, 1);
 });
 
 test('GET /api/stories/public keeps search and limit working together', async (t) => {

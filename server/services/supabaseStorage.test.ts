@@ -45,10 +45,15 @@ function makeActiveGenerationsClient(result: { data: unknown; error: unknown }) 
         select(selection: string) {
           assert.equal(selection, '*');
           return {
-            not(column: string, operator: string, filter: string) {
+            in(column: string, filter: string[]) {
               assert.equal(column, 'status');
-              assert.equal(operator, 'in');
-              assert.equal(filter, '("completed","failed","cancelled")');
+              assert.deepEqual(filter, [
+                'generating_scenario',
+                'reviewing_scenario',
+                'generating_characters',
+                'generating_images',
+                'generating_audio',
+              ]);
               return {
                 order(orderColumn: string, options: { ascending: boolean }) {
                   assert.equal(orderColumn, 'created_at');

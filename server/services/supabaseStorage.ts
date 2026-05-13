@@ -27,6 +27,42 @@ import { EMPTY_STORY_USAGE_TOTALS, normalizeStoryUsageTotals } from './storyUsag
 
 const BUCKET = STORY_IMAGES_BUCKET;
 const TRANSIENT_HTTP_STATUSES = new Set([502, 503, 504]);
+export const ACTIVE_GENERATION_STATUSES = [
+  'generating_scenario',
+  'reviewing_scenario',
+  'generating_characters',
+  'generating_images',
+  'generating_audio',
+] as const satisfies readonly StoryStatus[];
+
+export type GenerationSlotAction =
+  | 'story_create'
+  | 'story_retry'
+  | 'story_regenerate_assets'
+  | 'story_add_audio'
+  | 'story_regenerate_image'
+  | 'story_regenerate_audio';
+
+interface GenerationSlotClaimRow {
+  claimed: boolean;
+  active_count: number;
+  limit_count: number;
+  retry_after_seconds: number;
+}
+
+export class GenerationSlotLimitError extends Error {
+  readonly activeCount: number;
+  readonly limit: number;
+  readonly retryAfterSeconds: number;
+
+  constructor(activeCount: number, limit: number, retryAfterSeconds: number) {
+    super('GENERATION_SLOT_LIMIT');
+    this.name = 'GenerationSlotLimitError';
+    this.activeCount = activeCount;
+    this.limit = limit;
+    this.retryAfterSeconds = retryAfterSeconds;
+  }
+}
 
 interface SupabaseErrorLike {
   code?: unknown;
@@ -71,6 +107,10 @@ export class TransientDependencyError extends Error {
 
 export function isTransientDependencyError(error: unknown): error is TransientDependencyError {
   return error instanceof TransientDependencyError;
+}
+
+export function isGenerationSlotLimitError(error: unknown): error is GenerationSlotLimitError {
+  return error instanceof GenerationSlotLimitError;
 }
 
 function parseStatusCode(value: unknown): number | undefined {
@@ -172,6 +212,55 @@ function classifySupabaseOperationError(operation: string, error: unknown): Erro
   }
 
   return new Error(`Failed during ${operation}: ${String(error)}`);
+}
+
+export async function claimGenerationSlot(
+  userId: string,
+  storyId: string,
+  action: GenerationSlotAction,
+): Promise<{ activeCount: number; limit: number }> {
+  const supabase = getSupabase();
+  const { data, error } = await supabase.rpc('claim_generation_slot', {
+    p_user_id: userId,
+    p_story_id: storyId,
+    p_action: action,
+    p_limit: config.maxActiveGenerationsPerUser,
+  });
+
+  if (error) {
+    throw new Error(`Failed to claim generation slot: ${error.message}`);
+  }
+
+  const [row] = (data ?? []) as GenerationSlotClaimRow[];
+  if (!row) {
+    throw new Error('Generation slot claim did not return a result');
+  }
+
+  if (!row.claimed) {
+    throw new GenerationSlotLimitError(
+      row.active_count,
+      row.limit_count,
+      row.retry_after_seconds,
+    );
+  }
+
+  return {
+    activeCount: row.active_count,
+    limit: row.limit_count,
+  };
+}
+
+export async function releaseGenerationSlot(storyId: string): Promise<number> {
+  const supabase = getSupabase();
+  const { data, error } = await supabase.rpc('release_generation_slot', {
+    p_story_id: storyId,
+  });
+
+  if (error) {
+    throw new Error(`Failed to release generation slot: ${error.message}`);
+  }
+
+  return typeof data === 'number' && Number.isFinite(data) ? data : 0;
 }
 
 // ---------- Story CRUD ----------
@@ -644,7 +733,7 @@ export async function getActiveGenerations(
     const { data, error } = await supabase
       .from('stories')
       .select('*')
-      .not('status', 'in', '("completed","failed","cancelled")')
+      .in('status', [...ACTIVE_GENERATION_STATUSES])
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -856,6 +945,7 @@ export interface RecoveryDeps {
   loadActiveGenerations?: () => Promise<StoryMeta[]>;
   log?: Pick<Console, 'log'>;
   now?: () => number;
+  releaseGenerationSlot?: (storyId: string) => Promise<unknown>;
   updateStatus?: (id: string, status: StoryStatus) => Promise<void>;
 }
 
@@ -864,6 +954,16 @@ export async function recoverStuckStories(deps: RecoveryDeps = {}): Promise<numb
   const loadActiveGenerations = deps.loadActiveGenerations ?? (() => getActiveGenerations());
   const logger = deps.log ?? console;
   const persistStatus = deps.updateStatus ?? updateStoryStatus;
+  const releaseSlot = deps.releaseGenerationSlot ?? releaseGenerationSlot;
+
+  async function persistRecoveredStatus(storyId: string, status: StoryStatus): Promise<void> {
+    await persistStatus(storyId, status);
+    try {
+      await releaseSlot(storyId);
+    } catch (error) {
+      logger.log(`  [recovery] ${storyId}: failed to release generation slot`, error);
+    }
+  }
 
   const stuck = await loadActiveGenerations();
   if (stuck.length === 0) return 0;
@@ -890,7 +990,7 @@ export async function recoverStuckStories(deps: RecoveryDeps = {}): Promise<numb
 
     // No scenario data yet — story was in very early generation, mark failed
     if (pages.length === 0) {
-      await persistStatus(story.id, 'failed');
+      await persistRecoveredStatus(story.id, 'failed');
       logger.log(`  [recovery] ${story.id}: no pages → failed`);
       recovered++;
       continue;
@@ -903,17 +1003,17 @@ export async function recoverStuckStories(deps: RecoveryDeps = {}): Promise<numb
 
     if (allImagesComplete && allAudioPresent) {
       // Everything is done — mark completed
-      await persistStatus(story.id, 'completed');
+      await persistRecoveredStatus(story.id, 'completed');
       logger.log(`  [recovery] ${story.id}: all content present → completed`);
     } else if (hasFailedImages || (shouldHaveAudio && pages.some(p => !p.audioUrl))) {
       // Has failures or missing audio — mark completed (retry can fix the rest)
       // We use 'completed' rather than 'failed' so the story is viewable,
       // and the retry button will appear for the missing content.
-      await persistStatus(story.id, 'completed');
+      await persistRecoveredStatus(story.id, 'completed');
       logger.log(`  [recovery] ${story.id}: partial content (failed images: ${hasFailedImages}, missing audio: ${shouldHaveAudio && pages.some(p => !p.audioUrl)}) → completed`);
     } else {
       // Images still pending/generating — mark failed since pipeline is dead
-      await persistStatus(story.id, 'failed');
+      await persistRecoveredStatus(story.id, 'failed');
       logger.log(`  [recovery] ${story.id}: images incomplete → failed`);
     }
     recovered++;

@@ -56,6 +56,12 @@ import {
   roundCreditAmount,
 } from '../../shared/types.js';
 import { MEDIA_CACHE_CONTROL, getPageAudioFilename, getPageImageFilename, pageHasAudio } from '../utils/storyMedia.js';
+import {
+  claimSseConnection,
+  limitAuthenticatedStoryRead,
+  limitStoryReadByIp,
+  rejectSseRateLimited,
+} from '../utils/requestLimits.js';
 import { buildStoryGenerationInputs, recordStoryUsage, type StoryUsageStorage } from '../services/storyUsage.js';
 import { getScenarioTextRules, OVERLAY_SAFE_MAX_CHARS } from '../services/scenarioValidation.js';
 
@@ -143,6 +149,52 @@ export const billingOps = {
   grantCredits,
   refundStoryCredits,
 };
+
+export const generationSlotOps = {
+  claimGenerationSlot: sbStorage.claimGenerationSlot,
+  releaseGenerationSlot: sbStorage.releaseGenerationSlot,
+};
+
+async function claimUserGenerationSlot(
+  userId: string | undefined,
+  storyId: string,
+  action: sbStorage.GenerationSlotAction,
+  res: Response,
+): Promise<boolean> {
+  if (!config.useSupabase || !userId) {
+    return true;
+  }
+
+  try {
+    await generationSlotOps.claimGenerationSlot(userId, storyId, action);
+    return true;
+  } catch (error) {
+    if (sbStorage.isGenerationSlotLimitError(error)) {
+      res.setHeader('Retry-After', String(error.retryAfterSeconds));
+      res.status(429).json({
+        error: 'Too many active story generations',
+        activeGenerations: error.activeCount,
+        maxActiveGenerations: error.limit,
+        retryAfterSeconds: error.retryAfterSeconds,
+      });
+      return false;
+    }
+
+    throw error;
+  }
+}
+
+async function releaseUserGenerationSlot(storyId: string): Promise<void> {
+  if (!config.useSupabase) {
+    return;
+  }
+
+  try {
+    await generationSlotOps.releaseGenerationSlot(storyId);
+  } catch (error) {
+    console.error(`Failed to release generation slot for ${storyId}:`, error);
+  }
+}
 
 // ---------- Storage adapter (delegates to Supabase or filesystem) ----------
 
@@ -543,6 +595,14 @@ function appendMediaRevision(url: string, revision: unknown): string {
   return `${url}${url.includes('?') ? '&' : '?'}v=${normalizedRevision}`;
 }
 
+function requestHasAuthorization(req: Request): boolean {
+  return typeof req.headers.authorization === 'string' && req.headers.authorization.trim().length > 0;
+}
+
+function setPublicReadCache(res: Response, maxAgeSeconds: number): void {
+  res.setHeader('Cache-Control', `public, s-maxage=${maxAgeSeconds}, stale-while-revalidate=120`);
+}
+
 function findScenarioPage(scenario: Scenario, pageNumber: number): Page | undefined {
   return scenario.pages.find(page => page.pageNumber === pageNumber);
 }
@@ -858,6 +918,8 @@ async function sendProgressUpdate(storyId: string, data: Partial<GenerationProgr
 
 // ---------- Routes ----------
 
+router.use(limitStoryReadByIp);
+
 // GET /api/stories/public - List public stories (no auth required)
 router.get('/public', async (req: Request, res: Response) => {
   try {
@@ -875,6 +937,7 @@ router.get('/public', async (req: Request, res: Response) => {
       : undefined;
     const stories = await storageOps.listPublicStories(search, limit);
     const summaries = stories.map(toStorySummary);
+    setPublicReadCache(res, 30);
     res.json(summaries);
   } catch (error) {
     console.error('Failed to list public stories:', error);
@@ -883,7 +946,7 @@ router.get('/public', async (req: Request, res: Response) => {
 });
 
 // GET /api/stories/mine - List stories for authenticated user
-router.get('/mine', optionalAuth, async (req: Request, res: Response) => {
+router.get('/mine', optionalAuth, limitAuthenticatedStoryRead, async (req: Request, res: Response) => {
   try {
     if (!req.authUser) {
       res.status(401).json({ error: 'Authentication required' });
@@ -904,7 +967,7 @@ router.get('/mine', optionalAuth, async (req: Request, res: Response) => {
 });
 
 // GET /api/stories - List stories (private by default: only user's own stories when authenticated)
-router.get('/', optionalAuth, async (req: Request, res: Response) => {
+router.get('/', optionalAuth, limitAuthenticatedStoryRead, async (req: Request, res: Response) => {
   try {
     let stories: StoryMeta[];
 
@@ -1000,8 +1063,15 @@ router.post('/', optionalAuth, async (req: Request, res: Response) => {
     );
 
     // Create the story in storage immediately so it's available for SSE and refresh
+    let generationSlotClaimed = false;
     if (config.useSupabase) {
       try {
+        generationSlotClaimed = await claimUserGenerationSlot(req.authUser!.id, storyId, 'story_create', res);
+        if (!generationSlotClaimed) {
+          await removeStory(storyId, userId).catch(() => {});
+          return;
+        }
+
         const charge = await consumeCredits(req.authUser!.id, creditCost, {
           reason: 'story_create',
           storyId,
@@ -1021,12 +1091,16 @@ router.post('/', optionalAuth, async (req: Request, res: Response) => {
             console.error(`Failed to compensate credits after charge persistence error for ${storyId}:`, refundError);
           }
 
+          await releaseUserGenerationSlot(storyId);
           await removeStory(storyId, userId).catch(() => {});
           throw creditChargeError;
         }
       } catch (error) {
         if (error instanceof InsufficientCreditsError) {
           const balance = await getUserCreditBalance(req.authUser!.id).catch(() => ({ availableCredits: 0 }));
+          if (generationSlotClaimed) {
+            await releaseUserGenerationSlot(storyId);
+          }
           await removeStory(storyId, userId).catch(() => {});
           res.status(402).json({
             error: 'Not enough credits to create this story',
@@ -1036,6 +1110,9 @@ router.post('/', optionalAuth, async (req: Request, res: Response) => {
           return;
         }
 
+        if (generationSlotClaimed) {
+          await releaseUserGenerationSlot(storyId);
+        }
         await removeStory(storyId, userId).catch(() => {});
         throw error;
       }
@@ -1354,6 +1431,7 @@ async function runGenerationPipeline(
     });
   } finally {
     finishTrackedGeneration(storyId);
+    await releaseUserGenerationSlot(storyId);
     scheduleStoryConnectionCleanup(storyId);
   }
 }
@@ -1426,8 +1504,14 @@ router.post('/:id/regenerate-assets', optionalAuth, async (req: Request, res: Re
         + (story.voice ? getStoryAudioCreditCost(pageCount) : 0),
     );
     let availableCredits = 0;
+    let generationSlotClaimed = false;
     if (config.useSupabase) {
       try {
+        generationSlotClaimed = await claimUserGenerationSlot(req.authUser!.id, storyId, 'story_regenerate_assets', res);
+        if (!generationSlotClaimed) {
+          return;
+        }
+
         const charge = await billingOps.consumeCredits(req.authUser!.id, regenerationCost, {
           reason: 'story_regenerate_assets',
           storyId,
@@ -1437,12 +1521,18 @@ router.post('/:id/regenerate-assets', optionalAuth, async (req: Request, res: Re
       } catch (error) {
         if (error instanceof InsufficientCreditsError) {
           const balance = await billingOps.getUserCreditBalance(req.authUser!.id).catch(() => ({ availableCredits: 0 }));
+          if (generationSlotClaimed) {
+            await releaseUserGenerationSlot(storyId);
+          }
           res.status(402).json({
             error: 'Not enough credits to regenerate this story',
             requiredCredits: regenerationCost,
             availableCredits: balance.availableCredits,
           });
           return;
+        }
+        if (generationSlotClaimed) {
+          await releaseUserGenerationSlot(storyId);
         }
         throw error;
       }
@@ -1464,6 +1554,9 @@ router.post('/:id/regenerate-assets', optionalAuth, async (req: Request, res: Re
         regenerationCost,
         'Automatic refund after asset regeneration setup failed.',
       );
+      if (generationSlotClaimed) {
+        await releaseUserGenerationSlot(storyId);
+      }
       throw error;
     }
 
@@ -1698,6 +1791,7 @@ async function runRegenerateAssetsPipeline(
     });
   } finally {
     finishTrackedGeneration(storyId);
+    await releaseUserGenerationSlot(storyId);
     scheduleStoryConnectionCleanup(storyId);
   }
 }
@@ -1768,6 +1862,11 @@ router.post('/:id/retry', optionalAuth, async (req: Request, res: Response) => {
         resolvedStatus = 'completed';
       }
       res.json({ status: resolvedStatus, retriedImages: 0, retriedAudio: 0 } as RetryStoryResponse);
+      return;
+    }
+
+    const generationSlotClaimed = await claimUserGenerationSlot(req.authUser?.id, storyId, 'story_retry', res);
+    if (!generationSlotClaimed) {
       return;
     }
 
@@ -1957,6 +2056,7 @@ async function runRetryPipeline(
     });
   } finally {
     finishTrackedGeneration(storyId);
+    await releaseUserGenerationSlot(storyId);
     scheduleStoryConnectionCleanup(storyId);
   }
 }
@@ -2028,9 +2128,16 @@ router.post('/:id/generate-audio', optionalAuth, async (req: Request, res: Respo
     const controller = startTrackedGeneration(storyId);
     let availableCredits = 0;
     let chargedCredits = 0;
+    let generationSlotClaimed = false;
 
     if (config.useSupabase) {
       try {
+        generationSlotClaimed = await claimUserGenerationSlot(req.authUser.id, storyId, 'story_add_audio', res);
+        if (!generationSlotClaimed) {
+          finishTrackedGeneration(storyId);
+          return;
+        }
+
         const charge = await billingOps.consumeCredits(req.authUser.id, creditCost, {
           reason: 'story_add_audio',
           storyId,
@@ -2041,6 +2148,9 @@ router.post('/:id/generate-audio', optionalAuth, async (req: Request, res: Respo
       } catch (error) {
         if (error instanceof InsufficientCreditsError) {
           const balance = await billingOps.getUserCreditBalance(req.authUser.id).catch(() => ({ availableCredits: 0 }));
+          if (generationSlotClaimed) {
+            await releaseUserGenerationSlot(storyId);
+          }
           finishTrackedGeneration(storyId);
           res.status(402).json({
             error: 'Not enough credits to add narration',
@@ -2050,6 +2160,9 @@ router.post('/:id/generate-audio', optionalAuth, async (req: Request, res: Respo
           return;
         }
 
+        if (generationSlotClaimed) {
+          await releaseUserGenerationSlot(storyId);
+        }
         finishTrackedGeneration(storyId);
         throw error;
       }
@@ -2070,6 +2183,9 @@ router.post('/:id/generate-audio', optionalAuth, async (req: Request, res: Respo
         }
       }
 
+      if (generationSlotClaimed) {
+        await releaseUserGenerationSlot(storyId);
+      }
       finishTrackedGeneration(storyId);
       throw error;
     }
@@ -2198,19 +2314,22 @@ async function runAudioGenerationPipeline(
     });
   } finally {
     finishTrackedGeneration(storyId);
+    await releaseUserGenerationSlot(storyId);
     scheduleStoryConnectionCleanup(storyId);
   }
 }
 
 // POST /api/stories/:id/pages/:pageNumber/regenerate-image - Regenerate one page image from owner feedback
 router.post('/:id/pages/:pageNumber/regenerate-image', optionalAuth, async (req: Request, res: Response) => {
+  let generationSlotClaimed = false;
+  let storyId = req.params.id as string;
   try {
     if (config.useSupabase && !req.authUser) {
       res.status(401).json({ error: 'Authentication required' });
       return;
     }
 
-    const storyId = req.params.id as string;
+    storyId = req.params.id as string;
     const pageNumber = Number.parseInt(req.params.pageNumber as string, 10);
     if (!Number.isInteger(pageNumber) || pageNumber <= 0) {
       res.status(400).json({ error: 'A valid page number is required' });
@@ -2262,6 +2381,11 @@ router.post('/:id/pages/:pageNumber/regenerate-image', optionalAuth, async (req:
     }
     const imageMode = getRequestedPageImageMode(req.body?.mode, story);
 
+    generationSlotClaimed = await claimUserGenerationSlot(req.authUser?.id, storyId, 'story_regenerate_image', res);
+    if (!generationSlotClaimed) {
+      return;
+    }
+
     const review = await pageTextReviewOps.reviewPageText({
       text: feedback,
       targetAge: story.scenario.targetAge,
@@ -2273,6 +2397,8 @@ router.post('/:id/pages/:pageNumber/regenerate-image', optionalAuth, async (req:
         error: review.explanation || 'Feedback is not appropriate for a children story',
         reasonCode: review.reasonCode,
       });
+      await releaseUserGenerationSlot(storyId);
+      generationSlotClaimed = false;
       return;
     }
 
@@ -2289,6 +2415,8 @@ router.post('/:id/pages/:pageNumber/regenerate-image', optionalAuth, async (req:
       } catch (error) {
         if (error instanceof InsufficientCreditsError) {
           const balance = await billingOps.getUserCreditBalance(req.authUser!.id).catch(() => ({ availableCredits: 0 }));
+          await releaseUserGenerationSlot(storyId);
+          generationSlotClaimed = false;
           res.status(402).json({
             error: 'Not enough credits to regenerate this image',
             requiredCredits: chargedCredits,
@@ -2296,6 +2424,8 @@ router.post('/:id/pages/:pageNumber/regenerate-image', optionalAuth, async (req:
           });
           return;
         }
+        await releaseUserGenerationSlot(storyId);
+        generationSlotClaimed = false;
         throw error;
       }
     }
@@ -2313,6 +2443,9 @@ router.post('/:id/pages/:pageNumber/regenerate-image', optionalAuth, async (req:
         console.error(`Page image regeneration pipeline failed for ${storyId} page ${pageNumber}:`, error);
       });
   } catch (error) {
+    if (generationSlotClaimed) {
+      await releaseUserGenerationSlot(storyId);
+    }
     console.error('Failed to start page image regeneration:', error);
     res.status(500).json({ error: 'Failed to start page image regeneration' });
   }
@@ -2445,19 +2578,22 @@ async function runRegeneratePageImagePipeline(
     });
   } finally {
     finishTrackedGeneration(storyId);
+    await releaseUserGenerationSlot(storyId);
     scheduleStoryConnectionCleanup(storyId);
   }
 }
 
 // PATCH /api/stories/:id/pages/:pageNumber/script-audio - Edit one page script and regenerate same-voice audio
 router.patch('/:id/pages/:pageNumber/script-audio', optionalAuth, async (req: Request, res: Response) => {
+  let generationSlotClaimed = false;
+  let storyId = req.params.id as string;
   try {
     if (config.useSupabase && !req.authUser) {
       res.status(401).json({ error: 'Authentication required' });
       return;
     }
 
-    const storyId = req.params.id as string;
+    storyId = req.params.id as string;
     const pageNumber = Number.parseInt(req.params.pageNumber as string, 10);
     if (!Number.isInteger(pageNumber) || pageNumber <= 0) {
       res.status(400).json({ error: 'A valid page number is required' });
@@ -2516,6 +2652,11 @@ router.patch('/:id/pages/:pageNumber/script-audio', optionalAuth, async (req: Re
       return;
     }
 
+    generationSlotClaimed = await claimUserGenerationSlot(req.authUser?.id, storyId, 'story_regenerate_audio', res);
+    if (!generationSlotClaimed) {
+      return;
+    }
+
     const review = await pageTextReviewOps.reviewPageText({
       text,
       targetAge: story.scenario.targetAge,
@@ -2527,6 +2668,8 @@ router.patch('/:id/pages/:pageNumber/script-audio', optionalAuth, async (req: Re
         error: review.explanation || 'Page text is not appropriate for a children story',
         reasonCode: review.reasonCode,
       });
+      await releaseUserGenerationSlot(storyId);
+      generationSlotClaimed = false;
       return;
     }
 
@@ -2543,6 +2686,8 @@ router.patch('/:id/pages/:pageNumber/script-audio', optionalAuth, async (req: Re
       } catch (error) {
         if (error instanceof InsufficientCreditsError) {
           const balance = await billingOps.getUserCreditBalance(req.authUser!.id).catch(() => ({ availableCredits: 0 }));
+          await releaseUserGenerationSlot(storyId);
+          generationSlotClaimed = false;
           res.status(402).json({
             error: 'Not enough credits to regenerate this page audio',
             requiredCredits: chargedCredits,
@@ -2550,6 +2695,8 @@ router.patch('/:id/pages/:pageNumber/script-audio', optionalAuth, async (req: Re
           });
           return;
         }
+        await releaseUserGenerationSlot(storyId);
+        generationSlotClaimed = false;
         throw error;
       }
     }
@@ -2567,6 +2714,9 @@ router.patch('/:id/pages/:pageNumber/script-audio', optionalAuth, async (req: Re
         console.error(`Page audio regeneration pipeline failed for ${storyId} page ${pageNumber}:`, error);
       });
   } catch (error) {
+    if (generationSlotClaimed) {
+      await releaseUserGenerationSlot(storyId);
+    }
     console.error('Failed to start page audio regeneration:', error);
     res.status(500).json({ error: 'Failed to start page audio regeneration' });
   }
@@ -2655,12 +2805,13 @@ async function runRegeneratePageAudioPipeline(
     });
   } finally {
     finishTrackedGeneration(storyId);
+    await releaseUserGenerationSlot(storyId);
     scheduleStoryConnectionCleanup(storyId);
   }
 }
 
 // GET /api/stories/:id/assets - List all stored assets (character sheets, images)
-router.get('/:id/assets', optionalAuth, async (req: Request, res: Response) => {
+router.get('/:id/assets', optionalAuth, limitAuthenticatedStoryRead, async (req: Request, res: Response) => {
   try {
     const storyId = req.params.id as string;
 
@@ -2829,7 +2980,7 @@ router.patch('/:id/reaction', optionalAuth, async (req: Request, res: Response) 
 });
 
 // GET /api/stories/:id - Get story details (ownership check for private stories)
-router.get('/:id', optionalAuth, async (req: Request, res: Response) => {
+router.get('/:id', optionalAuth, limitAuthenticatedStoryRead, async (req: Request, res: Response) => {
   try {
     const story = await getStory(req.params.id as string);
     if (!story) {
@@ -2866,6 +3017,16 @@ router.get('/:id', optionalAuth, async (req: Request, res: Response) => {
       }
     }
 
+    if (
+      config.useSupabase
+      && !req.authUser
+      && !requestHasAuthorization(req)
+      && story.isPublic
+      && story.status === 'completed'
+    ) {
+      setPublicReadCache(res, 60);
+    }
+
     res.json(responseStory);
   } catch (error) {
     console.error('Failed to get story:', error);
@@ -2883,6 +3044,13 @@ router.get('/:id/status', async (req: Request, res: Response) => {
       res.status(404).json({ error: 'Story not found' });
       return;
     }
+
+    const sseClaim = claimSseConnection(req, storyId);
+    if (!sseClaim.allowed) {
+      rejectSseRateLimited(res, sseClaim.retryAfterSeconds);
+      return;
+    }
+    res.on('close', sseClaim.release);
 
     res.writeHead(200, {
       'Content-Type': 'text/event-stream',
@@ -2925,6 +3093,7 @@ router.get('/:id/status', async (req: Request, res: Response) => {
           sseConnections.delete(storyId);
         }
       }
+      sseClaim.release();
     });
   } catch (error) {
     console.error(`Failed to stream story status for ${storyId}:`, error);
@@ -3053,6 +3222,8 @@ router.post('/:id/cancel', optionalAuth, async (req: Request, res: Response) => 
     if (config.useSupabase && !storyHasCompletedIllustrations(story)) {
       await refundStoryCredits(storyId, 'Story cancelled before the first completed illustration.');
     }
+
+    await releaseUserGenerationSlot(storyId);
 
     // Delete the story from the database
     await removeStory(storyId, req.authUser?.id);

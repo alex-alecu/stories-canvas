@@ -34,6 +34,10 @@ function numberEnv(
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+function integerEnv(key: string, fallback: number): number {
+  return numberEnv(key, fallback, raw => Number.parseInt(raw, 10));
+}
+
 const supabaseUrl = optionalEnv('SUPABASE_URL');
 const supabaseServiceKey = optionalEnv('SUPABASE_SERVICE_KEY');
 
@@ -42,11 +46,19 @@ export const config = {
   scenarioModel: process.env.SCENARIO_MODEL || 'gemini-3.1-pro-preview',
   imageModel: process.env.IMAGE_MODEL || 'gemini-3.1-flash-image-preview',
   imageModelPro: process.env.IMAGE_MODEL_PRO || 'gemini-3-pro-image-preview',
-  imageConcurrency: parseInt(process.env.IMAGE_CONCURRENCY || '3', 10),
+  imageConcurrency: integerEnv('IMAGE_CONCURRENCY', 3),
   port: parseInt(process.env.PORT || process.env.SERVER_PORT || '3001', 10),
   dataDir: process.env.DATA_DIR || path.join(process.cwd(), 'data', 'stories'),
   maxPromptLength: 500,
   maxRetries: 3,
+  maxActiveGenerationsPerUser: integerEnv('MAX_ACTIVE_GENERATIONS_PER_USER', 2),
+  readRateWindowMs: integerEnv('READ_RATE_WINDOW_MS', 60_000),
+  anonymousReadIpLimit: integerEnv('ANONYMOUS_READ_IP_LIMIT', 300),
+  authenticatedReadUserLimit: integerEnv('AUTHENTICATED_READ_USER_LIMIT', 300),
+  authenticatedReadIpLimit: integerEnv('AUTHENTICATED_READ_IP_LIMIT', 600),
+  sseIpConnectionLimit: integerEnv('SSE_IP_CONNECTION_LIMIT', 10),
+  sseStoryIpConnectionLimit: integerEnv('SSE_STORY_IP_CONNECTION_LIMIT', 3),
+  authCacheTtlMs: integerEnv('AUTH_CACHE_TTL_MS', 60_000),
   scenarioTemperature: numberEnv('SCENARIO_TEMPERATURE', 0.6, Number.parseFloat),
   scenarioReviewTemperature: numberEnv('SCENARIO_REVIEW_TEMPERATURE', 0.2, Number.parseFloat),
   scenarioThinkingBudget: numberEnv('SCENARIO_THINKING_BUDGET', 1024, raw => Number.parseInt(raw, 10)),
