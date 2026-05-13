@@ -49,6 +49,7 @@ interface StoryToolsModalProps {
   dislikeCount?: number;
   myReaction?: StoryReaction | null;
   canManageStory?: boolean;
+  canUseOnlineActions?: boolean;
 }
 
 function formatReactionCount(count: number): string {
@@ -100,6 +101,7 @@ export default function StoryToolsModal({
   dislikeCount = 0,
   myReaction = null,
   canManageStory = false,
+  canUseOnlineActions = true,
 }: StoryToolsModalProps) {
   const { t } = useLanguage();
   const { user } = useAuth();
@@ -133,8 +135,8 @@ export default function StoryToolsModal({
   const regenerateImage = useRegeneratePageImage();
   const regeneratePageAudio = useRegeneratePageAudio();
   const { mutate: mutateReaction, isPending: reactionPending } = useStoryReaction(storyId);
-  const { data: billingOverview } = useBillingOverview(!!user);
-  const { data: assets, isLoading: assetsLoading } = useStoryAssets(storyId, isOpen);
+  const { data: billingOverview } = useBillingOverview(canUseOnlineActions && !!user);
+  const { data: assets, isLoading: assetsLoading } = useStoryAssets(storyId, canUseOnlineActions && isOpen);
 
   const isTrackingGeneration = retryTriggered || audioTriggered || imageTriggered || pageAudioTriggered;
   const { progress: sseProgress } = useStoryGeneration(isTrackingGeneration && !operationStarting ? storyId : null);
@@ -151,8 +153,8 @@ export default function StoryToolsModal({
     ? getVoiceOptionText(VOICE_OPTIONS.find(option => option.key === storyVoice) ?? VOICE_OPTIONS[0], t).label
     : t.currentVoice;
 
-  const canReact = !!user && storyStatus === 'completed';
-  const canUsePageActions = canManageStory && storyStatus === 'completed' && !isGenerating && !!currentPage;
+  const canReact = canUseOnlineActions && !!user && storyStatus === 'completed';
+  const canUsePageActions = canUseOnlineActions && canManageStory && storyStatus === 'completed' && !isGenerating && !!currentPage;
   const imageFeedbackTrimmed = imageFeedback.trim();
   const dislikeFeedbackTrimmed = dislikeFeedback.replace(/\s+/g, ' ').trim();
   const pageTextTrimmed = pageText.replace(/\s+/g, ' ').trim();
@@ -292,6 +294,7 @@ export default function StoryToolsModal({
 
   const hasErrors = failedImageCount > 0 || missingAudioCount > 0;
   const canStartAddNarration = storyStatus === 'completed'
+    && canUseOnlineActions
     && canManageStory
     && !isGenerating
     && !voice
@@ -332,6 +335,7 @@ export default function StoryToolsModal({
   }, [isOpen, lightboxUrl, onClose]);
 
   const handleRetry = useCallback(async () => {
+    if (!canUseOnlineActions) return;
     setRetryTriggered(true);
     startOperationGracePeriod();
     try {
@@ -340,7 +344,7 @@ export default function StoryToolsModal({
       setRetryTriggered(false);
       clearOperationGracePeriod();
     }
-  }, [clearOperationGracePeriod, retryStory, startOperationGracePeriod, storyId]);
+  }, [canUseOnlineActions, clearOperationGracePeriod, retryStory, startOperationGracePeriod, storyId]);
 
   const handleGenerateAudio = useCallback(async () => {
     if (!canStartAddNarration) return;

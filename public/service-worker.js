@@ -4,6 +4,31 @@ const DATA_CACHE = 'stories-canvas-data-v2';
 const APP_SHELL_CACHE_KEY = `${self.location.origin}/__sw_app_shell__`;
 const DATA_TTL_MS = 24 * 60 * 60 * 1000;
 const CACHED_AT_HEADER = 'x-sw-cached-at';
+const APP_SHELL_ASSET_PATHS = [
+  '/manifest.webmanifest',
+  '/icon.png',
+  '/icon-small.png',
+  '/icon-192.png',
+  '/icon-512.png',
+  '/logo-big.png',
+  '/logo-big-256.avif',
+  '/logo-big-256.png',
+  '/logo-big-256.webp',
+  '/logo-big-384.avif',
+  '/logo-big-384.png',
+  '/logo-big-384.webp',
+  '/logo-big-512.avif',
+  '/logo-big-512.png',
+  '/logo-big-512.webp',
+  '/logo-text-224.avif',
+  '/logo-text-224.png',
+  '/logo-text-224.webp',
+  '/logo-text-336.avif',
+  '/logo-text-336.png',
+  '/logo-text-336.webp',
+  '/fonts/nunito-latin.woff2',
+  '/fonts/nunito-latin-ext.woff2',
+];
 
 self.addEventListener('install', (event) => {
   event.waitUntil((async () => {
@@ -82,7 +107,10 @@ async function cacheAppShell() {
   await cache.put(`${self.location.origin}/index.html`, stampedResponse.clone());
 
   const html = await response.text();
-  const assetUrls = collectAppAssetUrls(html);
+  const assetUrls = [...new Set([
+    ...collectAppAssetUrls(html),
+    ...APP_SHELL_ASSET_PATHS.map((assetPath) => new URL(assetPath, self.location.origin).toString()),
+  ])];
   await Promise.all(assetUrls.map(async (assetUrl) => {
     try {
       const assetResponse = await fetch(assetUrl, { cache: 'reload' });
@@ -97,20 +125,27 @@ async function cacheAppShell() {
 
 function collectAppAssetUrls(html) {
   const urls = new Set();
-  const patterns = [
-    /<(?:script|link)\b[^>]*(?:src|href)=["']([^"']+)["'][^>]*>/gi,
-  ];
-
-  for (const pattern of patterns) {
-    for (const match of html.matchAll(pattern)) {
-      try {
-        const url = new URL(match[1], self.location.origin);
-        if (url.origin === self.location.origin) {
-          urls.add(url.toString());
-        }
-      } catch {
-        // Ignore malformed URLs.
+  const addUrl = (rawUrl) => {
+    try {
+      const url = new URL(rawUrl, self.location.origin);
+      if (url.origin === self.location.origin) {
+        urls.add(url.toString());
       }
+    } catch {
+      // Ignore malformed URLs.
+    }
+  };
+
+  const urlAttributePattern = /<(?:script|link|img|source)\b[^>]*(?:src|href)=["']([^"']+)["'][^>]*>/gi;
+  for (const match of html.matchAll(urlAttributePattern)) {
+    addUrl(match[1]);
+  }
+
+  const srcSetPattern = /\b(?:srcset|imagesrcset)=["']([^"']+)["']/gi;
+  for (const match of html.matchAll(srcSetPattern)) {
+    for (const candidate of match[1].split(',')) {
+      const rawUrl = candidate.trim().split(/\s+/)[0];
+      if (rawUrl) addUrl(rawUrl);
     }
   }
 
@@ -134,6 +169,8 @@ function isAppAssetRequest(request, url) {
 
   if (url.origin === self.location.origin && (
     url.pathname.startsWith('/assets/') ||
+    url.pathname.startsWith('/fonts/') ||
+    isSameOriginStaticImage(url) ||
     url.pathname === '/favicon.ico' ||
     url.pathname === '/manifest.webmanifest'
   )) {
@@ -144,6 +181,14 @@ function isAppAssetRequest(request, url) {
     request.destination === 'style' ||
     request.destination === 'font' ||
     request.destination === 'worker';
+}
+
+function isSameOriginStaticImage(url) {
+  if (url.origin !== self.location.origin || url.pathname.startsWith('/api/')) {
+    return false;
+  }
+
+  return /\.(?:avif|gif|ico|jpe?g|png|svg|webp)$/i.test(url.pathname);
 }
 
 function isDataRequest(request, url) {

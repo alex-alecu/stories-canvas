@@ -41,6 +41,7 @@ interface StoryViewerProps {
   myReaction?: StoryReaction | null;
   storyMode?: StoryMode;
   canManageStory?: boolean;
+  canUseOnlineActions?: boolean;
   publicPreviewGate?: {
     pageLimit: number;
     totalPages: number;
@@ -71,6 +72,7 @@ export default function StoryViewer({
   myReaction = null,
   storyMode,
   canManageStory = false,
+  canUseOnlineActions = true,
   publicPreviewGate,
 }: StoryViewerProps) {
   const { t } = useLanguage();
@@ -585,6 +587,7 @@ export default function StoryViewer({
           dislikeCount={dislikeCount}
           myReaction={myReaction}
           canManageStory={canManageStory}
+          canUseOnlineActions={canUseOnlineActions}
         />
       )}
 

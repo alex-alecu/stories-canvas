@@ -6,8 +6,8 @@ import MarketingRouteTracker from './components/MarketingRouteTracker';
 import BrowserThemeSync from './components/BrowserThemeSync';
 import ErrorBoundary from './components/ErrorBoundary';
 import Home from './pages/Home';
+import StoryPage from './pages/StoryPage';
 
-const StoryPage = lazy(() => import('./pages/StoryPage'));
 const Login = lazy(() => import('./pages/Login'));
 const AuthCallback = lazy(() => import('./pages/AuthCallback'));
 const Profile = lazy(() => import('./pages/Profile'));

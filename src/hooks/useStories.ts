@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { StorySummary, StoryMeta, StoryAssets, StoryMode, StoryReaction, VoiceKey } from '../types';
 import { getOfflineStory, listOfflineStorySummaries } from '../lib/offlineStories';
+import { isBrowserOnline, useNetworkStatus } from './useNetworkStatus';
 import {
   cancelStory,
   createStory,
@@ -54,6 +55,10 @@ function applyReactionResponse<T extends { id: string; likeCount?: number; disli
 }
 
 async function fetchStoriesWithOfflineFallback(): Promise<StorySummary[]> {
+  if (!isBrowserOnline()) {
+    return listOfflineStorySummaries().catch(() => []);
+  }
+
   try {
     return await fetchStories();
   } catch (error) {
@@ -64,6 +69,10 @@ async function fetchStoriesWithOfflineFallback(): Promise<StorySummary[]> {
 }
 
 async function fetchUserStoriesWithOfflineFallback(): Promise<StorySummary[]> {
+  if (!isBrowserOnline()) {
+    return listOfflineStorySummaries().catch(() => []);
+  }
+
   try {
     return await fetchUserStories();
   } catch (error) {
@@ -80,6 +89,11 @@ async function fetchPublicStoriesWithOfflineFallback({
   search?: string;
   limit?: number;
 } = {}): Promise<StorySummary[]> {
+  if (!isBrowserOnline()) {
+    const offlineStories = await listOfflineStorySummaries(search).catch(() => []);
+    return typeof limit === 'number' ? offlineStories.slice(0, limit) : offlineStories;
+  }
+
   try {
     return await fetchPublicStories({ search, limit });
   } catch (error) {
@@ -92,6 +106,12 @@ async function fetchPublicStoriesWithOfflineFallback({
 }
 
 async function fetchStoryWithOfflineFallback(id: string): Promise<StoryMeta> {
+  if (!isBrowserOnline()) {
+    const offlineStory = await getOfflineStory(id).catch(() => null);
+    if (offlineStory) return offlineStory.story;
+    throw new Error('Story is not available offline');
+  }
+
   try {
     return await fetchStory(id);
   } catch (error) {
@@ -102,11 +122,14 @@ async function fetchStoryWithOfflineFallback(id: string): Promise<StoryMeta> {
 }
 
 export function useStories(enabled = true) {
+  const { isOnline } = useNetworkStatus();
+
   return useQuery({
     queryKey: ['stories'],
     queryFn: fetchStoriesWithOfflineFallback,
     enabled,
-    refetchInterval: 10_000, // Poll for updates on generating stories
+    refetchInterval: isOnline ? 10_000 : false, // Poll for updates on generating stories
+    retry: (failureCount) => isBrowserOnline() && failureCount < 2,
   });
 }
 
@@ -115,6 +138,7 @@ export function useUserStories(enabled = true) {
     queryKey: ['stories', 'mine'],
     queryFn: fetchUserStoriesWithOfflineFallback,
     enabled,
+    retry: (failureCount) => isBrowserOnline() && failureCount < 2,
   });
 }
 
@@ -123,6 +147,7 @@ export function useStory(id: string | undefined) {
     queryKey: ['story', id],
     queryFn: () => fetchStoryWithOfflineFallback(id!),
     enabled: !!id,
+    retry: (failureCount) => isBrowserOnline() && failureCount < 2,
   });
 }
 
@@ -167,6 +192,7 @@ export function usePublicStories(search?: string, limit?: number, enabled = true
     queryKey: ['stories', 'public', search ?? '', limit ?? 'all'],
     queryFn: () => fetchPublicStoriesWithOfflineFallback({ search, limit }),
     enabled,
+    retry: (failureCount) => isBrowserOnline() && failureCount < 2,
   });
 }
 

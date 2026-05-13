@@ -9,6 +9,8 @@ import StoryDeleteDialog from '../components/StoryDeleteDialog';
 import { useStories, useCreateStory, useCancelStory, useDeleteStory, usePublicStories, useToggleVisibility } from '../hooks/useStories';
 import { useStoryGeneration } from '../hooks/useStoryGeneration';
 import { useNotification } from '../hooks/useNotification';
+import { useNetworkStatus } from '../hooks/useNetworkStatus';
+import { useOfflineStorySummaries } from '../hooks/useOfflineStories';
 import { useLanguage } from '../i18n/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
 import { isSupabaseConfigured } from '../lib/supabaseConfig';
@@ -37,15 +39,21 @@ function isTerminalStoryStatus(status: StoryStatus): boolean {
 
 export default function Home() {
   const { user } = useAuth();
+  const { isOnline } = useNetworkStatus();
+  const {
+    data: offlineStories = [],
+    isLoading: isLoadingOfflineStories,
+  } = useOfflineStorySummaries();
   const [generatingStoryId, setGeneratingStoryId] = useState<string | null>(getStoredGeneratingId);
   const [storyToDelete, setStoryToDelete] = useState<StorySummary | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [shouldLoadPublicStories, setShouldLoadPublicStories] = useState(false);
   const publicStoriesRef = useRef<HTMLDivElement | null>(null);
-  const shouldLoadUserStories = !isSupabaseConfigured || !!user;
+  const shouldLoadUserStories = isOnline && (!isSupabaseConfigured || !!user);
   const {
     data: stories = [],
     isLoading,
+    isError: didFailUserStories,
     isFetched: hasSettledStories,
     isSuccess: hasLoadedStories,
   } = useStories(shouldLoadUserStories);
@@ -56,7 +64,7 @@ export default function Home() {
   } = usePublicStories(
     undefined,
     PUBLIC_STORY_SHOWCASE_DISPLAY_LIMIT,
-    shouldLoadPublicStories && hasSettledUserStories,
+    isOnline && shouldLoadPublicStories && hasSettledUserStories,
   );
   const createStory = useCreateStory();
   const cancelStory = useCancelStory();
@@ -213,9 +221,17 @@ export default function Home() {
 
   // Show progress if we have a generatingStoryId (even before SSE connects, for instant feedback)
   const showProgress = generatingStoryId && progress?.status !== 'completed';
+  const hasOfflineStories = offlineStories.length > 0;
+  const shouldShowOfflineStories = hasOfflineStories && (
+    !isOnline ||
+    !shouldLoadUserStories ||
+    didFailUserStories
+  );
+  const visibleUserStories = shouldShowOfflineStories ? offlineStories : stories;
+  const isLoadingVisibleUserStories = shouldShowOfflineStories ? isLoadingOfflineStories : isLoading;
   const showUserStories = isSupabaseConfigured
-    ? !!user && (isLoading || stories.length > 0)
-    : isLoading || stories.length > 0;
+    ? shouldShowOfflineStories || (!!user && (isLoading || visibleUserStories.length > 0))
+    : isLoadingVisibleUserStories || visibleUserStories.length > 0;
   const isDeletingStory = deleteStory.isPending || cancelDeletingStory.isPending;
   const visiblePublicStories = useMemo(
     () => [...publicStories]
@@ -265,15 +281,15 @@ export default function Home() {
               </h2>
             </div>
             <StoryGrid
-              stories={stories}
-              isLoading={isLoading}
-              onDelete={(id) => {
-                const story = stories.find((item) => item.id === id);
+              stories={visibleUserStories}
+              isLoading={isLoadingVisibleUserStories}
+              onDelete={!shouldShowOfflineStories && isOnline ? (id) => {
+                const story = visibleUserStories.find((item) => item.id === id);
                 if (story) {
                   handleRequestDelete(story);
                 }
-              }}
-              onTogglePublic={handleTogglePublic}
+              } : undefined}
+              onTogglePublic={!shouldShowOfflineStories && isOnline ? handleTogglePublic : undefined}
             />
           </section>
         )}
@@ -281,7 +297,7 @@ export default function Home() {
         <div ref={publicStoriesRef}>
           <PublicStoriesShowcase
             stories={visiblePublicStories}
-            isLoading={shouldLoadPublicStories && hasSettledUserStories && isLoadingPublicStories}
+            isLoading={isOnline && shouldLoadPublicStories && hasSettledUserStories && isLoadingPublicStories}
           />
         </div>
       </div>

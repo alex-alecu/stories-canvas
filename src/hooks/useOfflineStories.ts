@@ -5,6 +5,7 @@ import {
   downloadStoryForOffline,
   getOfflineDownloadsSummary,
   getOfflineStory,
+  listOfflineStorySummaries,
   promoteOfflineStory,
   removeOfflineStory,
   subscribeOfflineStories,
@@ -160,4 +161,46 @@ export function useOfflineDownloadsSummary() {
     refreshSummary,
     summary,
   }), [clearAll, error, isClearing, isLoading, refreshSummary, summary]);
+}
+
+export function useOfflineStorySummaries(search?: string) {
+  const [data, setData] = useState<StorySummary[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const load = async () => {
+      try {
+        const nextData = await listOfflineStorySummaries(search);
+        if (cancelled) return;
+        setData(nextData);
+        setError(null);
+      } catch (summaryError) {
+        if (cancelled) return;
+        setData([]);
+        setError(summaryError instanceof Error ? summaryError.message : 'Could not load offline stories');
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    void load();
+    const unsubscribe = subscribeOfflineStories(() => {
+      void load();
+    });
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, [search]);
+
+  return useMemo(() => ({
+    data,
+    error,
+    isLoading,
+  }), [data, error, isLoading]);
 }

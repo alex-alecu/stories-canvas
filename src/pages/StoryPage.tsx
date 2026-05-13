@@ -8,12 +8,14 @@ import { useLanguage } from '../i18n/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
 import { warmMediaCache } from '../lib/serviceWorker';
 import { downloadStoryForOffline } from '../lib/offlineStories';
+import { useNetworkStatus } from '../hooks/useNetworkStatus';
 
 const recordedStoryViewKeys = new Set<string>();
 
 export default function StoryPage() {
   const { id } = useParams<{ id: string }>();
   const location = useLocation();
+  const { isOnline } = useNetworkStatus();
 
   // Set black browser background while viewing stories (visible in overscroll areas)
   useEffect(() => {
@@ -24,6 +26,7 @@ export default function StoryPage() {
   }, []);
   const { data: story, isLoading, error } = useStory(id);
   const shouldWarmMediaCache = import.meta.env.PROD
+    && isOnline
     && story?.status === 'completed'
     && !story?.assetsStale
     && !story?.publicPreviewGate;
@@ -71,6 +74,7 @@ export default function StoryPage() {
   }, [warmupUrls]);
 
   useEffect(() => {
+    if (!isOnline) return;
     if (!story || story.status !== 'completed' || story.assetsStale || story.publicPreviewGate || !story.scenario) return;
 
     const autoDownloadKey = `${story.id}:${story.scenarioRevision ?? 0}:${story.renderedScenarioRevision ?? 0}`;
@@ -80,17 +84,17 @@ export default function StoryPage() {
     downloadStoryForOffline(story.id, 'recent', story).catch((error) => {
       console.error('Failed to save recently viewed story offline:', error);
     });
-  }, [story]);
+  }, [isOnline, story]);
 
   useEffect(() => {
-    if (!story?.id) return;
+    if (!isOnline || !story?.id) return;
 
     const viewKey = `${story.id}:${location.key}`;
     if (recordedStoryViewKeys.has(viewKey)) return;
 
     recordedStoryViewKeys.add(viewKey);
     recordStoryView.mutate(story.id);
-  }, [location.key, recordStoryView, story?.id]);
+  }, [isOnline, location.key, recordStoryView, story?.id]);
 
   const handleCancelStory = useCallback(async () => {
     if (!id) return;
@@ -215,7 +219,8 @@ export default function StoryPage() {
         dislikeCount={story.dislikeCount ?? 0}
         myReaction={story.myReaction ?? null}
         storyMode={story.storyMode}
-        canManageStory={!!user && !!story.userId && story.userId === user.id}
+        canManageStory={isOnline && !!user && !!story.userId && story.userId === user.id}
+        canUseOnlineActions={isOnline}
         publicPreviewGate={publicPreviewGate}
       />
     );
