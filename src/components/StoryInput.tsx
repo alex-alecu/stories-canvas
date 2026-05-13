@@ -33,9 +33,10 @@ const styleTranslationMap: Record<SelectableArtStyleKey, keyof ReturnType<typeof
 interface StoryInputProps {
   onSubmit: (prompt: string, age: number, style: ArtStyleKey, storyMode: StoryMode, voice?: VoiceKey) => void;
   isLoading: boolean;
+  isOffline?: boolean;
 }
 
-export default function StoryInput({ onSubmit, isLoading }: StoryInputProps) {
+export default function StoryInput({ onSubmit, isLoading, isOffline = false }: StoryInputProps) {
   const [prompt, setPrompt] = useState('');
   const [age, setAge] = useState<number>(DEFAULT_AGE);
   const [style, setStyle] = useState<ArtStyleKey>(DEFAULT_ART_STYLE);
@@ -124,7 +125,23 @@ export default function StoryInput({ onSubmit, isLoading }: StoryInputProps) {
         </p>
       </div>
 
-      <form onSubmit={handleSubmit} className="relative">
+      {isOffline ? (
+        <div className="bg-white dark:bg-surface-dark-elevated rounded-2xl shadow-lg shadow-primary-100/50 dark:shadow-primary-900/30 border border-primary-100 dark:border-primary-800/50 p-6 text-center">
+          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary-50 text-primary-600 dark:bg-primary-900/30 dark:text-primary-300" aria-hidden="true">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 18.75h.01M8.25 15.75a5.25 5.25 0 0 1 7.5 0M5.25 12.75a9.75 9.75 0 0 1 13.5 0M2.25 9.75a14.25 14.25 0 0 1 19.5 0" />
+              <path strokeLinecap="round" d="m4.5 4.5 15 15" />
+            </svg>
+          </div>
+          <h2 className="text-xl font-bold text-gray-800 dark:text-gray-100">
+            {t.offlineHomeTitle}
+          </h2>
+          <p className="mx-auto mt-2 max-w-2xl text-sm text-gray-500 dark:text-gray-400">
+            {t.offlineHomeDescription}
+          </p>
+        </div>
+      ) : (
+        <form onSubmit={handleSubmit} className="relative">
         <div className="bg-white dark:bg-surface-dark-elevated rounded-2xl shadow-lg shadow-primary-100/50 dark:shadow-primary-900/30 border border-primary-100 dark:border-primary-800/50 overflow-hidden transition-shadow focus-within:shadow-xl focus-within:shadow-primary-200/50 dark:focus-within:shadow-primary-800/40 focus-within:border-primary-200 dark:focus-within:border-primary-700">
           {/* Overlay for guest users: captures clicks/focus on the textarea */}
           {isGuest && (
@@ -285,7 +302,8 @@ export default function StoryInput({ onSubmit, isLoading }: StoryInputProps) {
             </button>
           </div>
         </div>
-      </form>
+        </form>
+      )}
     </div>
   );
 }

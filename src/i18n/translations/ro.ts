@@ -14,6 +14,8 @@ const ro: Translations = {
 
   // Story input
   storyInputPlaceholder: "Descrie povestea ta... de exemplu, 'Un iepuraș curajos care descoperă o grădină magică în nori'",
+  offlineHomeTitle: 'Ești offline',
+  offlineHomeDescription: 'Acum poți vedea doar poveștile salvate pe acest dispozitiv.',
   storyInputGuestPlaceholder: 'Trebuie să te conectezi pentru a crea povești',
   createStory: 'Creează Poveste',
   creating: 'Se creează...',
@@ -248,9 +250,9 @@ const ro: Translations = {
   storyModeFast: 'Rapid',
   storyModePro: 'Pro',
   storyModeProAudio: 'Pro + Audio',
-  storyModeFastSummary: '1 credit · 10 pagini rapide · fără audio',
-  storyModeProSummary: '2 credite · 10 pagini pro · fără audio',
-  storyModeProAudioSummary: '3 credite · 10 pagini pro + 10 pagini audio',
+  storyModeFastSummary: '1 credit · rapid · fără audio',
+  storyModeProSummary: '2 credite · pro · fără audio',
+  storyModeProAudioSummary: '3 credite · pro + audio',
   creditsRequiredLabel: 'Necesar',
   creditsAvailableLabel: 'Disponibil',
   getCredits: 'Ia credite',

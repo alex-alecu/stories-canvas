@@ -254,7 +254,7 @@ export default function Home() {
       <BackgroundOrbs />
       <div className="max-w-6xl mx-auto relative z-10">
         <div className="py-8 md:py-16">
-          <StoryInput onSubmit={handleCreateStory} isLoading={createStory.isPending} />
+          <StoryInput onSubmit={handleCreateStory} isLoading={createStory.isPending} isOffline={!isOnline} />
         </div>
 
         {createStory.isError && (
