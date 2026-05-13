@@ -59,10 +59,10 @@ const no: Translations = {
   dislikeStory: 'Dislike',
   signInToReact: 'Sign in to like or dislike stories',
   reactionUpdateFailed: 'Could not update your reaction',
-  dislikeFeedbackPlaceholder: 'What could be better?',
+  dislikeFeedbackPlaceholder: 'Hva kan bli bedre?',
   submitDislikeFeedback: 'Send',
-  submittingDislikeFeedback: 'Sending...',
-  dislikeFeedbackTooLong: 'Feedback must be {maxChars} characters or fewer',
+  submittingDislikeFeedback: 'Sender...',
+  dislikeFeedbackTooLong: 'Tilbakemeldingen kan være maks {maxChars} tegn',
 
   noStoriesYet: 'Ingen historier ennå',
   createFirstStory: 'Lag din første historie ovenfor!',
