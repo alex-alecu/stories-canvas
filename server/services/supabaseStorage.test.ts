@@ -91,6 +91,28 @@ test('getActiveGenerations classifies HTML 502 responses as transient dependency
   );
 });
 
+test('getActiveGenerations classifies HTTP 500 internal server errors as transient dependency errors', async () => {
+  const supabaseStorage = await import('./supabaseStorage.js');
+  const client = makeActiveGenerationsClient({
+    data: null,
+    error: {
+      message: 'Internal server error',
+      status: 500,
+    },
+  });
+
+  await assert.rejects(
+    () => supabaseStorage.getActiveGenerations(client as never),
+    error => {
+      assert.ok(error instanceof supabaseStorage.TransientDependencyError);
+      assert.match(error.message, /Supabase temporarily unavailable during active generation lookup/);
+      assert.match(error.message, /HTTP 500/);
+      assert.match(error.message, /upstream internal server error/);
+      return true;
+    },
+  );
+});
+
 test('getActiveGenerations preserves non-transient query failures as regular errors', async () => {
   const supabaseStorage = await import('./supabaseStorage.js');
   const client = makeActiveGenerationsClient({

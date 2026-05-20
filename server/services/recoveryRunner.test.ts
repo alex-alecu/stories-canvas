@@ -26,6 +26,31 @@ function createLogger() {
   };
 }
 
+function makeActiveGenerationsClient(result: { data: unknown; error: unknown }) {
+  return {
+    from(table: string) {
+      assert.equal(table, 'stories');
+      return {
+        select(selection: string) {
+          assert.equal(selection, '*');
+          return {
+            in(column: string) {
+              assert.equal(column, 'status');
+              return {
+                order(orderColumn: string, options: { ascending: boolean }) {
+                  assert.equal(orderColumn, 'created_at');
+                  assert.deepEqual(options, { ascending: false });
+                  return Promise.resolve(result);
+                },
+              };
+            },
+          };
+        },
+      };
+    },
+  };
+}
+
 test('runRecoveryPass warns and skips transient dependency failures', async () => {
   const { runRecoveryPass } = await import('./recoveryRunner.js');
   const { TransientDependencyError } = await import('./supabaseStorage.js');
@@ -49,6 +74,36 @@ test('runRecoveryPass warns and skips transient dependency failures', async () =
   assert.equal(entries.warn.length, 1);
   assert.match(entries.warn[0], /\[recovery:watchdog\]/);
   assert.match(entries.warn[0], /Skipping this recovery cycle/);
+});
+
+test('runRecoveryPass warns and skips Supabase internal server errors from active generation lookup', async () => {
+  const { runRecoveryPass } = await import('./recoveryRunner.js');
+  const { getActiveGenerations } = await import('./supabaseStorage.js');
+  const { entries, logger } = createLogger();
+  const client = makeActiveGenerationsClient({
+    data: null,
+    error: {
+      message: 'Internal server error',
+      status: 500,
+    },
+  });
+
+  const recoveredCount = await runRecoveryPass(
+    'watchdog',
+    async () => {
+      await getActiveGenerations(client as never);
+      return 1;
+    },
+    logger,
+  );
+
+  assert.equal(recoveredCount, 0);
+  assert.equal(entries.error.length, 0);
+  assert.equal(entries.warn.length, 1);
+  assert.match(entries.warn[0], /\[recovery:watchdog\]/);
+  assert.match(entries.warn[0], /HTTP 500/);
+  assert.match(entries.warn[0], /Skipping this recovery cycle/);
+  assert.doesNotMatch(entries.warn[0], /Watchdog recovery failed/);
 });
 
 test('runRecoveryPass keeps non-transient recovery failures logged as errors', async () => {

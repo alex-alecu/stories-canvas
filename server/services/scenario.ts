@@ -10,9 +10,12 @@ import {
 import { resolveRetellingSource, type ResolvedRetellingSource } from './storySources.js';
 import {
   formatScenarioValidationIssues,
+  getScenarioTextRules,
   MAX_RETELLING_SCENARIO_CHARACTERS,
   normalizeScenarioWhitespace,
+  OVERLAY_SAFE_MAX_CHARS,
   validateScenario,
+  type ScenarioValidationIssue,
   type ScenarioValidationOptions,
 } from './scenarioValidation.js';
 import {
@@ -101,6 +104,12 @@ const scenarioSchema = {
 
 type GenerateJSONFn = typeof gemini.generateJSON;
 
+const AUTO_REPAIRABLE_TEXT_ISSUE_CODES = new Set([
+  'page.text.ageLength',
+  'page.text.overlayLength',
+  'page.text.sentences',
+]);
+
 export interface ScenarioProgressUpdate {
   status: 'generating_scenario' | 'reviewing_scenario';
   currentPhase: string;
@@ -174,6 +183,89 @@ function getScenarioValidationOptions(context: StoryPromptContext): ScenarioVali
     : {};
 }
 
+function getTextIssuePageIndex(issue: ScenarioValidationIssue): number | null {
+  if (!AUTO_REPAIRABLE_TEXT_ISSUE_CODES.has(issue.code)) {
+    return null;
+  }
+
+  const match = /^pages\[(\d+)\]\.text$/.exec(issue.path);
+  if (!match) {
+    return null;
+  }
+
+  const pageIndex = Number.parseInt(match[1], 10);
+  return Number.isInteger(pageIndex) ? pageIndex : null;
+}
+
+function limitSentenceCount(text: string, maxSentences: number): string {
+  const normalized = text.replace(/\s+/g, ' ').trim();
+  if (!normalized || maxSentences <= 0) return normalized;
+
+  const sentences = normalized
+    .match(/[^.!?。！？]+[.!?。！？]*/gu)
+    ?.map(sentence => sentence.trim())
+    .filter(Boolean);
+
+  if (!sentences || sentences.length <= maxSentences) {
+    return normalized;
+  }
+
+  return sentences.slice(0, maxSentences).join(' ').replace(/\s+/g, ' ').trim();
+}
+
+function limitCharacterCount(text: string, maxChars: number): string {
+  const normalized = text.replace(/\s+/g, ' ').trim();
+  if (normalized.length <= maxChars) {
+    return normalized;
+  }
+
+  const hardLimit = normalized.slice(0, maxChars).trim();
+  const wordBoundary = hardLimit.lastIndexOf(' ');
+  const shouldUseWordBoundary = wordBoundary >= Math.floor(maxChars * 0.6);
+  const limited = shouldUseWordBoundary
+    ? hardLimit.slice(0, wordBoundary).trim()
+    : hardLimit;
+
+  return (limited || hardLimit).replace(/[,;:]+$/u, '').trim();
+}
+
+function limitPageTextForAge(text: string, targetAge: number): string {
+  const textRules = getScenarioTextRules(targetAge);
+  const maxChars = Math.min(textRules.maxChars, OVERLAY_SAFE_MAX_CHARS);
+  const sentenceLimited = limitSentenceCount(text, textRules.maxSentences);
+  return limitCharacterCount(sentenceLimited, maxChars);
+}
+
+function repairScenarioTextIssues(
+  scenario: Scenario,
+  targetAge: number,
+  issues: ScenarioValidationIssue[],
+): Scenario | null {
+  const pageIndexes = new Set<number>();
+
+  for (const issue of issues) {
+    const pageIndex = getTextIssuePageIndex(issue);
+    if (pageIndex === null) {
+      return null;
+    }
+    pageIndexes.add(pageIndex);
+  }
+
+  if (pageIndexes.size === 0) {
+    return null;
+  }
+
+  return normalizeScenarioWhitespace({
+    ...scenario,
+    pages: scenario.pages.map((page, index) => pageIndexes.has(index)
+      ? {
+          ...page,
+          text: limitPageTextForAge(page.text, targetAge),
+        }
+      : page),
+  });
+}
+
 async function generateDraftScenario(
   context: StoryPromptContext,
   systemInstruction: string,
@@ -244,6 +336,15 @@ async function enforceHardValidation(
     );
 
     currentScenario = normalizeScenarioWhitespace(stripPageRuntimeFields(currentScenario));
+    issues = validateScenario(currentScenario, context.targetAge, validationOptions);
+    if (issues.length === 0) {
+      return currentScenario;
+    }
+  }
+
+  const textRepairedScenario = repairScenarioTextIssues(currentScenario, context.targetAge, issues);
+  if (textRepairedScenario) {
+    currentScenario = normalizeScenarioWhitespace(stripPageRuntimeFields(textRepairedScenario));
     issues = validateScenario(currentScenario, context.targetAge, validationOptions);
     if (issues.length === 0) {
       return currentScenario;

@@ -26,7 +26,7 @@ import { parseArtStyle } from './storyStyle.js';
 import { EMPTY_STORY_USAGE_TOTALS, normalizeStoryUsageTotals } from './storyUsage.js';
 
 const BUCKET = STORY_IMAGES_BUCKET;
-const TRANSIENT_HTTP_STATUSES = new Set([502, 503, 504]);
+const TRANSIENT_HTTP_STATUSES = new Set([500, 502, 503, 504]);
 export const ACTIVE_GENERATION_STATUSES = [
   'generating_scenario',
   'reviewing_scenario',
@@ -144,7 +144,7 @@ function isTransientUpstreamSupabaseFailure(status: number | undefined, text: st
     return true;
   }
 
-  return /\bbad gateway\b|\bgateway timeout\b|\bservice unavailable\b|\bcloudflare\b|\btimed out\b|\btimeout\b/i.test(text)
+  return /\binternal server error\b|\bbad gateway\b|\bgateway timeout\b|\bservice unavailable\b|\bcloudflare\b|\btimed out\b|\btimeout\b/i.test(text)
     || looksLikeHtmlErrorBody(text);
 }
 
@@ -162,6 +162,10 @@ function describeTransientSupabaseFailure(status: number | undefined, text: stri
 
   if (status === 504 || normalized.includes('gateway timeout')) {
     return htmlResponse ? 'upstream returned an HTML gateway timeout response' : 'upstream gateway timeout';
+  }
+
+  if (status === 500 || normalized.includes('internal server error')) {
+    return htmlResponse ? 'upstream returned an HTML internal server error response' : 'upstream internal server error';
   }
 
   if (normalized.includes('cloudflare')) {

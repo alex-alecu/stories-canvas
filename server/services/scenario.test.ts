@@ -448,10 +448,12 @@ test('generateScenarioWithModel fails after the second repair if validation issu
   const scenarioModule = await import('./scenario.js');
 
   const invalidScenario = makeScenario({
-    pages: makeValidPages().map(page => ({
-      ...page,
-      text: `${page.text} ${'This page keeps overflowing the overlay. '.repeat(18)}`.trim(),
-    })),
+    pages: makeValidPages().map((page, index) => index === 0
+      ? {
+          ...page,
+          imagePrompt: '',
+        }
+      : page),
   });
 
   const generateJSON = async (): Promise<Scenario> => invalidScenario;
@@ -464,8 +466,70 @@ test('generateScenarioWithModel fails after the second repair if validation issu
       'storybook',
       generateJSON as never,
     ),
-    /Scenario failed validation after repair:/,
+    /Scenario failed validation after repair: pages\[0\]\.imagePrompt: imagePrompt must not be empty/,
   );
+});
+
+test('generateScenarioWithModel applies deterministic text repair after model repairs keep page text over age limits', async () => {
+  const scenarioModule = await import('./scenario.js');
+  const {
+    getScenarioTextRules,
+    OVERLAY_SAFE_MAX_CHARS,
+    validateScenario,
+  } = await import('./scenarioValidation.js');
+  const calls: string[] = [];
+  const tooManySentences = 'Mia saw the kite. It dipped low. Pip waved. The string slipped. Mia took a breath.';
+  const tooLongPageText = 'Mia carefully described every bright ribbon on the kite while Pip held the spool beside the garden gate '.repeat(4).trim();
+
+  const invalidTextScenario = makeScenario({
+    targetAge: 5,
+    pages: makeValidPages().map((page, index) => {
+      if (index === 1) {
+        return {
+          ...page,
+          text: tooManySentences,
+        };
+      }
+
+      if (index === 2) {
+        return {
+          ...page,
+          text: tooLongPageText,
+        };
+      }
+
+      return page;
+    }),
+  });
+
+  const generateJSON = async (prompt: string): Promise<any> => {
+    calls.push(prompt);
+    if (calls.length <= 3) return invalidTextScenario;
+    return {
+      needsRewrite: false,
+      summary: 'Scenario is ready after deterministic text repair.',
+      changedPageNumbers: [],
+      issues: [],
+    };
+  };
+
+  const scenario = await scenarioModule.generateScenarioWithModel(
+    'Tell a warm story about Mia and a kite.',
+    'en',
+    5,
+    'storybook',
+    generateJSON as never,
+  );
+  const textRules = getScenarioTextRules(5);
+
+  assert.equal(calls.length, 4);
+  assert.match(calls[2], /Repair pass 2/);
+  assert.match(calls[3], /Mode: Review this scenario before illustration generation\./);
+  assert.equal(scenario.pages[1].text, 'Mia saw the kite. It dipped low. Pip waved. The string slipped.');
+  assert.equal(scenario.pages[1].imagePrompt, 'Prompt 2');
+  assert.deepEqual(scenario.pages[1].characters, ['Mia']);
+  assert.ok(scenario.pages[2].text.length <= Math.min(textRules.maxChars, OVERLAY_SAFE_MAX_CHARS));
+  assert.deepEqual(validateScenario(scenario, 5), []);
 });
 
 test('validateScenario rejects age-6 pages that are too long for the overlay budget', async () => {
