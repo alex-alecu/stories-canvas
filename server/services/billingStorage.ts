@@ -37,11 +37,13 @@ interface CreditLedgerRow {
 interface BillingPurchaseRow {
   id: string;
   offer_slug: StoryPackOffer['slug'];
+  stripe_checkout_session_id: string;
   amount_minor: number;
   currency: string;
   credits_granted: number | string;
   status: BillingPurchase['status'];
   created_at: string;
+  updated_at: string;
   fulfilled_at: string | null;
 }
 
@@ -100,11 +102,13 @@ function rowToPurchase(row: BillingPurchaseRow): BillingPurchase {
   return {
     id: row.id,
     offerSlug: row.offer_slug,
+    stripeCheckoutSessionId: row.stripe_checkout_session_id,
     amountMinor: row.amount_minor,
     currency: row.currency,
     creditsGranted: normalizeCreditAmount(row.credits_granted),
     status: row.status,
     createdAt: row.created_at,
+    updatedAt: row.updated_at,
     fulfilledAt: row.fulfilled_at ?? undefined,
   };
 }
@@ -202,7 +206,7 @@ export async function listBillingPurchases(userId: string, limit?: number): Prom
   const supabase = getSupabase();
   let query = supabase
     .from('billing_purchases')
-    .select('id, offer_slug, amount_minor, currency, credits_granted, status, created_at, fulfilled_at')
+    .select('id, offer_slug, stripe_checkout_session_id, amount_minor, currency, credits_granted, status, created_at, updated_at, fulfilled_at')
     .eq('user_id', userId)
     .order('created_at', { ascending: false });
 
@@ -217,6 +221,109 @@ export async function listBillingPurchases(userId: string, limit?: number): Prom
   }
 
   return (data as BillingPurchaseRow[]).map(rowToPurchase);
+}
+
+export async function createPendingStoryPackPurchase(params: {
+  userId: string;
+  offerSlug: StoryPackOffer['slug'];
+  stripeCheckoutSessionId: string;
+  stripePaymentIntentId?: string;
+  stripeCustomerId?: string;
+  amountMinor: number;
+  currency: string;
+  metadata?: Record<string, unknown>;
+}): Promise<void> {
+  const supabase = getSupabase();
+  const { error } = await supabase
+    .from('billing_purchases')
+    .insert({
+      user_id: params.userId,
+      offer_slug: params.offerSlug,
+      stripe_checkout_session_id: params.stripeCheckoutSessionId,
+      stripe_payment_intent_id: params.stripePaymentIntentId ?? null,
+      stripe_customer_id: params.stripeCustomerId ?? null,
+      amount_minor: params.amountMinor,
+      currency: params.currency,
+      credits_granted: 0,
+      status: 'pending',
+      metadata: params.metadata ?? {},
+      updated_at: new Date().toISOString(),
+    }, {
+      onConflict: 'stripe_checkout_session_id',
+      ignoreDuplicates: true,
+    });
+
+  if (error) {
+    throw new Error(`Failed to create pending purchase: ${error.message}`);
+  }
+}
+
+async function markStoryPackPurchaseTerminal(params: {
+  status: 'failed' | 'expired';
+  userId: string;
+  offerSlug: StoryPackOffer['slug'];
+  stripeCheckoutSessionId: string;
+  stripePaymentIntentId?: string;
+  stripeCustomerId?: string;
+  amountMinor: number;
+  currency: string;
+  metadata?: Record<string, unknown>;
+}): Promise<void> {
+  const supabase = getSupabase();
+  const now = new Date().toISOString();
+  const insertPayload = {
+    user_id: params.userId,
+    offer_slug: params.offerSlug,
+    stripe_checkout_session_id: params.stripeCheckoutSessionId,
+    stripe_payment_intent_id: params.stripePaymentIntentId ?? null,
+    stripe_customer_id: params.stripeCustomerId ?? null,
+    amount_minor: params.amountMinor,
+    currency: params.currency,
+    credits_granted: 0,
+    status: params.status,
+    metadata: params.metadata ?? {},
+    updated_at: now,
+  };
+
+  const { error: insertError } = await supabase
+    .from('billing_purchases')
+    .insert(insertPayload, {
+      onConflict: 'stripe_checkout_session_id',
+      ignoreDuplicates: true,
+    });
+
+  if (insertError) {
+    throw new Error(`Failed to create ${params.status} purchase: ${insertError.message}`);
+  }
+
+  const { error: updateError } = await supabase
+    .from('billing_purchases')
+    .update({
+      user_id: params.userId,
+      offer_slug: params.offerSlug,
+      stripe_payment_intent_id: params.stripePaymentIntentId ?? null,
+      stripe_customer_id: params.stripeCustomerId ?? null,
+      amount_minor: params.amountMinor,
+      currency: params.currency,
+      credits_granted: 0,
+      status: params.status,
+      metadata: params.metadata ?? {},
+      updated_at: now,
+    })
+    .eq('stripe_checkout_session_id', params.stripeCheckoutSessionId)
+    .neq('status', 'completed');
+
+  if (updateError) {
+    throw new Error(`Failed to mark purchase ${params.status}: ${updateError.message}`);
+  }
+}
+
+export async function markStoryPackPurchaseFailed(params: Omit<Parameters<typeof markStoryPackPurchaseTerminal>[0], 'status'>): Promise<void> {
+  await markStoryPackPurchaseTerminal({ ...params, status: 'failed' });
+}
+
+export async function markStoryPackPurchaseExpired(params: Omit<Parameters<typeof markStoryPackPurchaseTerminal>[0], 'status'>): Promise<void> {
+  await markStoryPackPurchaseTerminal({ ...params, status: 'expired' });
 }
 
 export async function getBillingOverview(userId: string, isAdmin: boolean): Promise<BillingOverview> {

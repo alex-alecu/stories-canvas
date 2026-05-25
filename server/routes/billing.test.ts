@@ -77,6 +77,7 @@ test('checkout forwards compact consent and attribution metadata to Stripe sessi
   };
 
   let checkoutParams: Record<string, any> | null = null;
+  let pendingPurchaseParams: Record<string, any> | null = null;
 
   t.mock.method(harness.billingModule.billingStripeOps, 'isStripeConfigured', () => true);
   t.mock.method(harness.billingModule.billingStorageOps, 'getStoryPackOffer', async () => offer);
@@ -85,7 +86,18 @@ test('checkout forwards compact consent and attribution metadata to Stripe sessi
     return {
       checkoutUrl: 'https://checkout.stripe.test/session',
       checkoutSessionId: 'cs_checkout_123',
+      stripeCustomerId: 'cus_checkout_123',
+      amountMinor: offer.priceMinor,
+      currency: offer.currency,
+      metadata: {
+        userId: 'user-checkout',
+        offerSlug: 'pack_5',
+        marketingEventId: 'checkout-event-123',
+      },
     };
+  });
+  t.mock.method(harness.billingModule.billingStorageOps, 'createPendingStoryPackPurchase', async (params) => {
+    pendingPurchaseParams = params;
   });
 
   const response = await fetch(`${harness.baseUrl}/api/billing/checkout`, {
@@ -141,6 +153,19 @@ test('checkout forwards compact consent and attribution metadata to Stripe sessi
   assert.equal(checkoutParams.marketing.attribution.landingPage.length, 500);
   assert.equal(checkoutParams.marketing.attribution.referrer, 'https://example.com/start');
   assert.equal(checkoutParams.marketing.attribution.ignored, undefined);
+  assert.deepEqual(pendingPurchaseParams, {
+    userId: 'user-checkout',
+    offerSlug: 'pack_5',
+    stripeCheckoutSessionId: 'cs_checkout_123',
+    stripeCustomerId: 'cus_checkout_123',
+    amountMinor: 3900,
+    currency: 'ron',
+    metadata: {
+      userId: 'user-checkout',
+      offerSlug: 'pack_5',
+      marketingEventId: 'checkout-event-123',
+    },
+  });
 });
 
 test('billing webhook does not fulfill unpaid completed sessions', async (t) => {
@@ -335,6 +360,180 @@ test('billing webhook fulfills async payment success after delayed checkout', as
     metadata: {
       userId: 'user-2',
       offerSlug: 'pack_12',
+    },
+  });
+});
+
+test('billing webhook marks async payment failure without fulfillment', async (t) => {
+  const harness = await createBillingHarness();
+  t.after(async () => {
+    await harness.close();
+  });
+
+  const event = {
+    id: 'evt_async_checkout_failed',
+    type: 'checkout.session.async_payment_failed',
+    data: {
+      object: {
+        id: 'cs_async_failed_123',
+        payment_status: 'unpaid',
+        metadata: {
+          userId: 'user-4',
+          offerSlug: 'pack_5',
+        },
+        payment_intent: 'pi_async_failed_123',
+        customer: 'cus_async_failed_123',
+        amount_total: 3900,
+        currency: 'ron',
+      },
+    },
+  };
+
+  let failedParams: Record<string, unknown> | null = null;
+  let createdWebhookEvent: Record<string, unknown> | null = null;
+  let fulfilled = false;
+  let conversionSent = false;
+  let processed = false;
+
+  t.mock.method(harness.billingModule.billingStripeOps, 'verifyStripeWebhookEvent', () => event as any);
+  t.mock.method(harness.billingModule.billingStorageOps, 'createWebhookEvent', async (eventId, eventType) => {
+    createdWebhookEvent = { eventId, eventType };
+  });
+  t.mock.method(harness.billingModule.billingStorageOps, 'markStoryPackPurchaseFailed', async (params) => {
+    failedParams = params;
+  });
+  t.mock.method(harness.billingModule.billingStorageOps, 'fulfillStoryPackPurchase', async () => {
+    fulfilled = true;
+    return {
+      purchase_id: 'purchase_failed',
+      ledger_id: null,
+      already_fulfilled: false,
+      available_credits: 5,
+    };
+  });
+  t.mock.method(harness.billingModule.billingMarketingOps, 'sendPurchaseConversions', async () => {
+    conversionSent = true;
+  });
+  t.mock.method(harness.billingModule.billingStorageOps, 'markWebhookEventProcessed', async () => {
+    processed = true;
+  });
+  t.mock.method(harness.billingModule.billingStorageOps, 'markWebhookEventFailed', async () => {});
+
+  const response = await fetch(`${harness.baseUrl}/api/billing/webhook`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Stripe-Signature': 'test-signature',
+    },
+    body: JSON.stringify({ id: event.id }),
+  });
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(createdWebhookEvent, {
+    eventId: 'evt_async_checkout_failed',
+    eventType: 'checkout.session.async_payment_failed',
+  });
+  assert.equal(processed, true);
+  assert.equal(fulfilled, false);
+  assert.equal(conversionSent, false);
+  assert.deepEqual(failedParams, {
+    userId: 'user-4',
+    offerSlug: 'pack_5',
+    stripeCheckoutSessionId: 'cs_async_failed_123',
+    stripePaymentIntentId: 'pi_async_failed_123',
+    stripeCustomerId: 'cus_async_failed_123',
+    amountMinor: 3900,
+    currency: 'ron',
+    metadata: {
+      userId: 'user-4',
+      offerSlug: 'pack_5',
+    },
+  });
+});
+
+test('billing webhook marks expired checkout without fulfillment', async (t) => {
+  const harness = await createBillingHarness();
+  t.after(async () => {
+    await harness.close();
+  });
+
+  const event = {
+    id: 'evt_checkout_expired',
+    type: 'checkout.session.expired',
+    data: {
+      object: {
+        id: 'cs_expired_123',
+        payment_status: 'unpaid',
+        metadata: {
+          userId: 'user-5',
+          offerSlug: 'pack_20',
+        },
+        payment_intent: null,
+        customer: 'cus_expired_123',
+        amount_total: 11900,
+        currency: 'ron',
+      },
+    },
+  };
+
+  let expiredParams: Record<string, unknown> | null = null;
+  let createdWebhookEvent: Record<string, unknown> | null = null;
+  let fulfilled = false;
+  let conversionSent = false;
+  let processed = false;
+
+  t.mock.method(harness.billingModule.billingStripeOps, 'verifyStripeWebhookEvent', () => event as any);
+  t.mock.method(harness.billingModule.billingStorageOps, 'createWebhookEvent', async (eventId, eventType) => {
+    createdWebhookEvent = { eventId, eventType };
+  });
+  t.mock.method(harness.billingModule.billingStorageOps, 'markStoryPackPurchaseExpired', async (params) => {
+    expiredParams = params;
+  });
+  t.mock.method(harness.billingModule.billingStorageOps, 'fulfillStoryPackPurchase', async () => {
+    fulfilled = true;
+    return {
+      purchase_id: 'purchase_expired',
+      ledger_id: null,
+      already_fulfilled: false,
+      available_credits: 20,
+    };
+  });
+  t.mock.method(harness.billingModule.billingMarketingOps, 'sendPurchaseConversions', async () => {
+    conversionSent = true;
+  });
+  t.mock.method(harness.billingModule.billingStorageOps, 'markWebhookEventProcessed', async () => {
+    processed = true;
+  });
+  t.mock.method(harness.billingModule.billingStorageOps, 'markWebhookEventFailed', async () => {});
+
+  const response = await fetch(`${harness.baseUrl}/api/billing/webhook`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Stripe-Signature': 'test-signature',
+    },
+    body: JSON.stringify({ id: event.id }),
+  });
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(createdWebhookEvent, {
+    eventId: 'evt_checkout_expired',
+    eventType: 'checkout.session.expired',
+  });
+  assert.equal(processed, true);
+  assert.equal(fulfilled, false);
+  assert.equal(conversionSent, false);
+  assert.deepEqual(expiredParams, {
+    userId: 'user-5',
+    offerSlug: 'pack_20',
+    stripeCheckoutSessionId: 'cs_expired_123',
+    stripePaymentIntentId: undefined,
+    stripeCustomerId: 'cus_expired_123',
+    amountMinor: 11900,
+    currency: 'ron',
+    metadata: {
+      userId: 'user-5',
+      offerSlug: 'pack_20',
     },
   });
 });

@@ -82,10 +82,12 @@ npm run migrate:railway
 
 1. Add your Stripe sandbox keys to `.env`.
 2. Start the app with `npm run dev`.
-3. Forward Stripe events to the local webhook endpoint:
+3. Forward Stripe Checkout events to the local webhook endpoint:
 
 ```bash
-stripe listen --forward-to http://localhost:3001/api/billing/webhook
+stripe listen \
+  --events checkout.session.completed,checkout.session.async_payment_succeeded,checkout.session.async_payment_failed,checkout.session.expired \
+  --forward-to http://localhost:3001/api/billing/webhook
 ```
 
 4. Copy the printed webhook signing secret into `STRIPE_WEBHOOK_SECRET`.

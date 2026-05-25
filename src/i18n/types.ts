@@ -277,6 +277,14 @@ export interface Translations {
   availableCredits: string;
   billingBannerCheckoutCompletedTitle: string;
   billingBannerCheckoutCompletedBody: string;
+  billingBannerPaymentProcessingTitle: string;
+  billingBannerPaymentProcessingBody: string;
+  billingBannerPaymentConfirmedTitle: string;
+  billingBannerPaymentConfirmedBody: string;
+  billingBannerPaymentFailedTitle: string;
+  billingBannerPaymentFailedBody: string;
+  billingBannerCheckoutExpiredTitle: string;
+  billingBannerCheckoutExpiredBody: string;
   billingBannerCheckoutCancelledTitle: string;
   billingBannerCheckoutCancelledBody: string;
   billingBannerMoreCreditsTitle: string;
@@ -296,6 +304,7 @@ export interface Translations {
   billingStatusPending: string;
   billingStatusCompleted: string;
   billingStatusFailed: string;
+  billingStatusExpired: string;
   billingStatusProcessing: string;
   billingStatusProcessed: string;
   billingReasonPackPurchase: string;

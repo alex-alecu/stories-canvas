@@ -21,14 +21,47 @@ import {
   trackInitiateCheckout,
   trackPurchaseSuccessOnce,
 } from '../lib/marketing';
-import type { StoryPackOffer } from '../types';
+import type { BillingPurchase, StoryPackOffer } from '../types';
 
 function getBannerCopy(
   checkoutState: string | null,
   reason: string | null,
+  matchedPurchase: BillingPurchase | undefined,
   t: ReturnType<typeof useLanguage>['t'],
 ): { tone: string; title: string; body: string } | null {
   if (checkoutState === 'success') {
+    if (!matchedPurchase || matchedPurchase.status === 'pending') {
+      return {
+        tone: 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200',
+        title: t.billingBannerPaymentProcessingTitle,
+        body: t.billingBannerPaymentProcessingBody,
+      };
+    }
+
+    if (matchedPurchase.status === 'completed') {
+      return {
+        tone: 'border-green-200 bg-green-50 text-green-700 dark:border-green-900/40 dark:bg-green-950/30 dark:text-green-200',
+        title: t.billingBannerPaymentConfirmedTitle,
+        body: t.billingBannerPaymentConfirmedBody,
+      };
+    }
+
+    if (matchedPurchase.status === 'failed') {
+      return {
+        tone: 'border-red-200 bg-red-50 text-red-700 dark:border-red-900/40 dark:bg-red-950/30 dark:text-red-200',
+        title: t.billingBannerPaymentFailedTitle,
+        body: t.billingBannerPaymentFailedBody,
+      };
+    }
+
+    if (matchedPurchase.status === 'expired') {
+      return {
+        tone: 'border-gray-200 bg-gray-50 text-gray-700 dark:border-gray-800 dark:bg-surface-dark dark:text-gray-200',
+        title: t.billingBannerCheckoutExpiredTitle,
+        body: t.billingBannerCheckoutExpiredBody,
+      };
+    }
+
     return {
       tone: 'border-green-200 bg-green-50 text-green-700 dark:border-green-900/40 dark:bg-green-950/30 dark:text-green-200',
       title: t.billingBannerCheckoutCompletedTitle,
@@ -55,6 +88,19 @@ function getBannerCopy(
   return null;
 }
 
+function getPurchaseStatusTone(status: BillingPurchase['status']): string {
+  switch (status) {
+    case 'completed':
+      return 'bg-green-100 text-green-700 dark:bg-green-950/40 dark:text-green-300';
+    case 'failed':
+      return 'bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-300';
+    case 'expired':
+      return 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300';
+    case 'pending':
+      return 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300';
+  }
+}
+
 export default function BillingContent() {
   const { user } = useAuth();
   const { t, language } = useLanguage();
@@ -63,14 +109,37 @@ export default function BillingContent() {
   const reason = searchParams.get('reason');
   const checkoutSessionId = searchParams.get('session_id');
   const { data: billingOverview, isLoading: overviewLoading } = useBillingOverview(!!user);
-  const { data: billingHistory, isLoading: historyLoading } = useBillingHistory(!!user);
+  const { data: billingHistory, isLoading: historyLoading, refetch: refetchHistory } = useBillingHistory(!!user);
   const checkout = useCreateCheckoutSession();
+  const matchedPurchase = billingHistory?.purchases.find(
+    (purchase) => purchase.stripeCheckoutSessionId === checkoutSessionId,
+  );
 
   useEffect(() => {
-    if (checkoutState === 'success' && checkoutSessionId) {
+    if (checkoutState === 'success' && checkoutSessionId && matchedPurchase?.status === 'completed') {
       trackPurchaseSuccessOnce({ checkoutSessionId });
     }
-  }, [checkoutState, checkoutSessionId]);
+  }, [checkoutState, checkoutSessionId, matchedPurchase?.status]);
+
+  useEffect(() => {
+    const shouldPoll = checkoutState === 'success'
+      && !!checkoutSessionId
+      && (!matchedPurchase || matchedPurchase.status === 'pending');
+
+    if (!shouldPoll) return;
+
+    const startedAt = Date.now();
+    const interval = window.setInterval(() => {
+      if (Date.now() - startedAt > 60_000) {
+        window.clearInterval(interval);
+        return;
+      }
+      void refetchHistory();
+    }, 2_000);
+
+    void refetchHistory();
+    return () => window.clearInterval(interval);
+  }, [checkoutState, checkoutSessionId, matchedPurchase?.status, refetchHistory]);
 
   if (overviewLoading || historyLoading) {
     return (
@@ -84,7 +153,7 @@ export default function BillingContent() {
     return null;
   }
 
-  const banner = getBannerCopy(checkoutState, reason, t);
+  const banner = getBannerCopy(checkoutState, reason, matchedPurchase, t);
   const historyListClassName = 'mt-4 max-h-96 space-y-3 overflow-y-auto overscroll-contain pr-2';
 
   const handleCheckout = async (offer: StoryPackOffer) => {
@@ -214,15 +283,20 @@ export default function BillingContent() {
                   <div key={purchase.id} className="rounded-2xl border border-gray-100 bg-gray-50 p-4 dark:border-gray-800 dark:bg-surface-dark">
                     <div className="flex items-center justify-between gap-3">
                       <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{offerName}</p>
-                      <span className="text-sm font-semibold text-primary-600 dark:text-primary-300">
-                        {formatLocalizedPrice(purchase.amountMinor, language, purchase.currency)}
-                      </span>
+                      <div className="flex flex-col items-end gap-1">
+                        <span className="text-sm font-semibold text-primary-600 dark:text-primary-300">
+                          {formatLocalizedPrice(purchase.amountMinor, language, purchase.currency)}
+                        </span>
+                        <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${getPurchaseStatusTone(purchase.status)}`}>
+                          {getPurchaseStatusLabel(purchase.status, t)}
+                        </span>
+                      </div>
                     </div>
                     <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                      {formatCredits(purchase.creditsGranted, t)} · {getPurchaseStatusLabel(purchase.status, t)}
+                      {formatCredits(purchase.creditsGranted, t)}
                     </p>
                     <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
-                      {formatLocalizedDate(purchase.fulfilledAt ?? purchase.createdAt, language, t.billingPending)}
+                      {formatLocalizedDate(purchase.fulfilledAt ?? purchase.updatedAt ?? purchase.createdAt, language, t.billingPending)}
                     </p>
                   </div>
                 );

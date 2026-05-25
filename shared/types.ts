@@ -437,11 +437,13 @@ export interface CreditLedgerEntry {
 export interface BillingPurchase {
   id: string;
   offerSlug: StoryPackOffer['slug'];
+  stripeCheckoutSessionId: string;
   amountMinor: number;
   currency: string;
   creditsGranted: number;
-  status: 'pending' | 'completed' | 'failed';
+  status: 'pending' | 'completed' | 'failed' | 'expired';
   createdAt: string;
+  updatedAt: string;
   fulfilledAt?: string;
 }
 

@@ -94,7 +94,7 @@ export function getOfferCopy(
 
 export function getPurchaseStatusLabel(
   status: BillingPurchase['status'],
-  t: Pick<Translations, 'billingStatusPending' | 'billingStatusCompleted' | 'billingStatusFailed'>,
+  t: Pick<Translations, 'billingStatusPending' | 'billingStatusCompleted' | 'billingStatusFailed' | 'billingStatusExpired'>,
 ): string {
   switch (status) {
     case 'pending':
@@ -103,6 +103,8 @@ export function getPurchaseStatusLabel(
       return t.billingStatusCompleted;
     case 'failed':
       return t.billingStatusFailed;
+    case 'expired':
+      return t.billingStatusExpired;
   }
 }
 

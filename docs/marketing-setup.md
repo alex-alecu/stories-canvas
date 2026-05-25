@@ -124,7 +124,7 @@ Validation:
 
 1. Confirm `APP_BASE_URL` is the production browser origin without a trailing slash.
 2. Confirm the production webhook endpoint points to `/api/billing/webhook`.
-3. Enable `checkout.session.completed` and `checkout.session.async_payment_succeeded`.
+3. Enable `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.async_payment_failed`, and `checkout.session.expired`.
 4. Save the production webhook signing secret as `STRIPE_WEBHOOK_SECRET`.
 5. Confirm Stripe Checkout success redirects include `checkout=success&session_id={CHECKOUT_SESSION_ID}`.
 6. Complete a test-mode checkout and confirm the webhook grants credits before checking conversion logs.

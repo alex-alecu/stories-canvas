@@ -4,12 +4,15 @@ import type { BillingCheckoutMarketingPayload, MarketingAttribution, MarketingCo
 import { config } from '../config.js';
 import { requireAuth } from '../middleware/auth.js';
 import {
+  createPendingStoryPackPurchase,
   createWebhookEvent,
   fulfillStoryPackPurchase,
   getBillingHistory,
   getBillingOverview,
   getStoryPackOffer,
   listStoryPackOffers,
+  markStoryPackPurchaseExpired,
+  markStoryPackPurchaseFailed,
   markWebhookEventFailed,
   markWebhookEventProcessed,
 } from '../services/billingStorage.js';
@@ -26,14 +29,23 @@ const FULFILLABLE_CHECKOUT_EVENTS = new Set<Stripe.Event.Type>([
   'checkout.session.completed',
   'checkout.session.async_payment_succeeded',
 ]);
+const FAILED_CHECKOUT_EVENTS = new Set<Stripe.Event.Type>([
+  'checkout.session.async_payment_failed',
+]);
+const EXPIRED_CHECKOUT_EVENTS = new Set<Stripe.Event.Type>([
+  'checkout.session.expired',
+]);
 
 export const billingStorageOps = {
+  createPendingStoryPackPurchase,
   createWebhookEvent,
   fulfillStoryPackPurchase,
   getBillingHistory,
   getBillingOverview,
   getStoryPackOffer,
   listStoryPackOffers,
+  markStoryPackPurchaseExpired,
+  markStoryPackPurchaseFailed,
   markWebhookEventFailed,
   markWebhookEventProcessed,
 };
@@ -126,6 +138,35 @@ function getSessionEmail(session: Stripe.Checkout.Session): string | undefined {
   return session.customer_details?.email ?? undefined;
 }
 
+function getCheckoutPurchaseParams(session: Stripe.Checkout.Session): {
+  userId: string;
+  offerSlug: 'pack_5' | 'pack_12' | 'pack_20';
+  stripeCheckoutSessionId: string;
+  stripePaymentIntentId?: string;
+  stripeCustomerId?: string;
+  amountMinor: number;
+  currency: string;
+  metadata: Record<string, string>;
+} {
+  const userId = session.metadata?.userId;
+  const offerSlug = session.metadata?.offerSlug;
+
+  if (!userId || (offerSlug !== 'pack_5' && offerSlug !== 'pack_12' && offerSlug !== 'pack_20')) {
+    throw new Error('Checkout session metadata is missing userId or offerSlug');
+  }
+
+  return {
+    userId,
+    offerSlug,
+    stripeCheckoutSessionId: session.id,
+    stripePaymentIntentId: typeof session.payment_intent === 'string' ? session.payment_intent : undefined,
+    stripeCustomerId: typeof session.customer === 'string' ? session.customer : undefined,
+    amountMinor: session.amount_total ?? 0,
+    currency: typeof session.currency === 'string' ? session.currency : 'ron',
+    metadata: session.metadata ?? {},
+  };
+}
+
 router.get('/offers', async (_req: Request, res: Response) => {
   try {
     if (!config.useSupabase) {
@@ -207,6 +248,16 @@ router.post('/checkout', requireAuth, async (req: Request, res: Response) => {
       marketing: parseCheckoutMarketingPayload(req),
     });
 
+    await billingStorageOps.createPendingStoryPackPurchase({
+      userId: req.authUser.id,
+      offerSlug,
+      stripeCheckoutSessionId: session.checkoutSessionId,
+      stripeCustomerId: session.stripeCustomerId,
+      amountMinor: session.amountMinor,
+      currency: session.currency,
+      metadata: session.metadata,
+    });
+
     res.json({
       checkoutUrl: session.checkoutUrl,
       checkoutSessionId: session.checkoutSessionId,
@@ -235,25 +286,9 @@ billingWebhookRouter.post('/', async (req: Request, res: Response) => {
 
     if (FULFILLABLE_CHECKOUT_EVENTS.has(event.type)) {
       const session = event.data.object;
-      const userId = session.metadata?.userId;
-      const offerSlug = session.metadata?.offerSlug;
-
-      if (!userId || !offerSlug) {
-        throw new Error('Checkout session metadata is missing userId or offerSlug');
-      }
 
       if (session.payment_status === 'paid') {
-        const purchaseParams = {
-          userId,
-          offerSlug: offerSlug as 'pack_5' | 'pack_12' | 'pack_20',
-          stripeCheckoutSessionId: session.id,
-          stripePaymentIntentId: typeof session.payment_intent === 'string' ? session.payment_intent : undefined,
-          stripeCustomerId: typeof session.customer === 'string' ? session.customer : undefined,
-          amountMinor: session.amount_total ?? 0,
-          currency: typeof session.currency === 'string' ? session.currency : 'ron',
-          metadata: session.metadata ?? {},
-        };
-
+        const purchaseParams = getCheckoutPurchaseParams(session);
         const fulfillment = await billingStorageOps.fulfillStoryPackPurchase(purchaseParams);
 
         if (!fulfillment.already_fulfilled) {
@@ -267,6 +302,12 @@ billingWebhookRouter.post('/', async (req: Request, res: Response) => {
           }
         }
       }
+    } else if (FAILED_CHECKOUT_EVENTS.has(event.type)) {
+      const session = event.data.object;
+      await billingStorageOps.markStoryPackPurchaseFailed(getCheckoutPurchaseParams(session));
+    } else if (EXPIRED_CHECKOUT_EVENTS.has(event.type)) {
+      const session = event.data.object;
+      await billingStorageOps.markStoryPackPurchaseExpired(getCheckoutPurchaseParams(session));
     }
 
     await billingStorageOps.markWebhookEventProcessed(event.id);

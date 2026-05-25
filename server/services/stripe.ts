@@ -113,10 +113,22 @@ export async function createStoryPackCheckoutSession(params: {
   email?: string;
   offer: StoryPackOffer;
   marketing?: CheckoutMarketingContext;
-}): Promise<{ checkoutUrl: string; checkoutSessionId: string }> {
+}): Promise<{
+  checkoutUrl: string;
+  checkoutSessionId: string;
+  stripeCustomerId?: string;
+  amountMinor: number;
+  currency: string;
+  metadata: Record<string, string>;
+}> {
   const stripe = getStripe();
   const customerId = await getOrCreateStripeCustomer(params.userId, params.email);
   const baseUrl = resolveAppBaseUrl(params.req);
+  const metadata = {
+    userId: params.userId,
+    offerSlug: params.offer.slug,
+    ...buildMarketingMetadata(params.marketing),
+  };
 
   const session = await stripe.checkout.sessions.create({
     mode: 'payment',
@@ -124,11 +136,7 @@ export async function createStoryPackCheckoutSession(params: {
     client_reference_id: params.userId,
     success_url: `${baseUrl}/billing?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: `${baseUrl}/billing?checkout=cancelled`,
-    metadata: {
-      userId: params.userId,
-      offerSlug: params.offer.slug,
-      ...buildMarketingMetadata(params.marketing),
-    },
+    metadata,
     line_items: [
       {
         quantity: 1,
@@ -151,6 +159,10 @@ export async function createStoryPackCheckoutSession(params: {
   return {
     checkoutUrl: session.url,
     checkoutSessionId: session.id,
+    stripeCustomerId: typeof session.customer === 'string' ? session.customer : customerId,
+    amountMinor: params.offer.priceMinor,
+    currency: params.offer.currency,
+    metadata,
   };
 }
 
