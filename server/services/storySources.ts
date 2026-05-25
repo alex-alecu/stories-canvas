@@ -244,7 +244,29 @@ export function isUsableCanonicalBeatSheet(beatSheet: CanonicalBeatSheet): boole
   return beatSheet.sourceAnalysisVersion === SOURCE_ANALYSIS_VERSION
     && beatSheet.requiredCharacters.length > 0
     && beatSheet.eventOrder.length >= 3
-    && (beatSheet.canonicalEnding?.length ?? 0) > 0;
+    && (beatSheet.canonicalEnding?.length ?? 0) > 0
+    && !hasCollapsedQuestEnding(beatSheet);
+}
+
+function hasCollapsedQuestEnding(beatSheet: CanonicalBeatSheet): boolean {
+  if (beatSheet.eventOrder.length > 8) return false;
+
+  const normalizedEvents = beatSheet.eventOrder.map(normalizeStorySourceLookup);
+  const questStartIndex = normalizedEvents.findIndex(event => (
+    /\b(?:caut|cautar|porn|pleac|search|seek)/u.test(event)
+  ));
+  if (questStartIndex < 0) return false;
+
+  const endingIndex = normalizedEvents.findIndex((event, index) => (
+    index > questStartIndex
+    && /\b(?:ajunge|gaseste|gasit|reuneste|reunit|finds|reunites|arrives)\b/u.test(event)
+  ));
+  if (endingIndex < 0) return false;
+
+  const bridgeEvents = normalizedEvents.slice(questStartIndex + 1, endingIndex);
+  return !bridgeEvents.some(event => (
+    /\b(?:proba|incerc|obstacol|primejd|pericol|sfant|helper|ajutor|dar|vraj|vrajitoare|witch|trial|failed|attempt|night|noapte|gift|fountain|fantana|ciocarlan|talpa)/u.test(event)
+  ));
 }
 
 function sourceFromCacheRow(row: SourceCacheRow): ResolvedRetellingSource | undefined {
@@ -589,6 +611,7 @@ async function analyzeSourceText(
       [
         'Extract a canonical beat sheet fragment for a faithful children\'s retelling of this public-domain story.',
         'Preserve named roles, event order, magical object mechanics, antagonist count/roles, character identities, relationships, social roles, and ending.',
+        'For quests or searches, keep every distinct helper, failed attempt, trial, traded object, antagonist trick, and curse-breaking mechanism as its own source beat.',
         'List only source-grounded facts found in this chunk. Do not invent new helpers or shortcuts.',
         'If this chunk contains the story ending, include it in canonicalEnding. If it does not, leave canonicalEnding empty.',
         `Set sourceAnalysisVersion to ${SOURCE_ANALYSIS_VERSION}.`,
@@ -681,6 +704,7 @@ async function searchPublicDomainSource(
       `Find a trusted public-domain source for the classic story "${titleQuery}" in language ${language}.`,
       'Prefer Wikisource or Project Gutenberg. Return a faithful canonical beat sheet from the public-domain source.',
       'Preserve character identities, relationships, social roles, event order, mechanics, and canonical ending.',
+      'For quests or searches, do not collapse the path into "the hero travels and finds the person"; include helpers, failed attempts, traded objects, antagonist tricks, and the exact curse-breaking mechanism.',
       `Set sourceAnalysisVersion to ${SOURCE_ANALYSIS_VERSION}.`,
       'If you cannot verify a public-domain or compatible source, set isPublicDomain=false and confidence below 0.7.',
     ].join('\n'),

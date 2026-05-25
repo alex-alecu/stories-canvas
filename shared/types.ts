@@ -27,7 +27,9 @@ export const STORY_MODE_CREDITS: Record<StoryMode, number> = {
   pro_audio: 3,
 };
 
-export const STORY_PAGE_TARGET_COUNT = 10;
+export const STORY_PAGE_DEFAULT_MAX_COUNT = 10;
+export const STORY_PAGE_MAX_COUNT = 20;
+export const STORY_PAGE_TARGET_COUNT = STORY_PAGE_DEFAULT_MAX_COUNT;
 
 export const STORY_PAGE_CREDIT_COSTS = {
   fastImage: 0.1,
@@ -65,9 +67,57 @@ export function getStoryAudioCreditCost(pageCount: number): number {
   return roundCreditAmount(getStoryAudioPageCreditCost() * Math.max(0, pageCount));
 }
 
-export function getStoryCreditCost(mode: StoryMode, pageCount = STORY_PAGE_TARGET_COUNT): number {
-  const imageCost = getStoryImageCreditCost(mode, pageCount);
-  return roundCreditAmount(mode === 'pro_audio' ? imageCost + getStoryAudioCreditCost(pageCount) : imageCost);
+export function getStoryCreditCost(mode: StoryMode, _pageCount = STORY_PAGE_TARGET_COUNT): number {
+  return STORY_MODE_CREDITS[mode];
+}
+
+function normalizePromptForPageEstimate(value: string | undefined): string {
+  return (value ?? '')
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase()
+    .replace(/['"„”’`]/g, '')
+    .replace(/[^a-z0-9\s-]/g, ' ')
+    .replace(/-/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function promptLooksLikeFaithfulRetelling(normalizedPrompt: string): boolean {
+  return [
+    'aproape de original',
+    'cat mai aproape de original',
+    'povestea originala',
+    'basmul original',
+    'retell',
+    'faithful retelling',
+    'original version',
+    'versiunea originala',
+    'adaptare fidela',
+    'adapteaza fidel',
+    'urmeaza originalul',
+  ].some(cue => normalizedPrompt.includes(cue))
+    || /\b(?:povestea|basmul)\s+(?:lui\s+)?[a-z0-9]/.test(normalizedPrompt);
+}
+
+function promptLooksComplexStory(normalizedPrompt: string): boolean {
+  return /\b(?:adventure|journey|quest|kingdom|mystery|epic|chapter|long|multi part|complex|aventura|calatorie|misiune|taram|regat|lung|complex)\b/.test(normalizedPrompt);
+}
+
+export function estimateOriginalStoryPageCount(_prompt?: string): number {
+  return STORY_PAGE_DEFAULT_MAX_COUNT;
+}
+
+export function estimateStoryPageLimit(prompt?: string): number {
+  const normalizedPrompt = normalizePromptForPageEstimate(prompt);
+  if (!normalizedPrompt) return STORY_PAGE_DEFAULT_MAX_COUNT;
+  return promptLooksLikeFaithfulRetelling(normalizedPrompt) || promptLooksComplexStory(normalizedPrompt)
+    ? STORY_PAGE_MAX_COUNT
+    : STORY_PAGE_DEFAULT_MAX_COUNT;
+}
+
+export function estimateInitialStoryPageCount(prompt?: string): number {
+  return estimateStoryPageLimit(prompt);
 }
 
 export function isStoryReaction(value: unknown): value is StoryReaction {
@@ -194,6 +244,7 @@ export interface StoryGenerationInputs {
   imageModelPro: string;
   audioModel?: string;
   pricingVersion: string;
+  pageCount?: number;
   retellingMode?: 'original' | 'faithful_retelling';
   sourceTitle?: string;
   sourceProvider?: string;

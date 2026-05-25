@@ -45,6 +45,7 @@ import {
   DEFAULT_AGE,
   DEFAULT_ART_STYLE,
   STORY_REACTION_FEEDBACK_MAX_CHARS,
+  estimateInitialStoryPageCount,
   getStoryAudioCreditCost,
   getStoryCreditCost,
   getStoryImageCreditCost,
@@ -713,6 +714,7 @@ function buildGenerationInputsSnapshot(
   storyMode: StoryMode,
   voice: VoiceKey | undefined,
   proModel: boolean,
+  pageCount?: number,
 ): StoryGenerationInputs {
   return buildStoryGenerationInputs({
     prompt,
@@ -726,6 +728,7 @@ function buildGenerationInputsSnapshot(
     imageModel: config.imageModel,
     imageModelPro: config.imageModelPro,
     audioModel: config.elevenLabsModel,
+    pageCount,
   });
 }
 
@@ -736,12 +739,14 @@ function applyScenarioGroundingInputs(
   if (!result.retellingSource) {
     return {
       ...inputs,
+      pageCount: result.scenario.pages.length,
       retellingMode: 'original',
     };
   }
 
   return {
     ...inputs,
+    pageCount: result.scenario.pages.length,
     retellingMode: 'faithful_retelling',
     sourceTitle: result.retellingSource.title,
     sourceProvider: result.retellingSource.provider,
@@ -1022,6 +1027,7 @@ router.post('/', optionalAuth, async (req: Request, res: Response) => {
     const storyAge = typeof age === 'number' && age > 0 && age <= 12 ? age : DEFAULT_AGE;
     const storyStyle = storyStyleOps.resolveArtStyle(typeof style === 'string' ? style : undefined);
     const storyMode = resolveRequestedStoryMode(request);
+    const estimatedPageCount = estimateInitialStoryPageCount(trimmedPrompt);
     const creditCost = getStoryCreditCost(storyMode);
     const storyVoice = storyMode === 'pro_audio'
       ? normalizeVoiceKey(typeof voice === 'string' ? voice : undefined)
@@ -1037,6 +1043,7 @@ router.post('/', optionalAuth, async (req: Request, res: Response) => {
       storyMode,
       storyVoice,
       useProModel,
+      estimatedPageCount,
     );
 
     if (storyMode === 'pro_audio' && !storyVoice) {

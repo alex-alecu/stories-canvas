@@ -2,6 +2,8 @@ import {
   ART_STYLES,
   DEFAULT_AGE,
   DEFAULT_ART_STYLE,
+  estimateStoryPageLimit,
+  STORY_PAGE_MAX_COUNT,
   type ArtStyleKey,
 } from '../../shared/types.js';
 import type { Scenario } from '../../shared/types.js';
@@ -86,6 +88,7 @@ const SCENARIO_PROMPT_TEMPLATES: Record<ScenarioPromptAgeGroup, string> = {
 export interface StoryPromptContext {
   language: SupportedStoryLanguage;
   targetAge: number;
+  pageCount: number;
   style: ArtStyleKey;
   styleDescription: string;
   userPrompt: string;
@@ -114,6 +117,13 @@ export interface RetellingSourcePromptContext {
   canonicalBeatSheet: CanonicalBeatSheet;
 }
 
+export function resolveScenarioPageCount(
+  userPrompt = '',
+  retellingSource?: RetellingSourcePromptContext,
+): number {
+  return retellingSource ? STORY_PAGE_MAX_COUNT : estimateStoryPageLimit(userPrompt);
+}
+
 export function resolveStoryLanguage(language?: string): SupportedStoryLanguage {
   if (language && SUPPORTED_LANGUAGE_SET.has(language as SupportedStoryLanguage)) {
     return language as SupportedStoryLanguage;
@@ -134,6 +144,7 @@ export function buildStoryPromptContext(
   return {
     language: resolveStoryLanguage(language),
     targetAge: age ?? DEFAULT_AGE,
+    pageCount: resolveScenarioPageCount(userPrompt || '', retellingSource),
     style: resolvedStyle,
     styleDescription: ART_STYLES[resolvedStyle],
     userPrompt: userPrompt.trim(),
@@ -152,6 +163,7 @@ export function resolveScenarioPromptAgeGroup(targetAge: number): ScenarioPrompt
 function buildScenarioInstruction(context: StoryPromptContext): string {
   return renderPromptTemplate(SCENARIO_PROMPT_TEMPLATES[resolveScenarioPromptAgeGroup(context.targetAge)], {
     target_age: context.targetAge,
+    page_count: context.pageCount,
   });
 }
 
@@ -199,6 +211,7 @@ function buildSharedRetellingInstruction(context: StoryPromptContext): string | 
     source_provider: context.retellingSource.provider,
     source_url: context.retellingSource.sourceUrl,
     source_license: context.retellingSource.licenseNote,
+    page_count: context.pageCount,
     canonical_beat_sheet: formatCanonicalBeatSheet(context.retellingSource),
   });
 }
@@ -215,18 +228,21 @@ function buildStoryCommonInstruction(context: StoryPromptContext): string {
 export function buildStorySystemInstruction(context: StoryPromptContext): string {
   return renderPromptTemplate(STORY_SYSTEM_INSTRUCTION_TEMPLATE, {
     common_instruction: buildStoryCommonInstruction(context),
+    page_count: context.pageCount,
   });
 }
 
 export function buildStoryReviewSystemInstruction(context: StoryPromptContext): string {
   return renderPromptTemplate(STORY_REVIEW_SYSTEM_INSTRUCTION_TEMPLATE, {
     common_instruction: buildStoryCommonInstruction(context),
+    page_count: context.pageCount,
   });
 }
 
 export function buildDraftScenarioPrompt(context: StoryPromptContext): string {
   return renderPromptTemplate(DRAFT_SCENARIO_PROMPT_TEMPLATE, {
     target_age: context.targetAge,
+    page_count: context.pageCount,
     style_description: context.styleDescription,
     user_prompt: context.userPrompt,
   });
@@ -245,6 +261,7 @@ export function buildRepairScenarioPrompt(
   return renderPromptTemplate(REPAIR_SCENARIO_PROMPT_TEMPLATE, {
     repair_pass: repairPass,
     target_age: context.targetAge,
+    page_count: context.pageCount,
     style_description: context.styleDescription,
     user_prompt: context.userPrompt,
     validation_issues: issueSection,
@@ -264,6 +281,7 @@ export function buildScenarioReviewPrompt(
 ): string {
   return renderPromptTemplate(SCENARIO_REVIEW_PROMPT_TEMPLATE, {
     target_age: context.targetAge,
+    page_count: context.pageCount,
     style_description: context.styleDescription,
     user_prompt: context.userPrompt,
     scenario_json: JSON.stringify(scenario, null, 2),
@@ -287,6 +305,7 @@ export function buildScenarioRewritePrompt(
 
   return renderPromptTemplate(SCENARIO_REWRITE_PROMPT_TEMPLATE, {
     target_age: context.targetAge,
+    page_count: context.pageCount,
     style_description: context.styleDescription,
     user_prompt: context.userPrompt,
     editorial_summary: summary,

@@ -96,7 +96,7 @@ const scenarioSchema = {
         },
         required: ['pageNumber', 'text', 'imagePrompt', 'characters'],
       },
-      description: 'Exactly 10 story pages',
+      description: 'Requested story pages',
     },
   },
   required: ['title', 'targetAge', 'characters', 'pages'],
@@ -150,6 +150,7 @@ export interface GeneratedScenarioResult {
   scenario: Scenario;
   retellingMode: 'original' | 'faithful_retelling';
   retellingSource?: ResolvedRetellingSource;
+  pageCount: number;
 }
 
 function finalizeScenario(scenario: Scenario): Scenario {
@@ -179,8 +180,8 @@ function stripPageRuntimeFields(scenario: Scenario): Scenario {
 
 function getScenarioValidationOptions(context: StoryPromptContext): ScenarioValidationOptions {
   return context.retellingSource
-    ? { maxCharacters: MAX_RETELLING_SCENARIO_CHARACTERS }
-    : {};
+    ? { maxCharacters: MAX_RETELLING_SCENARIO_CHARACTERS, pageCount: context.pageCount }
+    : { pageCount: context.pageCount };
 }
 
 function getTextIssuePageIndex(issue: ScenarioValidationIssue): number | null {
@@ -428,6 +429,7 @@ export async function generateScenarioWithMetadataWithModel(
     scenario: finalizeScenario(reviewedScenario.scenario),
     retellingMode: retellingSource ? 'faithful_retelling' : 'original',
     retellingSource,
+    pageCount: context.pageCount,
   };
 }
 
@@ -463,7 +465,10 @@ export async function reviewScenarioWithModel(
   onProgress?: ScenarioProgressCallback,
   usageCallbacks?: ScenarioUsageCallbacks,
 ): Promise<ReviewedScenarioResult> {
-  const context = buildStoryPromptContext(userPrompt, language, age ?? scenario.targetAge, style);
+  const context = {
+    ...buildStoryPromptContext(userPrompt, language, age ?? scenario.targetAge, style),
+    pageCount: scenario.pages.length,
+  };
   const systemInstruction = buildStorySystemInstruction(context);
   const validatedScenario = await enforceHardValidation(
     context,

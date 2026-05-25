@@ -1,4 +1,8 @@
-import type { Scenario } from '../../shared/types.js';
+import {
+  STORY_PAGE_DEFAULT_MAX_COUNT,
+  STORY_PAGE_MAX_COUNT,
+  type Scenario,
+} from '../../shared/types.js';
 
 export interface ScenarioValidationIssue {
   code: string;
@@ -11,9 +15,9 @@ export interface ScenarioTextRules {
   maxSentences: number;
 }
 
-export const REQUIRED_SCENARIO_PAGES = 10;
-export const MIN_SCENARIO_PAGES = REQUIRED_SCENARIO_PAGES;
-export const MAX_SCENARIO_PAGES = REQUIRED_SCENARIO_PAGES;
+export const REQUIRED_SCENARIO_PAGES = STORY_PAGE_DEFAULT_MAX_COUNT;
+export const MIN_SCENARIO_PAGES = 1;
+export const MAX_SCENARIO_PAGES = STORY_PAGE_MAX_COUNT;
 export const MAX_ORIGINAL_SCENARIO_CHARACTERS = 3;
 export const MAX_RETELLING_SCENARIO_CHARACTERS = 14;
 export const MAX_SCENARIO_CHARACTERS = MAX_ORIGINAL_SCENARIO_CHARACTERS;
@@ -21,6 +25,7 @@ export const OVERLAY_SAFE_MAX_CHARS = 320;
 
 export interface ScenarioValidationOptions {
   maxCharacters?: number;
+  pageCount?: number;
 }
 
 function normalizeWhitespace(value: string | undefined): string {
@@ -91,6 +96,7 @@ export function validateScenario(
   const issues: ScenarioValidationIssue[] = [];
   const textRules = getScenarioTextRules(expectedAge);
   const maxCharacters = options.maxCharacters ?? MAX_SCENARIO_CHARACTERS;
+  const maxPageCount = options.pageCount ?? REQUIRED_SCENARIO_PAGES;
   const characters = Array.isArray(scenario.characters) ? scenario.characters : [];
   const pages = Array.isArray(scenario.pages) ? scenario.pages : [];
 
@@ -176,11 +182,17 @@ export function validateScenario(
     }
   }
 
-  if (pages.length !== REQUIRED_SCENARIO_PAGES) {
+  if (pages.length < MIN_SCENARIO_PAGES) {
+    issues.push({
+      code: 'pages.empty',
+      path: 'pages',
+      message: 'at least one page is required',
+    });
+  } else if (pages.length > maxPageCount) {
     issues.push({
       code: 'pages.range',
       path: 'pages',
-      message: `page count must be exactly ${REQUIRED_SCENARIO_PAGES}`,
+      message: `page count must be ${maxPageCount} or fewer`,
     });
   }
 

@@ -5,8 +5,8 @@ import type { Scenario, Page } from '../../shared/types.js';
 
 process.env.GEMINI_API_KEY ??= 'test-key';
 
-function makeValidPages(): Page[] {
-  return [
+function makeValidPages(count = 10): Page[] {
+  const basePages: Page[] = [
     { pageNumber: 1, text: 'Mia loved the red kite that whooshed over her garden.', imagePrompt: 'Prompt 1', characters: ['Mia'], status: 'pending' },
     { pageNumber: 2, text: 'A gust of wind tugged the string and whisked the kite away.', imagePrompt: 'Prompt 2', characters: ['Mia'], status: 'pending' },
     { pageNumber: 3, text: 'Mia ran after it, but her first jump was too small.', imagePrompt: 'Prompt 3', characters: ['Mia'], status: 'pending' },
@@ -17,6 +17,24 @@ function makeValidPages(): Page[] {
     { pageNumber: 8, text: 'They counted to three and gave the kite a gentle toss.', imagePrompt: 'Prompt 8', characters: ['Mia', 'Pip'], status: 'pending' },
     { pageNumber: 9, text: 'This time it climbed high and painted loops in the sky.', imagePrompt: 'Prompt 9', characters: ['Mia', 'Pip'], status: 'pending' },
     { pageNumber: 10, text: 'Back on the grass, Mia shared the breeze with Pip.', imagePrompt: 'Prompt 10', characters: ['Mia', 'Pip'], status: 'pending' },
+  ];
+
+  if (count <= basePages.length) {
+    return basePages.slice(0, count);
+  }
+
+  return [
+    ...basePages,
+    ...Array.from({ length: count - basePages.length }, (_, index) => {
+      const pageNumber = basePages.length + index + 1;
+      return {
+        pageNumber,
+        text: `Mia and Pip followed one more bright clue on page ${pageNumber}.`,
+        imagePrompt: `Prompt ${pageNumber}`,
+        characters: ['Mia', 'Pip'],
+        status: 'pending' as const,
+      };
+    }),
   ];
 }
 
@@ -68,6 +86,7 @@ test('story prompt assembly keeps age scenario, appearance, and language rules t
   assert.match(systemInstruction, /keep the exact spelling from characters\[\]\.name whenever you mention a character/i);
   assert.match(systemInstruction, /keep appearance, clothing, characterSheetPrompt, and imagePrompt visually originalized/i);
   assert.match(draftPrompt, /Target age: 6/);
+  assert.match(draftPrompt, /Return no more than 10 pages, numbered sequentially from 1/);
   assert.match(draftPrompt, /Classic hand-drawn storybook illustration/);
   assert.match(draftPrompt, /If the system context includes Faithful Public-Domain Retelling Rules, adapt that source faithfully/);
   assert.match(draftPrompt, /A brave bunny follows a lantern through the rain\./);
@@ -106,6 +125,7 @@ test('story prompt assembly includes source grounding only for faithful retellin
   const reviewPrompt = storyPrompt.buildScenarioReviewPrompt(context, makeScenario({ targetAge: 5 }));
 
   assert.match(systemInstruction, /Faithful Public-Domain Retelling Rules/);
+  assert.match(systemInstruction, /Use up to 20 pages/);
   assert.match(systemInstruction, /Title: Greuceanu/);
   assert.match(systemInstruction, /Provider: wikisource/);
   assert.match(systemInstruction, /Faurul Pamantului/);
@@ -116,6 +136,51 @@ test('story prompt assembly includes source grounding only for faithful retellin
   assert.match(reviewPrompt, /For faithful public-domain retellings, prompt fidelity means preserving the canonical source beats/);
   assert.match(reviewPrompt, /fireflies, a trade, or a new helper who solves the mission/);
   assert.match(reviewPrompt, /turning Harap-Alb from the crai's youngest son\/young prince into a small child/);
+});
+
+test('story page limit uses 10 pages by default and 20 for faithful or complex stories', async () => {
+  const storyPrompt = await import('./storyPrompt.js');
+
+  const shortRetelling = storyPrompt.resolveScenarioPageCount('', {
+    title: 'Short Tale',
+    provider: 'wikisource',
+    sourceUrl: 'https://example.test/short',
+    licenseNote: 'Public domain.',
+    canonicalBeatSheet: {
+      sourceAnalysisVersion: 2,
+      requiredCharacters: ['hero'],
+      requiredLocations: ['home'],
+      magicalObjects: [],
+      eventOrder: ['opening', 'test', 'ending'],
+      canonicalEnding: ['ending'],
+      forbiddenSubstitutions: [],
+      softenableBeats: [],
+      fidelityWarnings: [],
+    },
+  });
+  const longRetelling = storyPrompt.resolveScenarioPageCount('', {
+    title: 'Long Tale',
+    provider: 'wikisource',
+    sourceUrl: 'https://example.test/long',
+    licenseNote: 'Public domain.',
+    canonicalBeatSheet: {
+      sourceAnalysisVersion: 2,
+      requiredCharacters: Array.from({ length: 10 }, (_, index) => `character ${index}`),
+      requiredLocations: Array.from({ length: 8 }, (_, index) => `location ${index}`),
+      magicalObjects: Array.from({ length: 6 }, (_, index) => `object ${index}`),
+      eventOrder: Array.from({ length: 14 }, (_, index) => `event ${index}`),
+      canonicalEnding: ['ending'],
+      forbiddenSubstitutions: [],
+      softenableBeats: [],
+      fidelityWarnings: [],
+    },
+  });
+
+  assert.equal(storyPrompt.resolveScenarioPageCount(), 10);
+  assert.equal(storyPrompt.resolveScenarioPageCount('A sleepy moon helps a child rest.'), 10);
+  assert.equal(storyPrompt.resolveScenarioPageCount('A complex dragon quest across a magic kingdom.'), 20);
+  assert.equal(shortRetelling, 20);
+  assert.equal(longRetelling, 20);
 });
 
 test('story prompt assembly preserves the selected illustration style in system rules', async () => {
@@ -182,7 +247,7 @@ test('shared age ranges expose only the grouped UI choices', async () => {
   ]);
 });
 
-test('story generator template keeps the reusable exact-10-page prompt guidance', async () => {
+test('story generator template keeps the reusable prompt guidance', async () => {
   const storyPrompt = await import('./storyPrompt.js');
 
   assert.match(storyPrompt.STORY_GENERATOR_TEMPLATE, /Write an original \{\{language\}\} story for children age \{\{age\}\}\./);
@@ -225,7 +290,7 @@ test('generateScenarioWithModel uses draft, repair, and review settings in order
   };
 
   const scenario = await scenarioModule.generateScenarioWithModel(
-    'Tell a warm story about Mia and a kite.',
+    'Tell a warm adventure story about Mia and a kite.',
     'en',
     3,
     'storybook',
@@ -255,7 +320,7 @@ test('generateScenarioWithMetadataWithModel grounds Greuceanu through the source
     systemInstruction: string,
   ): Promise<any> => {
     calls.push({ prompt, systemInstruction });
-    if (calls.length === 1) return makeScenario({ targetAge: 5 });
+    if (calls.length === 1) return makeScenario({ targetAge: 5, pages: makeValidPages(16) });
     return {
       needsRewrite: false,
       summary: 'Scenario is already strong.',
@@ -276,6 +341,8 @@ test('generateScenarioWithMetadataWithModel grounds Greuceanu through the source
   assert.equal(result.retellingSource?.title, 'Greuceanu');
   assert.equal(result.retellingSource?.provider, 'wikisource');
   assert.equal(result.retellingSource?.sourceCacheHit, true);
+  assert.equal(result.pageCount, 20);
+  assert.equal(result.scenario.pages.length, 16);
   assert.equal(calls.length, 2);
   assert.match(calls[0].systemInstruction, /Faithful Public-Domain Retelling Rules/);
   assert.match(calls[0].systemInstruction, /Faurul Pământului|Faurul Pamantului/);
@@ -292,7 +359,7 @@ test('generateScenarioWithMetadataWithModel grounds Harap-Alb with canonical ide
     systemInstruction: string,
   ): Promise<any> => {
     calls.push({ prompt, systemInstruction });
-    if (calls.length === 1) return makeScenario({ targetAge: 5, title: 'Povestea lui Harap-Alb' });
+    if (calls.length === 1) return makeScenario({ targetAge: 5, title: 'Povestea lui Harap-Alb', pages: makeValidPages(20) });
     return {
       needsRewrite: false,
       summary: 'Scenario is already strong.',
@@ -312,6 +379,8 @@ test('generateScenarioWithMetadataWithModel grounds Harap-Alb with canonical ide
   assert.equal(result.retellingMode, 'faithful_retelling');
   assert.equal(result.retellingSource?.title, 'Povestea lui Harap-Alb');
   assert.equal(result.retellingSource?.sourceCacheHit, true);
+  assert.equal(result.pageCount, 20);
+  assert.equal(result.scenario.pages.length, 20);
   assert.match(calls[0].systemInstruction, /Harap-Alb este fiul cel mic al craiului/);
   assert.match(calls[0].systemInstruction, /nu un baietel mic/);
   assert.match(calls[0].systemInstruction, /Gerilă/);
@@ -340,7 +409,7 @@ test('generateScenarioWithModel keeps editorial review internal to the writing p
   };
 
   await scenarioModule.generateScenarioWithModel(
-    'Tell a warm story about Mia and a kite.',
+    'Tell a warm adventure story about Mia and a kite.',
     'en',
     3,
     'storybook',
@@ -385,7 +454,7 @@ test('generateScenarioWithModel performs one additional repair when the first re
   };
 
   const scenario = await scenarioModule.generateScenarioWithModel(
-    'Tell a warm story about Mia and a kite.',
+    'Tell a warm adventure story about Mia and a kite.',
     'en',
     3,
     'storybook',
@@ -429,7 +498,7 @@ test('generateScenarioWithModel rewrites after editorial review when the reviewe
   };
 
   const scenario = await scenarioModule.generateScenarioWithModel(
-    'Tell a warm story about Mia and a kite.',
+    'Tell a warm adventure story about Mia and a kite.',
     'en',
     3,
     'storybook',
@@ -460,7 +529,7 @@ test('generateScenarioWithModel fails after the second repair if validation issu
 
   await assert.rejects(
     () => scenarioModule.generateScenarioWithModel(
-      'Tell a warm story about Mia and a kite.',
+      'Tell a warm adventure story about Mia and a kite.',
       'en',
       3,
       'storybook',
@@ -514,7 +583,7 @@ test('generateScenarioWithModel applies deterministic text repair after model re
   };
 
   const scenario = await scenarioModule.generateScenarioWithModel(
-    'Tell a warm story about Mia and a kite.',
+    'Tell a warm adventure story about Mia and a kite.',
     'en',
     5,
     'storybook',
@@ -590,4 +659,15 @@ test('validateScenario keeps original casts small but allows expanded retelling 
 
   assert.ok(originalIssues.some(issue => issue.code === 'characters.max'));
   assert.ok(!retellingIssues.some(issue => issue.code === 'characters.max'));
+});
+
+test('validateScenario accepts page counts up to the requested limit', async () => {
+  const { validateScenario } = await import('./scenarioValidation.js');
+
+  const scenario = makeScenario({ pages: makeValidPages(14) });
+  const shortScenario = makeScenario({ pages: makeValidPages(6) });
+
+  assert.ok(validateScenario(scenario, 3).some(issue => issue.code === 'pages.range'));
+  assert.deepEqual(validateScenario(shortScenario, 3), []);
+  assert.deepEqual(validateScenario(scenario, 3, { pageCount: 14 }), []);
 });

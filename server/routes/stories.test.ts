@@ -232,7 +232,7 @@ test('POST /api/stories normalizes legacy narrator keys before persistence', asy
   assert.equal(savedStory.creditCost, 3);
 });
 
-test('POST /api/stories stores fixed story mode credit costs', async (t) => {
+test('POST /api/stories stores fixed mode credit costs', async (t) => {
   const dataDir = mkdtempSync(path.join(os.tmpdir(), 'stories-mode-costs-'));
   const harness = await createStoriesHarness(dataDir);
   t.after(async () => {
@@ -261,7 +261,7 @@ test('POST /api/stories stores fixed story mode credit costs', async (t) => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        prompt: `Create a ${scenarioCase.storyMode} bedtime story.`,
+        prompt: `Create a complex ${scenarioCase.storyMode} bedtime story with a difficult quest.`,
         storyMode: scenarioCase.storyMode,
         voice: scenarioCase.voice,
       }),

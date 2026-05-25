@@ -117,6 +117,42 @@ test('Harap-Alb resolves from the complete committed manifest beat sheet', async
   assert.equal(fetchCalls, 0);
 });
 
+test('Povestea porcului resolves from a complete committed beat sheet', async () => {
+  const { config } = await import('../config.js');
+  const storySources = await import('./storySources.js');
+  Object.assign(config, { useSupabase: false });
+
+  let generateCalls = 0;
+  let fetchCalls = 0;
+  const source = await storySources.resolveRetellingSource(
+    {
+      userPrompt: 'Creează povestea Povestea porcului, urmează originalul exact.',
+      language: 'ro',
+    },
+    {
+      generateJSON: async () => {
+        generateCalls += 1;
+        throw new Error('Unexpected source analysis');
+      },
+      fetchFn: async () => {
+        fetchCalls += 1;
+        throw new Error('Unexpected source fetch');
+      },
+    },
+  );
+
+  assert.equal(source?.title, 'Povestea porcului');
+  assert.equal(source?.provider, 'wikisource');
+  assert.equal(source?.sourceCacheHit, true);
+  assert.ok(source?.canonicalBeatSheet.eventOrder.some(beat => /Sfanta Miercuri|Sfânta Miercuri/i.test(beat)));
+  assert.ok(source?.canonicalBeatSheet.eventOrder.some(beat => /ciocarlan/i.test(beat)));
+  assert.ok(source?.canonicalBeatSheet.eventOrder.some(beat => /lapte/i.test(beat)));
+  assert.ok(source?.canonicalBeatSheet.canonicalEnding?.some(beat => /trei nopti|a treia noapte/i.test(beat)));
+  assert.ok(source?.canonicalBeatSheet.forbiddenSubstitutions.some(beat => /doar sa ajunga|fara incercari/i.test(beat)));
+  assert.equal(generateCalls, 0);
+  assert.equal(fetchCalls, 0);
+});
+
 test('stale cached beat sheets without versioned endings are rejected', async () => {
   const storySources = await import('./storySources.js');
 
@@ -142,6 +178,28 @@ test('stale cached beat sheets without versioned endings are rejected', async ()
     softenableBeats: [],
     fidelityWarnings: [],
   }), true);
+});
+
+test('collapsed quest beat sheets are rejected before they reach generation', async () => {
+  const storySources = await import('./storySources.js');
+
+  assert.equal(storySources.isUsableCanonicalBeatSheet({
+    sourceAnalysisVersion: storySources.SOURCE_ANALYSIS_VERSION,
+    requiredCharacters: ['Fata imparatului', 'Fat-Frumos'],
+    requiredLocations: ['Manastirea-de-Tamaie'],
+    magicalObjects: ['pielea fermecata'],
+    identityConstraints: ['Fata imparatului ramane sotia lui Fat-Frumos.'],
+    eventOrder: [
+      'Fata arde pielea fermecata.',
+      'Fat-Frumos pleaca departe.',
+      'Fata porneste in cautarea sotului pierdut.',
+      'Fata ajunge la Manastirea-de-Tamaie si se reuneste cu Fat-Frumos.',
+    ],
+    canonicalEnding: ['Fata il gaseste pe Fat-Frumos la Manastirea-de-Tamaie.'],
+    forbiddenSubstitutions: ['Nu schimba personajele.'],
+    softenableBeats: ['Drumul poate fi non-grafic.'],
+    fidelityWarnings: ['Pastreaza finalul.'],
+  }), false);
 });
 
 test('source analysis reads later chunks so long sources keep their canonical ending', async () => {

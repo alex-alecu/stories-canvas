@@ -209,6 +209,107 @@
       }
     },
     {
+      "id": "ro-povestea-porcului",
+      "language": "ro",
+      "title": "Povestea porcului",
+      "author": "Ion Creanga",
+      "aliases": [
+        "povestea porcului",
+        "porcul",
+        "purcelul fermecat"
+      ],
+      "provider": "wikisource",
+      "sourceUrl": "https://ro.wikisource.org/wiki/Povestea_porcului",
+      "licenseNote": "Public-domain Romanian literary fairy tale by Ion Creanga, hosted on Wikisource.",
+      "canonicalBeatSheet": {
+        "sourceAnalysisVersion": 2,
+        "requiredCharacters": [
+          "mosneagul",
+          "baba",
+          "porcul / Fat-Frumos",
+          "imparatul",
+          "fata imparatului",
+          "Sfanta Miercuri",
+          "Sfanta Vineri",
+          "Sfanta Duminica",
+          "ciocarlanul schiop",
+          "Talpa-iadului / vrajitoarea",
+          "credinciosul lui Fat-Frumos"
+        ],
+        "requiredLocations": [
+          "bordeiul batranilor",
+          "bulhacul unde mosneagul gaseste purcelul",
+          "palatul imparatului",
+          "podul de aur si palatul fermecat",
+          "drumul lung al fetei imparatului",
+          "casele Sfintei Miercuri, Sfintei Vineri si Sfintei Duminici",
+          "pustiul si taramul primejdios de dincolo de lume",
+          "Manastirea-de-Tamaie",
+          "fantana de langa Manastirea-de-Tamaie"
+        ],
+        "magicalObjects": [
+          "pielea de porc fermecata",
+          "podul de aur si palatul fermecat",
+          "cercul de fier pus in jurul mijlocului fetei imparatului",
+          "furca de aur primita de la Sfanta Miercuri",
+          "vartelnita de aur primita de la Sfanta Vineri",
+          "tipsia de aur cu closca si puii de aur primita de la Sfanta Duminica",
+          "cornul sau hrana primita pentru drum",
+          "laptele adormitor dat lui Fat-Frumos",
+          "fantana unde fata imparatului isi schimba darurile pentru cele trei nopti"
+        ],
+        "identityConstraints": [
+          "Porcul este Fat-Frumos blestemat sa poarte piele de porc, nu un animal obisnuit si nu un copil.",
+          "Fata imparatului este sotia lui Fat-Frumos si eroina cautarii; ea trebuie sa repare greseala arderii pielii.",
+          "Sfanta Miercuri, Sfanta Vineri si Sfanta Duminica raman ajutoarele canonice care o indruma pe fata si ii dau daruri magice.",
+          "Ciocarlanul schiop ramane calauza care stie drumul spre Manastirea-de-Tamaie.",
+          "Talpa-iadului / vrajitoarea ramane adversara care il tine pe Fat-Frumos sub vraja si il adoarme in primele doua nopti."
+        ],
+        "eventOrder": [
+          "Batranilor fara copii li se face dor de un copil, iar baba il trimite pe mosneag sa aduca acasa prima fiinta pe care o va intalni.",
+          "Mosneagul gaseste un purcel in bulhac si il aduce acasa; baba il ingrijeste ca pe fiul lor.",
+          "Imparatul cere un pod de aur pana la palat si promite fata celui care il va face.",
+          "Porcul vorbeste, il trimite pe mosneag la imparat si isi asuma incercarea podului de aur.",
+          "Peste noapte apar podul de aur si palatul fermecat, iar porcul castiga mana fetei imparatului.",
+          "Fata imparatului se casatoreste cu porcul si descopera noaptea ca el isi leapada pielea si este Fat-Frumos.",
+          "Mama fetei o indeamna sa arda pielea de porc, desi incalcarea vrajii nu era inca ingaduita.",
+          "Fata arde pielea, iar Fat-Frumos ii pune cercul de fier in jurul mijlocului, ii spune sa-l caute la Manastirea-de-Tamaie si dispare; podul si palatul fermecat se destrama.",
+          "Fata imparatului pleaca pe jos, insarcinata si impovarata de cerc, ca sa-si caute sotul pierdut.",
+          "Dupa drum lung ajunge la Sfanta Miercuri, care nu stie locul, dar ii da adapost, sfat si furca de aur.",
+          "Fata ajunge la Sfanta Vineri, care o ocroteste si ii da vartelnita de aur.",
+          "Fata ajunge la Sfanta Duminica, primeste tipsia de aur cu closca si puii de aur, iar ciocarlanul schiop se ofera sa o calauzeasca.",
+          "Ciocarlanul o duce prin tinuturi primejdioase pana la Manastirea-de-Tamaie si o invata sa stea langa fantana.",
+          "Talpa-iadului ia furca de aur si vartelnita de aur in schimbul primelor doua nopti langa Fat-Frumos, dar il adoarme cu lapte si el nu o aude.",
+          "Credinciosul il instiinteaza pe Fat-Frumos, iar in a treia noapte el nu bea laptele adormitor, aude plansul sotiei si rupe cercul de fier.",
+          "Fat-Frumos isi recunoaste sotia si copilul, Talpa-iadului este demascata ca scroafa care l-a vrajit, iar familia se intoarce la bucurie si nunta."
+        ],
+        "canonicalEnding": [
+          "Reuniunea nu se produce simplu la sosirea fetei la Manastirea-de-Tamaie; trebuie sa treaca proba celor trei nopti si a darurilor de aur.",
+          "In primele doua nopti, Talpa-iadului il adoarme pe Fat-Frumos cu lapte, astfel incat el nu aude plansul sotiei.",
+          "In a treia noapte, Fat-Frumos evita laptele adormitor, aude fata imparatului, rupe cercul de fier, isi recunoaste sotia si copilul si scapa de vraja.",
+          "Talpa-iadului este demascata ca scroafa care l-a fermecat, iar finalul reface familia si sarbatoarea."
+        ],
+        "forbiddenSubstitutions": [
+          "Nu lasa fata imparatului doar sa ajunga la Manastirea-de-Tamaie si sa-l gaseasca pe Fat-Frumos fara incercari.",
+          "Nu elimina Sfanta Miercuri, Sfanta Vineri, Sfanta Duminica, ciocarlanul schiop, darurile de aur sau cele trei nopti.",
+          "Nu inlocui laptele adormitor si cercul de fier cu o simpla imbratisare sau cu o morala generica.",
+          "Nu transforma Talpa-iadului intr-un personaj benign sau absent; ea este obstacolul final al cautarii.",
+          "Nu face din arderea pielii o solutie reusita imediat; ea este greseala care declanseaza cautarea grea."
+        ],
+        "softenableBeats": [
+          "Blestemul si cercul de fier pot fi descrise ca o legatura vrajita, fara durere grafica.",
+          "Primejdiile drumului pot fi infricosatoare dar non-grafice.",
+          "Talpa-iadului poate fi numita vrajitoare rea pentru copiii mici, pastrand rolul ei in intriga.",
+          "Pedepsele finale pot fi formulate ca alungare sau destramare a vrajii, fara detalii crude."
+        ],
+        "fidelityWarnings": [
+          "Finalul trebuie sa includa cautarea in etape, darurile de aur, primele doua nopti ratate si a treia noapte reusita.",
+          "Povestea isi pierde miezul daca drumul fetei este comprimat la o simpla plimbare pana la Manastirea-de-Tamaie.",
+          "Varsta mica a cititorului poate simplifica limbajul, dar nu poate elimina mecanica blestemului si a incercarilor finale."
+        ]
+      }
+    },
+    {
       "id": "en-alice",
       "language": "en",
       "title": "Alice's Adventures in Wonderland",

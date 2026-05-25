@@ -71,6 +71,7 @@ export function buildStoryGenerationInputs(params: {
   imageModel: string;
   imageModelPro: string;
   audioModel?: string;
+  pageCount?: number;
 }): StoryGenerationInputs {
   return {
     prompt: params.prompt,
@@ -86,6 +87,7 @@ export function buildStoryGenerationInputs(params: {
     imageModelPro: params.imageModelPro,
     audioModel: params.audioModel,
     pricingVersion: STORY_USAGE_PRICING_VERSION,
+    pageCount: params.pageCount,
   };
 }
 
