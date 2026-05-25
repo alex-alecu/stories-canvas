@@ -152,6 +152,10 @@ const sv: Translations = {
   pauseNarration: 'Pausa berattelse',
   autoPlay: 'Automatisk uppspelning',
   narrationSpeed: 'Hastighet',
+  imageFitMode: 'Bildanpassning',
+  imageFitCover: 'Fyll',
+  imageFitFit: 'Anpassa',
+  imageFitContain: 'Hela',
 
   storyTools: 'Berättelseverktyg',
   reviewScript: 'Review script',

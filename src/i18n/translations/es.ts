@@ -152,6 +152,10 @@ const es: Translations = {
   pauseNarration: 'Pausar narracion',
   autoPlay: 'Reproduccion automatica',
   narrationSpeed: 'Velocidad',
+  imageFitMode: 'Ajuste de imagen',
+  imageFitCover: 'Cubrir',
+  imageFitFit: 'Ajustar',
+  imageFitContain: 'Contener',
 
   storyTools: 'Herramientas de historia',
   reviewScript: 'Review script',

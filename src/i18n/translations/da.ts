@@ -152,6 +152,10 @@ const da: Translations = {
   pauseNarration: 'Pause fortaelling',
   autoPlay: 'Automatisk afspilning',
   narrationSpeed: 'Hastighed',
+  imageFitMode: 'Billedtilpasning',
+  imageFitCover: 'Fyld',
+  imageFitFit: 'Tilpas',
+  imageFitContain: 'Hele',
 
   storyTools: 'Historieværktøjer',
   reviewScript: 'Review script',

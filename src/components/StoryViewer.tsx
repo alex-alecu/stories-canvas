@@ -6,7 +6,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import type { Scenario, GenerationProgress, StoryReaction, StoryMode, StoryStatus } from '../types';
 import { useLanguage } from '../i18n/LanguageContext';
 import { useFontSize, type FontSize } from '../contexts/FontSizeContext';
-import { readStoredBoolean, readStoredNumber, writeStorageItem } from '../lib/browserStorage';
+import { readStoredBoolean, readStoredEnum, readStoredNumber, writeStorageItem } from '../lib/browserStorage';
 import { formatStoryStatusMessage } from '../i18n/storyStatusCopy';
 import StoryToolsModal from './StoryToolsModal';
 import 'swiper/css';
@@ -14,7 +14,10 @@ import 'swiper/css/navigation';
 
 const AUTOPLAY_STORAGE_KEY = 'stories-canvas:auto-play';
 const PLAYBACK_RATE_KEY = 'stories-canvas:playback-rate';
+const IMAGE_FIT_MODE_KEY = 'stories-canvas:image-fit-mode';
 const PLAYBACK_RATES = [0.8, 0.9, 1, 1.1] as const;
+const IMAGE_FIT_MODES = ['cover', 'fit', 'contain'] as const;
+type ImageFitMode = typeof IMAGE_FIT_MODES[number];
 
 function getStoredAutoPlay(): boolean {
   return readStoredBoolean(AUTOPLAY_STORAGE_KEY);
@@ -26,6 +29,10 @@ function getStoredPlaybackRate(): number {
     1,
     value => (PLAYBACK_RATES as readonly number[]).includes(value),
   );
+}
+
+function getStoredImageFitMode(): ImageFitMode {
+  return readStoredEnum(IMAGE_FIT_MODE_KEY, IMAGE_FIT_MODES) ?? 'cover';
 }
 
 interface StoryViewerProps {
@@ -143,6 +150,30 @@ export default function StoryViewer({
       return next;
     });
   }, []);
+
+  const [imageFitMode, setImageFitMode] = useState(getStoredImageFitMode);
+  const cycleImageFitMode = useCallback(() => {
+    setImageFitMode(prev => {
+      const idx = IMAGE_FIT_MODES.indexOf(prev);
+      const next = IMAGE_FIT_MODES[(idx + 1) % IMAGE_FIT_MODES.length];
+      writeStorageItem(IMAGE_FIT_MODE_KEY, next);
+      return next;
+    });
+  }, []);
+  const imageFitModeLabel = useMemo(() => {
+    if (imageFitMode === 'cover') return t.imageFitCover;
+    if (imageFitMode === 'fit') return t.imageFitFit;
+    return t.imageFitContain;
+  }, [imageFitMode, t]);
+  const storyImageClassName = imageFitMode === 'cover'
+    ? 'h-full w-full object-cover'
+    : 'h-full w-full object-contain';
+  const storyImageStyle = imageFitMode === 'fit'
+    ? { transform: 'scale(1.15)' }
+    : undefined;
+  const previewImageStyle = imageFitMode === 'cover'
+    ? { transform: 'scale(1.05)' }
+    : storyImageStyle;
 
   // Check if any page in the story has audio
   const hasAudio = useMemo(
@@ -375,9 +406,11 @@ export default function StoryViewer({
         </svg>
       </Link>
 
-      {/* Audio controls — only shown when the story has audio */}
-      {showAudioControls && (
-        <div className="absolute top-4 left-16 z-50 flex items-center gap-2">
+      {/* Reading controls */}
+      <div className="absolute top-4 left-16 z-50 flex max-w-[calc(100vw-8rem)] items-center gap-2 overflow-x-auto pr-1 [scrollbar-width:none] story-top-controls">
+        {/* Audio controls — only shown when the story has audio */}
+        {showAudioControls && (
+          <>
           {/* Auto-play toggle */}
           <button
             onClick={toggleAutoPlay}
@@ -430,8 +463,17 @@ export default function StoryViewer({
           >
             {playbackRate}x
           </button>
-        </div>
-      )}
+          </>
+        )}
+
+        <button
+          onClick={cycleImageFitMode}
+          className="bg-black/40 hover:bg-black/60 backdrop-blur-sm text-white h-10 shrink-0 px-3 rounded-full flex items-center justify-center transition-colors text-sm font-medium"
+          aria-label={`${t.imageFitMode}: ${imageFitModeLabel}`}
+        >
+          {imageFitModeLabel}
+        </button>
+      </div>
 
       {/* Story tools button */}
       <div className="absolute top-4 right-4 z-50 flex items-center gap-2">
@@ -485,12 +527,13 @@ export default function StoryViewer({
       >
         {scenario.pages.map(page => (
           <SwiperSlide key={page.pageNumber}>
-            <div className="relative w-full h-full">
+            <div className="relative w-full h-full overflow-hidden bg-black">
               {page.status === 'completed' ? (
                 <img
                   src={page.imageUrl || `/api/stories/${storyId}/images/page-${String(page.pageNumber).padStart(2, '0')}.png`}
                   alt={`Page ${page.pageNumber}`}
-                  className="w-full h-full object-cover"
+                  className={storyImageClassName}
+                  style={storyImageStyle}
                 />
               ) : (
                 <div className="w-full h-full bg-gradient-to-br from-primary-900/60 to-surface-dark-accent flex flex-col items-center justify-center gap-4">
@@ -531,7 +574,8 @@ export default function StoryViewer({
                   src={previewLastPage.imageUrl || `/api/stories/${storyId}/images/page-${String(previewLastPage.pageNumber).padStart(2, '0')}.png`}
                   alt=""
                   aria-hidden="true"
-                  className="absolute inset-0 h-full w-full scale-105 object-cover opacity-40 blur-sm"
+                  className={`absolute inset-0 opacity-40 blur-sm ${storyImageClassName}`}
+                  style={previewImageStyle}
                 />
               )}
               <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/80 to-black" />
@@ -605,6 +649,9 @@ export default function StoryViewer({
         .story-swiper .swiper-button-prev::after {
           font-size: 18px;
           font-weight: bold;
+        }
+        .story-top-controls::-webkit-scrollbar {
+          display: none;
         }
       `}</style>
     </div>

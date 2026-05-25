@@ -152,6 +152,10 @@ const sk: Translations = {
   pauseNarration: 'Pozastaviť naráciu',
   autoPlay: 'Automaticke prehravanie',
   narrationSpeed: 'Rýchlosť',
+  imageFitMode: 'Prispôsobenie obrázka',
+  imageFitCover: 'Vyplniť',
+  imageFitFit: 'Prispôsobiť',
+  imageFitContain: 'Celý',
 
   storyTools: 'Nástroje príbehu',
   reviewScript: 'Review script',

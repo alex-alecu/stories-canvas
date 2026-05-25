@@ -169,6 +169,10 @@ export interface Translations {
   pauseNarration: string;
   autoPlay: string;
   narrationSpeed: string;
+  imageFitMode: string;
+  imageFitCover: string;
+  imageFitFit: string;
+  imageFitContain: string;
 
   // Story tools modal
   storyTools: string;

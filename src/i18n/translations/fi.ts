@@ -152,6 +152,10 @@ const fi: Translations = {
   pauseNarration: 'Keskeyta kerronta',
   autoPlay: 'Automaattinen toisto',
   narrationSpeed: 'Nopeus',
+  imageFitMode: 'Kuvan sovitus',
+  imageFitCover: 'Täytä',
+  imageFitFit: 'Sovita',
+  imageFitContain: 'Koko',
 
   storyTools: 'Tarinatyökalut',
   reviewScript: 'Review script',

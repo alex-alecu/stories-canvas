@@ -152,6 +152,10 @@ const ja: Translations = {
   pauseNarration: 'ナレーションを一時停止',
   autoPlay: '自動再生',
   narrationSpeed: '速度',
+  imageFitMode: '画像表示',
+  imageFitCover: 'カバー',
+  imageFitFit: 'フィット',
+  imageFitContain: '全体',
 
   storyTools: 'ストーリーツール',
   reviewScript: 'Review script',

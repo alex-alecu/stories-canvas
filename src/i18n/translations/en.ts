@@ -152,6 +152,10 @@ const en: Translations = {
   pauseNarration: 'Pause narration',
   autoPlay: 'Auto-play',
   narrationSpeed: 'Speed',
+  imageFitMode: 'Image fit',
+  imageFitCover: 'Cover',
+  imageFitFit: 'Fit',
+  imageFitContain: 'Contain',
 
   storyTools: 'Story Tools',
   reviewScript: 'Review script',

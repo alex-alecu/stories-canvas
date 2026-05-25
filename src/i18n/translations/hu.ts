@@ -152,6 +152,10 @@ const hu: Translations = {
   pauseNarration: 'Narracio szuneteltetese',
   autoPlay: 'Automatikus lejatszas',
   narrationSpeed: 'Sebesség',
+  imageFitMode: 'Képillesztés',
+  imageFitCover: 'Kitöltés',
+  imageFitFit: 'Illesztés',
+  imageFitContain: 'Teljes',
 
   storyTools: 'Történet eszközök',
   reviewScript: 'Review script',

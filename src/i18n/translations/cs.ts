@@ -152,6 +152,10 @@ const cs: Translations = {
   pauseNarration: 'Pozastavit narraci',
   autoPlay: 'Automaticke prehravani',
   narrationSpeed: 'Rychlost',
+  imageFitMode: 'Přizpůsobení obrázku',
+  imageFitCover: 'Vyplnit',
+  imageFitFit: 'Přizpůsobit',
+  imageFitContain: 'Celý',
 
   storyTools: 'Nástroje příběhu',
   reviewScript: 'Review script',

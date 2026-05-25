@@ -152,6 +152,10 @@ const ko: Translations = {
   pauseNarration: '내레이션 일시정지',
   autoPlay: '자동 재생',
   narrationSpeed: '속도',
+  imageFitMode: '이미지 맞춤',
+  imageFitCover: '채우기',
+  imageFitFit: '맞춤',
+  imageFitContain: '전체',
 
   storyTools: '스토리 도구',
   reviewScript: 'Review script',

@@ -152,6 +152,10 @@ const nl: Translations = {
   pauseNarration: 'Vertelling pauzeren',
   autoPlay: 'Automatisch afspelen',
   narrationSpeed: 'Snelheid',
+  imageFitMode: 'Beeldweergave',
+  imageFitCover: 'Vullen',
+  imageFitFit: 'Passend',
+  imageFitContain: 'Volledig',
 
   storyTools: 'Verhaalgereedschap',
   reviewScript: 'Review script',

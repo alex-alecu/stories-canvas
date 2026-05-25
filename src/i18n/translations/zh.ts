@@ -152,6 +152,10 @@ const zh: Translations = {
   pauseNarration: '暂停旁白',
   autoPlay: '自动播放',
   narrationSpeed: '速度',
+  imageFitMode: '图片显示',
+  imageFitCover: '覆盖',
+  imageFitFit: '适合',
+  imageFitContain: '完整',
 
   storyTools: '故事工具',
   reviewScript: 'Review script',

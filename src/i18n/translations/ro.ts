@@ -165,6 +165,10 @@ const ro: Translations = {
   pauseNarration: 'Pauza naratiune',
   autoPlay: 'Redare automata',
   narrationSpeed: 'Viteză',
+  imageFitMode: 'Mod imagine',
+  imageFitCover: 'Umple',
+  imageFitFit: 'Potrivește',
+  imageFitContain: 'Complet',
 
   storyTools: 'Instrumente poveste',
   reviewScript: 'Review script',
