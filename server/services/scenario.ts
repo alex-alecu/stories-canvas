@@ -103,6 +103,7 @@ const scenarioSchema = {
 };
 
 type GenerateJSONFn = typeof gemini.generateJSON;
+type GenerateJSONFromContentsFn = typeof gemini.generateJSONFromContents;
 
 const AUTO_REPAIRABLE_TEXT_ISSUE_CODES = new Set([
   'page.text.ageLength',
@@ -279,9 +280,7 @@ async function generateDraftScenario(
     scenarioSchema,
     {
       temperature: config.scenarioTemperature,
-      thinkingConfig: {
-        thinkingBudget: config.scenarioThinkingBudget,
-      },
+      thinkingConfig: gemini.getMaxThinkingConfig(),
       onUsage: usageCallbacks?.onDraftUsage,
     },
   );
@@ -303,9 +302,7 @@ async function generateRepairScenario(
     scenarioSchema,
     {
       temperature: config.scenarioReviewTemperature,
-      thinkingConfig: {
-        thinkingBudget: config.scenarioReviewThinkingBudget,
-      },
+      thinkingConfig: gemini.getMaxThinkingConfig(),
       onUsage: usageCallbacks?.onValidationRepairUsage,
     },
   );
@@ -362,20 +359,26 @@ async function applyEditorialReview(
   candidateScenario: Scenario,
   generateJSON: GenerateJSONFn,
   usageCallbacks?: ScenarioUsageCallbacks,
+  generateJSONFromContents?: GenerateJSONFromContentsFn,
 ): Promise<ReviewedScenarioResult> {
   const normalizedScenario = normalizeScenarioWhitespace(stripPageRuntimeFields(candidateScenario));
-  const review = await runScenarioReviewWithModel(context, normalizedScenario, generateJSON, usageCallbacks?.onReviewUsage);
-
-  if (!review.needsRewrite) {
-    return {
-      scenario: normalizedScenario,
-      review,
-      rewritten: false,
-    };
-  }
+  const review = await runScenarioReviewWithModel(
+    context,
+    normalizedScenario,
+    generateJSON,
+    usageCallbacks?.onReviewUsage,
+    generateJSONFromContents,
+  );
 
   const rewrittenScenario = normalizeScenarioWhitespace(stripPageRuntimeFields(
-    await rewriteScenarioFromReviewWithModel(context, normalizedScenario, review, generateJSON, usageCallbacks?.onRewriteUsage),
+    await rewriteScenarioFromReviewWithModel(
+      context,
+      normalizedScenario,
+      review,
+      generateJSON,
+      usageCallbacks?.onRewriteUsage,
+      generateJSONFromContents,
+    ),
   ));
   const finalIssues = validateScenario(
     rewrittenScenario,
@@ -391,7 +394,7 @@ async function applyEditorialReview(
   return {
     scenario: rewrittenScenario,
     review,
-    rewritten: true,
+    rewritten: review.needsRewrite,
   };
 }
 
@@ -403,6 +406,7 @@ export async function generateScenarioWithMetadataWithModel(
   generateJSON: GenerateJSONFn,
   _onProgress?: ScenarioProgressCallback,
   usageCallbacks?: ScenarioUsageCallbacks,
+  generateJSONFromContents?: GenerateJSONFromContentsFn,
 ): Promise<GeneratedScenarioResult> {
   const baseContext = buildStoryPromptContext(userPrompt, language, age, style);
   const retellingSource = await resolveRetellingSource(baseContext, {
@@ -423,7 +427,13 @@ export async function generateScenarioWithMetadataWithModel(
     usageCallbacks,
   );
 
-  const reviewedScenario = await applyEditorialReview(context, validatedScenario, generateJSON, usageCallbacks);
+  const reviewedScenario = await applyEditorialReview(
+    context,
+    validatedScenario,
+    generateJSON,
+    usageCallbacks,
+    generateJSONFromContents,
+  );
 
   return {
     scenario: finalizeScenario(reviewedScenario.scenario),
@@ -441,6 +451,7 @@ export async function generateScenarioWithModel(
   generateJSON: GenerateJSONFn,
   onProgress?: ScenarioProgressCallback,
   usageCallbacks?: ScenarioUsageCallbacks,
+  generateJSONFromContents?: GenerateJSONFromContentsFn,
 ): Promise<Scenario> {
   const result = await generateScenarioWithMetadataWithModel(
     userPrompt,
@@ -450,6 +461,7 @@ export async function generateScenarioWithModel(
     generateJSON,
     onProgress,
     usageCallbacks,
+    generateJSONFromContents,
   );
 
   return result.scenario;
@@ -464,6 +476,7 @@ export async function reviewScenarioWithModel(
   generateJSON: GenerateJSONFn,
   onProgress?: ScenarioProgressCallback,
   usageCallbacks?: ScenarioUsageCallbacks,
+  generateJSONFromContents?: GenerateJSONFromContentsFn,
 ): Promise<ReviewedScenarioResult> {
   const context = {
     ...buildStoryPromptContext(userPrompt, language, age ?? scenario.targetAge, style),
@@ -484,7 +497,13 @@ export async function reviewScenarioWithModel(
     message: 'Reviewing and refining your story...',
   });
 
-  const reviewedScenario = await applyEditorialReview(context, validatedScenario, generateJSON, usageCallbacks);
+  const reviewedScenario = await applyEditorialReview(
+    context,
+    validatedScenario,
+    generateJSON,
+    usageCallbacks,
+    generateJSONFromContents,
+  );
 
   return {
     ...reviewedScenario,
@@ -500,7 +519,16 @@ export async function generateScenario(
   onProgress?: ScenarioProgressCallback,
   usageCallbacks?: ScenarioUsageCallbacks,
 ): Promise<Scenario> {
-  return generateScenarioWithModel(userPrompt, language, age, style, gemini.generateJSON, onProgress, usageCallbacks);
+  return generateScenarioWithModel(
+    userPrompt,
+    language,
+    age,
+    style,
+    gemini.generateJSON,
+    onProgress,
+    usageCallbacks,
+    gemini.generateJSONFromContents,
+  );
 }
 
 export async function generateScenarioWithMetadata(
@@ -519,6 +547,7 @@ export async function generateScenarioWithMetadata(
     gemini.generateJSON,
     onProgress,
     usageCallbacks,
+    gemini.generateJSONFromContents,
   );
 }
 
@@ -540,5 +569,6 @@ export async function reviewScenario(
     gemini.generateJSON,
     onProgress,
     usageCallbacks,
+    gemini.generateJSONFromContents,
   );
 }

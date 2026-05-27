@@ -50,6 +50,56 @@ test('generateJSON passes story controls through to Gemini', async () => {
   }
 });
 
+test('generateJSONFromContents passes multi-turn contents and max Gemini 3 thinking', async () => {
+  const gemini = await import('./gemini.js');
+  const calls: GenerateContentCall[] = [];
+  const original = gemini.ai.models.generateContent;
+  const contents = [
+    { role: 'user', parts: [{ text: 'Review this story.' }] },
+    { role: 'model', parts: [{ text: '{"needsRewrite":false}' }] },
+    { role: 'user', parts: [{ text: 'Apply the review.' }] },
+  ];
+
+  (gemini.ai.models as { generateContent: typeof original }).generateContent = (async (request) => {
+    calls.push(request as GenerateContentCall);
+    return { text: '{"ok":true}' } as never;
+  }) as typeof original;
+
+  try {
+    const result = await gemini.generateJSONFromContents<{ ok: boolean }>(
+      contents,
+      'system prompt',
+      {
+        type: 'OBJECT',
+        properties: {
+          ok: { type: 'BOOLEAN' },
+        },
+        required: ['ok'],
+      },
+      {
+        thinkingConfig: gemini.getMaxThinkingConfig('gemini-3.1-pro-preview'),
+        maxRetries: 1,
+      },
+    );
+
+    assert.deepEqual(result, { ok: true });
+    assert.equal(calls.length, 1);
+    assert.deepEqual(calls[0].contents, contents);
+    assert.deepEqual(calls[0].config.thinkingConfig, { thinkingLevel: 'HIGH' });
+  } finally {
+    (gemini.ai.models as { generateContent: typeof original }).generateContent = original;
+  }
+});
+
+test('getMaxThinkingConfig selects model-specific max thinking controls', async () => {
+  const gemini = await import('./gemini.js');
+
+  assert.deepEqual(gemini.getMaxThinkingConfig('gemini-3.1-pro-preview'), { thinkingLevel: 'HIGH' });
+  assert.deepEqual(gemini.getMaxThinkingConfig('gemini-2.5-pro'), { thinkingBudget: 32768 });
+  assert.deepEqual(gemini.getMaxThinkingConfig('gemini-2.5-flash'), { thinkingBudget: 24576 });
+  assert.deepEqual(gemini.getMaxThinkingConfig('gemini-2.5-flash-lite'), { thinkingBudget: 24576 });
+});
+
 test('generateJSON retries once without thinkingConfig when the model rejects it', async () => {
   const gemini = await import('./gemini.js');
   const calls: GenerateContentCall[] = [];

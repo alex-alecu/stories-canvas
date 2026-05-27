@@ -133,9 +133,29 @@ test('story prompt assembly includes source grounding only for faithful retellin
   assert.match(systemInstruction, /Lumina revine pe cer/);
   assert.match(systemInstruction, /Nu inlocui zmeii cu un singur zmeu prietenos/);
   assert.match(systemInstruction, /small-cast preference for original stories does not override source fidelity/i);
-  assert.match(reviewPrompt, /For faithful public-domain retellings, prompt fidelity means preserving the canonical source beats/);
-  assert.match(reviewPrompt, /fireflies, a trade, or a new helper who solves the mission/);
-  assert.match(reviewPrompt, /turning Harap-Alb from the crai's youngest son\/young prince into a small child/);
+  assert.match(reviewPrompt, /Mode: Deep editorial review before final script\./);
+  assert.match(reviewPrompt, /A simpler adaptation is acceptable; a shortcut that weakens causality is not/);
+  assert.match(reviewPrompt, /Flag missing native diacritics/);
+  assert.match(reviewPrompt, /do not demand visual perfection/);
+});
+
+test('deep scenario review prompt stays concise and targets script quality', async () => {
+  const storyPrompt = await import('./storyPrompt.js');
+  const context = storyPrompt.buildStoryPromptContext(
+    'Creează Povestea porcului, urmează originalul exact.',
+    'ro',
+    7,
+    'storybook',
+  );
+
+  const reviewPrompt = storyPrompt.buildScenarioReviewPrompt(context, makeScenario({ targetAge: 7 }));
+  const instructionBlock = reviewPrompt.split('\n\nTarget age:')[0];
+
+  assert.ok(instructionBlock.split('\n').length < 30);
+  assert.match(instructionBlock, /Flag missing native diacritics/);
+  assert.match(instructionBlock, /antagonist has clear identity, motive, obstacle behavior, and final consequence/);
+  assert.match(instructionBlock, /earned struggle, agency, consequence, or emotional payoff/);
+  assert.match(instructionBlock, /do not demand visual perfection/);
 });
 
 test('story page limit uses 10 pages by default and 20 for faithful or complex stories', async () => {
@@ -257,10 +277,10 @@ test('story generator template keeps the reusable prompt guidance', async () => 
   assert.match(storyPrompt.STORY_GENERATOR_TEMPLATE, /\{\{user_prompt\}\}/);
 });
 
-test('generateScenarioWithModel uses draft, repair, and review settings in order', async () => {
+test('generateScenarioWithModel uses draft, repair, deep review, and apply settings in order', async () => {
   const scenarioModule = await import('./scenario.js');
   const { config } = await import('../config.js');
-  const calls: Array<{ prompt: string; options?: { temperature?: number; thinkingConfig?: { thinkingBudget?: number } } }> = [];
+  const calls: Array<{ prompt: string; options?: { temperature?: number; thinkingConfig?: { thinkingBudget?: number; thinkingLevel?: string } } }> = [];
 
   const invalidDraft = makeScenario({
     targetAge: 4,
@@ -276,17 +296,18 @@ test('generateScenarioWithModel uses draft, repair, and review settings in order
     prompt: string,
     _systemInstruction: string,
     _schema: Record<string, unknown>,
-    options?: { temperature?: number; thinkingConfig?: { thinkingBudget?: number } },
+    options?: { temperature?: number; thinkingConfig?: { thinkingBudget?: number; thinkingLevel?: string } },
   ): Promise<any> => {
     calls.push({ prompt, options });
     if (calls.length === 1) return invalidDraft;
     if (calls.length === 2) return repairedScenario;
-    return {
+    if (calls.length === 3) return {
       needsRewrite: false,
       summary: 'Scenario is already strong.',
       changedPageNumbers: [],
       issues: [],
     };
+    return repairedScenario;
   };
 
   const scenario = await scenarioModule.generateScenarioWithModel(
@@ -297,17 +318,20 @@ test('generateScenarioWithModel uses draft, repair, and review settings in order
     generateJSON as never,
   );
 
-  assert.equal(calls.length, 3);
+  assert.equal(calls.length, 4);
   assert.equal(calls[0].options?.temperature, config.scenarioTemperature);
-  assert.deepEqual(calls[0].options?.thinkingConfig, { thinkingBudget: config.scenarioThinkingBudget });
+  assert.deepEqual(calls[0].options?.thinkingConfig, { thinkingLevel: 'HIGH' });
   assert.equal(calls[1].options?.temperature, config.scenarioReviewTemperature);
-  assert.deepEqual(calls[1].options?.thinkingConfig, { thinkingBudget: config.scenarioReviewThinkingBudget });
+  assert.deepEqual(calls[1].options?.thinkingConfig, { thinkingLevel: 'HIGH' });
   assert.match(calls[1].prompt, /Validation issues to fix:/);
   assert.match(calls[1].prompt, /targetAge must match the requested age of 3/);
   assert.match(calls[1].prompt, /pageNumber must be 2/);
   assert.equal(calls[2].options?.temperature, config.scenarioReviewTemperature);
-  assert.deepEqual(calls[2].options?.thinkingConfig, { thinkingBudget: config.scenarioReviewThinkingBudget });
-  assert.match(calls[2].prompt, /Mode: Review this scenario before illustration generation\./);
+  assert.deepEqual(calls[2].options?.thinkingConfig, { thinkingLevel: 'HIGH' });
+  assert.match(calls[2].prompt, /Mode: Deep editorial review before final script\./);
+  assert.equal(calls[3].options?.temperature, config.scenarioReviewTemperature);
+  assert.deepEqual(calls[3].options?.thinkingConfig, { thinkingLevel: 'HIGH' });
+  assert.match(calls[3].prompt, /Mode: Apply the deep editorial review to produce the final scenario JSON\./);
   assert.ok(scenario.pages.every(page => page.status === 'pending'));
 });
 
@@ -321,12 +345,13 @@ test('generateScenarioWithMetadataWithModel grounds Greuceanu through the source
   ): Promise<any> => {
     calls.push({ prompt, systemInstruction });
     if (calls.length === 1) return makeScenario({ targetAge: 5, pages: makeValidPages(16) });
-    return {
+    if (calls.length === 2) return {
       needsRewrite: false,
       summary: 'Scenario is already strong.',
       changedPageNumbers: [],
       issues: [],
     };
+    return makeScenario({ targetAge: 5, pages: makeValidPages(16) });
   };
 
   const result = await scenarioModule.generateScenarioWithMetadataWithModel(
@@ -343,7 +368,7 @@ test('generateScenarioWithMetadataWithModel grounds Greuceanu through the source
   assert.equal(result.retellingSource?.sourceCacheHit, true);
   assert.equal(result.pageCount, 20);
   assert.equal(result.scenario.pages.length, 16);
-  assert.equal(calls.length, 2);
+  assert.equal(calls.length, 3);
   assert.match(calls[0].systemInstruction, /Faithful Public-Domain Retelling Rules/);
   assert.match(calls[0].systemInstruction, /Faurul Pământului|Faurul Pamantului/);
   assert.match(calls[0].systemInstruction, /Nu reduce zmeii la un singur zmeu prietenos/);
@@ -360,12 +385,13 @@ test('generateScenarioWithMetadataWithModel grounds Harap-Alb with canonical ide
   ): Promise<any> => {
     calls.push({ prompt, systemInstruction });
     if (calls.length === 1) return makeScenario({ targetAge: 5, title: 'Povestea lui Harap-Alb', pages: makeValidPages(20) });
-    return {
+    if (calls.length === 2) return {
       needsRewrite: false,
       summary: 'Scenario is already strong.',
       changedPageNumbers: [],
       issues: [],
     };
+    return makeScenario({ targetAge: 5, title: 'Povestea lui Harap-Alb', pages: makeValidPages(20) });
   };
 
   const result = await scenarioModule.generateScenarioWithMetadataWithModel(
@@ -400,12 +426,14 @@ test('generateScenarioWithModel keeps editorial review internal to the writing p
       return makeScenario();
     }
 
-    return {
+    if (callCount === 2) return {
       needsRewrite: false,
       summary: 'Scenario is already strong.',
       changedPageNumbers: [],
       issues: [],
     };
+
+    return makeScenario();
   };
 
   await scenarioModule.generateScenarioWithModel(
@@ -445,12 +473,13 @@ test('generateScenarioWithModel performs one additional repair when the first re
     if (calls.length === 1) return draftScenario;
     if (calls.length === 2) return stillInvalidRepair;
     if (calls.length === 3) return validSecondRepair;
-    return {
+    if (calls.length === 4) return {
       needsRewrite: false,
       summary: 'Scenario is already strong.',
       changedPageNumbers: [],
       issues: [],
     };
+    return validSecondRepair;
   };
 
   const scenario = await scenarioModule.generateScenarioWithModel(
@@ -461,10 +490,11 @@ test('generateScenarioWithModel performs one additional repair when the first re
     generateJSON as never,
   );
 
-  assert.equal(calls.length, 4);
+  assert.equal(calls.length, 5);
   assert.match(calls[2], /Repair pass 2/);
   assert.match(calls[2], /page text is too long for age 3/);
-  assert.match(calls[3], /Mode: Review this scenario before illustration generation\./);
+  assert.match(calls[3], /Mode: Deep editorial review before final script\./);
+  assert.match(calls[4], /Mode: Apply the deep editorial review to produce the final scenario JSON\./);
   assert.ok(scenario.pages.every(page => page.status === 'pending'));
 });
 
@@ -506,8 +536,8 @@ test('generateScenarioWithModel rewrites after editorial review when the reviewe
   );
 
   assert.equal(calls.length, 3);
-  assert.match(calls[1], /Mode: Review this scenario before illustration generation\./);
-  assert.match(calls[2], /Mode: Rewrite the full scenario JSON after editorial review\./);
+  assert.match(calls[1], /Mode: Deep editorial review before final script\./);
+  assert.match(calls[2], /Mode: Apply the deep editorial review to produce the final scenario JSON\./);
   assert.match(calls[2], /prompt_fidelity/);
   assert.equal(scenario.title, 'Mia and the Brave Kite');
   assert.ok(scenario.pages.every(page => page.status === 'pending'));
@@ -574,12 +604,32 @@ test('generateScenarioWithModel applies deterministic text repair after model re
   const generateJSON = async (prompt: string): Promise<any> => {
     calls.push(prompt);
     if (calls.length <= 3) return invalidTextScenario;
-    return {
+    if (calls.length === 4) return {
       needsRewrite: false,
       summary: 'Scenario is ready after deterministic text repair.',
       changedPageNumbers: [],
       issues: [],
     };
+    return makeScenario({
+      targetAge: 5,
+      pages: makeValidPages().map((page, index) => {
+        if (index === 1) {
+          return {
+            ...page,
+            text: 'Mia saw the kite. It dipped low. Pip waved. The string slipped.',
+          };
+        }
+
+        if (index === 2) {
+          return {
+            ...page,
+            text: 'Mia carefully described every bright ribbon while Pip held the spool beside the garden gate.',
+          };
+        }
+
+        return page;
+      }),
+    });
   };
 
   const scenario = await scenarioModule.generateScenarioWithModel(
@@ -591,9 +641,10 @@ test('generateScenarioWithModel applies deterministic text repair after model re
   );
   const textRules = getScenarioTextRules(5);
 
-  assert.equal(calls.length, 4);
+  assert.equal(calls.length, 5);
   assert.match(calls[2], /Repair pass 2/);
-  assert.match(calls[3], /Mode: Review this scenario before illustration generation\./);
+  assert.match(calls[3], /Mode: Deep editorial review before final script\./);
+  assert.match(calls[4], /Mode: Apply the deep editorial review to produce the final scenario JSON\./);
   assert.equal(scenario.pages[1].text, 'Mia saw the kite. It dipped low. Pip waved. The string slipped.');
   assert.equal(scenario.pages[1].imagePrompt, 'Prompt 2');
   assert.deepEqual(scenario.pages[1].characters, ['Mia']);

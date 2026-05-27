@@ -8,6 +8,7 @@ import {
   type StoryPromptContext,
 } from './storyPrompt.js';
 import { normalizeScenarioWhitespace } from './scenarioValidation.js';
+import { getMaxThinkingConfig } from './gemini.js';
 import type { JSONGenerationOptions } from './gemini.js';
 import type { StoryUsageStatus } from '../../shared/types.js';
 
@@ -18,6 +19,8 @@ export const SCENARIO_REVIEW_ISSUE_CODES = [
   'character_consistency',
   'page_alignment',
   'ending_payoff',
+  'language_quality',
+  'antagonist_payoff',
 ] as const;
 
 export type ScenarioReviewIssueCode = typeof SCENARIO_REVIEW_ISSUE_CODES[number];
@@ -41,6 +44,39 @@ type GenerateJSONFn = <T>(
   schema: Record<string, unknown>,
   options?: JSONGenerationOptions,
 ) => Promise<T>;
+
+type GenerateJSONFromContentsFn = <T>(
+  contents: Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }>,
+  systemInstruction: string,
+  schema: Record<string, unknown>,
+  options?: JSONGenerationOptions,
+) => Promise<T>;
+
+function userContent(text: string) {
+  return { role: 'user' as const, parts: [{ text }] };
+}
+
+function modelContent(text: string) {
+  return { role: 'model' as const, parts: [{ text }] };
+}
+
+function renderContentsAsPrompt(contents: Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }>): string {
+  return contents
+    .map(content => {
+      const text = content.parts.map(part => part.text).join('\n');
+      return `${content.role.toUpperCase()}:\n${text}`;
+    })
+    .join('\n\n');
+}
+
+function resolveGenerateJSONFromContents(
+  generateJSON: GenerateJSONFn,
+  generateJSONFromContents?: GenerateJSONFromContentsFn,
+): GenerateJSONFromContentsFn {
+  return generateJSONFromContents ?? ((contents, systemInstruction, schema, options) => (
+    generateJSON(renderContentsAsPrompt(contents), systemInstruction, schema, options)
+  ));
+}
 
 interface RawScenarioReviewResult {
   needsRewrite?: unknown;
@@ -188,17 +224,18 @@ export async function reviewScenarioWithModel(
     totalTokens: number;
     usageDetails: Record<string, unknown>;
   }) => void | Promise<void>,
+  generateJSONFromContents?: GenerateJSONFromContentsFn,
 ): Promise<ScenarioReviewResult> {
   const normalizedScenario = normalizeScenarioWhitespace(scenario);
-  const rawResult = await generateJSON<RawScenarioReviewResult>(
-    buildScenarioReviewPrompt(context, toModelScenarioInput(normalizedScenario) as Scenario),
+  const prompt = buildScenarioReviewPrompt(context, toModelScenarioInput(normalizedScenario) as Scenario);
+  const generateFromContents = resolveGenerateJSONFromContents(generateJSON, generateJSONFromContents);
+  const rawResult = await generateFromContents<RawScenarioReviewResult>(
+    [userContent(prompt)],
     buildStoryReviewSystemInstruction(context),
     scenarioReviewSchema,
     {
       temperature: config.scenarioReviewTemperature,
-      thinkingConfig: {
-        thinkingBudget: config.scenarioReviewThinkingBudget,
-      },
+      thinkingConfig: getMaxThinkingConfig(),
       onUsage,
     },
   );
@@ -219,16 +256,27 @@ export async function rewriteScenarioFromReviewWithModel(
     totalTokens: number;
     usageDetails: Record<string, unknown>;
   }) => void | Promise<void>,
+  generateJSONFromContents?: GenerateJSONFromContentsFn,
 ): Promise<Scenario> {
   const normalizedScenario = normalizeScenarioWhitespace(scenario);
+  const reviewPrompt = buildScenarioReviewPrompt(
+    context,
+    toModelScenarioInput(normalizedScenario) as Scenario,
+  );
+  const rewritePrompt = buildScenarioRewritePrompt(
+    context,
+    toModelScenarioInput(normalizedScenario) as Scenario,
+    review.summary,
+    review.issues,
+  );
+  const generateFromContents = resolveGenerateJSONFromContents(generateJSON, generateJSONFromContents);
 
-  return generateJSON<Scenario>(
-    buildScenarioRewritePrompt(
-      context,
-      toModelScenarioInput(normalizedScenario) as Scenario,
-      review.summary,
-      review.issues,
-    ),
+  return generateFromContents<Scenario>(
+    [
+      userContent(reviewPrompt),
+      modelContent(JSON.stringify(review, null, 2)),
+      userContent(rewritePrompt),
+    ],
     buildStorySystemInstruction(context),
     {
       type: 'OBJECT',
@@ -277,9 +325,7 @@ export async function rewriteScenarioFromReviewWithModel(
     },
     {
       temperature: config.scenarioReviewTemperature,
-      thinkingConfig: {
-        thinkingBudget: config.scenarioReviewThinkingBudget,
-      },
+      thinkingConfig: getMaxThinkingConfig(),
       onUsage,
     },
   );

@@ -2,6 +2,8 @@ import {
   GoogleGenAI,
   HarmBlockThreshold,
   HarmCategory,
+  ThinkingLevel,
+  type ContentListUnion,
   type SafetySetting,
   type ThinkingConfig,
 } from '@google/genai';
@@ -35,6 +37,27 @@ export interface JSONGenerationOptions {
     totalTokens: number;
     usageDetails: Record<string, unknown>;
   }) => void | Promise<void>;
+}
+
+const GEMINI_25_PRO_THINKING_BUDGET = 32768;
+const GEMINI_25_FLASH_THINKING_BUDGET = 24576;
+
+export function getMaxThinkingConfig(model = config.scenarioModel): ThinkingConfig {
+  const normalizedModel = model.toLowerCase();
+
+  if (/\bgemini-3(?:\.|\b|-)/.test(normalizedModel)) {
+    return { thinkingLevel: ThinkingLevel.HIGH };
+  }
+
+  if (/\bgemini-2\.5(?:\.|\b|-).*pro/.test(normalizedModel)) {
+    return { thinkingBudget: GEMINI_25_PRO_THINKING_BUDGET };
+  }
+
+  if (/\bgemini-2\.5(?:\.|\b|-).*(?:flash|lite)/.test(normalizedModel)) {
+    return { thinkingBudget: GEMINI_25_FLASH_THINKING_BUDGET };
+  }
+
+  return { thinkingLevel: ThinkingLevel.HIGH };
 }
 
 interface ImageGenerationResponse {
@@ -258,8 +281,8 @@ function describeImageFailure(response: ImageGenerationResponse, model: string):
   return `${baseMessage}: ${details.join('; ')}`;
 }
 
-export async function generateJSON<T>(
-  prompt: string,
+export async function generateJSONFromContents<T>(
+  contents: ContentListUnion,
   systemInstruction: string,
   schema: Record<string, unknown>,
   options: JSONGenerationOptions = {},
@@ -275,7 +298,7 @@ export async function generateJSON<T>(
     try {
       const response = await ai.models.generateContent({
         model,
-        contents: prompt,
+        contents,
         config: {
           systemInstruction,
           temperature: options.temperature,
@@ -327,6 +350,20 @@ export async function generateJSON<T>(
   }
 
   throw new Error(`Failed after ${maxRetries} attempts: ${lastError?.message}`);
+}
+
+export async function generateJSON<T>(
+  prompt: string,
+  systemInstruction: string,
+  schema: Record<string, unknown>,
+  options: JSONGenerationOptions = {},
+): Promise<T> {
+  return generateJSONFromContents<T>(
+    prompt,
+    systemInstruction,
+    schema,
+    options,
+  );
 }
 
 export async function generateImage(

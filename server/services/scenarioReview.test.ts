@@ -122,6 +122,77 @@ test('reviewScenarioWithModel preserves prompt-fidelity findings from the review
   ]);
 });
 
+test('reviewScenarioWithModel preserves language and antagonist payoff issue codes', async () => {
+  const { buildStoryPromptContext } = await import('./storyPrompt.js');
+  const { reviewScenarioWithModel } = await import('./scenarioReview.js');
+
+  const context = buildStoryPromptContext(
+    'Creează Povestea porcului cu diacritice și final câștigat.',
+    'ro',
+    7,
+    'storybook',
+  );
+
+  const result = await reviewScenarioWithModel(
+    context,
+    makeScenario(),
+    async () => ({
+      needsRewrite: true,
+      summary: 'The script needs diacritics and a stronger antagonist payoff.',
+      changedPageNumbers: [5, 6],
+      issues: [
+        {
+          code: 'language_quality',
+          summary: 'Names and Romanian text miss native diacritics.',
+          pageNumbers: [1, 2],
+        },
+        {
+          code: 'antagonist_payoff',
+          summary: 'The antagonist exits without motive, confrontation, or consequence.',
+          pageNumbers: [5, 6],
+        },
+      ],
+    }) as never,
+  );
+
+  assert.deepEqual(result.issues.map(issue => issue.code), ['language_quality', 'antagonist_payoff']);
+});
+
+test('reviewScenarioWithModel sends deep review as user content when available', async () => {
+  const { buildStoryPromptContext } = await import('./storyPrompt.js');
+  const { reviewScenarioWithModel } = await import('./scenarioReview.js');
+
+  const context = buildStoryPromptContext(
+    'Tell a warm story about Mia and her kite.',
+    'en',
+    3,
+    'storybook',
+  );
+  let capturedContents: Array<{ role: string; parts: Array<{ text: string }> }> = [];
+
+  await reviewScenarioWithModel(
+    context,
+    makeScenario(),
+    async () => {
+      throw new Error('single-prompt helper should not be used');
+    },
+    undefined,
+    async <T>(_contents: Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }>) => {
+      capturedContents = _contents;
+      return {
+        needsRewrite: false,
+        summary: 'Scenario is strong.',
+        changedPageNumbers: [],
+        issues: [],
+      } as T;
+    },
+  );
+
+  assert.equal(capturedContents.length, 1);
+  assert.equal(capturedContents[0].role, 'user');
+  assert.match(capturedContents[0].parts[0].text, /Mode: Deep editorial review before final script\./);
+});
+
 test('rewriteScenarioFromReviewWithModel asks for a conservative full rewrite', async () => {
   const { buildStoryPromptContext } = await import('./storyPrompt.js');
   const { rewriteScenarioFromReviewWithModel } = await import('./scenarioReview.js');
@@ -157,6 +228,7 @@ test('rewriteScenarioFromReviewWithModel asks for a conservative full rewrite', 
   );
 
   assert.equal(rewrittenScenario.title, 'Mia and the Kite');
+  assert.match(capturedPrompt, /Mode: Apply the deep editorial review to produce the final scenario JSON\./);
   assert.match(capturedPrompt, /Preserve page count, page numbers, and the main character set unless a change is truly required/);
   assert.match(capturedPrompt, /If you rewrite any page text, you must also update that page's imagePrompt and characters array so they stay aligned/);
   assert.match(capturedPrompt, /prompt_fidelity/);

@@ -61,8 +61,6 @@ export const config = {
   authCacheTtlMs: integerEnv('AUTH_CACHE_TTL_MS', 60_000),
   scenarioTemperature: numberEnv('SCENARIO_TEMPERATURE', 0.6, Number.parseFloat),
   scenarioReviewTemperature: numberEnv('SCENARIO_REVIEW_TEMPERATURE', 0.2, Number.parseFloat),
-  scenarioThinkingBudget: numberEnv('SCENARIO_THINKING_BUDGET', 1024, raw => Number.parseInt(raw, 10)),
-  scenarioReviewThinkingBudget: numberEnv('SCENARIO_REVIEW_THINKING_BUDGET', 1024, raw => Number.parseInt(raw, 10)),
   sourceAnalysisModel: process.env.SOURCE_ANALYSIS_MODEL || 'gemini-3.1-flash-lite',
   pageTextReviewModel: process.env.PAGE_TEXT_REVIEW_MODEL || 'gemini-3.1-flash-lite',
 
