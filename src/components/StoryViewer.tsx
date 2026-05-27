@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo, type CSSProperties, type SyntheticEvent } from 'react';
 import { Swiper, SwiperSlide } from 'swiper/react';
 import { Navigation, Keyboard } from 'swiper/modules';
 import type { Swiper as SwiperType } from 'swiper';
@@ -6,7 +6,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import type { Scenario, GenerationProgress, StoryReaction, StoryMode, StoryStatus } from '../types';
 import { useLanguage } from '../i18n/LanguageContext';
 import { useFontSize, type FontSize } from '../contexts/FontSizeContext';
-import { readStoredBoolean, readStoredEnum, readStoredNumber, writeStorageItem } from '../lib/browserStorage';
+import { readStoredBoolean, readStoredNumber, writeStorageItem } from '../lib/browserStorage';
 import { formatStoryStatusMessage } from '../i18n/storyStatusCopy';
 import StoryToolsModal from './StoryToolsModal';
 import 'swiper/css';
@@ -14,10 +14,15 @@ import 'swiper/css/navigation';
 
 const AUTOPLAY_STORAGE_KEY = 'stories-canvas:auto-play';
 const PLAYBACK_RATE_KEY = 'stories-canvas:playback-rate';
-const IMAGE_FIT_MODE_KEY = 'stories-canvas:image-fit-mode';
 const PLAYBACK_RATES = [0.8, 0.9, 1, 1.1] as const;
-const IMAGE_FIT_MODES = ['cover', 'fit', 'contain'] as const;
-type ImageFitMode = typeof IMAGE_FIT_MODES[number];
+const DEFAULT_IMAGE_ZOOM = 1;
+const DESKTOP_ZOOM_QUERY = '(min-width: 768px)';
+const WHEEL_ZOOM_SENSITIVITY = 0.0012;
+
+type ImageSize = {
+  width: number;
+  height: number;
+};
 
 function getStoredAutoPlay(): boolean {
   return readStoredBoolean(AUTOPLAY_STORAGE_KEY);
@@ -29,10 +34,6 @@ function getStoredPlaybackRate(): number {
     1,
     value => (PLAYBACK_RATES as readonly number[]).includes(value),
   );
-}
-
-function getStoredImageFitMode(): ImageFitMode {
-  return readStoredEnum(IMAGE_FIT_MODE_KEY, IMAGE_FIT_MODES) ?? 'cover';
 }
 
 interface StoryViewerProps {
@@ -66,6 +67,33 @@ function formatTemplate(template: string, values: Record<string, number | string
   return template.replace(/\{(\w+)\}/g, (_, key: string) => String(values[key] ?? `{${key}}`));
 }
 
+function clampZoom(value: number): number {
+  return Math.min(1, Math.max(0, value));
+}
+
+function getTouchDistance(touches: TouchList): number {
+  const first = touches[0];
+  const second = touches[1];
+  return Math.hypot(first.clientX - second.clientX, first.clientY - second.clientY);
+}
+
+function getBoundedImageScale(zoom: number, maxScale: number): number {
+  const boundedMaxScale = Math.max(1, maxScale);
+  return 1 + clampZoom(zoom) * (boundedMaxScale - 1);
+}
+
+function getZoomFromImageScale(scale: number, maxScale: number): number {
+  const boundedMaxScale = Math.max(1, maxScale);
+  if (boundedMaxScale === 1) return 0;
+  return clampZoom((scale - 1) / (boundedMaxScale - 1));
+}
+
+function normalizeWheelDelta(event: WheelEvent): number {
+  if (event.deltaMode === WheelEvent.DOM_DELTA_LINE) return event.deltaY * 16;
+  if (event.deltaMode === WheelEvent.DOM_DELTA_PAGE) return event.deltaY * window.innerHeight;
+  return event.deltaY;
+}
+
 export default function StoryViewer({
   storyId,
   scenario,
@@ -88,6 +116,14 @@ export default function StoryViewer({
   const autoOpenedToolsRef = useRef(false);
   const swiperRef = useRef<SwiperType | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const pinchActiveRef = useRef(false);
+  const pinchStartDistanceRef = useRef(0);
+  const pinchStartScaleRef = useRef(1);
+  const activeImageMaxScaleRef = useRef(1);
+  const [imageZoom, setImageZoom] = useState(DEFAULT_IMAGE_ZOOM);
+  const imageZoomRef = useRef(DEFAULT_IMAGE_ZOOM);
+  const [imageSizes, setImageSizes] = useState<Record<number, ImageSize>>({});
+  const [viewportSize, setViewportSize] = useState<ImageSize>({ width: 0, height: 0 });
 
   // Exit animation state — swipe/navigate past last page returns to story list
   const [isExiting, setIsExiting] = useState(false);
@@ -110,7 +146,40 @@ export default function StoryViewer({
 
   useEffect(() => {
     autoOpenedToolsRef.current = false;
+    setImageZoom(DEFAULT_IMAGE_ZOOM);
+    setImageSizes({});
   }, [storyId]);
+
+  useEffect(() => {
+    imageZoomRef.current = imageZoom;
+  }, [imageZoom]);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return undefined;
+
+    const updateViewportSize = () => {
+      const rect = container.getBoundingClientRect();
+      setViewportSize(prev => {
+        const width = Math.round(rect.width);
+        const height = Math.round(rect.height);
+        if (prev.width === width && prev.height === height) return prev;
+        return { width, height };
+      });
+    };
+
+    updateViewportSize();
+    const resizeObserver = typeof ResizeObserver !== 'undefined'
+      ? new ResizeObserver(updateViewportSize)
+      : null;
+    resizeObserver?.observe(container);
+    window.addEventListener('resize', updateViewportSize);
+
+    return () => {
+      resizeObserver?.disconnect();
+      window.removeEventListener('resize', updateViewportSize);
+    };
+  }, []);
 
   useEffect(() => {
     if (hasErrors && canManageStory && !autoOpenedToolsRef.current) {
@@ -151,29 +220,50 @@ export default function StoryViewer({
     });
   }, []);
 
-  const [imageFitMode, setImageFitMode] = useState(getStoredImageFitMode);
-  const cycleImageFitMode = useCallback(() => {
-    setImageFitMode(prev => {
-      const idx = IMAGE_FIT_MODES.indexOf(prev);
-      const next = IMAGE_FIT_MODES[(idx + 1) % IMAGE_FIT_MODES.length];
-      writeStorageItem(IMAGE_FIT_MODE_KEY, next);
-      return next;
+  const handleStoryImageLoad = useCallback((pageNumber: number, event: SyntheticEvent<HTMLImageElement>) => {
+    const image = event.currentTarget;
+    if (!image.naturalWidth || !image.naturalHeight) return;
+
+    setImageSizes(prev => {
+      const existing = prev[pageNumber];
+      if (existing?.width === image.naturalWidth && existing.height === image.naturalHeight) {
+        return prev;
+      }
+      return {
+        ...prev,
+        [pageNumber]: {
+          width: image.naturalWidth,
+          height: image.naturalHeight,
+        },
+      };
     });
   }, []);
-  const imageFitModeLabel = useMemo(() => {
-    if (imageFitMode === 'cover') return t.imageFitCover;
-    if (imageFitMode === 'fit') return t.imageFitFit;
-    return t.imageFitContain;
-  }, [imageFitMode, t]);
-  const storyImageClassName = imageFitMode === 'cover'
-    ? 'h-full w-full object-cover'
-    : 'h-full w-full object-contain';
-  const storyImageStyle = imageFitMode === 'fit'
-    ? { transform: 'scale(1.15)' }
-    : undefined;
-  const previewImageStyle = imageFitMode === 'cover'
-    ? { transform: 'scale(1.05)' }
-    : storyImageStyle;
+
+  const getImageMaxScale = useCallback((pageNumber: number): number => {
+    const imageSize = imageSizes[pageNumber];
+    if (!imageSize || viewportSize.width <= 0 || viewportSize.height <= 0) return 1;
+
+    const containScale = Math.min(
+      viewportSize.width / imageSize.width,
+      viewportSize.height / imageSize.height,
+    );
+    const coverScale = Math.max(
+      viewportSize.width / imageSize.width,
+      viewportSize.height / imageSize.height,
+    );
+
+    if (containScale <= 0) return 1;
+    return Math.max(1, coverScale / containScale);
+  }, [imageSizes, viewportSize.height, viewportSize.width]);
+
+  const getStoryImageStyle = useCallback((pageNumber: number): CSSProperties => {
+    const scale = getBoundedImageScale(imageZoom, getImageMaxScale(pageNumber));
+    return {
+      transform: `scale(${scale.toFixed(4)})`,
+      transformOrigin: 'center center',
+      willChange: 'transform',
+    };
+  }, [getImageMaxScale, imageZoom]);
 
   // Check if any page in the story has audio
   const hasAudio = useMemo(
@@ -246,17 +336,23 @@ export default function StoryViewer({
     const container = containerRef.current;
     if (!container || !isLastSlide) return;
 
-    let startX = 0;
+    let startX: number | null = null;
     let startY = 0;
 
     const onTouchStart = (e: TouchEvent) => {
+      if (e.touches.length !== 1 || pinchActiveRef.current) {
+        startX = null;
+        return;
+      }
       startX = e.touches[0].clientX;
       startY = e.touches[0].clientY;
     };
 
     const onTouchEnd = (e: TouchEvent) => {
+      if (startX === null || pinchActiveRef.current || e.changedTouches.length !== 1) return;
       const diffX = startX - e.changedTouches[0].clientX;
       const diffY = Math.abs(startY - e.changedTouches[0].clientY);
+      startX = null;
       // Horizontal swipe left (forward) by >80px and more horizontal than vertical
       if (diffX > 80 && diffX > diffY) {
         handleExitAnimation();
@@ -370,6 +466,111 @@ export default function StoryViewer({
   const currentPageAudioUrl = currentPage?.audioUrl;
   const currentPageNumber = currentPage?.pageNumber;
   const showAudioControls = hasAudio && !isPublicPreviewGateSlide;
+  const activeImageMaxScale = currentPageNumber ? getImageMaxScale(currentPageNumber) : 1;
+
+  useEffect(() => {
+    activeImageMaxScaleRef.current = activeImageMaxScale;
+  }, [activeImageMaxScale]);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return undefined;
+    const touchStartOptions: AddEventListenerOptions = { passive: true, capture: true };
+    const touchMoveOptions: AddEventListenerOptions = { passive: false, capture: true };
+    const touchEndOptions: AddEventListenerOptions = { passive: true, capture: true };
+    const gestureOptions: AddEventListenerOptions = { passive: false };
+
+    const setSwiperTouchMove = (enabled: boolean) => {
+      if (swiperRef.current) {
+        swiperRef.current.allowTouchMove = enabled;
+      }
+    };
+
+    const releasePinch = () => {
+      if (!pinchActiveRef.current) return;
+      pinchActiveRef.current = false;
+      pinchStartDistanceRef.current = 0;
+      setSwiperTouchMove(true);
+    };
+
+    const onTouchStart = (event: TouchEvent) => {
+      if (isPublicPreviewGateSlide || event.touches.length !== 2) return;
+
+      pinchActiveRef.current = true;
+      pinchStartDistanceRef.current = getTouchDistance(event.touches);
+      pinchStartScaleRef.current = getBoundedImageScale(
+        imageZoomRef.current,
+        activeImageMaxScaleRef.current,
+      );
+      setSwiperTouchMove(false);
+    };
+
+    const onTouchMove = (event: TouchEvent) => {
+      if (!pinchActiveRef.current || event.touches.length !== 2) return;
+
+      event.preventDefault();
+      const startDistance = pinchStartDistanceRef.current;
+      const maxScale = activeImageMaxScaleRef.current;
+      if (startDistance <= 0 || maxScale <= 1) return;
+
+      const scaleDelta = getTouchDistance(event.touches) / startDistance;
+      const nextScale = pinchStartScaleRef.current * scaleDelta;
+      setImageZoom(getZoomFromImageScale(nextScale, maxScale));
+    };
+
+    const onTouchEnd = (event: TouchEvent) => {
+      if (event.touches.length < 2) {
+        releasePinch();
+      }
+    };
+
+    const preventNativeGesture = (event: Event) => {
+      if (!isPublicPreviewGateSlide) {
+        event.preventDefault();
+      }
+    };
+
+    container.addEventListener('touchstart', onTouchStart, touchStartOptions);
+    container.addEventListener('touchmove', onTouchMove, touchMoveOptions);
+    container.addEventListener('touchend', onTouchEnd, touchEndOptions);
+    container.addEventListener('touchcancel', onTouchEnd, touchEndOptions);
+    container.addEventListener('gesturestart', preventNativeGesture, gestureOptions);
+    container.addEventListener('gesturechange', preventNativeGesture, gestureOptions);
+    container.addEventListener('gestureend', preventNativeGesture, gestureOptions);
+
+    return () => {
+      releasePinch();
+      container.removeEventListener('touchstart', onTouchStart, touchStartOptions);
+      container.removeEventListener('touchmove', onTouchMove, touchMoveOptions);
+      container.removeEventListener('touchend', onTouchEnd, touchEndOptions);
+      container.removeEventListener('touchcancel', onTouchEnd, touchEndOptions);
+      container.removeEventListener('gesturestart', preventNativeGesture);
+      container.removeEventListener('gesturechange', preventNativeGesture);
+      container.removeEventListener('gestureend', preventNativeGesture);
+    };
+  }, [isPublicPreviewGateSlide]);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return undefined;
+
+    const onWheel = (event: WheelEvent) => {
+      if (
+        isPublicPreviewGateSlide ||
+        activeImageMaxScaleRef.current <= 1 ||
+        !window.matchMedia(DESKTOP_ZOOM_QUERY).matches
+      ) {
+        return;
+      }
+
+      event.preventDefault();
+      const delta = normalizeWheelDelta(event);
+      setImageZoom(prev => clampZoom(prev - delta * WHEEL_ZOOM_SENSITIVITY));
+    };
+
+    container.addEventListener('wheel', onWheel, { passive: false });
+    return () => container.removeEventListener('wheel', onWheel);
+  }, [isPublicPreviewGateSlide]);
 
   // Global play/pause handler for autoplay mode
   const handleGlobalPlayPause = useCallback(() => {
@@ -407,10 +608,8 @@ export default function StoryViewer({
       </Link>
 
       {/* Reading controls */}
-      <div className="absolute top-4 left-16 z-50 flex max-w-[calc(100vw-8rem)] items-center gap-2 overflow-x-auto pr-1 [scrollbar-width:none] story-top-controls">
-        {/* Audio controls — only shown when the story has audio */}
-        {showAudioControls && (
-          <>
+      {showAudioControls && (
+        <div className="absolute top-4 left-16 z-50 flex max-w-[calc(100vw-8rem)] items-center gap-2 overflow-x-auto pr-1 [scrollbar-width:none] story-top-controls">
           {/* Auto-play toggle */}
           <button
             onClick={toggleAutoPlay}
@@ -463,17 +662,8 @@ export default function StoryViewer({
           >
             {playbackRate}x
           </button>
-          </>
-        )}
-
-        <button
-          onClick={cycleImageFitMode}
-          className="bg-black/40 hover:bg-black/60 backdrop-blur-sm text-white h-10 shrink-0 px-3 rounded-full flex items-center justify-center transition-colors text-sm font-medium"
-          aria-label={`${t.imageFitMode}: ${imageFitModeLabel}`}
-        >
-          {imageFitModeLabel}
-        </button>
-      </div>
+        </div>
+      )}
 
       {/* Story tools button */}
       <div className="absolute top-4 right-4 z-50 flex items-center gap-2">
@@ -532,8 +722,10 @@ export default function StoryViewer({
                 <img
                   src={page.imageUrl || `/api/stories/${storyId}/images/page-${String(page.pageNumber).padStart(2, '0')}.png`}
                   alt={`Page ${page.pageNumber}`}
-                  className={storyImageClassName}
-                  style={storyImageStyle}
+                  className="h-full w-full select-none object-contain"
+                  draggable={false}
+                  onLoad={(event) => handleStoryImageLoad(page.pageNumber, event)}
+                  style={getStoryImageStyle(page.pageNumber)}
                 />
               ) : (
                 <div className="w-full h-full bg-gradient-to-br from-primary-900/60 to-surface-dark-accent flex flex-col items-center justify-center gap-4">
@@ -574,8 +766,10 @@ export default function StoryViewer({
                   src={previewLastPage.imageUrl || `/api/stories/${storyId}/images/page-${String(previewLastPage.pageNumber).padStart(2, '0')}.png`}
                   alt=""
                   aria-hidden="true"
-                  className={`absolute inset-0 opacity-40 blur-sm ${storyImageClassName}`}
-                  style={previewImageStyle}
+                  className="absolute inset-0 h-full w-full select-none object-cover opacity-40 blur-sm"
+                  draggable={false}
+                  onLoad={(event) => handleStoryImageLoad(previewLastPage.pageNumber, event)}
+                  style={{ transform: 'scale(1.05)', transformOrigin: 'center center' }}
                 />
               )}
               <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/80 to-black" />
