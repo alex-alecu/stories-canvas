@@ -25,7 +25,7 @@ type ImageSize = {
 };
 
 function getStoredAutoPlay(): boolean {
-  return readStoredBoolean(AUTOPLAY_STORAGE_KEY);
+  return readStoredBoolean(AUTOPLAY_STORAGE_KEY, true);
 }
 
 function getStoredPlaybackRate(): number {
