@@ -78,6 +78,7 @@ test('checkout forwards compact consent and attribution metadata to Stripe sessi
 
   let checkoutParams: Record<string, any> | null = null;
   let pendingPurchaseParams: Record<string, any> | null = null;
+  let slackAlert: Record<string, unknown> | null = null;
 
   t.mock.method(harness.billingModule.billingStripeOps, 'isStripeConfigured', () => true);
   t.mock.method(harness.billingModule.billingStorageOps, 'getStoryPackOffer', async () => offer);
@@ -98,6 +99,9 @@ test('checkout forwards compact consent and attribution metadata to Stripe sessi
   });
   t.mock.method(harness.billingModule.billingStorageOps, 'createPendingStoryPackPurchase', async (params) => {
     pendingPurchaseParams = params;
+  });
+  t.mock.method(harness.billingModule.billingSlackOps, 'sendPaymentAlert', async (params) => {
+    slackAlert = params as Record<string, unknown>;
   });
 
   const response = await fetch(`${harness.baseUrl}/api/billing/checkout`, {
@@ -165,6 +169,17 @@ test('checkout forwards compact consent and attribution metadata to Stripe sessi
       offerSlug: 'pack_5',
       marketingEventId: 'checkout-event-123',
     },
+  });
+  assert.deepEqual(slackAlert, {
+    type: 'checkout_created',
+    userId: 'user-checkout',
+    email: 'buyer@example.com',
+    offerSlug: 'pack_5',
+    amountMinor: 3900,
+    currency: 'ron',
+    credits: 5,
+    stripeCheckoutSessionId: 'cs_checkout_123',
+    stripeCustomerId: 'cus_checkout_123',
   });
 });
 
@@ -255,6 +270,7 @@ test('billing webhook does not block fulfillment when marketing conversions fail
   let processed = false;
   let conversionParams: Record<string, unknown> | null = null;
   let conversionErrorLogs = 0;
+  let slackAlert: Record<string, unknown> | null = null;
 
   t.mock.method(harness.billingModule.billingStripeOps, 'verifyStripeWebhookEvent', () => event as any);
   t.mock.method(harness.billingModule.billingStorageOps, 'createWebhookEvent', async () => {});
@@ -270,6 +286,9 @@ test('billing webhook does not block fulfillment when marketing conversions fail
   t.mock.method(harness.billingModule.billingMarketingOps, 'sendPurchaseConversions', async (params) => {
     conversionParams = params;
     throw new Error('Marketing API unavailable');
+  });
+  t.mock.method(harness.billingModule.billingSlackOps, 'sendPaymentAlert', async (params) => {
+    slackAlert = params as Record<string, unknown>;
   });
   t.mock.method(console, 'error', (message) => {
     if (String(message).includes('Failed to send marketing purchase conversions')) {
@@ -297,6 +316,20 @@ test('billing webhook does not block fulfillment when marketing conversions fail
   assert.equal(conversionParams.stripeCheckoutSessionId, 'cs_paid_marketing_failure');
   assert.equal(conversionParams.email, 'buyer@example.com');
   assert.equal(conversionErrorLogs, 1);
+  assert.deepEqual(slackAlert, {
+    type: 'payment_fulfilled',
+    userId: 'user-3',
+    email: 'buyer@example.com',
+    offerSlug: 'pack_20',
+    amountMinor: 11900,
+    currency: 'ron',
+    credits: 20,
+    availableCredits: 20,
+    stripeCheckoutSessionId: 'cs_paid_marketing_failure',
+    stripePaymentIntentId: 'pi_paid_123',
+    stripeCustomerId: 'cus_paid_123',
+    purchaseId: 'purchase_3',
+  });
 });
 
 test('billing webhook fulfills async payment success after delayed checkout', async (t) => {
@@ -324,6 +357,7 @@ test('billing webhook fulfills async payment success after delayed checkout', as
   };
 
   let fulfillmentParams: Record<string, unknown> | null = null;
+  let slackAlert: Record<string, unknown> | null = null;
 
   t.mock.method(harness.billingModule.billingStripeOps, 'verifyStripeWebhookEvent', () => event as any);
   t.mock.method(harness.billingModule.billingStorageOps, 'createWebhookEvent', async () => {});
@@ -335,6 +369,9 @@ test('billing webhook fulfills async payment success after delayed checkout', as
       already_fulfilled: false,
       available_credits: 12,
     };
+  });
+  t.mock.method(harness.billingModule.billingSlackOps, 'sendPaymentAlert', async (params) => {
+    slackAlert = params as Record<string, unknown>;
   });
   t.mock.method(harness.billingModule.billingStorageOps, 'markWebhookEventProcessed', async () => {});
   t.mock.method(harness.billingModule.billingStorageOps, 'markWebhookEventFailed', async () => {});
@@ -362,6 +399,72 @@ test('billing webhook fulfills async payment success after delayed checkout', as
       offerSlug: 'pack_12',
     },
   });
+  assert.equal(slackAlert?.type, 'payment_fulfilled');
+  assert.equal(slackAlert?.userId, 'user-2');
+  assert.equal(slackAlert?.offerSlug, 'pack_12');
+  assert.equal(slackAlert?.credits, 12);
+});
+
+test('billing webhook does not send duplicate payment Slack alert for already fulfilled sessions', async (t) => {
+  const harness = await createBillingHarness();
+  t.after(async () => {
+    await harness.close();
+  });
+
+  const event = {
+    id: 'evt_already_fulfilled',
+    type: 'checkout.session.completed',
+    data: {
+      object: {
+        id: 'cs_already_fulfilled',
+        payment_status: 'paid',
+        metadata: {
+          userId: 'user-duplicate',
+          offerSlug: 'pack_5',
+        },
+        payment_intent: 'pi_duplicate',
+        customer: 'cus_duplicate',
+        customer_details: {
+          email: 'duplicate@example.com',
+        },
+        amount_total: 3900,
+        currency: 'ron',
+      },
+    },
+  };
+
+  let slackAlertSent = false;
+  let conversionSent = false;
+
+  t.mock.method(harness.billingModule.billingStripeOps, 'verifyStripeWebhookEvent', () => event as any);
+  t.mock.method(harness.billingModule.billingStorageOps, 'createWebhookEvent', async () => {});
+  t.mock.method(harness.billingModule.billingStorageOps, 'fulfillStoryPackPurchase', async () => ({
+    purchase_id: 'purchase_duplicate',
+    ledger_id: 'ledger_duplicate',
+    already_fulfilled: true,
+    available_credits: 5,
+  }));
+  t.mock.method(harness.billingModule.billingSlackOps, 'sendPaymentAlert', async () => {
+    slackAlertSent = true;
+  });
+  t.mock.method(harness.billingModule.billingMarketingOps, 'sendPurchaseConversions', async () => {
+    conversionSent = true;
+  });
+  t.mock.method(harness.billingModule.billingStorageOps, 'markWebhookEventProcessed', async () => {});
+  t.mock.method(harness.billingModule.billingStorageOps, 'markWebhookEventFailed', async () => {});
+
+  const response = await fetch(`${harness.baseUrl}/api/billing/webhook`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Stripe-Signature': 'test-signature',
+    },
+    body: JSON.stringify({ id: event.id }),
+  });
+
+  assert.equal(response.status, 200);
+  assert.equal(slackAlertSent, false);
+  assert.equal(conversionSent, false);
 });
 
 test('billing webhook marks async payment failure without fulfillment', async (t) => {

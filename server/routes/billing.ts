@@ -22,6 +22,7 @@ import {
   verifyStripeWebhookEvent,
 } from '../services/stripe.js';
 import { sendPurchaseConversions } from '../services/marketingConversions.js';
+import { sendPaymentAlert, type PaymentAlertParams } from '../services/slackAlerts.js';
 
 const router = Router();
 export const billingWebhookRouter = Router();
@@ -59,6 +60,16 @@ export const billingStripeOps = {
 export const billingMarketingOps = {
   sendPurchaseConversions,
 };
+
+export const billingSlackOps = {
+  sendPaymentAlert,
+};
+
+function notifyPayment(params: PaymentAlertParams): void {
+  void billingSlackOps.sendPaymentAlert(params).catch(error => {
+    console.error('Failed to send Slack payment alert:', error);
+  });
+}
 
 const MARKETING_ATTRIBUTION_KEYS = [
   'utmSource',
@@ -136,6 +147,17 @@ function parseCheckoutMarketingPayload(req: Request): BillingCheckoutMarketingPa
 
 function getSessionEmail(session: Stripe.Checkout.Session): string | undefined {
   return session.customer_details?.email ?? undefined;
+}
+
+function getOfferCredits(offerSlug: 'pack_5' | 'pack_12' | 'pack_20'): number {
+  switch (offerSlug) {
+    case 'pack_5':
+      return 5;
+    case 'pack_12':
+      return 12;
+    case 'pack_20':
+      return 20;
+  }
 }
 
 function getCheckoutPurchaseParams(session: Stripe.Checkout.Session): {
@@ -258,6 +280,18 @@ router.post('/checkout', requireAuth, async (req: Request, res: Response) => {
       metadata: session.metadata,
     });
 
+    notifyPayment({
+      type: 'checkout_created',
+      userId: req.authUser.id,
+      email: req.authUser.email,
+      offerSlug,
+      amountMinor: session.amountMinor,
+      currency: session.currency,
+      credits: offer.credits,
+      stripeCheckoutSessionId: session.checkoutSessionId,
+      stripeCustomerId: session.stripeCustomerId,
+    });
+
     res.json({
       checkoutUrl: session.checkoutUrl,
       checkoutSessionId: session.checkoutSessionId,
@@ -292,6 +326,21 @@ billingWebhookRouter.post('/', async (req: Request, res: Response) => {
         const fulfillment = await billingStorageOps.fulfillStoryPackPurchase(purchaseParams);
 
         if (!fulfillment.already_fulfilled) {
+          notifyPayment({
+            type: 'payment_fulfilled',
+            userId: purchaseParams.userId,
+            email: getSessionEmail(session),
+            offerSlug: purchaseParams.offerSlug,
+            amountMinor: purchaseParams.amountMinor,
+            currency: purchaseParams.currency,
+            credits: getOfferCredits(purchaseParams.offerSlug),
+            availableCredits: fulfillment.available_credits,
+            stripeCheckoutSessionId: purchaseParams.stripeCheckoutSessionId,
+            stripePaymentIntentId: purchaseParams.stripePaymentIntentId,
+            stripeCustomerId: purchaseParams.stripeCustomerId,
+            purchaseId: fulfillment.purchase_id,
+          });
+
           try {
             await billingMarketingOps.sendPurchaseConversions({
               ...purchaseParams,

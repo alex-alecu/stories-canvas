@@ -65,6 +65,7 @@ import {
 } from '../utils/requestLimits.js';
 import { buildStoryGenerationInputs, recordStoryUsage, type StoryUsageStorage } from '../services/storyUsage.js';
 import { getScenarioTextRules, OVERLAY_SAFE_MAX_CHARS } from '../services/scenarioValidation.js';
+import { sendStoryBlockAlert, type StoryBlockAlertParams } from '../services/slackAlerts.js';
 
 const router = Router();
 const SSE_CLOSE_DELAY_MS = 2_000;
@@ -114,6 +115,44 @@ export const storageOps = {
   updateStoryVoice: async (storyId: string, voice: VoiceKey) => (
     config.useSupabase ? sbStorage.updateStoryVoice(storyId, voice) : fsStorage.updateStoryVoice(storyId, voice)
   ),
+  createStory: async (
+    storyId: string,
+    prompt: string,
+    status: StoryStatus,
+    userId: string | undefined,
+    language: string | undefined,
+    voice: VoiceKey | undefined,
+    artStyle: ArtStyleKey | undefined,
+    storyMode: StoryMode,
+    creditCost: number,
+    generationInputs: StoryGenerationInputs,
+  ) => (
+    config.useSupabase
+      ? sbStorage.createStory(
+          storyId,
+          prompt,
+          status,
+          userId,
+          language,
+          voice,
+          artStyle,
+          storyMode,
+          creditCost,
+          generationInputs,
+        )
+      : fsStorage.createStory(
+          storyId,
+          prompt,
+          status,
+          userId,
+          language,
+          voice,
+          artStyle,
+          storyMode,
+          creditCost,
+          generationInputs,
+        )
+  ),
   listPublicStories: async (search?: string, limit?: number) => (
     config.useSupabase ? sbStorage.listPublicStories(search, limit) : []
   ),
@@ -142,6 +181,9 @@ export const storageOps = {
           feedback: null,
         } satisfies StoryReactionResponse
   ),
+  deleteStory: async (storyId: string, userId?: string) => (
+    config.useSupabase ? sbStorage.deleteStory(storyId, userId) : fsStorage.deleteStory(storyId)
+  ),
 };
 
 export const billingOps = {
@@ -156,11 +198,30 @@ export const generationSlotOps = {
   releaseGenerationSlot: sbStorage.releaseGenerationSlot,
 };
 
+export const storySlackOps = {
+  sendStoryBlockAlert,
+};
+
+function getStoryAlertUrl(storyId: string | undefined): string | undefined {
+  if (!storyId) return undefined;
+  return `${config.appBaseUrl.replace(/\/+$/, '')}/story/${storyId}`;
+}
+
+function notifyStoryBlock(params: StoryBlockAlertParams): void {
+  void storySlackOps.sendStoryBlockAlert({
+    ...params,
+    storyUrl: params.storyUrl ?? getStoryAlertUrl(params.storyId),
+  }).catch(error => {
+    console.error('Failed to send Slack story alert:', error);
+  });
+}
+
 async function claimUserGenerationSlot(
   userId: string | undefined,
   storyId: string,
   action: sbStorage.GenerationSlotAction,
   res: Response,
+  userEmail?: string,
 ): Promise<boolean> {
   if (!config.useSupabase || !userId) {
     return true;
@@ -171,6 +232,17 @@ async function claimUserGenerationSlot(
     return true;
   } catch (error) {
     if (sbStorage.isGenerationSlotLimitError(error)) {
+      notifyStoryBlock({
+        blockType: 'generation_slot_limit',
+        action,
+        message: 'Too many active story generations',
+        userId,
+        userEmail,
+        storyId,
+        activeGenerations: error.activeCount,
+        maxActiveGenerations: error.limit,
+        retryAfterSeconds: error.retryAfterSeconds,
+      });
       res.setHeader('Retry-After', String(error.retryAfterSeconds));
       res.status(429).json({
         error: 'Too many active story generations',
@@ -242,33 +314,18 @@ async function createStoryRecord(
   creditCost: number,
   generationInputs: StoryGenerationInputs,
 ): Promise<void> {
-  if (config.useSupabase) {
-    await sbStorage.createStory(
-      storyId,
-      prompt,
-      status,
-      userId,
-      language,
-      voice,
-      artStyle,
-      storyMode,
-      creditCost,
-      generationInputs,
-    );
-  } else {
-    await fsStorage.createStory(
-      storyId,
-      prompt,
-      status,
-      userId,
-      language,
-      voice,
-      artStyle,
-      storyMode,
-      creditCost,
-      generationInputs,
-    );
-  }
+  await storageOps.createStory(
+    storyId,
+    prompt,
+    status,
+    userId,
+    language,
+    voice,
+    artStyle,
+    storyMode,
+    creditCost,
+    generationInputs,
+  );
 }
 
 async function updateStoryScenario(
@@ -336,10 +393,7 @@ async function listAllStories(): Promise<StoryMeta[]> {
 }
 
 async function removeStory(storyId: string, userId?: string): Promise<boolean> {
-  if (config.useSupabase) {
-    return sbStorage.deleteStory(storyId, userId);
-  }
-  return fsStorage.deleteStory(storyId);
+  return storageOps.deleteStory(storyId, userId);
 }
 
 // ---------- Image URL helpers ----------
@@ -1052,6 +1106,14 @@ router.post('/', optionalAuth, async (req: Request, res: Response) => {
     }
 
     if (storyMode === 'pro_audio' && !audioOps.isElevenLabsConfigured()) {
+      notifyStoryBlock({
+        blockType: 'service_unavailable',
+        action: 'story_create',
+        message: 'Audio generation service is not configured',
+        userId,
+        userEmail: req.authUser?.email,
+        storyId,
+      });
       res.status(503).json({ error: 'Audio generation service is not configured' });
       return;
     }
@@ -1073,13 +1135,13 @@ router.post('/', optionalAuth, async (req: Request, res: Response) => {
     let generationSlotClaimed = false;
     if (config.useSupabase) {
       try {
-        generationSlotClaimed = await claimUserGenerationSlot(req.authUser!.id, storyId, 'story_create', res);
+        generationSlotClaimed = await claimUserGenerationSlot(req.authUser!.id, storyId, 'story_create', res, req.authUser?.email);
         if (!generationSlotClaimed) {
           await removeStory(storyId, userId).catch(() => {});
           return;
         }
 
-        const charge = await consumeCredits(req.authUser!.id, creditCost, {
+        const charge = await billingOps.consumeCredits(req.authUser!.id, creditCost, {
           reason: 'story_create',
           storyId,
           note: storyMode,
@@ -1089,7 +1151,7 @@ router.post('/', optionalAuth, async (req: Request, res: Response) => {
           await sbStorage.updateStoryCreditCharge(storyId, charge.ledger_id);
         } catch (creditChargeError) {
           try {
-            await grantCredits(req.authUser!.id, creditCost, {
+            await billingOps.grantCredits(req.authUser!.id, creditCost, {
               reason: 'story_refund',
               storyId,
               note: 'Automatic refund after credit charge persistence failed.',
@@ -1104,11 +1166,21 @@ router.post('/', optionalAuth, async (req: Request, res: Response) => {
         }
       } catch (error) {
         if (error instanceof InsufficientCreditsError) {
-          const balance = await getUserCreditBalance(req.authUser!.id).catch(() => ({ availableCredits: 0 }));
+          const balance = await billingOps.getUserCreditBalance(req.authUser!.id).catch(() => ({ availableCredits: 0 }));
           if (generationSlotClaimed) {
             await releaseUserGenerationSlot(storyId);
           }
           await removeStory(storyId, userId).catch(() => {});
+          notifyStoryBlock({
+            blockType: 'insufficient_credits',
+            action: 'story_create',
+            message: 'Not enough credits to create this story',
+            userId: req.authUser!.id,
+            userEmail: req.authUser?.email,
+            storyId,
+            requiredCredits: creditCost,
+            availableCredits: balance.availableCredits,
+          });
           res.status(402).json({
             error: 'Not enough credits to create this story',
             requiredCredits: creditCost,
@@ -1396,6 +1468,16 @@ async function runGenerationPipeline(
         ? `${imageFailureMessage} ${audioError!}`
         : audioError!
       : imageFailureMessage;
+    if (failedPages.length > 0) {
+      notifyStoryBlock({
+        blockType: 'provider_block',
+        action: 'story_create',
+        message: imageFailureMessage,
+        userId,
+        storyId,
+        failedPages,
+      });
+    }
     await updateRenderedScenarioRevision(storyId, initialScenarioRevision);
     await updateStoryStatus(storyId, 'completed');
     await sendProgressUpdate(storyId, {
@@ -1415,6 +1497,14 @@ async function runGenerationPipeline(
     console.error(`Pipeline ${status} for ${storyId}:`, isCancelled ? 'cancelled by user' : error);
 
     if (!isCancelled) {
+      notifyStoryBlock({
+        blockType: 'pipeline_failure',
+        action: 'story_create',
+        message: 'Story generation pipeline failed',
+        userId,
+        storyId,
+        error,
+      });
       const story = await getStory(storyId).catch(() => null);
       await maybeRefundCreditsForStory(
         storyId,
@@ -1514,7 +1604,7 @@ router.post('/:id/regenerate-assets', optionalAuth, async (req: Request, res: Re
     let generationSlotClaimed = false;
     if (config.useSupabase) {
       try {
-        generationSlotClaimed = await claimUserGenerationSlot(req.authUser!.id, storyId, 'story_regenerate_assets', res);
+        generationSlotClaimed = await claimUserGenerationSlot(req.authUser!.id, storyId, 'story_regenerate_assets', res, req.authUser?.email);
         if (!generationSlotClaimed) {
           return;
         }
@@ -1531,6 +1621,16 @@ router.post('/:id/regenerate-assets', optionalAuth, async (req: Request, res: Re
           if (generationSlotClaimed) {
             await releaseUserGenerationSlot(storyId);
           }
+          notifyStoryBlock({
+            blockType: 'insufficient_credits',
+            action: 'story_regenerate_assets',
+            message: 'Not enough credits to regenerate this story',
+            userId: req.authUser!.id,
+            userEmail: req.authUser?.email,
+            storyId,
+            requiredCredits: regenerationCost,
+            availableCredits: balance.availableCredits,
+          });
           res.status(402).json({
             error: 'Not enough credits to regenerate this story',
             requiredCredits: regenerationCost,
@@ -1757,6 +1857,16 @@ async function runRegenerateAssetsPipeline(
         ? `${imageFailureMessage} ${audioError!}`
         : audioError!
       : imageFailureMessage;
+    if (failedPages.length > 0) {
+      notifyStoryBlock({
+        blockType: 'provider_block',
+        action: 'story_regenerate_assets',
+        message: imageFailureMessage,
+        userId: story.userId,
+        storyId,
+        failedPages,
+      });
+    }
 
     await updateRenderedScenarioRevision(storyId, getScenarioRevision(story));
     await updateStoryStatus(storyId, 'completed');
@@ -1775,6 +1885,17 @@ async function runRegenerateAssetsPipeline(
     const isCancelled = signal.aborted;
     const status = isCancelled ? 'completed' : 'failed';
     console.error(`Asset regeneration pipeline ${isCancelled ? 'cancelled' : 'failed'} for ${storyId}:`, isCancelled ? 'cancelled by user' : error);
+
+    if (!isCancelled) {
+      notifyStoryBlock({
+        blockType: 'pipeline_failure',
+        action: 'story_regenerate_assets',
+        message: 'Asset regeneration pipeline failed',
+        userId: story.userId,
+        storyId,
+        error,
+      });
+    }
 
     await refundRegenerationCharge(
       chargedUserId,
@@ -1872,7 +1993,7 @@ router.post('/:id/retry', optionalAuth, async (req: Request, res: Response) => {
       return;
     }
 
-    const generationSlotClaimed = await claimUserGenerationSlot(req.authUser?.id, storyId, 'story_retry', res);
+    const generationSlotClaimed = await claimUserGenerationSlot(req.authUser?.id, storyId, 'story_retry', res, req.authUser?.email);
     if (!generationSlotClaimed) {
       return;
     }
@@ -2029,6 +2150,16 @@ async function runRetryPipeline(
       .filter(page => page.status === 'failed')
       .map(page => page.pageNumber);
     const retryCompletionMessage = summarizeImageProviderFailure(remainingFailedPages, lastImageFailureMessage);
+    if (remainingFailedPages.length > 0) {
+      notifyStoryBlock({
+        blockType: 'provider_block',
+        action: 'story_retry',
+        message: retryCompletionMessage,
+        userId: story.userId,
+        storyId,
+        failedPages: remainingFailedPages,
+      });
+    }
 
     // Complete
     await updateStoryStatus(storyId, 'completed');
@@ -2047,6 +2178,17 @@ async function runRetryPipeline(
     const isCancelled = signal.aborted;
     const status = isCancelled ? 'cancelled' : 'failed';
     console.error(`Retry pipeline ${status} for ${storyId}:`, error);
+
+    if (!isCancelled) {
+      notifyStoryBlock({
+        blockType: 'pipeline_failure',
+        action: 'story_retry',
+        message: 'Retry pipeline failed',
+        userId: story.userId,
+        storyId,
+        error,
+      });
+    }
 
     try {
       await updateStoryStatus(storyId, status === 'cancelled' ? 'completed' : 'failed');
@@ -2110,6 +2252,14 @@ router.post('/:id/generate-audio', optionalAuth, async (req: Request, res: Respo
     }
 
     if (!audioOps.isElevenLabsConfigured()) {
+      notifyStoryBlock({
+        blockType: 'service_unavailable',
+        action: 'story_add_audio',
+        message: 'Audio generation service is not configured',
+        userId: req.authUser.id,
+        userEmail: req.authUser.email,
+        storyId,
+      });
       res.status(503).json({ error: 'Audio generation service is not configured' });
       return;
     }
@@ -2139,7 +2289,7 @@ router.post('/:id/generate-audio', optionalAuth, async (req: Request, res: Respo
 
     if (config.useSupabase) {
       try {
-        generationSlotClaimed = await claimUserGenerationSlot(req.authUser.id, storyId, 'story_add_audio', res);
+        generationSlotClaimed = await claimUserGenerationSlot(req.authUser.id, storyId, 'story_add_audio', res, req.authUser.email);
         if (!generationSlotClaimed) {
           finishTrackedGeneration(storyId);
           return;
@@ -2159,6 +2309,16 @@ router.post('/:id/generate-audio', optionalAuth, async (req: Request, res: Respo
             await releaseUserGenerationSlot(storyId);
           }
           finishTrackedGeneration(storyId);
+          notifyStoryBlock({
+            blockType: 'insufficient_credits',
+            action: 'story_add_audio',
+            message: 'Not enough credits to add narration',
+            userId: req.authUser.id,
+            userEmail: req.authUser.email,
+            storyId,
+            requiredCredits: creditCost,
+            availableCredits: balance.availableCredits,
+          });
           res.status(402).json({
             error: 'Not enough credits to add narration',
             requiredCredits: creditCost,
@@ -2231,6 +2391,7 @@ async function runAudioGenerationPipeline(
 ): Promise<void> {
   const { signal } = controller;
   const usageRecorder = createUsageRecorder(storyId, story.userId, usageSource);
+  const alertAction = usageSource === 'add_audio' ? 'story_add_audio' : 'story_retry_audio';
 
   const scenario = story.scenario!;
   const userId = story.userId;
@@ -2286,6 +2447,14 @@ async function runAudioGenerationPipeline(
       audioFailed = true;
       audioError = audioResult.error || 'Some narration pages could not be generated';
       console.warn(`Audio generation incomplete for ${storyId}: ${audioResult.completedCount}/${totalToGenerate} succeeded, ${audioResult.failedCount} failed, ${audioResult.skippedCount} skipped`);
+      notifyStoryBlock({
+        blockType: 'pipeline_failure',
+        action: alertAction,
+        message: audioError,
+        userId: story.userId,
+        storyId,
+        error: audioResult.error,
+      });
     }
 
     // Complete — story is viewable even if some audio failed
@@ -2305,6 +2474,17 @@ async function runAudioGenerationPipeline(
     const isCancelled = signal.aborted;
     const status = isCancelled ? 'completed' : 'failed';
     console.error(`Audio generation pipeline ${isCancelled ? 'cancelled' : 'failed'} for ${storyId}:`, error);
+
+    if (!isCancelled) {
+      notifyStoryBlock({
+        blockType: 'pipeline_failure',
+        action: alertAction,
+        message: 'Audio generation pipeline failed',
+        userId: story.userId,
+        storyId,
+        error,
+      });
+    }
 
     try {
       await updateStoryStatus(storyId, status);
@@ -2388,7 +2568,7 @@ router.post('/:id/pages/:pageNumber/regenerate-image', optionalAuth, async (req:
     }
     const imageMode = getRequestedPageImageMode(req.body?.mode, story);
 
-    generationSlotClaimed = await claimUserGenerationSlot(req.authUser?.id, storyId, 'story_regenerate_image', res);
+    generationSlotClaimed = await claimUserGenerationSlot(req.authUser?.id, storyId, 'story_regenerate_image', res, req.authUser?.email);
     if (!generationSlotClaimed) {
       return;
     }
@@ -2400,6 +2580,16 @@ router.post('/:id/pages/:pageNumber/regenerate-image', optionalAuth, async (req:
       purpose: 'image_feedback',
     });
     if (!review.allowed) {
+      notifyStoryBlock({
+        blockType: 'safety_block',
+        action: 'story_regenerate_image',
+        message: review.explanation || 'Feedback is not appropriate for a children story',
+        userId: req.authUser?.id,
+        userEmail: req.authUser?.email,
+        storyId,
+        pageNumber,
+        reasonCode: review.reasonCode,
+      });
       res.status(400).json({
         error: review.explanation || 'Feedback is not appropriate for a children story',
         reasonCode: review.reasonCode,
@@ -2424,6 +2614,17 @@ router.post('/:id/pages/:pageNumber/regenerate-image', optionalAuth, async (req:
           const balance = await billingOps.getUserCreditBalance(req.authUser!.id).catch(() => ({ availableCredits: 0 }));
           await releaseUserGenerationSlot(storyId);
           generationSlotClaimed = false;
+          notifyStoryBlock({
+            blockType: 'insufficient_credits',
+            action: 'story_regenerate_image',
+            message: 'Not enough credits to regenerate this image',
+            userId: req.authUser!.id,
+            userEmail: req.authUser?.email,
+            storyId,
+            pageNumber,
+            requiredCredits: chargedCredits,
+            availableCredits: balance.availableCredits,
+          });
           res.status(402).json({
             error: 'Not enough credits to regenerate this image',
             requiredCredits: chargedCredits,
@@ -2470,6 +2671,7 @@ async function runRegeneratePageImagePipeline(
 ): Promise<void> {
   const { signal } = controller;
   const usageRecorder = createUsageRecorder(storyId, story.userId, 'regenerate_page_image');
+  let providerBlockNotified = false;
 
   try {
     if (!story.scenario) throw new Error('Story has no scenario data');
@@ -2534,6 +2736,16 @@ async function runRegeneratePageImagePipeline(
 
     if (signal.aborted) throw new Error('Generation cancelled');
     if (regeneratedCount < 1) {
+      providerBlockNotified = true;
+      notifyStoryBlock({
+        blockType: 'provider_block',
+        action: 'story_regenerate_image',
+        message: lastImageFailureMessage || 'Page image could not be regenerated',
+        userId: story.userId,
+        storyId,
+        pageNumber,
+        failedPages: failedPages.length > 0 ? failedPages : [pageNumber],
+      });
       throw new Error(lastImageFailureMessage || 'Page image could not be regenerated');
     }
 
@@ -2557,6 +2769,17 @@ async function runRegeneratePageImagePipeline(
     });
   } catch (error) {
     const isCancelled = signal.aborted;
+    if (!isCancelled && !providerBlockNotified) {
+      notifyStoryBlock({
+        blockType: 'pipeline_failure',
+        action: 'story_regenerate_image',
+        message: 'Page image regeneration pipeline failed',
+        userId: story.userId,
+        storyId,
+        pageNumber,
+        error,
+      });
+    }
     await refundRegenerationCharge(
       chargedUserId,
       storyId,
@@ -2641,6 +2864,15 @@ router.patch('/:id/pages/:pageNumber/script-audio', optionalAuth, async (req: Re
     }
 
     if (!audioOps.isElevenLabsConfigured()) {
+      notifyStoryBlock({
+        blockType: 'service_unavailable',
+        action: 'story_regenerate_audio',
+        message: 'Audio generation service is not configured',
+        userId: req.authUser?.id,
+        userEmail: req.authUser?.email,
+        storyId,
+        pageNumber,
+      });
       res.status(503).json({ error: 'Audio generation service is not configured' });
       return;
     }
@@ -2659,7 +2891,7 @@ router.patch('/:id/pages/:pageNumber/script-audio', optionalAuth, async (req: Re
       return;
     }
 
-    generationSlotClaimed = await claimUserGenerationSlot(req.authUser?.id, storyId, 'story_regenerate_audio', res);
+    generationSlotClaimed = await claimUserGenerationSlot(req.authUser?.id, storyId, 'story_regenerate_audio', res, req.authUser?.email);
     if (!generationSlotClaimed) {
       return;
     }
@@ -2671,6 +2903,16 @@ router.patch('/:id/pages/:pageNumber/script-audio', optionalAuth, async (req: Re
       purpose: 'page_text',
     });
     if (!review.allowed) {
+      notifyStoryBlock({
+        blockType: 'safety_block',
+        action: 'story_regenerate_audio',
+        message: review.explanation || 'Page text is not appropriate for a children story',
+        userId: req.authUser?.id,
+        userEmail: req.authUser?.email,
+        storyId,
+        pageNumber,
+        reasonCode: review.reasonCode,
+      });
       res.status(400).json({
         error: review.explanation || 'Page text is not appropriate for a children story',
         reasonCode: review.reasonCode,
@@ -2695,6 +2937,17 @@ router.patch('/:id/pages/:pageNumber/script-audio', optionalAuth, async (req: Re
           const balance = await billingOps.getUserCreditBalance(req.authUser!.id).catch(() => ({ availableCredits: 0 }));
           await releaseUserGenerationSlot(storyId);
           generationSlotClaimed = false;
+          notifyStoryBlock({
+            blockType: 'insufficient_credits',
+            action: 'story_regenerate_audio',
+            message: 'Not enough credits to regenerate this page audio',
+            userId: req.authUser!.id,
+            userEmail: req.authUser?.email,
+            storyId,
+            pageNumber,
+            requiredCredits: chargedCredits,
+            availableCredits: balance.availableCredits,
+          });
           res.status(402).json({
             error: 'Not enough credits to regenerate this page audio',
             requiredCredits: chargedCredits,
@@ -2784,6 +3037,17 @@ async function runRegeneratePageAudioPipeline(
     });
   } catch (error) {
     const isCancelled = signal.aborted;
+    if (!isCancelled) {
+      notifyStoryBlock({
+        blockType: 'pipeline_failure',
+        action: 'story_regenerate_audio',
+        message: 'Page audio regeneration pipeline failed',
+        userId: story.userId,
+        storyId,
+        pageNumber,
+        error,
+      });
+    }
     await refundRegenerationCharge(
       chargedUserId,
       storyId,
