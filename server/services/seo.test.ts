@@ -104,11 +104,33 @@ test('legal routes use their legal document metadata and are indexable', async (
   }
 });
 
+test('blog routes use article metadata and are indexable', async (t) => {
+  const { seo, restore } = await loadSeoModules();
+  t.after(restore);
+
+  const route = await seo.resolveSeoRoute('/blog/cum-folosesti-povestile-pentru-copii', {
+    getStory: async () => null,
+    listPublicStories: async () => [],
+  });
+
+  assert.equal(route.robots, 'index,follow');
+  assert.equal(route.canonicalUrl, 'https://basmul.ro/blog/cum-folosesti-povestile-pentru-copii');
+  assert.equal(route.lang, 'ro');
+  assert.equal(route.type, 'article');
+  assert.match(route.title, /Cum să folosești poveștile pentru copii/);
+  assert.match(route.description, /Poveștile pentru copii devin mai valoroase/);
+  assert.ok(route.structuredData.some(item => (
+    item['@type'] === 'BlogPosting'
+    && item.url === 'https://basmul.ro/blog/cum-folosesti-povestile-pentru-copii'
+    && item.dateModified === '2026-06-05'
+  )));
+});
+
 test('account, admin, auth, and unknown SPA routes remain noindex', async (t) => {
   const { seo, restore } = await loadSeoModules();
   t.after(restore);
 
-  for (const path of ['/login', '/auth/callback', '/profile', '/billing', '/admin', '/not-a-route']) {
+  for (const path of ['/login', '/auth/callback', '/profile', '/billing', '/admin', '/blog/nu-exista', '/not-a-route']) {
     const route = await seo.resolveSeoRoute(path, {
       getStory: async () => null,
       listPublicStories: async () => [],
@@ -182,6 +204,8 @@ test('sitemap includes public static, legal, and public completed story URLs onl
   for (const route of Object.values(legal.LEGAL_ROUTES)) {
     assert.match(sitemap, new RegExp(`<loc>https://basmul\\.ro${route}</loc>`));
   }
+  assert.match(sitemap, /<loc>https:\/\/basmul\.ro\/blog\/cum-folosesti-povestile-pentru-copii<\/loc>/);
+  assert.match(sitemap, /<loc>https:\/\/basmul\.ro\/blog\/povesti-vs-videoclipuri-copii-sub-5-ani<\/loc>/);
   assert.match(sitemap, /<loc>https:\/\/basmul\.ro\/story\/public-story<\/loc>/);
   assert.doesNotMatch(sitemap, /private-story/);
   assert.doesNotMatch(sitemap, /draft-story/);

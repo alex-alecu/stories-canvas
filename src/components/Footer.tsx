@@ -57,7 +57,7 @@ export default function Footer() {
           </div>
         </div>
 
-        <nav className="grid gap-6 sm:grid-cols-3" aria-label="Legal footer">
+        <nav className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4" aria-label="Footer navigation">
           {profile.footerGroups.map(group => (
             <div key={group.title}>
               <p className="text-xs font-bold uppercase tracking-[0.18em] text-gray-400 dark:text-gray-500">

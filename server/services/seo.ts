@@ -7,6 +7,7 @@ import {
   type LegalRouteKey,
 } from '../../src/legal/legalConfig.js';
 import { config } from '../config.js';
+import { getBlogArticleBySlug, listBlogArticles } from './blogContent.js';
 
 const INDEX_ROBOTS = 'index,follow';
 const NOINDEX_ROBOTS = 'noindex,nofollow';
@@ -115,6 +116,10 @@ function legalDateModified(document: LegalDocument): string | undefined {
   return document.updatedAtIso;
 }
 
+function blogArticleUrl(slug: string): string {
+  return `/blog/${slug}`;
+}
+
 function buildOrganizationData() {
   const profile = getLegalProfileForHostname(getCanonicalHostname());
   const operator = profile.operator;
@@ -216,6 +221,44 @@ export async function resolveSeoRoute(path: string, storage: SeoStorage): Promis
       title: siteTitle(legalDocument.title),
       description: legalDocument.description,
       structuredData,
+    };
+  }
+
+  const blogMatch = normalizedPath.match(/^\/blog\/([^/]+)$/);
+  if (blogMatch) {
+    const article = getBlogArticleBySlug(decodeURIComponent(blogMatch[1] ?? ''));
+    if (!article) {
+      return defaultSeo(normalizedPath, NOINDEX_ROBOTS);
+    }
+
+    const articleUrl = blogArticleUrl(article.meta.slug);
+    const imageUrl = absoluteUrl(config.seoFallbackImage);
+
+    return {
+      title: siteTitle(article.meta.title),
+      description: article.meta.description,
+      canonicalUrl: canonicalUrl(articleUrl),
+      robots: INDEX_ROBOTS,
+      lang: article.meta.language,
+      locale: config.seoDefaultLocale,
+      type: 'article',
+      imageUrl,
+      structuredData: [{
+        '@context': 'https://schema.org',
+        '@type': 'BlogPosting',
+        headline: article.meta.title,
+        description: article.meta.description,
+        image: imageUrl,
+        url: canonicalUrl(articleUrl),
+        inLanguage: article.meta.language,
+        datePublished: article.meta.datePublished,
+        dateModified: article.meta.dateModified,
+        publisher: {
+          '@type': 'Organization',
+          name: config.seoSiteName,
+          url: getCanonicalOrigin(),
+        },
+      }],
     };
   }
 
@@ -321,6 +364,10 @@ export async function buildSitemapXml(storage: SeoStorage): Promise<string> {
     ...getLegalRouteEntries().map(({ document }) => ({
       loc: canonicalUrl(document.route),
       lastmod: legalDateModified(document),
+    })),
+    ...listBlogArticles().map(article => ({
+      loc: canonicalUrl(blogArticleUrl(article.meta.slug)),
+      lastmod: article.meta.dateModified,
     })),
   ];
 

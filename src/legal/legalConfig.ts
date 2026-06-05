@@ -97,6 +97,8 @@ const legalLinks = {
   withdrawalRefunds: { label: 'Retragere și rambursări', href: LEGAL_ROUTES.withdrawalRefunds },
   consumerProtection: { label: 'ANPC / SAL', href: LEGAL_ROUTES.consumerProtection },
   contact: { label: 'Contact', href: LEGAL_ROUTES.contact },
+  readingTogether: { label: 'Cum folosim poveștile', href: '/blog/cum-folosesti-povestile-pentru-copii' },
+  storiesVsVideos: { label: 'Povești vs videoclipuri', href: '/blog/povesti-vs-videoclipuri-copii-sub-5-ani' },
   anpc: { label: 'ANPC', href: 'https://anpc.ro/', external: true },
   sal: { label: 'Reclamații SAL ANPC', href: 'https://reclamatiisal.anpc.ro/', external: true },
 } satisfies Record<string, LegalLink>;
@@ -388,6 +390,10 @@ export const legalProfiles: Record<LegalProfileKey, LegalProfile> = {
         title: 'Contact',
         links: [legalLinks.contact, legalLinks.anpc],
       },
+      {
+        title: 'Articole',
+        links: [legalLinks.readingTogether, legalLinks.storiesVsVideos],
+      },
     ],
     documents: roDocuments,
   },
@@ -405,6 +411,10 @@ export const legalProfiles: Record<LegalProfileKey, LegalProfile> = {
       {
         title: 'Consumers',
         links: [legalLinks.withdrawalRefunds, legalLinks.consumerProtection, legalLinks.contact],
+      },
+      {
+        title: 'Articole',
+        links: [legalLinks.readingTogether, legalLinks.storiesVsVideos],
       },
     ],
     documents: roDocuments,
