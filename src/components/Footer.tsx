@@ -36,7 +36,6 @@ export default function Footer() {
   const operatorLegalForm = interpolateLegalText('{operator.legalForm}', profile);
   const operatorTaxId = interpolateLegalText('{operator.taxId}', profile);
   const operatorRegistration = interpolateLegalText('{operator.registrationNumber}', profile);
-  const operatorContact = interpolateLegalText('{operator.contactEmailLabel}', profile);
 
   return (
     <footer className="relative z-10 border-t border-primary-100 bg-white/70 px-4 py-8 backdrop-blur-sm dark:border-primary-900/50 dark:bg-surface-dark/70 md:px-8">
@@ -54,9 +53,6 @@ export default function Footer() {
             </p>
             <p>
               {operatorRegistration} · {operatorTaxId}
-            </p>
-            <p>
-              <span dir="ltr">{operatorContact}</span>
             </p>
           </div>
         </div>

@@ -27,7 +27,7 @@ export default function PublicStoriesShowcase({ stories, isLoading }: PublicStor
   const showStoryGrid = showSkeletons || visibleStories.length > 0;
 
   return (
-    <section className="mt-10 md:mt-14 rounded-[2rem] border border-primary-100/80 dark:border-primary-800/50 bg-white/75 dark:bg-surface-dark-elevated/80 backdrop-blur-xl shadow-xl shadow-primary-100/40 dark:shadow-primary-950/20 overflow-hidden">
+    <section className="mt-10 mb-12 md:mt-14 md:mb-16 rounded-[2rem] border border-primary-100/80 dark:border-primary-800/50 bg-white/75 dark:bg-surface-dark-elevated/80 backdrop-blur-xl shadow-lg shadow-slate-900/5 dark:shadow-primary-950/20 overflow-hidden">
       <div className={`px-6 py-6 md:px-8 md:py-7 ${
         showStoryGrid ? 'border-b border-primary-100/80 dark:border-primary-800/40' : ''
       }`}>
