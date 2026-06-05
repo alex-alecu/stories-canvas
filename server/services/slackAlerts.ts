@@ -1,4 +1,3 @@
-const SLACK_WEBHOOK_URL = 'https://hooks.slack.com/services/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';
 const SLACK_TIMEOUT_MS = 2_500;
 const MAX_FIELD_LENGTH = 280;
 const MAX_MESSAGE_LENGTH = 500;
@@ -155,11 +154,14 @@ function fieldsBlock(fields: Array<SlackText | undefined>): SlackBlock[] {
 }
 
 async function postSlackPayload(payload: SlackPayload, timeoutMs = SLACK_TIMEOUT_MS): Promise<void> {
+  const webhookUrl = process.env.SLACK_WEBHOOK_URL;
+  if (!webhookUrl) return;
+
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    const response = await fetch(SLACK_WEBHOOK_URL, {
+    const response = await fetch(webhookUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -266,6 +268,5 @@ export async function sendPaymentAlert(params: PaymentAlertParams): Promise<void
 }
 
 export const slackAlertTestExports = {
-  SLACK_WEBHOOK_URL,
   postSlackPayload,
 };

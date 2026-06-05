@@ -669,6 +669,7 @@ test('POST /api/stories/:id/generate-audio returns 402 when credits are insuffic
   const { InsufficientCreditsError } = await import('../services/billingStorage.js');
   let storedVoice = false;
   let releasedSlot = false;
+  let slackAlert: Record<string, unknown> | null = null;
 
   t.mock.method(harness.storiesModule.storageOps, 'getStory', async () => makeStoryMeta({
     id: 'story-audio-insufficient',
@@ -691,6 +692,9 @@ test('POST /api/stories/:id/generate-audio returns 402 when credits are insuffic
     return 1;
   });
   t.mock.method(harness.storiesModule.audioOps, 'isElevenLabsConfigured', () => true);
+  t.mock.method(harness.storiesModule.storySlackOps, 'sendStoryBlockAlert', async (params) => {
+    slackAlert = params as Record<string, unknown>;
+  });
 
   const response = await fetch(`${harness.baseUrl}/api/stories/story-audio-insufficient/generate-audio`, {
     method: 'POST',
@@ -705,6 +709,13 @@ test('POST /api/stories/:id/generate-audio returns 402 when credits are insuffic
   assert.equal(body.availableCredits, 0);
   assert.equal(storedVoice, false);
   assert.equal(releasedSlot, true);
+  await waitFor(async () => slackAlert, value => value !== null);
+  assert.equal(slackAlert?.blockType, 'insufficient_credits');
+  assert.equal(slackAlert?.action, 'story_add_audio');
+  assert.equal(slackAlert?.userEmail, 'no-credits@example.test');
+  assert.equal(slackAlert?.storyId, 'story-audio-insufficient');
+  assert.equal(slackAlert?.requiredCredits, 0.1);
+  assert.equal(slackAlert?.availableCredits, 0);
 });
 
 test('POST /api/stories/:id/generate-audio returns 429 before charging when generation slots are full', async (t) => {
@@ -952,6 +963,7 @@ test('PATCH /api/stories/:id/pages/:pageNumber/script-audio returns 402 before a
 
   const { InsufficientCreditsError } = await import('../services/billingStorage.js');
   let generated = false;
+  let slackAlert: Record<string, unknown> | null = null;
   t.mock.method(harness.storiesModule.storageOps, 'getStory', async () => makeStoryMeta({
     id: 'story-page-audio-insufficient',
     prompt: 'A story with narration.',
@@ -971,6 +983,9 @@ test('PATCH /api/stories/:id/pages/:pageNumber/script-audio returns 402 before a
     generated = true;
     return Buffer.from('audio');
   });
+  t.mock.method(harness.storiesModule.storySlackOps, 'sendStoryBlockAlert', async (params) => {
+    slackAlert = params as Record<string, unknown>;
+  });
 
   const response = await fetch(`${harness.baseUrl}/api/stories/story-page-audio-insufficient/pages/1/script-audio`, {
     method: 'PATCH',
@@ -983,6 +998,14 @@ test('PATCH /api/stories/:id/pages/:pageNumber/script-audio returns 402 before a
   assert.equal(body.requiredCredits, 0.1);
   assert.equal(body.availableCredits, 0);
   assert.equal(generated, false);
+  await waitFor(async () => slackAlert, value => value !== null);
+  assert.equal(slackAlert?.blockType, 'insufficient_credits');
+  assert.equal(slackAlert?.action, 'story_regenerate_audio');
+  assert.equal(slackAlert?.userEmail, 'page-audio@example.test');
+  assert.equal(slackAlert?.storyId, 'story-page-audio-insufficient');
+  assert.equal(slackAlert?.pageNumber, 1);
+  assert.equal(slackAlert?.requiredCredits, 0.1);
+  assert.equal(slackAlert?.availableCredits, 0);
 });
 
 test('POST /api/stories/:id/generate-audio rejects invalid voices before charging', async (t) => {

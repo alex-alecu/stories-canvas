@@ -9,8 +9,19 @@ import {
 
 process.env.GEMINI_API_KEY ??= 'test-key';
 
+const TEST_SLACK_WEBHOOK_URL = 'https://hooks.slack.com/services/test-workspace/test-app/test-secret';
+
 test('sendStoryBlockAlert posts structured Slack payload and redacts secrets', async (t) => {
   const calls: Array<{ url: string; init: RequestInit }> = [];
+  const previousWebhookUrl = process.env.SLACK_WEBHOOK_URL;
+  process.env.SLACK_WEBHOOK_URL = TEST_SLACK_WEBHOOK_URL;
+  t.after(() => {
+    if (previousWebhookUrl === undefined) {
+      delete process.env.SLACK_WEBHOOK_URL;
+    } else {
+      process.env.SLACK_WEBHOOK_URL = previousWebhookUrl;
+    }
+  });
 
   t.mock.method(globalThis, 'fetch', async (url: string | URL | Request, init?: RequestInit) => {
     calls.push({ url: String(url), init: init ?? {} });
@@ -28,7 +39,7 @@ test('sendStoryBlockAlert posts structured Slack payload and redacts secrets', a
   });
 
   assert.equal(calls.length, 1);
-  assert.equal(calls[0].url, slackAlertTestExports.SLACK_WEBHOOK_URL);
+  assert.equal(calls[0].url, TEST_SLACK_WEBHOOK_URL);
   assert.equal(calls[0].init.method, 'POST');
   assert.deepEqual(calls[0].init.headers, { 'Content-Type': 'application/json' });
 
@@ -45,6 +56,15 @@ test('sendStoryBlockAlert posts structured Slack payload and redacts secrets', a
 
 test('sendPaymentAlert logs non-ok Slack responses without throwing', async (t) => {
   const logs: string[] = [];
+  const previousWebhookUrl = process.env.SLACK_WEBHOOK_URL;
+  process.env.SLACK_WEBHOOK_URL = TEST_SLACK_WEBHOOK_URL;
+  t.after(() => {
+    if (previousWebhookUrl === undefined) {
+      delete process.env.SLACK_WEBHOOK_URL;
+    } else {
+      process.env.SLACK_WEBHOOK_URL = previousWebhookUrl;
+    }
+  });
 
   t.mock.method(globalThis, 'fetch', async () => (
     new Response('channel_not_found', { status: 404, statusText: 'Not Found' })
@@ -69,6 +89,15 @@ test('sendPaymentAlert logs non-ok Slack responses without throwing', async (t) 
 
 test('Slack sender logs timed-out requests without throwing', async (t) => {
   const logs: string[] = [];
+  const previousWebhookUrl = process.env.SLACK_WEBHOOK_URL;
+  process.env.SLACK_WEBHOOK_URL = TEST_SLACK_WEBHOOK_URL;
+  t.after(() => {
+    if (previousWebhookUrl === undefined) {
+      delete process.env.SLACK_WEBHOOK_URL;
+    } else {
+      process.env.SLACK_WEBHOOK_URL = previousWebhookUrl;
+    }
+  });
 
   t.mock.method(globalThis, 'fetch', async (_url: string | URL | Request, init?: RequestInit) => (
     new Promise<Response>((_resolve, reject) => {
@@ -93,4 +122,30 @@ test('Slack sender logs timed-out requests without throwing', async (t) => {
 
   assert.equal(logs.length, 1);
   assert.match(logs[0], /Slack alert request failed: request aborted/);
+});
+
+test('Slack sender is disabled when webhook URL is not configured', async (t) => {
+  const previousWebhookUrl = process.env.SLACK_WEBHOOK_URL;
+  delete process.env.SLACK_WEBHOOK_URL;
+  t.after(() => {
+    if (previousWebhookUrl === undefined) {
+      delete process.env.SLACK_WEBHOOK_URL;
+    } else {
+      process.env.SLACK_WEBHOOK_URL = previousWebhookUrl;
+    }
+  });
+
+  let fetched = false;
+  t.mock.method(globalThis, 'fetch', async () => {
+    fetched = true;
+    return new Response('ok', { status: 200 });
+  });
+
+  await sendStoryBlockAlert({
+    blockType: 'insufficient_credits',
+    action: 'story_create',
+    message: 'Not enough credits',
+  });
+
+  assert.equal(fetched, false);
 });

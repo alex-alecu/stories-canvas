@@ -69,6 +69,7 @@ Copy `.env.example` to `.env` and fill in the values you need:
 - `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_KEY` enable auth, storage, billing, and admin APIs
 - `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` enable Checkout and webhook fulfillment
 - `APP_BASE_URL` should match the browser origin used for local or deployed checkout redirects
+- `SLACK_WEBHOOK_URL` enables operational alerts; leave it empty for local tests/dev unless you want real Slack posts
 - `ADMIN_BOOTSTRAP_EMAILS` seeds initial admins as a comma-separated list
 - `VITE_DEFAULT_LANGUAGE` sets the first-visit client language for a deployed domain, defaulting to `ro`
 
