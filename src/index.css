@@ -78,6 +78,13 @@ body {
   transition: background 0.8s ease, background-color 0.8s ease;
 }
 
+.story-card-open-target,
+.story-card-open-target * {
+  -webkit-touch-callout: none;
+  -webkit-user-drag: none;
+  user-select: none;
+}
+
 .dark {
   background-color: #000;
 }

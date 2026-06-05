@@ -130,7 +130,9 @@ export default function StoryCard({ story, onDelete, onTogglePublic }: StoryCard
     <div className="rounded-2xl overflow-hidden shadow-md hover:shadow-xl dark:shadow-primary-900/20 dark:hover:shadow-primary-800/30 transition-all duration-300 bg-white dark:bg-surface-dark-elevated">
       <Link
         to={`/story/${story.id}`}
-        className="group block"
+        className="story-card-open-target group block"
+        draggable={false}
+        onDragStart={(event) => event.preventDefault()}
       >
         <div ref={targetRef} className="aspect-[4/3] relative overflow-hidden bg-gradient-to-br from-primary-100 to-warm-100 dark:from-primary-900/40 dark:to-warm-500/20">
           {shouldRenderCover ? (
@@ -144,6 +146,7 @@ export default function StoryCard({ story, onDelete, onTogglePublic }: StoryCard
               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
               loading="lazy"
               decoding="async"
+              draggable={false}
             />
           ) : !coverSrc ? (
             <div className="w-full h-full flex items-center justify-center">
