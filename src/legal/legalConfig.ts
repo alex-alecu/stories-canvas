@@ -47,6 +47,7 @@ export interface LegalDocument {
   title: string;
   description: string;
   updatedAt: string;
+  updatedAtIso: string;
   sections: LegalSection[];
 }
 
@@ -111,6 +112,7 @@ function document(
     title,
     description,
     updatedAt: '5 iunie 2026',
+    updatedAtIso: '2026-06-05',
     sections,
   };
 }
@@ -369,7 +371,7 @@ const roDocuments: Record<LegalRouteKey, LegalDocument> = {
 export const legalProfiles: Record<LegalProfileKey, LegalProfile> = {
   ro: {
     key: 'ro',
-    domains: ['povestimagice.ro', 'www.povestimagice.ro', 'localhost', '127.0.0.1'],
+    domains: ['basmul.ro', 'www.basmul.ro', 'povestimagice.ro', 'www.povestimagice.ro', 'localhost', '127.0.0.1'],
     localeLabel: 'Romania',
     footerDescription: 'Povești ilustrate create cu AI pentru familii. Informațiile legale sunt disponibile permanent mai jos.',
     operator: roOperator,

@@ -7,7 +7,7 @@ export const legalCompany = {
   county: 'Cluj',
   city: 'Cluj-Napoca',
   address: 'Str. Pavel Roșca 4, Ap. 28, Cod 400118, Loc. Cluj-Napoca, Jud. Cluj, România',
-  website: 'https://povestimagice.ro',
+  website: 'https://basmul.ro',
   jurisdiction: 'România',
 } as const;
 

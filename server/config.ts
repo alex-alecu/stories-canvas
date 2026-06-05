@@ -85,6 +85,14 @@ export const config = {
   stripeWebhookSecret: optionalEnv('STRIPE_WEBHOOK_SECRET'),
   appBaseUrl: process.env.APP_BASE_URL || process.env.PUBLIC_APP_URL || `http://localhost:${parseInt(process.env.PORT || process.env.SERVER_PORT || '3001', 10)}`,
 
+  // SEO configuration
+  seoSiteName: process.env.SEO_SITE_NAME || 'Povești Magice',
+  seoDefaultLang: process.env.SEO_DEFAULT_LANG || 'ro',
+  seoDefaultLocale: process.env.SEO_DEFAULT_LOCALE || 'ro_RO',
+  seoDefaultTitle: process.env.SEO_DEFAULT_TITLE || 'Povești Magice | Povești ilustrate pentru copii',
+  seoDefaultDescription: process.env.SEO_DEFAULT_DESCRIPTION || 'Creează povești ilustrate personalizate pentru copii, cu imagini, narațiune și povești publice de explorat.',
+  seoFallbackImage: process.env.SEO_FALLBACK_IMAGE || '/logo-big-512.png',
+
   // Marketing conversion configuration
   ga4MeasurementId: optionalEnv('GA4_MEASUREMENT_ID') || optionalEnv('VITE_GA4_MEASUREMENT_ID'),
   ga4ApiSecret: optionalEnv('GA4_API_SECRET'),
