@@ -119,14 +119,14 @@ function RelatedArticles({ article }: { article: BlogArticle }) {
       <p className="text-sm font-bold uppercase tracking-[0.18em] text-gray-400 dark:text-gray-500">
         Citește și
       </p>
-      <div className="mt-4 grid gap-4 sm:grid-cols-2">
+      <div className="mt-4 grid gap-6 sm:grid-cols-2">
         {relatedArticles.map(relatedArticle => (
           <Link
             key={relatedArticle.meta.slug}
             to={`/blog/${relatedArticle.meta.slug}`}
-            className="rounded-2xl border border-primary-100 bg-primary-50/60 p-4 transition-colors hover:border-primary-200 hover:bg-primary-100/70 dark:border-primary-900/50 dark:bg-surface-dark-accent/60 dark:hover:border-primary-700"
+            className="group block transition-colors"
           >
-            <p className="text-base font-extrabold leading-6 text-gray-900 dark:text-gray-100">
+            <p className="text-base font-extrabold leading-6 text-gray-900 transition-colors group-hover:text-primary-700 dark:text-gray-100 dark:group-hover:text-primary-200">
               {relatedArticle.meta.title}
             </p>
             <p className="mt-2 text-sm leading-6 text-gray-500 dark:text-gray-400">
@@ -146,7 +146,7 @@ export default function BlogArticlePage() {
   if (!article) {
     return (
       <main className="min-h-screen px-4 py-12 md:px-8">
-        <div className="mx-auto max-w-3xl rounded-3xl border border-primary-100 bg-white/85 p-8 shadow-lg shadow-primary-100/40 backdrop-blur-sm dark:border-primary-900/50 dark:bg-surface-dark-elevated/85 dark:shadow-primary-950/20">
+        <div className="mx-auto max-w-5xl">
           <p className="text-sm font-bold uppercase tracking-[0.18em] text-primary-500">
             Blog
           </p>
@@ -175,7 +175,7 @@ export default function BlogArticlePage() {
 
   return (
     <main className="min-h-screen px-4 py-8 md:px-8 md:py-12">
-      <article className="mx-auto max-w-3xl rounded-3xl border border-primary-100 bg-white/88 p-6 shadow-lg shadow-primary-100/40 backdrop-blur-sm dark:border-primary-900/50 dark:bg-surface-dark-elevated/88 dark:shadow-primary-950/20 md:p-10">
+      <article className="mx-auto max-w-5xl">
         <header className="border-b border-primary-100 pb-8 dark:border-primary-900/50">
           <p className="text-sm font-bold uppercase tracking-[0.18em] text-primary-500">
             Articol
@@ -204,4 +204,3 @@ export default function BlogArticlePage() {
     </main>
   );
 }
-
