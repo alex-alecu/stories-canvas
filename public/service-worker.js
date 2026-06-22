@@ -1,4 +1,4 @@
-const APP_CACHE = 'stories-canvas-app-v2';
+const APP_CACHE = 'stories-canvas-app-v3';
 const MEDIA_CACHE = 'stories-canvas-media-v2';
 const DATA_CACHE = 'stories-canvas-data-v2';
 const APP_SHELL_CACHE_KEY = `${self.location.origin}/__sw_app_shell__`;
@@ -20,12 +20,6 @@ const APP_SHELL_ASSET_PATHS = [
   '/logo-big-512.avif',
   '/logo-big-512.png',
   '/logo-big-512.webp',
-  '/logo-text-224.avif',
-  '/logo-text-224.png',
-  '/logo-text-224.webp',
-  '/logo-text-336.avif',
-  '/logo-text-336.png',
-  '/logo-text-336.webp',
   '/fonts/nunito-latin.woff2',
   '/fonts/nunito-latin-ext.woff2',
 ];

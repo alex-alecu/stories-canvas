@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useBillingOverview } from '../hooks/useBilling';
 import { useLanguage } from '../i18n/LanguageContext';
+import { clientSiteConfig } from '../lib/siteConfig';
 import LanguageSelector from './LanguageSelector';
 import ThemeToggle from './ThemeToggle';
 
@@ -63,31 +64,20 @@ export default function Header() {
         {/* Logo — always visible */}
         <Link
           to="/"
-          className="inline-flex shrink-0 items-center hover:opacity-80 transition-opacity"
-          aria-label={t.appTitle}
+          className="inline-flex shrink-0 items-center gap-2 hover:opacity-80 transition-opacity"
+          aria-label={clientSiteConfig.siteName}
         >
-          <picture>
-            <source
-              type="image/avif"
-              srcSet="/logo-text-224.avif 224w, /logo-text-336.avif 336w"
-              sizes="(min-width: 768px) 126px, 112px"
-            />
-            <source
-              type="image/webp"
-              srcSet="/logo-text-224.webp 224w, /logo-text-336.webp 336w"
-              sizes="(min-width: 768px) 126px, 112px"
-            />
-            <img
-              src="/logo-text-224.png"
-              srcSet="/logo-text-224.png 224w, /logo-text-336.png 336w"
-              sizes="(min-width: 768px) 126px, 112px"
-              alt={t.appTitle}
-              width={420}
-              height={120}
-              className="h-8 w-auto md:h-9"
-              decoding="async"
-            />
-          </picture>
+          <img
+            src="/icon-small.png"
+            alt=""
+            width={48}
+            height={48}
+            className="h-8 w-8"
+            decoding="async"
+          />
+          <span className="max-w-[11rem] truncate text-base font-extrabold text-primary-700 dark:text-primary-200 md:max-w-[14rem] md:text-lg">
+            {clientSiteConfig.siteShortName}
+          </span>
         </Link>
 
         {/* Desktop nav — hidden on mobile */}

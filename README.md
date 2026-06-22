@@ -71,7 +71,9 @@ Copy `.env.example` to `.env` and fill in the values you need:
 - `APP_BASE_URL` should match the browser origin used for local or deployed checkout redirects
 - `SLACK_WEBHOOK_URL` enables operational alerts; leave it empty for local tests/dev unless you want real Slack posts
 - `ADMIN_BOOTSTRAP_EMAILS` seeds initial admins as a comma-separated list
-- `VITE_DEFAULT_LANGUAGE` sets the first-visit client language for a deployed domain, defaulting to `ro`
+- `APP_DEFAULT_LANGUAGE` sets the deployment language used by the client, server fallbacks, SEO, legal/footer copy, and localized blog content. Complete blog/legal content currently exists for `ro` and `en`.
+- `APP_SITE_NAME`, `APP_SITE_SHORT_NAME`, and `APP_SITE_DESCRIPTION` customize browser metadata, manifest metadata, and visible text branding.
+- `VITE_DEFAULT_LANGUAGE` and `SEO_*` are still supported as backward-compatible overrides, but new deployments should prefer `APP_DEFAULT_LANGUAGE` and `APP_SITE_*`.
 
 Apply the Supabase migrations before testing billing:
 

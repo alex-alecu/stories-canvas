@@ -11,6 +11,7 @@ import * as sbStorage from './services/supabaseStorage.js';
 import {
   buildRobotsTxt,
   buildSitemapXml,
+  buildWebManifest,
   renderHtmlWithSeo,
   type SeoStorage,
 } from './services/seo.js';
@@ -82,6 +83,11 @@ export function createApp(options: CreateAppOptions = {}) {
   app.get('/robots.txt', (_req, res) => {
     res.type('text/plain').setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=300');
     res.send(buildRobotsTxt());
+  });
+
+  app.get('/manifest.webmanifest', (_req, res) => {
+    res.type('application/manifest+json').setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=300');
+    res.send(buildWebManifest());
   });
 
   app.get('/sitemap.xml', async (_req, res) => {

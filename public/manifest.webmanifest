@@ -1,6 +1,7 @@
 {
-  "name": "basmul.ro",
-  "short_name": "basmul.ro",
+  "name": "Magic Stories",
+  "short_name": "Magic Stories",
+  "description": "Create personalized illustrated stories for children with images, narration, and public stories to explore.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#faf5ff",

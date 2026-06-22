@@ -1,10 +1,42 @@
 import type { ReactNode } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { blogArticles, getBlogArticleBySlug } from '../content/blog';
+import { getBlogArticleBySlug, listBlogArticles } from '../content/blog';
+import { clientSiteConfig } from '../lib/siteConfig';
 import type { BlogArticle, BlogMarkdownBlock } from '../../shared/blogMarkdown';
 
-function formatDate(value: string): string {
-  return new Intl.DateTimeFormat('ro-RO', {
+const BLOG_UI_COPY = {
+  ro: {
+    article: 'Articol',
+    unavailableTitle: 'Articol indisponibil',
+    unavailableBody: 'Articolul căutat nu este disponibil.',
+    backHome: 'Înapoi la Povești Magice',
+    related: 'Citește și',
+    published: 'Publicat',
+    updated: 'Actualizat',
+    dateLocale: 'ro-RO',
+  },
+  en: {
+    article: 'Article',
+    unavailableTitle: 'Article unavailable',
+    unavailableBody: 'The article you are looking for is not available.',
+    backHome: 'Back to Magic Stories',
+    related: 'Read also',
+    published: 'Published',
+    updated: 'Updated',
+    dateLocale: 'en-US',
+  },
+} as const;
+
+function getBlogUiCopy(language: string, siteName: string) {
+  const copy = language === 'ro' ? BLOG_UI_COPY.ro : BLOG_UI_COPY.en;
+  return {
+    ...copy,
+    backHome: language === 'ro' ? `Înapoi la ${siteName}` : `Back to ${siteName}`,
+  };
+}
+
+function formatDate(value: string, locale: string): string {
+  return new Intl.DateTimeFormat(locale, {
     day: 'numeric',
     month: 'long',
     year: 'numeric',
@@ -107,8 +139,9 @@ function BlogBlock({ block }: { block: BlogMarkdownBlock }) {
   );
 }
 
-function RelatedArticles({ article }: { article: BlogArticle }) {
-  const relatedArticles = blogArticles.filter(item => item.meta.slug !== article.meta.slug);
+function RelatedArticles({ article, copy }: { article: BlogArticle; copy: ReturnType<typeof getBlogUiCopy> }) {
+  const relatedArticles = listBlogArticles(clientSiteConfig.defaultLanguage)
+    .filter(item => item.meta.slug !== article.meta.slug);
 
   if (relatedArticles.length === 0) {
     return null;
@@ -117,7 +150,7 @@ function RelatedArticles({ article }: { article: BlogArticle }) {
   return (
     <aside className="mt-12 border-t border-primary-100 pt-8 dark:border-primary-900/50">
       <p className="text-sm font-bold uppercase tracking-[0.18em] text-gray-400 dark:text-gray-500">
-        Citește și
+        {copy.related}
       </p>
       <div className="mt-4 grid gap-6 sm:grid-cols-2">
         {relatedArticles.map(relatedArticle => (
@@ -141,7 +174,9 @@ function RelatedArticles({ article }: { article: BlogArticle }) {
 
 export default function BlogArticlePage() {
   const { slug } = useParams();
-  const article = getBlogArticleBySlug(slug);
+  const language = clientSiteConfig.defaultLanguage;
+  const copy = getBlogUiCopy(language, clientSiteConfig.siteName);
+  const article = getBlogArticleBySlug(slug, language);
 
   if (!article) {
     return (
@@ -151,16 +186,16 @@ export default function BlogArticlePage() {
             Blog
           </p>
           <h1 className="mt-3 text-3xl font-extrabold text-gray-900 dark:text-gray-100">
-            Articol indisponibil
+            {copy.unavailableTitle}
           </h1>
           <p className="mt-3 text-base leading-7 text-gray-600 dark:text-gray-300">
-            Articolul căutat nu este disponibil.
+            {copy.unavailableBody}
           </p>
           <Link
             to="/"
             className="mt-6 inline-flex text-sm font-bold text-primary-600 transition-colors hover:text-primary-700 dark:text-primary-300 dark:hover:text-primary-200"
           >
-            Înapoi la Povești Magice
+            {copy.backHome}
           </Link>
         </div>
       </main>
@@ -178,7 +213,7 @@ export default function BlogArticlePage() {
       <article className="mx-auto max-w-5xl">
         <header className="border-b border-primary-100 pb-8 dark:border-primary-900/50">
           <p className="text-sm font-bold uppercase tracking-[0.18em] text-primary-500">
-            Articol
+            {copy.article}
           </p>
           <h1 className="mt-4 text-3xl font-extrabold leading-tight text-gray-900 dark:text-gray-100 md:text-5xl">
             {displayTitle}
@@ -187,9 +222,9 @@ export default function BlogArticlePage() {
             {article.meta.description}
           </p>
           <p className="mt-5 text-sm font-semibold text-gray-500 dark:text-gray-400">
-            Publicat: {formatDate(article.meta.datePublished)}
+            {copy.published}: {formatDate(article.meta.datePublished, copy.dateLocale)}
             {' · '}
-            Actualizat: {formatDate(article.meta.dateModified)}
+            {copy.updated}: {formatDate(article.meta.dateModified, copy.dateLocale)}
           </p>
         </header>
 
@@ -199,7 +234,7 @@ export default function BlogArticlePage() {
           ))}
         </div>
 
-        <RelatedArticles article={article} />
+        <RelatedArticles article={article} copy={copy} />
       </article>
     </main>
   );

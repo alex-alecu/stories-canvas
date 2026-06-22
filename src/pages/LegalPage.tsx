@@ -35,7 +35,7 @@ function RenderLink({ link }: { link: LegalLink }) {
   );
 }
 
-function CookieConsentControls() {
+function CookieConsentControls({ profile }: { profile: ReturnType<typeof getCurrentLegalProfile> }) {
   const [marketingConsent, setMarketingConsentState] = useState(() => getMarketingConsent()?.marketing ?? false);
 
   const updateConsent = (marketing: boolean) => {
@@ -45,7 +45,7 @@ function CookieConsentControls() {
   return (
     <div className="mt-5 rounded-2xl border border-primary-100 bg-primary-50/70 p-4 dark:border-primary-900/50 dark:bg-primary-950/20">
       <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-        Consimțământ marketing: {marketingConsent ? 'acceptat' : 'respins'}
+        {profile.marketingConsentLabel}: {marketingConsent ? profile.marketingConsentAcceptedLabel : profile.marketingConsentRejectedLabel}
       </p>
       <div className="mt-3 flex flex-wrap gap-2">
         <button
@@ -53,14 +53,14 @@ function CookieConsentControls() {
           onClick={() => updateConsent(true)}
           className="rounded-xl bg-primary-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-primary-700"
         >
-          Acceptă marketing
+          {profile.marketingAcceptLabel}
         </button>
         <button
           type="button"
           onClick={() => updateConsent(false)}
           className="rounded-xl border border-primary-200 bg-white px-4 py-2 text-sm font-semibold text-primary-700 transition-colors hover:bg-primary-50 dark:border-primary-800 dark:bg-surface-dark dark:text-primary-200 dark:hover:bg-surface-dark-accent"
         >
-          Respinge marketing
+          {profile.marketingRejectLabel}
         </button>
       </div>
     </div>
@@ -85,7 +85,7 @@ export default function LegalPage({ routeKey }: { routeKey: LegalRouteKey }) {
         <aside className="lg:sticky lg:top-20 lg:self-start">
           <div className="rounded-2xl border border-primary-100 bg-white/80 p-4 shadow-sm backdrop-blur-sm dark:border-primary-900/50 dark:bg-surface-dark-elevated/80">
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-gray-400 dark:text-gray-500">
-              Legal
+              {profile.legalNavLabel}
             </p>
             <nav className="mt-3 space-y-1" aria-label="Legal pages">
               {legalNavigation.map(link => (
@@ -108,7 +108,7 @@ export default function LegalPage({ routeKey }: { routeKey: LegalRouteKey }) {
         <article className="rounded-3xl border border-primary-100 bg-white/85 p-6 shadow-lg shadow-primary-100/40 backdrop-blur-sm dark:border-primary-900/50 dark:bg-surface-dark-elevated/85 dark:shadow-primary-950/20 md:p-8">
           <div className="border-b border-primary-100 pb-6 dark:border-primary-900/50">
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-primary-500">
-              Actualizat: {document.updatedAt}
+              {profile.updatedLabel}: {document.updatedAt}
             </p>
             <h1 className="mt-3 text-3xl font-extrabold text-gray-900 dark:text-gray-100 md:text-4xl">
               {document.title}
@@ -149,8 +149,8 @@ export default function LegalPage({ routeKey }: { routeKey: LegalRouteKey }) {
                     ))}
                   </div>
                 )}
-                {routeKey === 'cookies' && section.heading === '3. Schimbarea consimțământului' && (
-                  <CookieConsentControls />
+                {section.showCookieControls && (
+                  <CookieConsentControls profile={profile} />
                 )}
               </section>
             ))}

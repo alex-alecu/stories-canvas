@@ -18,6 +18,7 @@ import {
 import { getRandomStoryIdea } from '../data/storyIdeas';
 import { getVoiceOptionText } from '../i18n/storyStatusCopy';
 import { formatCredits } from '../i18n/billingCopy';
+import { clientSiteConfig } from '../lib/siteConfig';
 
 const STYLE_KEYS = ['storybook', 'disney-pixar', 'anime', 'colored-pencil', 'paper-cutout'] as const satisfies ReadonlyArray<ArtStyleKey>;
 type SelectableArtStyleKey = (typeof STYLE_KEYS)[number];
@@ -119,7 +120,7 @@ export default function StoryInput({ onSubmit, isLoading, isOffline = false }: S
               src="/logo-big-384.png"
               srcSet="/logo-big-256.png 256w, /logo-big-384.png 384w, /logo-big-512.png 512w"
               sizes="(min-width: 1024px) 384px, (min-width: 768px) 320px, 78vw"
-              alt={t.appTitle}
+              alt={clientSiteConfig.siteName}
               width={720}
               height={497}
               className="w-64 max-w-[78vw] md:w-80 lg:w-96"

@@ -1077,7 +1077,7 @@ router.post('/', optionalAuth, async (req: Request, res: Response) => {
       return;
     }
 
-    const storyLanguage = typeof language === 'string' ? language : 'ro';
+    const storyLanguage = typeof language === 'string' ? language : config.defaultLanguage;
     const storyAge = typeof age === 'number' && age > 0 && age <= 12 ? age : DEFAULT_AGE;
     const storyStyle = storyStyleOps.resolveArtStyle(typeof style === 'string' ? style : undefined);
     const storyMode = resolveRequestedStoryMode(request);
@@ -1279,7 +1279,7 @@ async function runGenerationPipeline(
     const groundedGenerationInputs = applyScenarioGroundingInputs(
       buildGenerationInputsSnapshot(
         prompt,
-        language ?? 'ro',
+        language ?? config.defaultLanguage,
         age ?? DEFAULT_AGE,
         style ?? DEFAULT_ART_STYLE,
         storyMode,
