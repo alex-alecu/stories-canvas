@@ -7,6 +7,7 @@ import {
   type ArtStyleKey,
 } from '../../shared/types.js';
 import type { Scenario } from '../../shared/types.js';
+import { config } from '../config.js';
 import type { ScenarioValidationIssue } from './scenarioValidation.js';
 import { loadPromptMarkdown, renderPromptTemplate } from './promptFiles.js';
 
@@ -35,6 +36,13 @@ export const SUPPORTED_STORY_LANGUAGES = [
 export type SupportedStoryLanguage = typeof SUPPORTED_STORY_LANGUAGES[number];
 
 const SUPPORTED_LANGUAGE_SET = new Set<SupportedStoryLanguage>(SUPPORTED_STORY_LANGUAGES);
+
+function defaultStoryLanguage(): SupportedStoryLanguage {
+  if (SUPPORTED_LANGUAGE_SET.has(config.defaultLanguage as SupportedStoryLanguage)) {
+    return config.defaultLanguage as SupportedStoryLanguage;
+  }
+  return 'ro';
+}
 
 interface LanguagePromptConfig {
   label: string;
@@ -129,7 +137,7 @@ export function resolveStoryLanguage(language?: string): SupportedStoryLanguage 
     return language as SupportedStoryLanguage;
   }
 
-  return 'ro';
+  return defaultStoryLanguage();
 }
 
 export function buildStoryPromptContext(

@@ -18,7 +18,7 @@ router.get('/preferences', optionalAuth, async (req: Request, res: Response) => 
     }
 
     if (!config.useSupabase) {
-      res.json({ language: 'ro' });
+      res.json({ language: config.defaultLanguage });
       return;
     }
 
@@ -34,7 +34,7 @@ router.get('/preferences', optionalAuth, async (req: Request, res: Response) => 
       throw error;
     }
 
-    res.json({ language: data?.language ?? 'ro' });
+    res.json({ language: data?.language ?? config.defaultLanguage });
   } catch (error) {
     console.error('Failed to get user preferences:', error);
     res.status(500).json({ error: 'Failed to get user preferences' });

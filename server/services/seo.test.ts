@@ -47,6 +47,9 @@ async function loadSeoModules() {
 
   Object.assign(config, {
     appBaseUrl: 'https://basmul.ro',
+    appSiteName: 'Povești Magice',
+    appSiteShortName: 'Povești Magice',
+    appSiteDescription: 'Creează povești ilustrate personalizate pentru copii.',
     seoSiteName: 'Povești Magice',
     seoDefaultLang: 'ro',
     seoDefaultLocale: 'ro_RO',
@@ -79,6 +82,68 @@ test('homepage uses basmul.ro canonical origin and Romanian default metadata', a
   assert.match(route.title, /Povești Magice/);
   assert.ok(route.structuredData.some(item => item['@type'] === 'WebSite'));
   assert.ok(route.structuredData.some(item => item['@type'] === 'Organization'));
+});
+
+test('English default language uses English SEO, legal copy, blog slugs, and manifest metadata', async (t) => {
+  const { config, seo, restore } = await loadSeoModules();
+  t.after(restore);
+
+  Object.assign(config, {
+    appBaseUrl: 'https://magicstories.com',
+    appSiteName: 'Magic Stories',
+    appSiteShortName: 'Magic Stories',
+    appSiteDescription: 'Create personalized illustrated stories for children.',
+    seoSiteName: 'Magic Stories',
+    seoDefaultLang: 'en',
+    seoDefaultLocale: 'en_US',
+    seoDefaultTitle: 'Magic Stories | Illustrated stories for children',
+    seoDefaultDescription: 'Create personalized illustrated stories for children.',
+  });
+
+  const homepage = await seo.resolveSeoRoute('/', {
+    getStory: async () => null,
+    listPublicStories: async () => [],
+  });
+  assert.equal(homepage.canonicalUrl, 'https://magicstories.com/');
+  assert.equal(homepage.lang, 'en');
+  assert.equal(homepage.locale, 'en_US');
+  assert.equal(homepage.title, 'Magic Stories | Illustrated stories for children');
+
+  const legalRoute = await seo.resolveSeoRoute('/legal/terms', {
+    getStory: async () => null,
+    listPublicStories: async () => [],
+  });
+  assert.equal(legalRoute.robots, 'index,follow');
+  assert.match(legalRoute.title, /Terms and conditions/);
+  assert.match(legalRoute.description, /rules for using Magic Stories/i);
+
+  const blogRoute = await seo.resolveSeoRoute('/blog/how-to-use-childrens-stories', {
+    getStory: async () => null,
+    listPublicStories: async () => [],
+  });
+  assert.equal(blogRoute.robots, 'index,follow');
+  assert.equal(blogRoute.canonicalUrl, 'https://magicstories.com/blog/how-to-use-childrens-stories');
+  assert.equal(blogRoute.lang, 'en');
+  assert.match(blogRoute.title, /How to use children's stories/);
+
+  const wrongLanguageBlogRoute = await seo.resolveSeoRoute('/blog/cum-folosesti-povestile-pentru-copii', {
+    getStory: async () => null,
+    listPublicStories: async () => [],
+  });
+  assert.equal(wrongLanguageBlogRoute.robots, 'noindex,nofollow');
+
+  const sitemap = await seo.buildSitemapXml({
+    getStory: async () => null,
+    listPublicStories: async () => [makeStory({ id: 'english-story', language: 'en' })],
+  });
+  assert.match(sitemap, /<loc>https:\/\/magicstories\.com\/blog\/how-to-use-childrens-stories<\/loc>/);
+  assert.match(sitemap, /<loc>https:\/\/magicstories\.com\/blog\/stories-vs-videos-for-children-under-5<\/loc>/);
+  assert.doesNotMatch(sitemap, /cum-folosesti-povestile/);
+
+  const manifest = JSON.parse(seo.buildWebManifest());
+  assert.equal(manifest.name, 'Magic Stories');
+  assert.equal(manifest.short_name, 'Magic Stories');
+  assert.equal(manifest.description, 'Create personalized illustrated stories for children.');
 });
 
 test('legal routes use their legal document metadata and are indexable', async (t) => {

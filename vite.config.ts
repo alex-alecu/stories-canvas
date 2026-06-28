@@ -6,9 +6,16 @@ import path from 'path';
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
   const serverPort = env.SERVER_PORT || '3001';
+  const defaultLanguage = env.APP_DEFAULT_LANGUAGE || env.VITE_DEFAULT_LANGUAGE || '';
 
   return {
     plugins: [react(), tailwindcss()],
+    define: {
+      'import.meta.env.VITE_APP_DEFAULT_LANGUAGE': JSON.stringify(defaultLanguage),
+      'import.meta.env.VITE_APP_SITE_NAME': JSON.stringify(env.APP_SITE_NAME || ''),
+      'import.meta.env.VITE_APP_SITE_SHORT_NAME': JSON.stringify(env.APP_SITE_SHORT_NAME || env.APP_SITE_NAME || ''),
+      'import.meta.env.VITE_APP_SITE_DESCRIPTION': JSON.stringify(env.APP_SITE_DESCRIPTION || ''),
+    },
     resolve: {
       alias: {
         '@shared': path.resolve(__dirname, 'shared'),

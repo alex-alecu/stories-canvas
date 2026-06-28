@@ -1,26 +1,38 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { BLOG_ARTICLE_FILES } from '../../shared/blogArticles.js';
+import {
+  getBlogArticleLocaleBySlug,
+  listBlogArticleLocales,
+  resolveBlogLanguage,
+  type BlogLanguage,
+} from '../../shared/blogArticles.js';
 import { parseBlogMarkdown, type BlogArticle } from '../../shared/blogMarkdown.js';
 
 const BLOG_CONTENT_DIR = join(process.cwd(), 'src', 'content', 'blog');
 
-function loadBlogArticle(filename: string): BlogArticle {
-  return parseBlogMarkdown(readFileSync(join(BLOG_CONTENT_DIR, filename), 'utf8'));
+function loadBlogArticle(entry: { language: BlogLanguage; slug: string; filename: string }): BlogArticle {
+  const article = parseBlogMarkdown(
+    readFileSync(join(BLOG_CONTENT_DIR, entry.language, entry.filename), 'utf8'),
+  );
+  if (article.meta.slug !== entry.slug) {
+    throw new Error(`Blog article slug mismatch: ${article.meta.slug} !== ${entry.slug}`);
+  }
+  if (article.meta.language !== entry.language) {
+    throw new Error(`Blog article language mismatch: ${article.meta.language} !== ${entry.language}`);
+  }
+  return article;
 }
 
-export function listBlogArticles(): BlogArticle[] {
-  return BLOG_ARTICLE_FILES.map(({ filename, slug }) => {
-    const article = loadBlogArticle(filename);
-    if (article.meta.slug !== slug) {
-      throw new Error(`Blog article slug mismatch: ${article.meta.slug} !== ${slug}`);
-    }
-    return article;
-  });
+export function listBlogArticles(language?: string): BlogArticle[] {
+  const resolvedLanguage = resolveBlogLanguage(language);
+  if (!resolvedLanguage) return [];
+  return listBlogArticleLocales(resolvedLanguage).map(loadBlogArticle);
 }
 
-export function getBlogArticleBySlug(slug: string): BlogArticle | undefined {
-  return listBlogArticles().find(article => article.meta.slug === slug);
+export function getBlogArticleBySlug(slug: string, language?: string): BlogArticle | undefined {
+  const resolvedLanguage = resolveBlogLanguage(language);
+  if (!resolvedLanguage) return undefined;
+  const entry = getBlogArticleLocaleBySlug(slug, resolvedLanguage);
+  return entry ? loadBlogArticle(entry) : undefined;
 }
-

@@ -4,6 +4,7 @@ import {
   interpolateLegalText,
   type LegalLink,
 } from '../legal/legalConfig';
+import { clientSiteConfig } from '../lib/siteConfig';
 
 function FooterLink({ link }: { link: LegalLink }) {
   if (link.external) {
@@ -42,7 +43,7 @@ export default function Footer() {
       <div className="mx-auto grid max-w-6xl gap-8 lg:grid-cols-[1.2fr_1.8fr]">
         <div>
           <p className="text-base font-extrabold text-gray-900 dark:text-gray-100">
-            Povești Magice
+            {clientSiteConfig.siteName}
           </p>
           <p className="mt-2 max-w-xl text-sm leading-6 text-gray-500 dark:text-gray-400">
             {profile.footerDescription}

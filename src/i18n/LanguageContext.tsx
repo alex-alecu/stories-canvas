@@ -3,21 +3,17 @@ import type { Language, Translations } from './types';
 import { translations, languageList } from './translations';
 import { useAuth } from '../contexts/AuthContext';
 import { readStorageItem, writeStorageItem } from '../lib/browserStorage';
+import { resolveClientDefaultLanguage } from '../lib/siteConfig';
 
 const LANGUAGE_STORAGE_KEY = 'stories-canvas:language';
 const VALID_LANGUAGES = new Set<string>(Object.keys(translations));
-const DEFAULT_LANGUAGE: Language = 'ro';
 
 function isValidLanguage(lang: string): lang is Language {
   return VALID_LANGUAGES.has(lang);
 }
 
 function getConfiguredDefaultLanguage(): Language {
-  const configuredLanguage = import.meta.env.VITE_DEFAULT_LANGUAGE;
-  if (configuredLanguage && isValidLanguage(configuredLanguage)) {
-    return configuredLanguage;
-  }
-  return DEFAULT_LANGUAGE;
+  return resolveClientDefaultLanguage();
 }
 
 function getStoredLanguage(): Language | null {

@@ -1,7 +1,7 @@
 import type { StoryMeta } from '../../shared/types.js';
 import {
   LEGAL_ROUTES,
-  getLegalProfileForHostname,
+  getLegalProfileForLanguage,
   interpolateLegalText,
   type LegalDocument,
   type LegalRouteKey,
@@ -12,6 +12,19 @@ import { getBlogArticleBySlug, listBlogArticles } from './blogContent.js';
 const INDEX_ROBOTS = 'index,follow';
 const NOINDEX_ROBOTS = 'noindex,nofollow';
 const SITEMAP_STORY_LIMIT = 5_000;
+
+const SEO_ROUTE_COPY = {
+  ro: {
+    exploreTitle: 'Explorează povești pentru copii',
+    exploreDescription: 'Descoperă povești ilustrate pentru copii create de comunitatea Povești Magice.',
+    storyFallbackTitle: 'Poveste ilustrată pentru copii',
+  },
+  en: {
+    exploreTitle: 'Explore children\'s stories',
+    exploreDescription: 'Discover illustrated children\'s stories created by the Magic Stories community.',
+    storyFallbackTitle: 'Illustrated children\'s story',
+  },
+} as const;
 
 export interface SeoStorage {
   getStory(id: string): Promise<StoryMeta | null>;
@@ -47,8 +60,12 @@ function getCanonicalOrigin(): string {
   return normalizeOrigin(config.appBaseUrl);
 }
 
-function getCanonicalHostname(): string {
-  return new URL(getCanonicalOrigin()).hostname;
+function getSeoLanguage(): 'ro' | 'en' {
+  return config.seoDefaultLang === 'ro' ? 'ro' : 'en';
+}
+
+function getSeoCopy() {
+  return SEO_ROUTE_COPY[getSeoLanguage()];
 }
 
 function normalizePath(path: string): string {
@@ -100,12 +117,12 @@ function siteTitle(title: string): string {
 
 function getLegalDocumentForPath(path: string): LegalDocument | undefined {
   const normalizedPath = normalizePath(path);
-  const profile = getLegalProfileForHostname(getCanonicalHostname());
+  const profile = getLegalProfileForLanguage(config.seoDefaultLang);
   return Object.values(profile.documents).find(document => document.route === normalizedPath);
 }
 
 function getLegalRouteEntries(): Array<{ key: LegalRouteKey; document: LegalDocument }> {
-  const profile = getLegalProfileForHostname(getCanonicalHostname());
+  const profile = getLegalProfileForLanguage(config.seoDefaultLang);
   return (Object.entries(LEGAL_ROUTES) as Array<[LegalRouteKey, string]>).map(([key]) => ({
     key,
     document: profile.documents[key],
@@ -121,7 +138,7 @@ function blogArticleUrl(slug: string): string {
 }
 
 function buildOrganizationData() {
-  const profile = getLegalProfileForHostname(getCanonicalHostname());
+  const profile = getLegalProfileForLanguage(config.seoDefaultLang);
   const operator = profile.operator;
 
   return {
@@ -192,10 +209,11 @@ export async function resolveSeoRoute(path: string, storage: SeoStorage): Promis
   }
 
   if (normalizedPath === '/explore') {
+    const copy = getSeoCopy();
     return {
       ...defaultSeo('/explore', INDEX_ROBOTS),
-      title: siteTitle('Explorează povești pentru copii'),
-      description: 'Descoperă povești ilustrate pentru copii create de comunitatea Povești Magice.',
+      title: siteTitle(copy.exploreTitle),
+      description: copy.exploreDescription,
       structuredData: [buildWebsiteData()],
     };
   }
@@ -226,7 +244,7 @@ export async function resolveSeoRoute(path: string, storage: SeoStorage): Promis
 
   const blogMatch = normalizedPath.match(/^\/blog\/([^/]+)$/);
   if (blogMatch) {
-    const article = getBlogArticleBySlug(decodeURIComponent(blogMatch[1] ?? ''));
+    const article = getBlogArticleBySlug(decodeURIComponent(blogMatch[1] ?? ''), config.seoDefaultLang);
     if (!article) {
       return defaultSeo(normalizedPath, NOINDEX_ROBOTS);
     }
@@ -269,7 +287,7 @@ export async function resolveSeoRoute(path: string, storage: SeoStorage): Promis
       return defaultSeo(normalizedPath, NOINDEX_ROBOTS);
     }
 
-    const title = story.scenario.title || 'Poveste ilustrată pentru copii';
+    const title = story.scenario.title || getSeoCopy().storyFallbackTitle;
     const description = storyDescription(story);
     const imageUrl = storyImage(story);
 
@@ -319,6 +337,8 @@ function buildHeadMarkup(seo: SeoRouteData): string {
   return [
     `<title>${escapeHtml(seo.title)}</title>`,
     metaTag('description', seo.description),
+    metaTag('application-name', config.appSiteName),
+    metaTag('apple-mobile-web-app-title', config.appSiteShortName),
     metaTag('robots', seo.robots),
     linkTag('canonical', seo.canonicalUrl),
     propertyTag('og:site_name', config.seoSiteName),
@@ -342,6 +362,8 @@ export async function renderHtmlWithSeo(indexHtml: string, path: string, storage
     .replace(/<html\b([^>]*)\blang=(["']).*?\2([^>]*)>/i, `<html$1lang="${escapeHtml(seo.lang)}"$3>`)
     .replace(/<title>[\s\S]*?<\/title>\s*/i, '')
     .replace(/<meta\s+name=(["'])description\1\s+content=(["'])[\s\S]*?\2\s*\/?>\s*/i, '')
+    .replace(/<meta\s+name=(["'])application-name\1\s+content=(["'])[\s\S]*?\2\s*\/?>\s*/i, '')
+    .replace(/<meta\s+name=(["'])apple-mobile-web-app-title\1\s+content=(["'])[\s\S]*?\2\s*\/?>\s*/i, '')
     .replace(/<meta\s+name=(["'])robots\1\s+content=(["'])[\s\S]*?\2\s*\/?>\s*/i, '')
     .replace(/<link\s+rel=(["'])canonical\1\s+href=(["'])[\s\S]*?\2\s*\/?>\s*/i, '');
 
@@ -365,7 +387,7 @@ export async function buildSitemapXml(storage: SeoStorage): Promise<string> {
       loc: canonicalUrl(document.route),
       lastmod: legalDateModified(document),
     })),
-    ...listBlogArticles().map(article => ({
+    ...listBlogArticles(config.seoDefaultLang).map(article => ({
       loc: canonicalUrl(blogArticleUrl(article.meta.slug)),
       lastmod: article.meta.dateModified,
     })),
@@ -394,6 +416,30 @@ export function buildRobotsTxt(): string {
     `Sitemap: ${canonicalUrl('/sitemap.xml')}`,
     '',
   ].join('\n');
+}
+
+export function buildWebManifest(): string {
+  return JSON.stringify({
+    name: config.appSiteName,
+    short_name: config.appSiteShortName,
+    description: config.appSiteDescription,
+    start_url: '/',
+    display: 'standalone',
+    background_color: '#faf5ff',
+    theme_color: '#faf5ff',
+    icons: [
+      {
+        src: '/icon-192.png',
+        sizes: '192x192',
+        type: 'image/png',
+      },
+      {
+        src: '/icon-512.png',
+        sizes: '512x512',
+        type: 'image/png',
+      },
+    ],
+  }, null, 2);
 }
 
 export const seoLimits = {

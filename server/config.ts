@@ -38,6 +38,42 @@ function integerEnv(key: string, fallback: number): number {
   return numberEnv(key, fallback, raw => Number.parseInt(raw, 10));
 }
 
+type SiteLanguage = 'ro' | 'en';
+
+const VALID_APP_LANGUAGES = new Set<SiteLanguage>(['ro', 'en']);
+
+export function resolveDefaultAppLanguage(language?: string): SiteLanguage {
+  const normalizedLanguage = language?.trim().toLowerCase();
+  return VALID_APP_LANGUAGES.has(normalizedLanguage as SiteLanguage)
+    ? normalizedLanguage as SiteLanguage
+    : 'ro';
+}
+
+function appLanguageEnv(): SiteLanguage {
+  return resolveDefaultAppLanguage(
+    process.env.APP_DEFAULT_LANGUAGE || process.env.SEO_DEFAULT_LANG || process.env.VITE_DEFAULT_LANGUAGE,
+  );
+}
+
+const DEFAULT_SITE_COPY = {
+  ro: {
+    siteName: 'Povești Magice',
+    shortName: 'Povești Magice',
+    title: 'Povești Magice | Povești ilustrate pentru copii',
+    description: 'Creează povești ilustrate personalizate pentru copii, cu imagini, narațiune și povești publice de explorat.',
+    locale: 'ro_RO',
+  },
+  en: {
+    siteName: 'Magic Stories',
+    shortName: 'Magic Stories',
+    title: 'Magic Stories | Illustrated stories for children',
+    description: 'Create personalized illustrated stories for children with images, narration, and public stories to explore.',
+    locale: 'en_US',
+  },
+} as const;
+
+const defaultLanguage = appLanguageEnv();
+const defaultSiteCopy = defaultLanguage === 'ro' ? DEFAULT_SITE_COPY.ro : DEFAULT_SITE_COPY.en;
 const supabaseUrl = optionalEnv('SUPABASE_URL');
 const supabaseServiceKey = optionalEnv('SUPABASE_SERVICE_KEY');
 
@@ -84,13 +120,17 @@ export const config = {
   stripeSecretKey: optionalEnv('STRIPE_SECRET_KEY'),
   stripeWebhookSecret: optionalEnv('STRIPE_WEBHOOK_SECRET'),
   appBaseUrl: process.env.APP_BASE_URL || process.env.PUBLIC_APP_URL || `http://localhost:${parseInt(process.env.PORT || process.env.SERVER_PORT || '3001', 10)}`,
+  defaultLanguage,
+  appSiteName: process.env.APP_SITE_NAME || defaultSiteCopy.siteName,
+  appSiteShortName: process.env.APP_SITE_SHORT_NAME || process.env.APP_SITE_NAME || defaultSiteCopy.shortName,
+  appSiteDescription: process.env.APP_SITE_DESCRIPTION || defaultSiteCopy.description,
 
   // SEO configuration
-  seoSiteName: process.env.SEO_SITE_NAME || 'Povești Magice',
-  seoDefaultLang: process.env.SEO_DEFAULT_LANG || 'ro',
-  seoDefaultLocale: process.env.SEO_DEFAULT_LOCALE || 'ro_RO',
-  seoDefaultTitle: process.env.SEO_DEFAULT_TITLE || 'Povești Magice | Povești ilustrate pentru copii',
-  seoDefaultDescription: process.env.SEO_DEFAULT_DESCRIPTION || 'Creează povești ilustrate personalizate pentru copii, cu imagini, narațiune și povești publice de explorat.',
+  seoSiteName: process.env.SEO_SITE_NAME || process.env.APP_SITE_NAME || defaultSiteCopy.siteName,
+  seoDefaultLang: process.env.SEO_DEFAULT_LANG || defaultLanguage,
+  seoDefaultLocale: process.env.SEO_DEFAULT_LOCALE || defaultSiteCopy.locale,
+  seoDefaultTitle: process.env.SEO_DEFAULT_TITLE || defaultSiteCopy.title,
+  seoDefaultDescription: process.env.SEO_DEFAULT_DESCRIPTION || process.env.APP_SITE_DESCRIPTION || defaultSiteCopy.description,
   seoFallbackImage: process.env.SEO_FALLBACK_IMAGE || '/logo-big-512.png',
 
   // Marketing conversion configuration

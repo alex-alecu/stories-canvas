@@ -40,6 +40,7 @@ export interface LegalSection {
   body?: string[];
   bullets?: string[];
   links?: LegalLink[];
+  showCookieControls?: boolean;
 }
 
 export interface LegalDocument {
@@ -55,6 +56,13 @@ export interface LegalProfile {
   key: LegalProfileKey;
   domains: string[];
   localeLabel: string;
+  updatedLabel: string;
+  legalNavLabel: string;
+  marketingConsentLabel: string;
+  marketingConsentAcceptedLabel: string;
+  marketingConsentRejectedLabel: string;
+  marketingAcceptLabel: string;
+  marketingRejectLabel: string;
   footerDescription: string;
   footerGroups: FooterGroup[];
   operator: LegalOperator;
@@ -76,6 +84,23 @@ export function getObfuscatedEmailLabel(): string {
   return `${local}${legalContactEmail.atLabel}${domain}`;
 }
 
+function getConfiguredWebsite(): string {
+  if (typeof window !== 'undefined') {
+    return window.location.origin;
+  }
+  const env = (globalThis as unknown as { process?: { env?: Record<string, string | undefined> } }).process?.env;
+  return env?.APP_BASE_URL || env?.PUBLIC_APP_URL || legalCompany.website;
+}
+
+function getConfiguredLegalLanguage(): LegalProfileKey {
+  const env = (import.meta as unknown as { env?: Record<string, string | undefined> }).env;
+  const processEnv = (globalThis as unknown as { process?: { env?: Record<string, string | undefined> } }).process?.env;
+  const language = typeof window === 'undefined'
+    ? processEnv?.APP_DEFAULT_LANGUAGE
+    : env?.VITE_APP_DEFAULT_LANGUAGE || env?.VITE_DEFAULT_LANGUAGE;
+  return language === 'en' ? 'en' : 'ro';
+}
+
 const roOperator: LegalOperator = {
   name: legalCompany.name,
   legalForm: legalCompany.legalForm,
@@ -86,7 +111,7 @@ const roOperator: LegalOperator = {
   county: legalCompany.county,
   city: legalCompany.city,
   contactEmailLabel: getObfuscatedEmailLabel(),
-  website: legalCompany.website,
+  website: getConfiguredWebsite(),
   jurisdiction: legalCompany.jurisdiction,
 };
 
@@ -103,20 +128,43 @@ const legalLinks = {
   sal: { label: 'Reclamații SAL ANPC', href: 'https://reclamatiisal.anpc.ro/', external: true },
 } satisfies Record<string, LegalLink>;
 
+const enLegalLinks = {
+  terms: { label: 'Terms', href: LEGAL_ROUTES.terms },
+  privacy: { label: 'Privacy', href: LEGAL_ROUTES.privacy },
+  cookies: { label: 'Cookies', href: LEGAL_ROUTES.cookies },
+  withdrawalRefunds: { label: 'Withdrawal and refunds', href: LEGAL_ROUTES.withdrawalRefunds },
+  consumerProtection: { label: 'Consumer protection', href: LEGAL_ROUTES.consumerProtection },
+  contact: { label: 'Contact', href: LEGAL_ROUTES.contact },
+  readingTogether: { label: 'Using stories with children', href: '/blog/how-to-use-childrens-stories' },
+  storiesVsVideos: { label: 'Stories vs videos', href: '/blog/stories-vs-videos-for-children-under-5' },
+  anpc: { label: 'ANPC', href: 'https://anpc.ro/', external: true },
+  sal: { label: 'ANPC alternative dispute resolution', href: 'https://anpc.ro/sal/', external: true },
+} satisfies Record<string, LegalLink>;
+
 function document(
   key: LegalRouteKey,
   title: string,
   description: string,
   sections: LegalSection[],
+  updatedAt = '5 iunie 2026',
 ): LegalDocument {
   return {
     route: LEGAL_ROUTES[key],
     title,
     description,
-    updatedAt: '5 iunie 2026',
+    updatedAt,
     updatedAtIso: '2026-06-05',
     sections,
   };
+}
+
+function enDocument(
+  key: LegalRouteKey,
+  title: string,
+  description: string,
+  sections: LegalSection[],
+): LegalDocument {
+  return document(key, title, description, sections, '5 June 2026');
 }
 
 const roDocuments: Record<LegalRouteKey, LegalDocument> = {
@@ -268,6 +316,7 @@ const roDocuments: Record<LegalRouteKey, LegalDocument> = {
     },
     {
       heading: '3. Schimbarea consimțământului',
+      showCookieControls: true,
       body: [
         'Puteți modifica opțiunea de marketing din această pagină. Refuzul cookie-urilor de marketing nu blochează folosirea aplicației, dar poate limita măsurarea conversiilor și eficiența reclamelor.',
       ],
@@ -370,11 +419,269 @@ const roDocuments: Record<LegalRouteKey, LegalDocument> = {
   ]),
 };
 
+const enDocuments: Record<LegalRouteKey, LegalDocument> = {
+  terms: enDocument('terms', 'Terms and conditions', 'The rules for using Magic Stories.', [
+    {
+      heading: '1. Service operator',
+      body: [
+        'Magic Stories is operated by {operator.name} {operator.legalForm}, with registered office at {operator.address}, registered with the Trade Register under no. {operator.registrationNumber}, EUID {operator.euid}, tax ID {operator.taxId}.',
+        'The main user contact address is {operator.contactEmailLabel}. Use this address for account, payment, credit, generated content, or personal-data requests.',
+      ],
+    },
+    {
+      heading: '2. Service description',
+      body: [
+        'Magic Stories is an online application that lets users create illustrated children\'s stories from an idea, target age, language, and visual style. Depending on the selected options, the service may generate text, images, and audio narration.',
+        'Content is produced with automated artificial-intelligence systems. Results may contain errors, omissions, unsuitable wording, or differences from the submitted instructions. Users should review a story before reading it to a child or sharing it.',
+      ],
+    },
+    {
+      heading: '3. Accounts and access',
+      body: [
+        'An account is required to create, save, and manage stories. Users are responsible for the accuracy of the information they provide, for keeping login details confidential, and for activity performed through their account.',
+        'We may limit, suspend, or close access if we observe abusive use, breach of these terms, fraud attempts, security risks, or content that may affect other users or service operation.',
+      ],
+    },
+    {
+      heading: '4. Credits, prices, and payments',
+      body: [
+        'The service uses credits for story generation and additional actions such as image regeneration or audio narration. The required number of credits is shown in the application before the action starts.',
+        'Credit pack prices are shown before the user is redirected to online payment. Payments are processed by Stripe. Magic Stories does not store complete card details. Payment confirmation, credit allocation, and history updates may depend on messages received from the payment processor.',
+        'Credits are not electronic money, do not accrue interest, and can be used only inside Magic Stories. If a pack or feature is temporarily unavailable, we will make reasonable efforts to fix the issue or clarify it through support.',
+      ],
+    },
+    {
+      heading: '5. User content',
+      body: [
+        'Users are responsible for the ideas, text, names, and instructions they enter into the service. It is not permitted to submit illegal, discriminatory, violent, sexually explicit, defamatory content, content that infringes others\' rights, or content unsuitable for a family-oriented service.',
+        'By submitting an idea or instructions, users allow us to process them to generate, display, store, and manage the requested story. This permission is necessary to provide the service.',
+        'If you mark a story as public, it may be displayed to other users in the exploration area. You can change visibility from the application where this feature is available.',
+      ],
+    },
+    {
+      heading: '6. Acceptable use',
+      bullets: [
+        'Do not use the service for illegal content, harassment, fraud, exploitation of minors, copyright infringement, or violations of image and privacy rights.',
+        'Do not try to bypass technical limits, payment mechanisms, safety filters, authentication, or access restrictions.',
+        'Do not enter sensitive personal data about children or other people unless you have a legal right and a real reason to do so.',
+        'Do not treat generated results as medical, legal, psychological, or specialized educational advice.',
+      ],
+    },
+    {
+      heading: '7. Availability and changes',
+      body: [
+        'We make reasonable efforts to keep the service available, but we do not guarantee uninterrupted or error-free operation. Third-party providers, maintenance, technical incidents, capacity limits, or security restrictions may temporarily affect the service.',
+        'We may change features, prices, credit packs, or these terms. The applicable version is the one published on this page when the service is used, without limiting mandatory consumer rights.',
+      ],
+    },
+    {
+      heading: '8. Liability, consumers, and governing law',
+      body: [
+        'The service is provided for personal and family use. To the extent permitted by law, we are not liable for indirect losses, inappropriate use of generated content, or decisions made solely on the basis of automated output.',
+        'If you are a consumer, you benefit from mandatory rights under consumer-protection law. These terms are governed by Romanian law, without limiting mandatory rights granted by applicable law.',
+      ],
+      links: [
+        { label: 'Romanian Law 365/2002 on electronic commerce', href: 'https://legislatie.just.ro/public/DetaliiDocument/77218', external: true },
+        { label: 'Romanian GEO 34/2014 on distance contracts', href: 'https://legislatie.just.ro/Public/DetaliiDocument/158913', external: true },
+      ],
+    },
+  ]),
+  privacy: enDocument('privacy', 'Privacy policy', 'How we collect, use, and protect personal data in Magic Stories.', [
+    {
+      heading: '1. Data controller',
+      body: [
+        'The personal-data controller is {operator.name} {operator.legalForm}, with registered office at {operator.address}. For personal-data questions, write to the contact address shown on the Contact page.',
+        'This policy explains processing carried out through the Magic Stories website and app, including account creation, story generation, public story display, credit payments, and offline features.',
+      ],
+    },
+    {
+      heading: '2. Data we process',
+      bullets: [
+        'Account data: email, user identifier, name and avatar if received from an authentication provider, language preference, and administrative role information if applicable.',
+        'Story data: submitted idea, child age, language, visual style, generation mode, selected voice, scenario, page text, image descriptions, generated images, generated audio, and generation status.',
+        'Usage data: created stories, public/private visibility, like/dislike reactions, image feedback, offline downloads on the device, and credit-consumption history.',
+        'Payment data: purchased credit pack, amount, currency, payment status, Stripe session identifiers, and credit history. Complete card data is processed by Stripe, not by Magic Stories.',
+        'Technical and security data: IP address, user agent, request logs, error events, rate limits, authentication identifiers, and local data required for app operation.',
+        'Marketing data: UTM parameters, campaign identifiers, and conversion events only if you accept marketing technologies.',
+      ],
+    },
+    {
+      heading: '3. Purposes and legal bases',
+      bullets: [
+        'Contract performance: account creation, story generation and display, material storage, credit management, offline downloads, and delivery of requested features.',
+        'Legal obligations: transaction records, responses to legal requests, tax obligations, consumer protection, and records required by law.',
+        'Legitimate interest: service security, fraud and abuse prevention, debugging, infrastructure protection, aggregate operational analytics, and strictly operational communications.',
+        'Consent: marketing, advertising pixels, conversion measurement, and promotional communications when explicitly enabled.',
+      ],
+    },
+    {
+      heading: '4. Providers and recipients',
+      body: [
+        'We use technical providers for authentication, database and storage, payment processing, AI text/image/audio generation, hosting, monitoring, support, and marketing. Providers receive only the data needed for their role.',
+        'The current product setup may use Supabase for authentication, database, and storage; Stripe for payments; AI providers for text and image generation; ElevenLabs for audio narration if selected; and Google/Meta/TikTok for marketing only after consent.',
+        'Data may be transferred outside the European Economic Area if our providers operate globally. In those cases we use available contractual mechanisms and safeguards under GDPR.',
+      ],
+    },
+    {
+      heading: '5. Public stories and generated content',
+      body: [
+        'Stories are private by default unless you choose to make them public. A public story may be displayed in the exploration section and may be seen by other users or visitors.',
+        'Do not enter sensitive personal data, identifying details about children, addresses, medical information, or any information you do not want processed by the service and the technical providers required for generation.',
+      ],
+    },
+    {
+      heading: '6. Retention',
+      body: [
+        'We keep account data and stories while the account is active or as needed to provide the service. Users may delete certain stories from the app, and offline data may remain on a device until removed locally.',
+        'Payment, accounting, security, and support data may be kept longer where required by law or where needed to protect our rights, users, or third parties.',
+      ],
+    },
+    {
+      heading: '7. Data-subject rights',
+      body: [
+        'You have rights of access, rectification, erasure, restriction, portability, objection, and withdrawal of consent under GDPR. Send requests using the contact address shown on the Contact page.',
+        'We will respond within the GDPR deadline. To protect accounts, we may request reasonable information to verify identity before fulfilling a request.',
+        'You may lodge a complaint with the Romanian data-protection authority if you believe your rights were infringed.',
+      ],
+      links: [
+        { label: 'ANSPDCP', href: 'https://www.dataprotection.ro/', external: true },
+        { label: 'GDPR Article 13', href: 'https://eur-lex.europa.eu/eli/reg/2016/679/art_13/oj/eng', external: true },
+      ],
+    },
+  ]),
+  cookies: enDocument('cookies', 'Cookie policy', 'Information about local storage and marketing technologies used by Magic Stories.', [
+    {
+      heading: '1. What we use',
+      body: [
+        'Magic Stories uses cookies, localStorage, IndexedDB, and browser/service-worker cache for authentication, preferences, offline operation, security, and remembering consent.',
+        'Marketing cookies or pixels load only after explicit acceptance in the consent banner or through the controls on this page.',
+      ],
+    },
+    {
+      heading: '2. Categories',
+      bullets: [
+        'Strictly necessary: authentication, session, security, abuse prevention, app operation, and page loading.',
+        'Preferences: language, theme, font size, the story currently being generated, and other interface settings.',
+        'Offline and performance: stories downloaded to the device, locally saved images/audio, service-worker cache, and data needed for offline reading.',
+        'Optional marketing: Google Tag Manager/Google Analytics/Google Ads, Meta Pixel, or TikTok Pixel only if configured and accepted.',
+      ],
+    },
+    {
+      heading: '3. Changing consent',
+      showCookieControls: true,
+      body: [
+        'You can change the marketing option from this page. Rejecting marketing cookies does not block app use, but it may limit conversion measurement and advertising effectiveness.',
+      ],
+    },
+    {
+      heading: '4. Browser control',
+      body: [
+        'You can also delete cookies and local data from browser settings. If local data is deleted, some preferences, consent state, or offline stories may be lost.',
+        'Because we also use cookie-like technologies such as pixels, conversion identifiers, and local storage, this policy applies to all technologies that read or save information on the device.',
+      ],
+      links: [
+        { label: 'EDPB on tracking techniques and ePrivacy', href: 'https://www.edpb.europa.eu/news/news/2023/edpb-provides-clarity-tracking-techniques-covered-eprivacy-directive_en', external: true },
+      ],
+    },
+  ]),
+  withdrawalRefunds: enDocument('withdrawalRefunds', 'Withdrawal and refunds', 'Withdrawal rights, digital content, and refunds for Magic Stories credits.', [
+    {
+      heading: '1. Right of withdrawal',
+      body: [
+        'Consumers generally have a 14-day withdrawal period for distance contracts under applicable law.',
+        'Magic Stories supplies personalized services and digital content delivered without a physical medium: stories, images, and audio narration generated at the user\'s request. For this type of content, the withdrawal right may be limited or lost after performance begins with the consumer\'s express consent and confirmation that they understand the consequence for the withdrawal right.',
+      ],
+    },
+    {
+      heading: '2. When performance begins',
+      body: [
+        'Performance begins when the user requests story generation, image regeneration, text update, or audio narration. From that moment, automated systems may consume AI-provider resources and produce personalized content.',
+        'Before buying or spending credits, the app displays information about the pack, credit cost, and initiated action. Users should check their selections before confirming.',
+      ],
+    },
+    {
+      heading: '3. Automatic credit refunds',
+      body: [
+        'The app may automatically refund credits in certain technical cases, such as when a generation is cancelled or fails before material is saved according to the service rules.',
+        'For some actions, if an image, audio clip, or regenerated material is not saved, the app may record a credit refund in the account history. This mechanism concerns in-app credits and does not replace statutory consumer rights.',
+      ],
+    },
+    {
+      heading: '4. Money refunds',
+      body: [
+        'For payment problems, duplicate charges, incorrect crediting, unauthorized transactions, or commercial requests, contact us using the address shown on the Contact page. Include the account email, payment date, amount, purchased pack, and problem details.',
+        'If a payment refund is approved, it is processed through Stripe or the payment channel used. The time until funds appear in the account may depend on the bank and processor.',
+      ],
+      links: [
+        { label: 'Romanian GEO 34/2014 on distance contracts', href: 'https://legislatie.just.ro/Public/DetaliiDocument/158913', external: true },
+      ],
+    },
+  ]),
+  consumerProtection: enDocument('consumerProtection', 'Consumer protection / ADR', 'Information for consumers and alternative dispute resolution.', [
+    {
+      heading: '1. Contact us first',
+      body: [
+        'For any issue related to account access, story generation, credits, payments, or generated content, please contact us first using the address shown on the Contact page. We will try to respond and find an amicable solution within a reasonable time.',
+        'The same address can be used for payment, refund, privacy, and GDPR requests.',
+      ],
+    },
+    {
+      heading: '2. ANPC and ADR',
+      body: [
+        'Consumers in Romania may contact the National Authority for Consumer Protection and may use alternative dispute resolution mechanisms administered through ANPC.',
+        'ADR is an out-of-court mechanism through which consumers and professionals can try to resolve disputes arising from sales or service contracts amicably.',
+        'We do not link to the former European ODR platform because the platform and related obligations were removed starting 20 July 2025. For Romania, we use the current ANPC/ADR links.',
+      ],
+      links: [
+        enLegalLinks.anpc,
+        enLegalLinks.sal,
+        { label: 'ANPC on ADR framework updates', href: 'https://anpc.ro/anpc-dezvolta-sistemul-sal-potrivit-cadrului-european-actual/', external: true },
+      ],
+    },
+  ]),
+  contact: enDocument('contact', 'Contact', 'Operator details and support channels for Magic Stories.', [
+    {
+      heading: '1. Operator details',
+      bullets: [
+        'Name: {operator.name} {operator.legalForm}',
+        'Registered office: {operator.address}',
+        'Trade Register: {operator.registrationNumber}',
+        'EUID: {operator.euid}',
+        'Tax ID: {operator.taxId}',
+        'County: {operator.county}',
+        'City: {operator.city}',
+        'Website: {operator.website}',
+      ],
+    },
+    {
+      heading: '2. Contact channels',
+      bullets: [
+        'General support, payments, credits, billing, privacy, and GDPR: {operator.contactEmailLabel}',
+      ],
+    },
+    {
+      heading: '3. What to include',
+      bullets: [
+        'For generation issues: account email, story title or ID, approximate time, and error description.',
+        'For payment issues: account email, purchased pack, payment date, amount, and any identifier received from Stripe or the bank.',
+        'For GDPR requests: the right you want to exercise and enough information to identify the account.',
+      ],
+    },
+  ]),
+};
+
 export const legalProfiles: Record<LegalProfileKey, LegalProfile> = {
   ro: {
     key: 'ro',
     domains: ['basmul.ro', 'www.basmul.ro', 'povestimagice.ro', 'www.povestimagice.ro', 'localhost', '127.0.0.1'],
     localeLabel: 'Romania',
+    updatedLabel: 'Actualizat',
+    legalNavLabel: 'Legal',
+    marketingConsentLabel: 'Consimțământ marketing',
+    marketingConsentAcceptedLabel: 'acceptat',
+    marketingConsentRejectedLabel: 'respins',
+    marketingAcceptLabel: 'Acceptă marketing',
+    marketingRejectLabel: 'Respinge marketing',
     footerDescription: 'Povești ilustrate create cu AI pentru familii. Informațiile legale sunt disponibile permanent mai jos.',
     operator: roOperator,
     footerGroups: [
@@ -401,25 +708,36 @@ export const legalProfiles: Record<LegalProfileKey, LegalProfile> = {
     key: 'en',
     domains: [],
     localeLabel: 'English',
-    footerDescription: 'AI-assisted illustrated stories for families. English legal copy can be enabled for future domains.',
+    updatedLabel: 'Updated',
+    legalNavLabel: 'Legal',
+    marketingConsentLabel: 'Marketing consent',
+    marketingConsentAcceptedLabel: 'accepted',
+    marketingConsentRejectedLabel: 'rejected',
+    marketingAcceptLabel: 'Accept marketing',
+    marketingRejectLabel: 'Reject marketing',
+    footerDescription: 'AI-assisted illustrated stories for families. Legal information is always available below.',
     operator: roOperator,
     footerGroups: [
       {
         title: 'Legal',
-        links: [legalLinks.terms, legalLinks.privacy, legalLinks.cookies],
+        links: [enLegalLinks.terms, enLegalLinks.privacy, enLegalLinks.cookies],
       },
       {
         title: 'Consumers',
-        links: [legalLinks.withdrawalRefunds, legalLinks.consumerProtection, legalLinks.contact],
+        links: [enLegalLinks.withdrawalRefunds, enLegalLinks.consumerProtection, enLegalLinks.contact],
       },
       {
-        title: 'Articole',
-        links: [legalLinks.readingTogether, legalLinks.storiesVsVideos],
+        title: 'Articles',
+        links: [enLegalLinks.readingTogether, enLegalLinks.storiesVsVideos],
       },
     ],
-    documents: roDocuments,
+    documents: enDocuments,
   },
 };
+
+export function getLegalProfileForLanguage(language?: string): LegalProfile {
+  return language === 'en' ? legalProfiles.en : legalProfiles.ro;
+}
 
 export function getLegalProfileForHostname(hostname?: string): LegalProfile {
   const normalizedHostname = (hostname || '').toLowerCase();
@@ -427,14 +745,11 @@ export function getLegalProfileForHostname(hostname?: string): LegalProfile {
     profile.domains.some(domain => domain.toLowerCase() === normalizedHostname)
   ));
 
-  return matchedProfile ?? legalProfiles.ro;
+  return matchedProfile ?? getLegalProfileForLanguage(getConfiguredLegalLanguage());
 }
 
 export function getCurrentLegalProfile(): LegalProfile {
-  if (typeof window === 'undefined') {
-    return legalProfiles.ro;
-  }
-  return getLegalProfileForHostname(window.location.hostname);
+  return getLegalProfileForLanguage(getConfiguredLegalLanguage());
 }
 
 export function interpolateLegalText(text: string, profile: LegalProfile): string {
