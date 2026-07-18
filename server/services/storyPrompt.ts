@@ -79,7 +79,6 @@ const SHARED_RETELLING_INSTRUCTION_TEMPLATE = loadPromptMarkdown('en/shared/rete
 const STORY_SYSTEM_INSTRUCTION_TEMPLATE = loadPromptMarkdown('en/system/story-system.md');
 const STORY_REVIEW_SYSTEM_INSTRUCTION_TEMPLATE = loadPromptMarkdown('en/system/story-review-system.md');
 const STORY_AGENT_SYSTEM_INSTRUCTION_TEMPLATE = loadPromptMarkdown('en/system/story-agent-system.md');
-const STORY_REVIEW_AGENT_SYSTEM_INSTRUCTION_TEMPLATE = loadPromptMarkdown('en/system/story-review-agent-system.md');
 const DRAFT_SCENARIO_PROMPT_TEMPLATE = loadPromptMarkdown('en/operations/draft-scenario.md');
 const REPAIR_SCENARIO_PROMPT_TEMPLATE = loadPromptMarkdown('en/operations/repair-scenario.md');
 const SCENARIO_REVIEW_PROMPT_TEMPLATE = loadPromptMarkdown('en/operations/scenario-review.md');
@@ -251,13 +250,6 @@ export function buildStoryReviewSystemInstruction(context: StoryPromptContext): 
 
 export function buildStoryAgentSystemInstruction(context: StoryPromptContext): string {
   return renderPromptTemplate(STORY_AGENT_SYSTEM_INSTRUCTION_TEMPLATE, {
-    common_instruction: buildStoryCommonInstruction(context),
-    page_count: context.pageCount,
-  });
-}
-
-export function buildStoryReviewAgentSystemInstruction(context: StoryPromptContext): string {
-  return renderPromptTemplate(STORY_REVIEW_AGENT_SYSTEM_INSTRUCTION_TEMPLATE, {
     common_instruction: buildStoryCommonInstruction(context),
     page_count: context.pageCount,
   });

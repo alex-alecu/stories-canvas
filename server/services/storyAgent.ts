@@ -5,13 +5,17 @@ import type {
   Scenario,
   StoryUsageStatus,
 } from '../../shared/types.js';
-import { runAgent, type AgentModel, type AgentTool } from './agentRuntime.js';
+import {
+  createSpawnSubagentTool,
+  runAgent,
+  type AgentModel,
+  type AgentTool,
+} from './agentRuntime.js';
 import { createGeminiAgentModel, generateJSON, getMaxThinkingConfig } from './gemini.js';
 import {
   buildDraftScenarioPrompt,
   buildStoryAgentSystemInstruction,
   buildStoryPromptContext,
-  buildStoryReviewAgentSystemInstruction,
   type StoryPromptContext,
 } from './storyPrompt.js';
 import {
@@ -21,17 +25,14 @@ import {
   validateScenario,
   type ScenarioValidationOptions,
 } from './scenarioValidation.js';
-import {
-  normalizeScenarioReviewResult,
-  scenarioReviewSchema,
-  type ScenarioReviewResult,
-} from './scenarioReview.js';
 import { resolveRetellingSource, type ResolvedRetellingSource } from './storySources.js';
 import { storyScriptToolParameters } from './storyScriptSchema.js';
+import { loadMarkdownFile } from './promptFiles.js';
 
 export const MAIN_STORY_AGENT_MAX_TURNS = 50;
-export const REVIEW_SUBAGENT_MAX_TURNS = 10;
+export const SUBAGENT_MAX_TURNS = 10;
 export const REQUIRED_REVIEW_CYCLES = 2;
+const GENERIC_SUBAGENT_SYSTEM_INSTRUCTION = loadMarkdownFile('agent-prompts/system/subagent-system.md');
 
 interface UsageEvent {
   model: string;
@@ -72,7 +73,7 @@ interface StoryAgentState {
 }
 
 export interface StoryAgentDependencies {
-  modelFactory?: (role: 'main' | 'review', reviewCycle?: number) => AgentModel;
+  modelFactory?: (role: 'main' | 'subagent', subagentIndex?: number) => AgentModel;
   resolveSource?: typeof resolveRetellingSource;
 }
 
@@ -107,74 +108,6 @@ function activity(
   return { id, kind, status, label, ...extras };
 }
 
-function reviewPrompt(
-  context: StoryPromptContext,
-  scenario: Scenario,
-  reviewCycle: number,
-  focus: string,
-): string {
-  return [
-    `Review cycle: ${reviewCycle} of ${REQUIRED_REVIEW_CYCLES}`,
-    `Requested focus: ${focus || 'Full independent editorial review'}`,
-    `Original user request: ${context.userPrompt}`,
-    `Target age: ${context.targetAge}`,
-    `Language: ${context.language}`,
-    '',
-    'Story script to review:',
-    JSON.stringify(scenario, null, 2),
-  ].join('\n');
-}
-
-async function runReviewSubagent(
-  context: StoryPromptContext,
-  scenario: Scenario,
-  reviewCycle: number,
-  focus: string,
-  model: AgentModel,
-  onProgress?: (update: StoryAgentProgressUpdate) => void,
-): Promise<ScenarioReviewResult> {
-  const exitTool: AgentTool<Record<string, never>, ScenarioReviewResult> = {
-    name: 'subagent_exit',
-    description: 'Close this review-only sub-agent and return its structured editorial findings.',
-    parameters: scenarioReviewSchema,
-    execute: args => ({
-      response: { ok: true, reviewCycle },
-      terminalValue: normalizeScenarioReviewResult(args, scenario),
-    }),
-  };
-
-  return runAgent({
-    name: `review sub-agent ${reviewCycle}`,
-    systemInstruction: buildStoryReviewAgentSystemInstruction(context),
-    initialPrompt: reviewPrompt(context, scenario, reviewCycle, focus),
-    maxTurns: REVIEW_SUBAGENT_MAX_TURNS,
-    model,
-    tools: [exitTool],
-    context: {},
-    terminalToolNames: ['subagent_exit'],
-    onTurn: update => {
-      onProgress?.({
-        status: 'reviewing_scenario',
-        currentPhase: `Reviewing story script (${reviewCycle}/${REQUIRED_REVIEW_CYCLES})...`,
-        message: `Independent review ${reviewCycle} is checking the script...`,
-        activity: activity(
-          `review-${reviewCycle}`,
-          'subagent_review',
-          update.phase === 'completed' ? 'completed' : 'working',
-          `Review agent ${reviewCycle}`,
-          {
-            detail: update.phase === 'completed' ? 'Review complete' : 'Reviewing the story script',
-            turn: update.turn,
-            maxTurns: update.maxTurns,
-            turnsRemaining: update.turnsRemaining,
-            reviewCycle,
-          },
-        ),
-      });
-    },
-  });
-}
-
 export async function generateStoryScriptWithAgents(
   userPrompt: string,
   language?: string,
@@ -206,11 +139,11 @@ export async function generateStoryScriptWithAgents(
     appliedReviews: 0,
   };
 
-  const defaultModelFactory = (role: 'main' | 'review'): AgentModel => createGeminiAgentModel({
+  const defaultModelFactory = (role: 'main' | 'subagent'): AgentModel => createGeminiAgentModel({
     model: config.scenarioModel,
-    temperature: role === 'review' ? config.scenarioReviewTemperature : config.scenarioTemperature,
+    temperature: role === 'subagent' ? config.scenarioReviewTemperature : config.scenarioTemperature,
     thinkingConfig: getMaxThinkingConfig(),
-    onUsage: role === 'review'
+    onUsage: role === 'subagent'
       ? usageCallbacks?.onReviewUsage
       : usage => (
           state.pendingReviewCycle
@@ -219,6 +152,65 @@ export async function generateStoryScriptWithAgents(
         ),
   });
   const modelFactory = dependencies.modelFactory ?? defaultModelFactory;
+
+  const spawnSubagentTool = createSpawnSubagentTool<
+    StoryAgentState,
+    Scenario,
+    Record<string, never>
+  >({
+    parentName: 'main-story-agent',
+    systemInstruction: GENERIC_SUBAGENT_SYSTEM_INSTRUCTION,
+    maxTurns: SUBAGENT_MAX_TURNS,
+    modelFactory: request => modelFactory('subagent', request.index),
+    createContext: () => ({}),
+    beforeSpawn: (request, toolState) => {
+      if (!toolState.scenario) {
+        throw new Error('Save a valid story script before spawning a sub-agent.');
+      }
+      if (toolState.pendingReviewCycle) {
+        throw new Error(
+          `Apply review ${toolState.pendingReviewCycle} and save the revised script before spawning another sub-agent.`,
+        );
+      }
+      if (toolState.completedReviews >= REQUIRED_REVIEW_CYCLES) {
+        throw new Error('Both required review sessions are already complete.');
+      }
+      if (!request.handoff.includes(context.userPrompt)) {
+        throw new Error('The handoff must include the original user request.');
+      }
+      if (
+        !request.handoff.includes(toolState.scenario.title)
+        || !toolState.scenario.pages.every(page => request.handoff.includes(page.text))
+      ) {
+        throw new Error('The handoff must include the complete current story script and results so far.');
+      }
+    },
+    afterSpawn: (_request, _result, toolState) => {
+      const reviewCycle = toolState.completedReviews + 1;
+      toolState.completedReviews = reviewCycle;
+      toolState.pendingReviewCycle = reviewCycle;
+    },
+    onTurn: update => {
+      onProgress?.({
+        status: 'reviewing_scenario',
+        currentPhase: `Reviewing story script (${update.index}/${REQUIRED_REVIEW_CYCLES})...`,
+        message: `Independent review ${update.index} is checking the handed-off script...`,
+        activity: activity(
+          `subagent-${update.index}`,
+          'subagent',
+          update.phase === 'completed' ? 'completed' : 'working',
+          `Sub-agent session ${update.index}`,
+          {
+            detail: update.phase === 'completed' ? 'Review handoff complete' : 'Reviewing the handed-off story script',
+            turn: update.turn,
+            maxTurns: update.maxTurns,
+            turnsRemaining: update.turnsRemaining,
+            reviewCycle: update.index,
+          },
+        ),
+      });
+    },
+  });
 
   const tools: Array<AgentTool<StoryAgentState, Scenario>> = [
     {
@@ -266,56 +258,7 @@ export async function generateStoryScriptWithAgents(
         };
       },
     },
-    {
-      name: 'spawn_subagent',
-      description: 'Spawn a fresh review-only sub-agent for the currently saved script. The main agent must apply the returned review itself.',
-      parameters: {
-        type: 'OBJECT',
-        properties: {
-          focus: {
-            type: 'STRING',
-            description: 'Short review focus. Use a full editorial review unless a narrower second-pass emphasis is useful.',
-          },
-        },
-        required: ['focus'],
-      },
-      execute: async (args, toolState) => {
-        if (!toolState.scenario) {
-          return { response: { ok: false, error: 'Save a valid story script before spawning a reviewer.' } };
-        }
-        if (toolState.pendingReviewCycle) {
-          return {
-            response: {
-              ok: false,
-              error: `Apply review ${toolState.pendingReviewCycle} and save the revised script before spawning another reviewer.`,
-            },
-          };
-        }
-        if (toolState.completedReviews >= REQUIRED_REVIEW_CYCLES) {
-          return { response: { ok: false, error: 'Both required review cycles are already complete.' } };
-        }
-
-        const reviewCycle = toolState.completedReviews + 1;
-        const review = await runReviewSubagent(
-          context,
-          toolState.scenario,
-          reviewCycle,
-          typeof args.focus === 'string' ? args.focus : '',
-          modelFactory('review', reviewCycle),
-          onProgress,
-        );
-        toolState.completedReviews = reviewCycle;
-        toolState.pendingReviewCycle = reviewCycle;
-        return {
-          response: {
-            ok: true,
-            reviewCycle,
-            review,
-            instruction: 'Apply this review yourself and call save_story_script before continuing.',
-          },
-        };
-      },
-    },
+    spawnSubagentTool,
     {
       name: 'submit_story_script',
       description: 'Submit the final validated script after both independent reviews have been applied and saved.',

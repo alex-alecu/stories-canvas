@@ -324,7 +324,7 @@ export interface StoryDetail extends StoryMeta {
 
 export type GenerationActivityKind =
   | 'main_agent'
-  | 'subagent_review'
+  | 'subagent'
   | 'script'
   | 'characters'
   | 'page_image'

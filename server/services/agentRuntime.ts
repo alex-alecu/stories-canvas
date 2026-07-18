@@ -61,6 +61,38 @@ export interface RunAgentOptions<TContext, TTerminal> {
   onTurn?: (update: AgentTurnUpdate) => void | Promise<void>;
 }
 
+export interface SubagentSpawnRequest {
+  sessionId: string;
+  index: number;
+  task: string;
+  handoff: string;
+}
+
+export interface SubagentTurnUpdate extends AgentTurnUpdate, SubagentSpawnRequest {}
+
+export interface SpawnSubagentToolOptions<
+  TParentContext,
+  TParentTerminal,
+  TSubagentContext,
+> {
+  parentName: string;
+  systemInstruction: string;
+  maxTurns: number;
+  modelFactory: (request: SubagentSpawnRequest) => AgentModel;
+  createContext: (request: SubagentSpawnRequest) => TSubagentContext;
+  tools?: (request: SubagentSpawnRequest) => Array<AgentTool<TSubagentContext, string>>;
+  beforeSpawn?: (
+    request: SubagentSpawnRequest,
+    parentContext: TParentContext,
+  ) => void | Promise<void>;
+  afterSpawn?: (
+    request: SubagentSpawnRequest,
+    result: string,
+    parentContext: TParentContext,
+  ) => void | Promise<void>;
+  onTurn?: (update: SubagentTurnUpdate) => void | Promise<void>;
+}
+
 function textContent(text: string): AgentContent {
   return { role: 'user', parts: [{ text }] };
 }
@@ -84,6 +116,101 @@ function functionResponseContent(
 function budgetMessage(name: string, turn: number, maxTurns: number): string {
   const remaining = maxTurns - turn + 1;
   return `[${name} turn ${turn}/${maxTurns}; ${remaining} turn${remaining === 1 ? '' : 's'} remaining including this turn]`;
+}
+
+function subagentInitialPrompt(request: SubagentSpawnRequest): string {
+  return [
+    'Assigned task:',
+    request.task,
+    '',
+    'Handoff from the parent agent:',
+    request.handoff,
+  ].join('\n');
+}
+
+export function createSpawnSubagentTool<
+  TParentContext,
+  TParentTerminal,
+  TSubagentContext,
+>(
+  options: SpawnSubagentToolOptions<TParentContext, TParentTerminal, TSubagentContext>,
+): AgentTool<TParentContext, TParentTerminal> {
+  let spawnedCount = 0;
+
+  return {
+    name: 'spawn_subagent',
+    description: 'Start an isolated generic sub-agent session. Provide a self-contained task and complete handoff containing all context and results the sub-agent needs.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        task: {
+          type: 'STRING',
+          description: 'The bounded task for the sub-agent to complete.',
+        },
+        handoff: {
+          type: 'STRING',
+          description: 'A self-contained handoff with the original request, relevant constraints, and results produced so far.',
+        },
+      },
+      required: ['task', 'handoff'],
+    },
+    execute: async (args, parentContext) => {
+      const task = typeof args.task === 'string' ? args.task.trim() : '';
+      const handoff = typeof args.handoff === 'string' ? args.handoff.trim() : '';
+      if (!task) throw new Error('Sub-agent task is required.');
+      if (!handoff) throw new Error('Sub-agent handoff is required.');
+
+      const index = spawnedCount + 1;
+      const request: SubagentSpawnRequest = {
+        sessionId: `${options.parentName}-subagent-${index}`,
+        index,
+        task,
+        handoff,
+      };
+      await options.beforeSpawn?.(request, parentContext);
+      spawnedCount = index;
+
+      const exitTool: AgentTool<TSubagentContext, string> = {
+        name: 'subagent_exit',
+        description: 'Close this sub-agent session and return its completed result to the parent agent.',
+        parameters: {
+          type: 'OBJECT',
+          properties: {
+            result: {
+              type: 'STRING',
+              description: 'The complete result for the parent agent, including findings, evidence, or recommended changes.',
+            },
+          },
+          required: ['result'],
+        },
+        execute: args => {
+          const result = typeof args.result === 'string' ? args.result.trim() : '';
+          if (!result) throw new Error('Sub-agent result is required.');
+          return { response: { ok: true }, terminalValue: result };
+        },
+      };
+      const result = await runAgent({
+        name: request.sessionId,
+        systemInstruction: options.systemInstruction,
+        initialPrompt: subagentInitialPrompt(request),
+        maxTurns: options.maxTurns,
+        model: options.modelFactory(request),
+        tools: [...(options.tools?.(request) ?? []), exitTool],
+        context: options.createContext(request),
+        terminalToolNames: ['subagent_exit'],
+        onTurn: update => options.onTurn?.({ ...request, ...update }),
+      });
+
+      await options.afterSpawn?.(request, result, parentContext);
+      return {
+        response: {
+          ok: true,
+          sessionId: request.sessionId,
+          result,
+        },
+      };
+    },
+  };
 }
 
 export async function runAgent<TContext, TTerminal>(

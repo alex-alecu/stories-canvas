@@ -44,31 +44,47 @@ function toolCall(name: string, args: Record<string, unknown>, id: string) {
 
 test('story agent rejects the reported invalid rewrite and requires two review-and-apply cycles', async () => {
   const { generateStoryScriptWithAgents } = await import('./storyAgent.js');
+  const userPrompt = 'Tell a gentle story about a lantern.';
   const invalidScenario = makeScenario(4, true);
   const validScenario = makeScenario();
+  const handoff = (scenario: Scenario, cycle: number) => [
+    `Original user request: ${userPrompt}`,
+    'Target age: 4',
+    'Language: en',
+    `Review cycle: ${cycle}`,
+    `Current results: ${JSON.stringify(scenario)}`,
+  ].join('\n');
   const mainCalls = [
     toolCall('save_story_script', { script: invalidScenario }, 'save-invalid'),
     toolCall('save_story_script', { script: validScenario }, 'save-draft'),
-    toolCall('spawn_subagent', { focus: 'Full editorial review' }, 'review-1'),
+    toolCall('spawn_subagent', {
+      task: 'Review the handed-off story script only and report actionable findings.',
+      handoff: handoff(validScenario, 1),
+    }, 'review-1'),
     toolCall('save_story_script', { script: validScenario }, 'save-review-1'),
-    toolCall('spawn_subagent', { focus: 'Independent final editorial review' }, 'review-2'),
+    toolCall('spawn_subagent', {
+      task: 'Independently review the handed-off story script only and report actionable findings.',
+      handoff: handoff(validScenario, 2),
+    }, 'review-2'),
     toolCall('save_story_script', { script: validScenario }, 'save-review-2'),
     toolCall('submit_story_script', {}, 'submit'),
   ];
   let mainIndex = 0;
-  let reviewAgentsCreated = 0;
+  let subagentsCreated = 0;
   let invalidResponseSeen = false;
   const progressKinds: string[] = [];
 
-  const modelFactory = (role: 'main' | 'review'): AgentModel => {
-    if (role === 'review') {
-      reviewAgentsCreated += 1;
+  const modelFactory = (role: 'main' | 'subagent'): AgentModel => {
+    if (role === 'subagent') {
+      subagentsCreated += 1;
       return async () => toolCall('subagent_exit', {
-        needsRewrite: false,
-        summary: 'The script is coherent and age appropriate.',
-        changedPageNumbers: [],
-        issues: [],
-      }, `review-exit-${reviewAgentsCreated}`);
+        result: JSON.stringify({
+          needsRewrite: false,
+          summary: 'The script is coherent and age appropriate.',
+          changedPageNumbers: [],
+          issues: [],
+        }),
+      }, `review-exit-${subagentsCreated}`);
     }
 
     return async request => {
@@ -87,7 +103,7 @@ test('story agent rejects the reported invalid rewrite and requires two review-a
   };
 
   const result = await generateStoryScriptWithAgents(
-    'Tell a gentle story about a lantern.',
+    userPrompt,
     'en',
     4,
     'storybook',
@@ -101,10 +117,10 @@ test('story agent rejects the reported invalid rewrite and requires two review-a
 
   assert.equal(result.scenario.characters.length, 2);
   assert.equal(result.scenario.pages[2].text, validScenario.pages[2].text);
-  assert.equal(reviewAgentsCreated, 2);
+  assert.equal(subagentsCreated, 2);
   assert.equal(mainIndex, mainCalls.length);
   assert.equal(invalidResponseSeen, true);
   assert.ok(progressKinds.includes('main_agent'));
-  assert.ok(progressKinds.includes('subagent_review'));
+  assert.ok(progressKinds.includes('subagent'));
   assert.ok(progressKinds.includes('script'));
 });

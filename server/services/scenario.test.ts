@@ -76,6 +76,7 @@ test('story prompt assembly keeps age scenario, appearance, and language rules t
   );
 
   const systemInstruction = storyPrompt.buildStorySystemInstruction(context);
+  const agentInstruction = storyPrompt.buildStoryAgentSystemInstruction(context);
   const draftPrompt = storyPrompt.buildDraftScenarioPrompt(context);
 
   assert.match(systemInstruction, /Age 6 Scenario Prompt/);
@@ -85,6 +86,10 @@ test('story prompt assembly keeps age scenario, appearance, and language rules t
   assert.match(systemInstruction, /Write the title, page text, character names, roles, and personality descriptions in English/);
   assert.match(systemInstruction, /keep the exact spelling from characters\[\]\.name whenever you mention a character/i);
   assert.match(systemInstruction, /keep appearance, clothing, characterSheetPrompt, and imagePrompt visually originalized/i);
+  assert.match(agentInstruction, /Call `spawn_subagent`/);
+  assert.match(agentInstruction, /original user request, target age, language, constraints, and the complete saved script\/results so far/);
+  assert.match(agentInstruction, /generic sub-agent architecture does not know about stories or reviews/i);
+  assert.match(agentInstruction, /Apply that review yourself/);
   assert.match(draftPrompt, /Target age: 6/);
   assert.match(draftPrompt, /Return no more than 10 pages, numbered sequentially from 1/);
   assert.match(draftPrompt, /Classic hand-drawn storybook illustration/);
