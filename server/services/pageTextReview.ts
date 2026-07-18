@@ -1,5 +1,6 @@
 import { config } from '../config.js';
 import * as gemini from './gemini.js';
+import { loadPromptMarkdown } from './promptFiles.js';
 
 export const PAGE_TEXT_REVIEW_REASON_CODES = [
   'profanity',
@@ -49,6 +50,8 @@ const reviewSchema = {
   },
   required: ['allowed', 'reasonCode', 'explanation'],
 };
+
+const PAGE_TEXT_REVIEW_SYSTEM_INSTRUCTION = loadPromptMarkdown('en/system/page-text-review-system.md');
 
 function normalizeReasonCode(value: unknown): PageTextReviewReasonCode | undefined {
   if (typeof value === 'string' && (PAGE_TEXT_REVIEW_REASON_CODES as readonly string[]).includes(value)) {
@@ -116,7 +119,7 @@ export async function reviewPageText(
         language: input.language,
         purpose: input.purpose ?? 'page_text',
       }),
-      'You are a strict child-safety reviewer for a children story app. Do not rewrite text. Decide only whether the submitted text is allowed.',
+      PAGE_TEXT_REVIEW_SYSTEM_INSTRUCTION,
       reviewSchema,
       {
         model: config.pageTextReviewModel,

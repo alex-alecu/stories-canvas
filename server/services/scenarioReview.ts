@@ -127,7 +127,7 @@ function normalizeIssueCode(value: unknown): ScenarioReviewIssueCode {
   return 'story_arc';
 }
 
-function normalizeScenarioReviewResult(
+export function normalizeScenarioReviewResult(
   raw: RawScenarioReviewResult,
   scenario: Scenario,
 ): ScenarioReviewResult {
@@ -166,7 +166,7 @@ function normalizeScenarioReviewResult(
   };
 }
 
-const scenarioReviewSchema = {
+export const scenarioReviewSchema = {
   type: 'OBJECT',
   properties: {
     needsRewrite: {

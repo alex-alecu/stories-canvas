@@ -30,6 +30,38 @@ function PhaseIndicator({ phase, isActive, isDone, isFailed }: { phase: string; 
   );
 }
 
+function ActivityFeed({ progress }: { progress: ProgressType }) {
+  const activities = progress.activityLog ?? (progress.activity ? [progress.activity] : []);
+  if (activities.length === 0) return null;
+
+  return (
+    <div className="mb-5 rounded-xl bg-gray-50 dark:bg-surface-dark-accent/60 p-3">
+      <div className="space-y-2" aria-live="polite">
+        {activities.slice(-5).map(item => (
+          <div key={item.id} className="flex items-start gap-2 text-xs">
+            <span className={`mt-0.5 h-2 w-2 shrink-0 rounded-full ${
+              item.status === 'completed'
+                ? 'bg-green-500'
+                : item.status === 'failed'
+                  ? 'bg-red-500'
+                  : 'bg-primary-500 animate-pulse'
+            }`} />
+            <div className="min-w-0">
+              <p className="font-semibold text-gray-700 dark:text-gray-200">{item.label}</p>
+              <p className="text-gray-500 dark:text-gray-400">
+                {item.detail}
+                {item.turn && item.maxTurns
+                  ? `${item.detail ? ' · ' : ''}turn ${item.turn}/${item.maxTurns}`
+                  : ''}
+              </p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function CancelConfirmDialog({ onConfirm, onDismiss, isCancelling }: { onConfirm: () => void; onDismiss: () => void; isCancelling: boolean }) {
   const { t } = useLanguage();
 
@@ -72,6 +104,7 @@ export default function GenerationProgress({ progress, onCancel, isCancelling = 
 
   const allPhases = [
     { key: 'generating_scenario', label: t.writingStory },
+    { key: 'reviewing_scenario', label: t.reviewingScript },
     { key: 'generating_characters', label: t.drawingCharacters },
     { key: 'generating_images', label: t.illustratingPages },
     { key: 'generating_audio', label: t.recordingNarration },
@@ -79,22 +112,17 @@ export default function GenerationProgress({ progress, onCancel, isCancelling = 
 
   // Only show the audio phase if we actually entered it
   const hasAudioPhase = progress?.status === 'generating_audio' || progress?.audioFailed;
-  const phases = hasAudioPhase ? allPhases : allPhases.slice(0, 3);
+  const phases = hasAudioPhase ? allPhases : allPhases.slice(0, 4);
   const isAudioFailed = !!progress?.audioFailed;
-  const visibleStatus = progress?.status === 'reviewing_scenario'
-    ? 'generating_scenario'
-    : progress?.status;
 
   // When progress is null (waiting for SSE to connect), default to first phase
   const currentPhaseIndex = progress
-    ? phases.findIndex(p => p.key === visibleStatus)
+    ? phases.findIndex(p => p.key === progress.status)
     : 0;
   const progressPercent = progress?.totalPages
     ? Math.round((progress.completedPages / progress.totalPages) * 100)
     : 0;
-  const visibleMessage = progress?.status === 'reviewing_scenario'
-    ? t.writingStoryStatus
-    : formatStoryStatusMessage(progress?.message, t);
+  const visibleMessage = formatStoryStatusMessage(progress?.message, t);
 
   const isTerminal = progress?.status === 'completed' || progress?.status === 'failed' || progress?.status === 'cancelled';
   const isCancelled = progress?.status === 'cancelled';
@@ -140,6 +168,8 @@ export default function GenerationProgress({ progress, onCancel, isCancelling = 
             />
           ))}
         </div>
+
+        {progress && <ActivityFeed progress={progress} />}
 
         {(progress?.status === 'generating_images' || (progress?.status === 'generating_audio' && !isAudioFailed)) && progress.totalPages > 0 && (
           <div className="mb-4">

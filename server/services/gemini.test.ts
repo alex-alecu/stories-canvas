@@ -91,6 +91,54 @@ test('generateJSONFromContents passes multi-turn contents and max Gemini 3 think
   }
 });
 
+test('createGeminiAgentModel preserves tool calls and can force terminal tools', async () => {
+  const gemini = await import('./gemini.js');
+  const calls: GenerateContentCall[] = [];
+  const original = gemini.ai.models.generateContent;
+
+  (gemini.ai.models as { generateContent: typeof original }).generateContent = (async (request) => {
+    calls.push(request as GenerateContentCall);
+    return {
+      candidates: [{
+        content: {
+          role: 'model',
+          parts: [{ functionCall: { id: 'call-1', name: 'finish', args: { ok: true } } }],
+        },
+      }],
+      functionCalls: [{ id: 'call-1', name: 'finish', args: { ok: true } }],
+    } as never;
+  }) as typeof original;
+
+  try {
+    const model = gemini.createGeminiAgentModel({ model: 'gemini-3.1-pro-preview' });
+    const response = await model({
+      systemInstruction: 'Use tools.',
+      contents: [{ role: 'user', parts: [{ text: 'Begin.' }] }],
+      tools: [{
+        name: 'finish',
+        description: 'Finish the task.',
+        parameters: { type: 'OBJECT', properties: {} },
+      }],
+      forceToolNames: ['finish'],
+    });
+
+    assert.deepEqual(response.functionCalls, [{ id: 'call-1', name: 'finish', args: { ok: true } }]);
+    assert.deepEqual(
+      (calls[0].config.toolConfig as { functionCallingConfig: unknown }).functionCallingConfig,
+      { mode: 'ANY', allowedFunctionNames: ['finish'] },
+    );
+    assert.deepEqual(calls[0].config.tools, [{
+      functionDeclarations: [{
+        name: 'finish',
+        description: 'Finish the task.',
+        parameters: { type: 'OBJECT', properties: {} },
+      }],
+    }]);
+  } finally {
+    (gemini.ai.models as { generateContent: typeof original }).generateContent = original;
+  }
+});
+
 test('getMaxThinkingConfig selects model-specific max thinking controls', async () => {
   const gemini = await import('./gemini.js');
 

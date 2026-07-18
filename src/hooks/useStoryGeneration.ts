@@ -1,9 +1,22 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import type { GenerationProgress } from '../types';
+import type { GenerationActivity, GenerationProgress } from '../../shared/types';
 
 function isTerminalStatus(status?: GenerationProgress['status']): boolean {
   return status === 'completed' || status === 'failed' || status === 'cancelled';
+}
+
+const MAX_ACTIVITY_LOG_ITEMS = 8;
+
+function mergeActivityLog(
+  current: GenerationActivity[] = [],
+  activity?: GenerationActivity,
+): GenerationActivity[] {
+  if (!activity) return current;
+
+  const next = current.filter(item => item.id !== activity.id);
+  next.push(activity);
+  return next.slice(-MAX_ACTIVITY_LOG_ITEMS);
 }
 
 export function useStoryGeneration(storyId: string | null) {
@@ -44,17 +57,23 @@ export function useStoryGeneration(storyId: string | null) {
 
     es.onmessage = (event) => {
       try {
-        const data = JSON.parse(event.data) as GenerationProgress;
-        progressRef.current = data;
-        setProgress(data);
+        const data = JSON.parse(event.data) as Partial<GenerationProgress>;
+        const previous = progressRef.current;
+        const merged = {
+          ...previous,
+          ...data,
+          activityLog: mergeActivityLog(previous?.activityLog, data.activity),
+        } as GenerationProgress;
+        progressRef.current = merged;
+        setProgress(merged);
 
         // Invalidate story query when an individual page completes (for progressive loading)
-        if (data.pageStatus === 'completed' && storyId) {
+        if (merged.pageStatus === 'completed' && storyId) {
           queryClient.invalidateQueries({ queryKey: ['story', storyId] });
         }
 
         // Invalidate queries when generation completes, fails, or is cancelled
-        if (isTerminalStatus(data.status)) {
+        if (isTerminalStatus(merged.status)) {
           queryClient.invalidateQueries({ queryKey: ['stories'] });
           queryClient.invalidateQueries({ queryKey: ['story', storyId] });
           clearReconnectTimeout();

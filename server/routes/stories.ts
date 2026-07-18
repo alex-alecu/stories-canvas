@@ -542,7 +542,7 @@ function isTerminalStoryStatus(status: StoryStatus): boolean {
 function getStatusPhase(status: StoryStatus): string {
   switch (status) {
     case 'reviewing_scenario':
-      return 'Generating story scenario...';
+      return 'Reviewing story script...';
     case 'completed':
       return 'Done!';
     case 'failed':
@@ -557,7 +557,7 @@ function getStatusPhase(status: StoryStatus): string {
 function getStatusMessage(status: StoryStatus): string {
   switch (status) {
     case 'reviewing_scenario':
-      return 'Creating your story...';
+      return 'An independent review agent is checking the story script...';
     case 'completed':
       return 'Story generated successfully!';
     case 'failed':
@@ -741,22 +741,16 @@ function getPageTextValidationError(text: string, targetAge: number): string | n
 }
 
 function buildInitialProgress(storyId: string, story: StoryMeta): GenerationProgress {
-  const isHiddenReviewPhase = story.status === 'reviewing_scenario';
-
   return {
     storyId,
     status: story.status,
-    currentPhase: isHiddenReviewPhase
-      ? 'Generating story scenario...'
-      : (story.currentPhase || getStatusPhase(story.status)),
+    currentPhase: story.currentPhase || getStatusPhase(story.status),
     completedPages: story.scenario?.pages?.filter(p => p.status === 'completed').length ?? 0,
     totalPages: story.scenario?.pages?.length ?? 0,
     failedPages: story.scenario?.pages
       ?.filter(p => p.status === 'failed')
       .map(p => p.pageNumber) ?? [],
-    message: isHiddenReviewPhase
-      ? 'Creating your story...'
-      : getDisplayProgressMessage(story),
+    message: getDisplayProgressMessage(story),
   };
 }
 
@@ -1265,6 +1259,7 @@ async function runGenerationPipeline(
           totalPages: 0,
           failedPages: [],
           message: progress.message,
+          activity: progress.activity,
         }).catch(() => {});
       },
       {
@@ -1308,6 +1303,12 @@ async function runGenerationPipeline(
       totalPages: scenario.pages.length,
       failedPages: [],
       message: `Story "${scenario.title}" created with ${scenario.pages.length} pages. Generating character sheets...`,
+      activity: {
+        id: 'characters',
+        kind: 'characters',
+        status: 'working',
+        label: 'Generating character sheets',
+      },
     });
 
     // Phase 2: Generate character sheets (sequential)
@@ -1334,6 +1335,12 @@ async function runGenerationPipeline(
       totalPages: scenario.pages.length,
       failedPages: [],
       message: `Character sheets ready. Generating ${scenario.pages.length} illustrations...`,
+      activity: {
+        id: 'characters',
+        kind: 'characters',
+        status: 'completed',
+        label: 'Character sheets ready',
+      },
     });
 
     // Phase 3: Generate scene images (sequential with reference chaining for visual consistency)
@@ -1369,6 +1376,18 @@ async function runGenerationPipeline(
           message: progress.message || '',
           pageNumber: progress.pageNumber,
           pageStatus: progress.pageStatus,
+          activity: progress.pageNumber === undefined ? undefined : {
+            id: `page-image-${progress.pageNumber}`,
+            kind: 'page_image',
+            status: progress.pageStatus === 'completed'
+              ? 'completed'
+              : progress.pageStatus === 'failed'
+                ? 'failed'
+                : 'working',
+            label: `Illustrating page ${progress.pageNumber}`,
+            detail: progress.message,
+            pageNumber: progress.pageNumber,
+          },
         }).catch(() => {});
       },
       userId,
@@ -1410,6 +1429,12 @@ async function runGenerationPipeline(
         totalPages: scenario.pages.length,
         failedPages: [],
         message: `Illustrations complete. Recording narration with ${getVoiceName(voice)}...`,
+        activity: {
+          id: 'narration',
+          kind: 'page_audio',
+          status: 'working',
+          label: 'Recording narration',
+        },
       });
 
       let audioCompletedPages = 0;
@@ -1435,6 +1460,18 @@ async function runGenerationPipeline(
             message: progress.message || '',
             pageNumber: progress.pageNumber,
             pageStatus: progress.pageStatus,
+            activity: progress.pageNumber === undefined ? undefined : {
+              id: `page-audio-${progress.pageNumber}`,
+              kind: 'page_audio',
+              status: progress.pageStatus === 'completed'
+                ? 'completed'
+                : progress.pageStatus === 'failed'
+                  ? 'failed'
+                  : 'working',
+              label: `Recording page ${progress.pageNumber}`,
+              detail: progress.message,
+              pageNumber: progress.pageNumber,
+            },
           }).catch(() => {});
         },
         (page, usage) => usageRecorder.recordPageAudio(page.pageNumber, usage),

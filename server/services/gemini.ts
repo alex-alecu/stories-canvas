@@ -1,13 +1,16 @@
 import {
   GoogleGenAI,
+  FunctionCallingConfigMode,
   HarmBlockThreshold,
   HarmCategory,
   ThinkingLevel,
+  type Content,
   type ContentListUnion,
   type SafetySetting,
   type ThinkingConfig,
 } from '@google/genai';
 import { config } from '../config.js';
+import type { AgentModel, AgentModelResponse } from './agentRuntime.js';
 
 const ai = new GoogleGenAI({ apiKey: config.geminiApiKey });
 
@@ -37,6 +40,14 @@ export interface JSONGenerationOptions {
     totalTokens: number;
     usageDetails: Record<string, unknown>;
   }) => void | Promise<void>;
+}
+
+export interface GeminiAgentModelOptions {
+  model?: string;
+  temperature?: number;
+  thinkingConfig?: ThinkingConfig;
+  maxRetries?: number;
+  onUsage?: JSONGenerationOptions['onUsage'];
 }
 
 const GEMINI_25_PRO_THINKING_BUDGET = 32768;
@@ -120,6 +131,94 @@ function extractUsageMetadata(response: { usageMetadata?: unknown }): {
     outputTokens,
     totalTokens,
     usageDetails: usage,
+  };
+}
+
+export function createGeminiAgentModel(options: GeminiAgentModelOptions = {}): AgentModel {
+  const model = options.model ?? config.scenarioModel;
+
+  return async request => {
+    const maxRetries = options.maxRetries ?? config.maxRetries;
+    let remainingRetries = maxRetries;
+    let thinkingConfig = options.thinkingConfig;
+    let thinkingFallbackUsed = false;
+    let lastError: Error | undefined;
+    let response: Awaited<ReturnType<typeof ai.models.generateContent>> | undefined;
+
+    while (remainingRetries > 0 && !response) {
+      try {
+        response = await ai.models.generateContent({
+          model,
+          contents: request.contents as Content[],
+          config: {
+            systemInstruction: request.systemInstruction,
+            temperature: options.temperature,
+            thinkingConfig,
+            tools: [{
+              functionDeclarations: request.tools.map(tool => ({
+                name: tool.name,
+                description: tool.description,
+                parameters: tool.parameters as any,
+              })),
+            }],
+            toolConfig: {
+              functionCallingConfig: request.forceToolNames
+                ? {
+                    mode: FunctionCallingConfigMode.ANY,
+                    allowedFunctionNames: request.forceToolNames,
+                  }
+                : { mode: FunctionCallingConfigMode.AUTO },
+            },
+          },
+        });
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+        if (thinkingConfig && !thinkingFallbackUsed && shouldRetryWithoutThinking(lastError)) {
+          thinkingFallbackUsed = true;
+          thinkingConfig = undefined;
+          continue;
+        }
+
+        remainingRetries -= 1;
+        if (remainingRetries > 0) {
+          const failedAttempts = maxRetries - remainingRetries;
+          const delay = Math.pow(2, failedAttempts - 1) * 1000 + Math.random() * 1000;
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+      }
+    }
+
+    if (!response) {
+      throw new Error(`Agent model failed after ${maxRetries} attempts: ${lastError?.message}`);
+    }
+
+    if (options.onUsage) {
+      const usage = extractUsageMetadata(response as { usageMetadata?: unknown });
+      await options.onUsage({
+        model,
+        status: 'succeeded',
+        inputTokens: usage.inputTokens,
+        outputTokens: usage.outputTokens,
+        totalTokens: usage.totalTokens,
+        usageDetails: usage.usageDetails,
+      });
+    }
+
+    const content = response.candidates?.[0]?.content;
+    if (!content?.parts) {
+      throw new Error('Empty agent response from Gemini');
+    }
+
+    return {
+      content: content as AgentModelResponse['content'],
+      functionCalls: (response.functionCalls ?? [])
+        .filter(call => typeof call.name === 'string' && call.name.length > 0)
+        .map(call => ({
+          id: call.id,
+          name: call.name!,
+          args: call.args ?? {},
+        })),
+    };
   };
 }
 

@@ -1,0 +1,110 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+
+import type { Scenario } from '../../shared/types.js';
+import type { AgentModel } from './agentRuntime.js';
+
+process.env.GEMINI_API_KEY ??= 'test-key';
+
+function makeScenario(characterCount = 2, tooManySentences = false): Scenario {
+  const characters = Array.from({ length: characterCount }, (_, index) => ({
+    name: `Friend ${index + 1}`,
+    role: index === 0 ? 'protagonist' : 'helper',
+    appearance: `Friendly character ${index + 1} with a distinct round silhouette.`,
+    clothing: `Solid color scarf ${index + 1}.`,
+    personality: 'Kind and patient.',
+    characterSheetPrompt: `Front and back character sheet for Friend ${index + 1}.`,
+  }));
+
+  return {
+    title: 'The Little Lantern',
+    targetAge: 4,
+    characters,
+    pages: Array.from({ length: 6 }, (_, index) => ({
+      pageNumber: index + 1,
+      text: tooManySentences && index === 2
+        ? 'One. Two. Three. Four. Five.'
+        : `Friend 1 takes a gentle step on page ${index + 1}.`,
+      imagePrompt: `A warm storybook scene for page ${index + 1}, with no text.`,
+      characters: [characters[index % characters.length].name],
+      status: 'pending',
+    })),
+  };
+}
+
+function toolCall(name: string, args: Record<string, unknown>, id: string) {
+  return {
+    content: {
+      role: 'model' as const,
+      parts: [{ functionCall: { id, name, args } }],
+    },
+    functionCalls: [{ id, name, args }],
+  };
+}
+
+test('story agent rejects the reported invalid rewrite and requires two review-and-apply cycles', async () => {
+  const { generateStoryScriptWithAgents } = await import('./storyAgent.js');
+  const invalidScenario = makeScenario(4, true);
+  const validScenario = makeScenario();
+  const mainCalls = [
+    toolCall('save_story_script', { script: invalidScenario }, 'save-invalid'),
+    toolCall('save_story_script', { script: validScenario }, 'save-draft'),
+    toolCall('spawn_subagent', { focus: 'Full editorial review' }, 'review-1'),
+    toolCall('save_story_script', { script: validScenario }, 'save-review-1'),
+    toolCall('spawn_subagent', { focus: 'Independent final editorial review' }, 'review-2'),
+    toolCall('save_story_script', { script: validScenario }, 'save-review-2'),
+    toolCall('submit_story_script', {}, 'submit'),
+  ];
+  let mainIndex = 0;
+  let reviewAgentsCreated = 0;
+  let invalidResponseSeen = false;
+  const progressKinds: string[] = [];
+
+  const modelFactory = (role: 'main' | 'review'): AgentModel => {
+    if (role === 'review') {
+      reviewAgentsCreated += 1;
+      return async () => toolCall('subagent_exit', {
+        needsRewrite: false,
+        summary: 'The script is coherent and age appropriate.',
+        changedPageNumbers: [],
+        issues: [],
+      }, `review-exit-${reviewAgentsCreated}`);
+    }
+
+    return async request => {
+      if (mainIndex === 1) {
+        invalidResponseSeen = request.contents.some(content => content.parts.some(part => {
+          const functionResponse = part.functionResponse as { response?: { ok?: boolean; error?: string } } | undefined;
+          return functionResponse?.response?.ok === false
+            && functionResponse.response.error?.includes('no more than 3 main characters')
+            && functionResponse.response.error?.includes('too many sentences');
+        }));
+      }
+      const response = mainCalls[mainIndex];
+      mainIndex += 1;
+      return response;
+    };
+  };
+
+  const result = await generateStoryScriptWithAgents(
+    'Tell a gentle story about a lantern.',
+    'en',
+    4,
+    'storybook',
+    update => progressKinds.push(update.activity.kind),
+    undefined,
+    {
+      modelFactory,
+      resolveSource: async () => undefined,
+    },
+  );
+
+  assert.equal(result.scenario.characters.length, 2);
+  assert.equal(result.scenario.pages[2].text, validScenario.pages[2].text);
+  assert.equal(reviewAgentsCreated, 2);
+  assert.equal(mainIndex, mainCalls.length);
+  assert.equal(invalidResponseSeen, true);
+  assert.ok(progressKinds.includes('main_agent'));
+  assert.ok(progressKinds.includes('subagent_review'));
+  assert.ok(progressKinds.includes('script'));
+});

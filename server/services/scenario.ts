@@ -25,82 +25,11 @@ import {
 } from './scenarioReview.js';
 import type { Scenario, ArtStyleKey } from '../../shared/types.js';
 import type { StoryUsageStatus } from '../../shared/types.js';
+import { storyScriptSchema } from './storyScriptSchema.js';
+import { generateStoryScriptWithAgents } from './storyAgent.js';
+import type { GenerationActivity } from '../../shared/types.js';
 
-const scenarioSchema = {
-  type: 'OBJECT',
-  properties: {
-    title: { type: 'STRING', description: 'Story title' },
-    targetAge: { type: 'INTEGER', description: 'Target age of the reader' },
-    characters: {
-      type: 'ARRAY',
-      items: {
-        type: 'OBJECT',
-        properties: {
-          name: { type: 'STRING', description: 'Character name' },
-          role: {
-            type: 'STRING',
-            description: 'Character role (protagonist, sidekick, mentor, etc.)',
-          },
-          appearance: {
-            type: 'STRING',
-            description: 'Hyper-detailed physical appearance description',
-          },
-          clothing: {
-            type: 'STRING',
-            description: 'Detailed clothing and accessories description',
-          },
-          personality: {
-            type: 'STRING',
-            description: 'Character personality traits',
-          },
-          characterSheetPrompt: {
-            type: 'STRING',
-            description:
-              'Prompt for generating the character reference sheet showing front and back views',
-          },
-        },
-        required: [
-          'name',
-          'role',
-          'appearance',
-          'clothing',
-          'personality',
-          'characterSheetPrompt',
-        ],
-      },
-      description:
-        'Main visual characters. Keep original stories small; faithful retellings may include required canonical roles.',
-    },
-    pages: {
-      type: 'ARRAY',
-      items: {
-        type: 'OBJECT',
-        properties: {
-          pageNumber: {
-            type: 'INTEGER',
-            description: 'Page number starting from 1',
-          },
-          text: {
-            type: 'STRING',
-            description: 'Story text for this page (one short paragraph)',
-          },
-          imagePrompt: {
-            type: 'STRING',
-            description: 'Detailed scene description for image generation',
-          },
-          characters: {
-            type: 'ARRAY',
-            items: { type: 'STRING' },
-            description: 'Character names appearing in this scene',
-          },
-        },
-        required: ['pageNumber', 'text', 'imagePrompt', 'characters'],
-      },
-      description: 'Requested story pages',
-    },
-  },
-  required: ['title', 'targetAge', 'characters', 'pages'],
-};
+const scenarioSchema = storyScriptSchema;
 
 type GenerateJSONFn = typeof gemini.generateJSON;
 type GenerateJSONFromContentsFn = typeof gemini.generateJSONFromContents;
@@ -115,6 +44,7 @@ export interface ScenarioProgressUpdate {
   status: 'generating_scenario' | 'reviewing_scenario';
   currentPhase: string;
   message: string;
+  activity?: GenerationActivity;
 }
 
 type ScenarioProgressCallback = (update: ScenarioProgressUpdate) => void;
@@ -539,15 +469,13 @@ export async function generateScenarioWithMetadata(
   onProgress?: ScenarioProgressCallback,
   usageCallbacks?: ScenarioUsageCallbacks,
 ): Promise<GeneratedScenarioResult> {
-  return generateScenarioWithMetadataWithModel(
+  return generateStoryScriptWithAgents(
     userPrompt,
     language,
     age,
     style,
-    gemini.generateJSON,
     onProgress,
     usageCallbacks,
-    gemini.generateJSONFromContents,
   );
 }
 

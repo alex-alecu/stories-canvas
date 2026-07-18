@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { config } from '../config.js';
 import { getSupabase } from './supabase.js';
 import type { JSONGenerationOptions } from './gemini.js';
+import { loadPromptMarkdown } from './promptFiles.js';
 import type {
   CanonicalBeatSheet,
   RetellingSourcePromptContext,
@@ -16,6 +17,8 @@ const MANIFEST_PATH = join(process.cwd(), 'story-sources', 'manifest.json');
 const SOURCE_TEXT_CHUNK_CHARS = 30_000;
 const SOURCE_TEXT_CHUNK_OVERLAP_CHARS = 800;
 export const SOURCE_ANALYSIS_VERSION = 2;
+const SOURCE_GROUNDING_SYSTEM_INSTRUCTION = loadPromptMarkdown('en/system/source-grounding-system.md');
+const SOURCE_SEARCH_SYSTEM_INSTRUCTION = loadPromptMarkdown('en/system/source-search-system.md');
 
 export type RetellingMode = 'original' | 'faithful_retelling';
 
@@ -624,7 +627,7 @@ async function analyzeSourceText(
         'Source text chunk:',
         chunks[index],
       ].join('\n'),
-      'Return only compact JSON for source grounding.',
+      SOURCE_GROUNDING_SYSTEM_INSTRUCTION,
       sourceAnalysisSchema,
       {
         model: config.sourceAnalysisModel,
@@ -708,7 +711,7 @@ async function searchPublicDomainSource(
       `Set sourceAnalysisVersion to ${SOURCE_ANALYSIS_VERSION}.`,
       'If you cannot verify a public-domain or compatible source, set isPublicDomain=false and confidence below 0.7.',
     ].join('\n'),
-    'Use Google Search only to verify public-domain story sources. Return JSON only.',
+    SOURCE_SEARCH_SYSTEM_INSTRUCTION,
     searchSourceSchema,
     {
       model: config.sourceAnalysisModel,
