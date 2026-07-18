@@ -468,6 +468,7 @@ export async function generateScenarioWithMetadata(
   style?: ArtStyleKey,
   onProgress?: ScenarioProgressCallback,
   usageCallbacks?: ScenarioUsageCallbacks,
+  signal?: AbortSignal,
 ): Promise<GeneratedScenarioResult> {
   return generateStoryScriptWithAgents(
     userPrompt,
@@ -476,6 +477,8 @@ export async function generateScenarioWithMetadata(
     style,
     onProgress,
     usageCallbacks,
+    {},
+    signal,
   );
 }
 

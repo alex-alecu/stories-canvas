@@ -87,7 +87,8 @@ test('story prompt assembly keeps age scenario, appearance, and language rules t
   assert.match(systemInstruction, /keep the exact spelling from characters\[\]\.name whenever you mention a character/i);
   assert.match(systemInstruction, /keep appearance, clothing, characterSheetPrompt, and imagePrompt visually originalized/i);
   assert.match(agentInstruction, /Call `spawn_subagent`/);
-  assert.match(agentInstruction, /original user request, target age, language, constraints, and the complete saved script\/results so far/);
+  assert.match(agentInstruction, /`Target age: 6`, `Language: en`/);
+  assert.match(agentInstruction, /BEGIN CURRENT STORY SCRIPT JSON/);
   assert.match(agentInstruction, /generic sub-agent architecture does not know about stories or reviews/i);
   assert.match(agentInstruction, /Apply that review yourself/);
   assert.match(draftPrompt, /Target age: 6/);

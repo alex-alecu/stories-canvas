@@ -252,6 +252,8 @@ export function buildStoryAgentSystemInstruction(context: StoryPromptContext): s
   return renderPromptTemplate(STORY_AGENT_SYSTEM_INSTRUCTION_TEMPLATE, {
     common_instruction: buildStoryCommonInstruction(context),
     page_count: context.pageCount,
+    target_age: context.targetAge,
+    language: context.language,
   });
 }
 

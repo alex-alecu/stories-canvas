@@ -1,4 +1,5 @@
 import { config } from '../config.js';
+import { isDeepStrictEqual } from 'node:util';
 import type {
   ArtStyleKey,
   GenerationActivity,
@@ -32,6 +33,8 @@ import { loadMarkdownFile } from './promptFiles.js';
 export const MAIN_STORY_AGENT_MAX_TURNS = 50;
 export const SUBAGENT_MAX_TURNS = 10;
 export const REQUIRED_REVIEW_CYCLES = 2;
+export const REVIEW_SCRIPT_START_MARKER = '---BEGIN CURRENT STORY SCRIPT JSON---';
+export const REVIEW_SCRIPT_END_MARKER = '---END CURRENT STORY SCRIPT JSON---';
 const GENERIC_SUBAGENT_SYSTEM_INSTRUCTION = loadMarkdownFile('agent-prompts/system/subagent-system.md');
 
 interface UsageEvent {
@@ -108,6 +111,21 @@ function activity(
   return { id, kind, status, label, ...extras };
 }
 
+function parseReviewHandoffScript(handoff: string): Scenario {
+  const start = handoff.indexOf(REVIEW_SCRIPT_START_MARKER);
+  const end = handoff.indexOf(REVIEW_SCRIPT_END_MARKER, start + REVIEW_SCRIPT_START_MARKER.length);
+  if (start < 0 || end < 0) {
+    throw new Error('The handoff must include the complete current story script and results so far.');
+  }
+
+  const json = handoff.slice(start + REVIEW_SCRIPT_START_MARKER.length, end).trim();
+  try {
+    return normalizeScript(JSON.parse(json));
+  } catch {
+    throw new Error('The handoff must include the complete current story script as valid JSON.');
+  }
+}
+
 export async function generateStoryScriptWithAgents(
   userPrompt: string,
   language?: string,
@@ -116,7 +134,9 @@ export async function generateStoryScriptWithAgents(
   onProgress?: (update: StoryAgentProgressUpdate) => void,
   usageCallbacks?: StoryAgentUsageCallbacks,
   dependencies: StoryAgentDependencies = {},
+  signal?: AbortSignal,
 ): Promise<StoryAgentResult> {
+  signal?.throwIfAborted();
   const baseContext = buildStoryPromptContext(userPrompt, language, age, style);
   onProgress?.({
     status: 'generating_scenario',
@@ -130,6 +150,7 @@ export async function generateStoryScriptWithAgents(
     generateJSON,
     onUsage: usageCallbacks?.onSourceAnalysisUsage,
   });
+  signal?.throwIfAborted();
   const context = retellingSource
     ? buildStoryPromptContext(userPrompt, language, age, style, retellingSource)
     : baseContext;
@@ -178,11 +199,15 @@ export async function generateStoryScriptWithAgents(
       if (!request.handoff.includes(context.userPrompt)) {
         throw new Error('The handoff must include the original user request.');
       }
-      if (
-        !request.handoff.includes(toolState.scenario.title)
-        || !toolState.scenario.pages.every(page => request.handoff.includes(page.text))
-      ) {
+      const handedOffScenario = parseReviewHandoffScript(request.handoff);
+      if (!isDeepStrictEqual(handedOffScenario, toolState.scenario)) {
         throw new Error('The handoff must include the complete current story script and results so far.');
+      }
+      if (!request.handoff.includes(`Target age: ${context.targetAge}`)) {
+        throw new Error('The handoff must include the target age.');
+      }
+      if (!request.handoff.includes(`Language: ${context.language}`)) {
+        throw new Error('The handoff must include the story language.');
       }
     },
     afterSpawn: (_request, _result, toolState) => {
@@ -210,6 +235,7 @@ export async function generateStoryScriptWithAgents(
         ),
       });
     },
+    signal,
   });
 
   const tools: Array<AgentTool<StoryAgentState, Scenario>> = [
@@ -311,6 +337,7 @@ export async function generateStoryScriptWithAgents(
     tools,
     context: state,
     terminalToolNames: ['submit_story_script'],
+    signal,
     onTurn: update => {
       const isComplete = update.phase === 'completed';
       onProgress?.({

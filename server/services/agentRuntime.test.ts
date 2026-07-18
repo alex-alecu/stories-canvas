@@ -98,6 +98,45 @@ test('runAgent forces terminal tools on the final turn', async () => {
   assert.deepEqual(forcedTools, [undefined, ['finish']]);
 });
 
+test('runAgent stops before starting more work after cancellation', async () => {
+  const controller = new AbortController();
+  let modelCalls = 0;
+  const model: AgentModel = async () => {
+    modelCalls += 1;
+    return modelToolCall('cancel', {}, 'cancel-1');
+  };
+
+  await assert.rejects(
+    () => runAgent({
+      name: 'cancellable agent',
+      systemInstruction: 'Use tools.',
+      initialPrompt: 'Begin.',
+      maxTurns: 3,
+      model,
+      tools: [{
+        name: 'cancel',
+        description: 'Cancel the run',
+        parameters: { type: 'OBJECT', properties: {} },
+        execute: () => {
+          controller.abort();
+          return { response: { ok: true } };
+        },
+      }, {
+        name: 'finish',
+        description: 'Finish',
+        parameters: { type: 'OBJECT', properties: {} },
+        execute: () => ({ response: { ok: true }, terminalValue: 'done' }),
+      }],
+      context: {},
+      terminalToolNames: ['finish'],
+      signal: controller.signal,
+    }),
+    error => error instanceof DOMException && error.name === 'AbortError',
+  );
+
+  assert.equal(modelCalls, 1);
+});
+
 test('generic spawn tool creates an isolated bounded session from task and handoff', async () => {
   const subagentRequests: AgentModelRequest[] = [];
   const spawnRequests: SubagentSpawnRequest[] = [];

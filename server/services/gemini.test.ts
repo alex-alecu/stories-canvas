@@ -139,6 +139,47 @@ test('createGeminiAgentModel preserves tool calls and can force terminal tools',
   }
 });
 
+test('createGeminiAgentModel retries an empty candidate response', async () => {
+  const gemini = await import('./gemini.js');
+  const calls: GenerateContentCall[] = [];
+  const original = gemini.ai.models.generateContent;
+
+  (gemini.ai.models as { generateContent: typeof original }).generateContent = (async (request) => {
+    calls.push(request as GenerateContentCall);
+    if (calls.length === 1) {
+      return { candidates: [] } as never;
+    }
+
+    return {
+      candidates: [{
+        content: {
+          role: 'model',
+          parts: [{ functionCall: { id: 'call-2', name: 'finish', args: {} } }],
+        },
+      }],
+      functionCalls: [{ id: 'call-2', name: 'finish', args: {} }],
+    } as never;
+  }) as typeof original;
+
+  try {
+    const model = gemini.createGeminiAgentModel({ maxRetries: 2 });
+    const response = await model({
+      systemInstruction: 'Use tools.',
+      contents: [{ role: 'user', parts: [{ text: 'Begin.' }] }],
+      tools: [{
+        name: 'finish',
+        description: 'Finish the task.',
+        parameters: { type: 'OBJECT', properties: {} },
+      }],
+    });
+
+    assert.equal(calls.length, 2);
+    assert.deepEqual(response.functionCalls, [{ id: 'call-2', name: 'finish', args: {} }]);
+  } finally {
+    (gemini.ai.models as { generateContent: typeof original }).generateContent = original;
+  }
+});
+
 test('getMaxThinkingConfig selects model-specific max thinking controls', async () => {
   const gemini = await import('./gemini.js');
 

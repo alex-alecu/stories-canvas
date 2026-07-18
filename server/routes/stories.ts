@@ -1269,7 +1269,9 @@ async function runGenerationPipeline(
         onReviewUsage: usage => usageRecorder.recordText('scenario_review', usage),
         onRewriteUsage: usage => usageRecorder.recordText('scenario_review_rewrite', usage),
       },
+      signal,
     );
+    if (signal.aborted) throw new Error('Generation cancelled');
     const scenario = scenarioResult.scenario;
     const groundedGenerationInputs = applyScenarioGroundingInputs(
       buildGenerationInputsSnapshot(

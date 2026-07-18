@@ -20,6 +20,7 @@ export interface AgentModelRequest {
   contents: AgentContent[];
   tools: AgentToolDeclaration[];
   forceToolNames?: string[];
+  signal?: AbortSignal;
 }
 
 export interface AgentModelResponse {
@@ -59,6 +60,7 @@ export interface RunAgentOptions<TContext, TTerminal> {
   context: TContext;
   terminalToolNames: string[];
   onTurn?: (update: AgentTurnUpdate) => void | Promise<void>;
+  signal?: AbortSignal;
 }
 
 export interface SubagentSpawnRequest {
@@ -91,6 +93,11 @@ export interface SpawnSubagentToolOptions<
     parentContext: TParentContext,
   ) => void | Promise<void>;
   onTurn?: (update: SubagentTurnUpdate) => void | Promise<void>;
+  signal?: AbortSignal;
+}
+
+function throwIfAborted(signal?: AbortSignal): void {
+  signal?.throwIfAborted();
 }
 
 function textContent(text: string): AgentContent {
@@ -199,6 +206,7 @@ export function createSpawnSubagentTool<
         context: options.createContext(request),
         terminalToolNames: ['subagent_exit'],
         onTurn: update => options.onTurn?.({ ...request, ...update }),
+        signal: options.signal,
       });
 
       await options.afterSpawn?.(request, result, parentContext);
@@ -227,6 +235,7 @@ export async function runAgent<TContext, TTerminal>(
   const contents: AgentContent[] = [];
 
   for (let turn = 1; turn <= options.maxTurns; turn++) {
+    throwIfAborted(options.signal);
     const turnsRemaining = options.maxTurns - turn + 1;
     const turnPrefix = budgetMessage(options.name, turn, options.maxTurns);
     if (turn === 1) {
@@ -243,13 +252,16 @@ export async function runAgent<TContext, TTerminal>(
       turnsRemaining,
       phase: 'working',
     });
+    throwIfAborted(options.signal);
 
     const response = await options.model({
       systemInstruction: options.systemInstruction,
       contents,
       tools: options.tools.map(({ name, description, parameters }) => ({ name, description, parameters })),
       forceToolNames: turn === options.maxTurns ? options.terminalToolNames : undefined,
+      signal: options.signal,
     });
+    throwIfAborted(options.signal);
     contents.push(response.content);
 
     if (response.functionCalls.length === 0) {
@@ -258,6 +270,7 @@ export async function runAgent<TContext, TTerminal>(
 
     const toolResponses: Array<Record<string, unknown>> = [];
     for (const call of response.functionCalls) {
+      throwIfAborted(options.signal);
       await options.onTurn?.({
         turn,
         maxTurns: options.maxTurns,
@@ -265,6 +278,7 @@ export async function runAgent<TContext, TTerminal>(
         phase: 'tool',
         toolName: call.name,
       });
+      throwIfAborted(options.signal);
 
       const tool = toolsByName.get(call.name);
       if (!tool) {
@@ -278,6 +292,7 @@ export async function runAgent<TContext, TTerminal>(
 
       try {
         const result = await tool.execute(call.args, options.context);
+        throwIfAborted(options.signal);
         const toolResponse = {
           ...result.response,
           turnsRemaining: Math.max(0, options.maxTurns - turn),

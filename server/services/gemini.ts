@@ -143,11 +143,11 @@ export function createGeminiAgentModel(options: GeminiAgentModelOptions = {}): A
     let thinkingConfig = options.thinkingConfig;
     let thinkingFallbackUsed = false;
     let lastError: Error | undefined;
-    let response: Awaited<ReturnType<typeof ai.models.generateContent>> | undefined;
 
-    while (remainingRetries > 0 && !response) {
+    while (remainingRetries > 0) {
       try {
-        response = await ai.models.generateContent({
+        request.signal?.throwIfAborted();
+        const response = await ai.models.generateContent({
           model,
           contents: request.contents as Content[],
           config: {
@@ -171,8 +171,40 @@ export function createGeminiAgentModel(options: GeminiAgentModelOptions = {}): A
             },
           },
         });
+        request.signal?.throwIfAborted();
+
+        if (options.onUsage) {
+          const usage = extractUsageMetadata(response as { usageMetadata?: unknown });
+          await options.onUsage({
+            model,
+            status: 'succeeded',
+            inputTokens: usage.inputTokens,
+            outputTokens: usage.outputTokens,
+            totalTokens: usage.totalTokens,
+            usageDetails: usage.usageDetails,
+          });
+        }
+
+        const content = response.candidates?.[0]?.content;
+        if (!content?.parts?.length) {
+          throw new Error('Empty agent response from Gemini');
+        }
+
+        return {
+          content: content as AgentModelResponse['content'],
+          functionCalls: (response.functionCalls ?? [])
+            .filter(call => typeof call.name === 'string' && call.name.length > 0)
+            .map(call => ({
+              id: call.id,
+              name: call.name!,
+              args: call.args ?? {},
+            })),
+        };
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error));
+        if (request.signal?.aborted) {
+          throw request.signal.reason;
+        }
         if (thinkingConfig && !thinkingFallbackUsed && shouldRetryWithoutThinking(lastError)) {
           thinkingFallbackUsed = true;
           thinkingConfig = undefined;
@@ -188,37 +220,7 @@ export function createGeminiAgentModel(options: GeminiAgentModelOptions = {}): A
       }
     }
 
-    if (!response) {
-      throw new Error(`Agent model failed after ${maxRetries} attempts: ${lastError?.message}`);
-    }
-
-    if (options.onUsage) {
-      const usage = extractUsageMetadata(response as { usageMetadata?: unknown });
-      await options.onUsage({
-        model,
-        status: 'succeeded',
-        inputTokens: usage.inputTokens,
-        outputTokens: usage.outputTokens,
-        totalTokens: usage.totalTokens,
-        usageDetails: usage.usageDetails,
-      });
-    }
-
-    const content = response.candidates?.[0]?.content;
-    if (!content?.parts) {
-      throw new Error('Empty agent response from Gemini');
-    }
-
-    return {
-      content: content as AgentModelResponse['content'],
-      functionCalls: (response.functionCalls ?? [])
-        .filter(call => typeof call.name === 'string' && call.name.length > 0)
-        .map(call => ({
-          id: call.id,
-          name: call.name!,
-          args: call.args ?? {},
-        })),
-    };
+    throw new Error(`Agent model failed after ${maxRetries} attempts: ${lastError?.message}`);
   };
 }
 
