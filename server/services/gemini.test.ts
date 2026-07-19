@@ -13,6 +13,7 @@ test('generateJSON passes story controls through to Gemini', async () => {
   const gemini = await import('./gemini.js');
   const calls: GenerateContentCall[] = [];
   const original = gemini.ai.models.generateContent;
+  const controller = new AbortController();
 
   (gemini.ai.models as { generateContent: typeof original }).generateContent = (async (request) => {
     calls.push(request as GenerateContentCall);
@@ -36,6 +37,7 @@ test('generateJSON passes story controls through to Gemini', async () => {
         thinkingConfig: { thinkingBudget: 512 },
         tools: [{ googleSearch: {} }],
         maxRetries: 1,
+        signal: controller.signal,
       },
     );
 
@@ -45,6 +47,7 @@ test('generateJSON passes story controls through to Gemini', async () => {
     assert.equal(calls[0].config.temperature, 0.6);
     assert.deepEqual(calls[0].config.thinkingConfig, { thinkingBudget: 512 });
     assert.deepEqual(calls[0].config.tools, [{ googleSearch: {} }]);
+    assert.equal(calls[0].config.abortSignal, controller.signal);
   } finally {
     (gemini.ai.models as { generateContent: typeof original }).generateContent = original;
   }
@@ -175,6 +178,43 @@ test('createGeminiAgentModel retries an empty candidate response', async () => {
 
     assert.equal(calls.length, 2);
     assert.deepEqual(response.functionCalls, [{ id: 'call-2', name: 'finish', args: {} }]);
+  } finally {
+    (gemini.ai.models as { generateContent: typeof original }).generateContent = original;
+  }
+});
+
+test('createGeminiAgentModel aborts the in-flight Gemini request', async () => {
+  const gemini = await import('./gemini.js');
+  const original = gemini.ai.models.generateContent;
+  const controller = new AbortController();
+  let receivedSignal: AbortSignal | undefined;
+
+  (gemini.ai.models as { generateContent: typeof original }).generateContent = (async (request) => {
+    receivedSignal = request.config?.abortSignal;
+    return new Promise((_resolve, reject) => {
+      receivedSignal?.addEventListener('abort', () => reject(receivedSignal?.reason), { once: true });
+    });
+  }) as typeof original;
+
+  try {
+    const model = gemini.createGeminiAgentModel({ maxRetries: 2 });
+    const pending = model({
+      systemInstruction: 'Use tools.',
+      contents: [{ role: 'user', parts: [{ text: 'Begin.' }] }],
+      tools: [{
+        name: 'finish',
+        description: 'Finish the task.',
+        parameters: { type: 'OBJECT', properties: {} },
+      }],
+      signal: controller.signal,
+    });
+
+    controller.abort();
+    await assert.rejects(
+      pending,
+      error => error instanceof DOMException && error.name === 'AbortError',
+    );
+    assert.equal(receivedSignal, controller.signal);
   } finally {
     (gemini.ai.models as { generateContent: typeof original }).generateContent = original;
   }

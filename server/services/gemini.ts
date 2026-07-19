@@ -32,6 +32,7 @@ export interface JSONGenerationOptions {
   thinkingConfig?: ThinkingConfig;
   tools?: unknown[];
   maxRetries?: number;
+  signal?: AbortSignal;
   onUsage?: (usage: {
     model: string;
     status: 'succeeded' | 'failed';
@@ -134,6 +135,22 @@ function extractUsageMetadata(response: { usageMetadata?: unknown }): {
   };
 }
 
+/** Waits between retries while allowing cancellation to stop the retry loop immediately. */
+function waitForRetry(delayMs: number, signal?: AbortSignal): Promise<void> {
+  signal?.throwIfAborted();
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort);
+      resolve();
+    }, delayMs);
+    const onAbort = () => {
+      clearTimeout(timeout);
+      reject(signal?.reason ?? new DOMException('The operation was aborted', 'AbortError'));
+    };
+    signal?.addEventListener('abort', onAbort, { once: true });
+  });
+}
+
 export function createGeminiAgentModel(options: GeminiAgentModelOptions = {}): AgentModel {
   const model = options.model ?? config.scenarioModel;
 
@@ -151,6 +168,7 @@ export function createGeminiAgentModel(options: GeminiAgentModelOptions = {}): A
           model,
           contents: request.contents as Content[],
           config: {
+            abortSignal: request.signal,
             systemInstruction: request.systemInstruction,
             temperature: options.temperature,
             thinkingConfig,
@@ -215,7 +233,7 @@ export function createGeminiAgentModel(options: GeminiAgentModelOptions = {}): A
         if (remainingRetries > 0) {
           const failedAttempts = maxRetries - remainingRetries;
           const delay = Math.pow(2, failedAttempts - 1) * 1000 + Math.random() * 1000;
-          await new Promise(resolve => setTimeout(resolve, delay));
+          await waitForRetry(delay, request.signal);
         }
       }
     }
@@ -397,10 +415,12 @@ export async function generateJSONFromContents<T>(
 
   while (remainingRetries > 0) {
     try {
+      options.signal?.throwIfAborted();
       const response = await ai.models.generateContent({
         model,
         contents,
         config: {
+          abortSignal: options.signal,
           systemInstruction,
           temperature: options.temperature,
           responseMimeType: 'application/json',
@@ -409,6 +429,7 @@ export async function generateJSONFromContents<T>(
           tools: options.tools as any,
         },
       });
+      options.signal?.throwIfAborted();
 
       const text = response.text;
       if (!text) {
@@ -431,6 +452,9 @@ export async function generateJSONFromContents<T>(
       return parsed;
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));
+      if (options.signal?.aborted) {
+        throw options.signal.reason;
+      }
       console.error(`Attempt ${maxRetries - remainingRetries + 1}/${maxRetries} failed:`, lastError.message);
 
       if (thinkingConfig && !thinkingFallbackUsed && shouldRetryWithoutThinking(lastError)) {
@@ -445,7 +469,7 @@ export async function generateJSONFromContents<T>(
       if (remainingRetries > 0) {
         const failedAttempts = maxRetries - remainingRetries;
         const delay = Math.pow(2, failedAttempts - 1) * 1000 + Math.random() * 1000;
-        await new Promise(resolve => setTimeout(resolve, delay));
+        await waitForRetry(delay, options.signal);
       }
     }
   }

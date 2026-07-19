@@ -258,6 +258,7 @@ export async function generateStoryScriptWithAgents(
   const retellingSource = await resolveSource(baseContext, {
     generateJSON,
     onUsage: usageCallbacks?.onSourceAnalysisUsage,
+    signal,
   });
   signal?.throwIfAborted();
   const context = retellingSource
