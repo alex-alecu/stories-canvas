@@ -6,9 +6,6 @@ import type { AgentModel } from './agentRuntime.js';
 
 process.env.GEMINI_API_KEY ??= 'test-key';
 
-const REVIEW_SCRIPT_START_MARKER = '---BEGIN CURRENT STORY SCRIPT JSON---';
-const REVIEW_SCRIPT_END_MARKER = '---END CURRENT STORY SCRIPT JSON---';
-
 function makeScenario(characterCount = 2, tooManySentences = false): Scenario {
   const characters = Array.from({ length: characterCount }, (_, index) => ({
     name: `Friend ${index + 1}`,
@@ -45,32 +42,21 @@ function toolCall(name: string, args: Record<string, unknown>, id: string) {
   };
 }
 
-test('story agent rejects the reported invalid rewrite and requires two review-and-apply cycles', async () => {
+test('story agent validates revisions and uses prompt-driven independent review results', async () => {
   const { generateStoryScriptWithAgents } = await import('./storyAgent.js');
   const userPrompt = 'Tell a gentle story about a lantern.';
   const invalidScenario = makeScenario(4, true);
   const validScenario = makeScenario();
-  const handoff = (scenario: Scenario, cycle: number) => [
-    `Original user request: ${userPrompt}`,
-    'Target age: 4',
-    'Language: en',
-    `Review cycle: ${cycle}`,
-    REVIEW_SCRIPT_START_MARKER,
-    JSON.stringify(scenario),
-    REVIEW_SCRIPT_END_MARKER,
-  ].join('\n');
+  const handoff = (scenario: Scenario, cycle: number) => JSON.stringify({
+    originalRequest: userPrompt,
+    targetAge: 4,
+    language: 'en',
+    reviewCycle: cycle,
+    currentScript: scenario,
+  });
   const mainCalls = [
     toolCall('save_story_script', { script: invalidScenario }, 'save-invalid'),
     toolCall('save_story_script', { script: validScenario }, 'save-draft'),
-    toolCall('spawn_subagent', {
-      task: 'Review the handed-off story script only and report actionable findings.',
-      handoff: [
-        `Original user request: ${userPrompt}`,
-        'Target age: 4',
-        'Language: en',
-        `Current results: ${validScenario.title}\n${validScenario.pages.map(page => page.text).join('\n')}`,
-      ].join('\n'),
-    }, 'review-incomplete'),
     toolCall('spawn_subagent', {
       task: 'Review the handed-off story script only and report actionable findings.',
       handoff: handoff(validScenario, 1),
@@ -86,7 +72,8 @@ test('story agent rejects the reported invalid rewrite and requires two review-a
   let mainIndex = 0;
   let subagentsCreated = 0;
   let invalidResponseSeen = false;
-  let incompleteHandoffRejected = false;
+  let firstReviewSeen = false;
+  let secondReviewSeen = false;
   const progressKinds: string[] = [];
 
   const modelFactory = (role: 'main' | 'subagent'): AgentModel => {
@@ -111,12 +98,13 @@ test('story agent rejects the reported invalid rewrite and requires two review-a
             && functionResponse.response.error?.includes('too many sentences');
         }));
       }
-      if (mainIndex === 3) {
-        incompleteHandoffRejected = request.contents.some(content => content.parts.some(part => {
-          const functionResponse = part.functionResponse as { response?: { ok?: boolean; error?: string } } | undefined;
-          return functionResponse?.response?.ok === false
-            && functionResponse.response.error?.includes('complete current story script');
+      if (mainIndex === 3 || mainIndex === 5) {
+        const reviewSeen = request.contents.some(content => content.parts.some(part => {
+          const functionResponse = part.functionResponse as { response?: { result?: string } } | undefined;
+          return functionResponse?.response?.result?.includes('coherent and age appropriate') ?? false;
         }));
+        if (mainIndex === 3) firstReviewSeen = reviewSeen;
+        if (mainIndex === 5) secondReviewSeen = reviewSeen;
       }
       const response = mainCalls[mainIndex];
       mainIndex += 1;
@@ -142,7 +130,8 @@ test('story agent rejects the reported invalid rewrite and requires two review-a
   assert.equal(subagentsCreated, 2);
   assert.equal(mainIndex, mainCalls.length);
   assert.equal(invalidResponseSeen, true);
-  assert.equal(incompleteHandoffRejected, true);
+  assert.equal(firstReviewSeen, true);
+  assert.equal(secondReviewSeen, true);
   assert.ok(progressKinds.includes('main_agent'));
   assert.ok(progressKinds.includes('subagent'));
   assert.ok(progressKinds.includes('script'));
