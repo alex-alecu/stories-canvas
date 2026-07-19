@@ -322,6 +322,29 @@ export interface StoryDetail extends StoryMeta {
   scenario: Scenario;
 }
 
+export type GenerationActivityKind =
+  | 'main_agent'
+  | 'subagent'
+  | 'script'
+  | 'characters'
+  | 'page_image'
+  | 'page_audio';
+
+export type GenerationActivityStatus = 'working' | 'completed' | 'failed';
+
+export interface GenerationActivity {
+  id: string;
+  kind: GenerationActivityKind;
+  status: GenerationActivityStatus;
+  label: string;
+  detail?: string;
+  turn?: number;
+  maxTurns?: number;
+  turnsRemaining?: number;
+  reviewCycle?: number;
+  pageNumber?: number;
+}
+
 export interface GenerationProgress {
   storyId: string;
   status: StoryStatus;
@@ -334,6 +357,8 @@ export interface GenerationProgress {
   pageStatus?: PageStatus;
   audioFailed?: boolean;
   audioError?: string;
+  activity?: GenerationActivity;
+  activityLog?: GenerationActivity[];
 }
 
 export interface CreateStoryRequest {

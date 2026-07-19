@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { config } from '../config.js';
 import { getSupabase } from './supabase.js';
 import type { JSONGenerationOptions } from './gemini.js';
+import { loadPromptMarkdown } from './promptFiles.js';
 import type {
   CanonicalBeatSheet,
   RetellingSourcePromptContext,
@@ -16,6 +17,8 @@ const MANIFEST_PATH = join(process.cwd(), 'story-sources', 'manifest.json');
 const SOURCE_TEXT_CHUNK_CHARS = 30_000;
 const SOURCE_TEXT_CHUNK_OVERLAP_CHARS = 800;
 export const SOURCE_ANALYSIS_VERSION = 2;
+const SOURCE_GROUNDING_SYSTEM_INSTRUCTION = loadPromptMarkdown('en/system/source-grounding-system.md');
+const SOURCE_SEARCH_SYSTEM_INSTRUCTION = loadPromptMarkdown('en/system/source-search-system.md');
 
 export type RetellingMode = 'original' | 'faithful_retelling';
 
@@ -63,6 +66,7 @@ type GenerateJSONFn = <T>(
 
 export interface SourceResolverOptions {
   generateJSON: GenerateJSONFn;
+  signal?: AbortSignal;
   onUsage?: (usage: {
     model: string;
     status: StoryUsageStatus;
@@ -348,8 +352,13 @@ function sourceFromManifestBeatSheet(source: ManifestStorySource): ResolvedRetel
   };
 }
 
-async function fetchTextUrl(url: string, fetchFn: typeof fetch): Promise<string | undefined> {
+async function fetchTextUrl(
+  url: string,
+  fetchFn: typeof fetch,
+  signal?: AbortSignal,
+): Promise<string | undefined> {
   const response = await fetchFn(url, {
+    signal,
     headers: {
       'User-Agent': 'Basmul/1.0 faithful-retelling-source-resolver',
       Accept: 'text/plain, text/*, application/json',
@@ -393,8 +402,10 @@ async function findWikisourceSource(
   titleQuery: string,
   language: SupportedStoryLanguage,
   fetchFn: typeof fetch,
+  signal?: AbortSignal,
 ): Promise<ManifestStorySource | undefined> {
   const response = await fetchFn(wikisourceOpenSearchUrl(titleQuery, language), {
+    signal,
     headers: {
       'User-Agent': 'Basmul/1.0 faithful-retelling-source-resolver',
       Accept: 'application/json',
@@ -424,8 +435,13 @@ async function findWikisourceSource(
   };
 }
 
-async function fetchWikisourceText(source: ManifestStorySource, fetchFn: typeof fetch): Promise<string | undefined> {
+async function fetchWikisourceText(
+  source: ManifestStorySource,
+  fetchFn: typeof fetch,
+  signal?: AbortSignal,
+): Promise<string | undefined> {
   const response = await fetchFn(wikisourceApiUrl(source), {
+    signal,
     headers: {
       'User-Agent': 'Basmul/1.0 faithful-retelling-source-resolver',
       Accept: 'application/json',
@@ -457,10 +473,11 @@ async function findProjectGutenbergSource(
   titleQuery: string,
   language: SupportedStoryLanguage,
   fetchFn: typeof fetch,
+  signal?: AbortSignal,
 ): Promise<ManifestStorySource | undefined> {
   if (language !== 'en') return undefined;
 
-  const html = await fetchTextUrl(projectGutenbergSearchUrl(titleQuery), fetchFn);
+  const html = await fetchTextUrl(projectGutenbergSearchUrl(titleQuery), fetchFn, signal);
   if (!html) return undefined;
 
   const match = html.match(/href="\/ebooks\/(\d+)"[\s\S]{0,600}?<span class="title">([^<]+)<\/span>/);
@@ -480,22 +497,30 @@ async function findProjectGutenbergSource(
   };
 }
 
-async function fetchProjectGutenbergText(source: ManifestStorySource, fetchFn: typeof fetch): Promise<string | undefined> {
-  const primaryText = await fetchTextUrl(source.sourceUrl, fetchFn);
+async function fetchProjectGutenbergText(
+  source: ManifestStorySource,
+  fetchFn: typeof fetch,
+  signal?: AbortSignal,
+): Promise<string | undefined> {
+  const primaryText = await fetchTextUrl(source.sourceUrl, fetchFn, signal);
   if (primaryText) return primaryText;
 
   const id = source.sourceUrl.match(/\/files\/(\d+)\//)?.[1];
   if (!id) return undefined;
-  return fetchTextUrl(`https://www.gutenberg.org/files/${id}/${id}.txt`, fetchFn);
+  return fetchTextUrl(`https://www.gutenberg.org/files/${id}/${id}.txt`, fetchFn, signal);
 }
 
-async function fetchSourceText(source: ManifestStorySource, fetchFn: typeof fetch): Promise<string | undefined> {
+async function fetchSourceText(
+  source: ManifestStorySource,
+  fetchFn: typeof fetch,
+  signal?: AbortSignal,
+): Promise<string | undefined> {
   if (source.provider === 'wikisource') {
-    return fetchWikisourceText(source, fetchFn);
+    return fetchWikisourceText(source, fetchFn, signal);
   }
 
   if (source.provider === 'project_gutenberg') {
-    return fetchProjectGutenbergText(source, fetchFn);
+    return fetchProjectGutenbergText(source, fetchFn, signal);
   }
 
   return undefined;
@@ -505,9 +530,19 @@ async function findTrustedProviderSource(
   titleQuery: string,
   language: SupportedStoryLanguage,
   fetchFn: typeof fetch,
+  signal?: AbortSignal,
 ): Promise<ManifestStorySource | undefined> {
-  return (await findWikisourceSource(titleQuery, language, fetchFn).catch(() => undefined))
-    ?? (await findProjectGutenbergSource(titleQuery, language, fetchFn).catch(() => undefined));
+  const wikisource = await findWikisourceSource(titleQuery, language, fetchFn, signal)
+    .catch(() => {
+      signal?.throwIfAborted();
+      return undefined;
+    });
+  if (wikisource) return wikisource;
+  return findProjectGutenbergSource(titleQuery, language, fetchFn, signal)
+    .catch(() => {
+      signal?.throwIfAborted();
+      return undefined;
+    });
 }
 
 function splitSourceTextIntoChunks(sourceText: string): string[] {
@@ -607,6 +642,7 @@ async function analyzeSourceText(
   const rawAnalyses: RawSourceAnalysis[] = [];
 
   for (let index = 0; index < chunks.length; index++) {
+    options.signal?.throwIfAborted();
     rawAnalyses.push(await options.generateJSON<RawSourceAnalysis>(
       [
         'Extract a canonical beat sheet fragment for a faithful children\'s retelling of this public-domain story.',
@@ -624,12 +660,13 @@ async function analyzeSourceText(
         'Source text chunk:',
         chunks[index],
       ].join('\n'),
-      'Return only compact JSON for source grounding.',
+      SOURCE_GROUNDING_SYSTEM_INSTRUCTION,
       sourceAnalysisSchema,
       {
         model: config.sourceAnalysisModel,
         temperature: 0.1,
         onUsage: options.onUsage,
+        signal: options.signal,
       },
     ));
   }
@@ -708,13 +745,14 @@ async function searchPublicDomainSource(
       `Set sourceAnalysisVersion to ${SOURCE_ANALYSIS_VERSION}.`,
       'If you cannot verify a public-domain or compatible source, set isPublicDomain=false and confidence below 0.7.',
     ].join('\n'),
-    'Use Google Search only to verify public-domain story sources. Return JSON only.',
+    SOURCE_SEARCH_SYSTEM_INSTRUCTION,
     searchSourceSchema,
     {
       model: config.sourceAnalysisModel,
       temperature: 0.1,
       tools: [{ googleSearch: {} }],
       onUsage: options.onUsage,
+      signal: options.signal,
     },
   );
 
@@ -752,6 +790,7 @@ export async function resolveRetellingSource(
   context: Pick<StoryPromptContext, 'userPrompt' | 'language'>,
   options: SourceResolverOptions,
 ): Promise<ResolvedRetellingSource | undefined> {
+  options.signal?.throwIfAborted();
   const classification = classifyRetellingRequest(context.userPrompt, context.language);
   if (!classification.shouldResolve || !classification.titleQuery) return undefined;
 
@@ -763,16 +802,23 @@ export async function resolveRetellingSource(
 
   const titleQuery = manifestSource?.title ?? classification.titleQuery;
   const cached = await readCachedSource(titleQuery, context.language);
+  options.signal?.throwIfAborted();
   if (cached) return cached;
 
   const fetchFn = options.fetchFn ?? fetch;
   const trustedSource = manifestSource
-    ?? (await findTrustedProviderSource(titleQuery, context.language, fetchFn));
+    ?? (await findTrustedProviderSource(titleQuery, context.language, fetchFn, options.signal));
+  options.signal?.throwIfAborted();
 
   if (trustedSource) {
-    const sourceText = await fetchSourceText(trustedSource, fetchFn).catch(() => undefined);
+    const sourceText = await fetchSourceText(trustedSource, fetchFn, options.signal).catch(() => {
+      options.signal?.throwIfAborted();
+      return undefined;
+    });
+    options.signal?.throwIfAborted();
     if (sourceText) {
       const analyzed = await analyzeSourceText(trustedSource, sourceText, options);
+      options.signal?.throwIfAborted();
       if (analyzed) {
         await writeCachedSource(analyzed, context.language);
         return analyzed;
@@ -781,6 +827,7 @@ export async function resolveRetellingSource(
   }
 
   const searched = await searchPublicDomainSource(titleQuery, context.language, options);
+  options.signal?.throwIfAborted();
   if (searched) {
     await writeCachedSource(searched, context.language);
   }

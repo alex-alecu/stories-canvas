@@ -272,6 +272,60 @@ test('source analysis reads later chunks so long sources keep their canonical en
   assert.ok(source?.canonicalBeatSheet.canonicalEnding?.some(beat => /living water/i.test(beat)));
 });
 
+test('source analysis stops before the next chunk after cancellation', async () => {
+  const { config } = await import('../config.js');
+  const storySources = await import('./storySources.js');
+  Object.assign(config, {
+    useSupabase: false,
+    sourceAnalysisModel: 'gemini-3.1-flash-lite',
+  });
+
+  const controller = new AbortController();
+  const longSourceText = `${'Opening bridge test. '.repeat(2200)}\n\n${'Middle impossible quests. '.repeat(2200)}`;
+  let generateCalls = 0;
+
+  await assert.rejects(
+    () => storySources.resolveRetellingSource(
+      {
+        userPrompt: 'Retell The Cancelled Tale faithfully',
+        language: 'en',
+      },
+      {
+        signal: controller.signal,
+        generateJSON: async <T>(
+          _prompt: string,
+          _systemInstruction: string,
+          _schema: Record<string, unknown>,
+          options?: JSONGenerationOptions,
+        ) => {
+          generateCalls += 1;
+          assert.equal(options?.signal, controller.signal);
+          controller.abort();
+          return makeSearchBeatSheet() as T;
+        },
+        fetchFn: async (url, init) => {
+          assert.equal(init?.signal, controller.signal);
+          if (String(url).includes('opensearch')) {
+            return {
+              ok: true,
+              json: async () => ['The Cancelled Tale', ['The Cancelled Tale'], [''], ['https://en.wikisource.org/wiki/The_Cancelled_Tale']],
+              text: async () => '',
+            } as Response;
+          }
+          return {
+            ok: true,
+            json: async () => ({ query: { pages: [{ extract: longSourceText }] } }),
+            text: async () => longSourceText,
+          } as Response;
+        },
+      },
+    ),
+    error => error instanceof DOMException && error.name === 'AbortError',
+  );
+
+  assert.equal(generateCalls, 1);
+});
+
 test('unknown public-domain requests try trusted providers before Gemini Search fallback', async () => {
   const { config } = await import('../config.js');
   const storySources = await import('./storySources.js');

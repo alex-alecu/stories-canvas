@@ -1,13 +1,16 @@
 import {
   GoogleGenAI,
+  FunctionCallingConfigMode,
   HarmBlockThreshold,
   HarmCategory,
   ThinkingLevel,
+  type Content,
   type ContentListUnion,
   type SafetySetting,
   type ThinkingConfig,
 } from '@google/genai';
 import { config } from '../config.js';
+import type { AgentModel, AgentModelResponse } from './agentRuntime.js';
 
 const ai = new GoogleGenAI({ apiKey: config.geminiApiKey });
 
@@ -29,6 +32,7 @@ export interface JSONGenerationOptions {
   thinkingConfig?: ThinkingConfig;
   tools?: unknown[];
   maxRetries?: number;
+  signal?: AbortSignal;
   onUsage?: (usage: {
     model: string;
     status: 'succeeded' | 'failed';
@@ -37,6 +41,14 @@ export interface JSONGenerationOptions {
     totalTokens: number;
     usageDetails: Record<string, unknown>;
   }) => void | Promise<void>;
+}
+
+export interface GeminiAgentModelOptions {
+  model?: string;
+  temperature?: number;
+  thinkingConfig?: ThinkingConfig;
+  maxRetries?: number;
+  onUsage?: JSONGenerationOptions['onUsage'];
 }
 
 const GEMINI_25_PRO_THINKING_BUDGET = 32768;
@@ -120,6 +132,113 @@ function extractUsageMetadata(response: { usageMetadata?: unknown }): {
     outputTokens,
     totalTokens,
     usageDetails: usage,
+  };
+}
+
+/** Waits between retries while allowing cancellation to stop the retry loop immediately. */
+function waitForRetry(delayMs: number, signal?: AbortSignal): Promise<void> {
+  signal?.throwIfAborted();
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort);
+      resolve();
+    }, delayMs);
+    const onAbort = () => {
+      clearTimeout(timeout);
+      reject(signal?.reason ?? new DOMException('The operation was aborted', 'AbortError'));
+    };
+    signal?.addEventListener('abort', onAbort, { once: true });
+  });
+}
+
+export function createGeminiAgentModel(options: GeminiAgentModelOptions = {}): AgentModel {
+  const model = options.model ?? config.scenarioModel;
+
+  return async request => {
+    const maxRetries = options.maxRetries ?? config.maxRetries;
+    let remainingRetries = maxRetries;
+    let thinkingConfig = options.thinkingConfig;
+    let thinkingFallbackUsed = false;
+    let lastError: Error | undefined;
+
+    while (remainingRetries > 0) {
+      try {
+        request.signal?.throwIfAborted();
+        const response = await ai.models.generateContent({
+          model,
+          contents: request.contents as Content[],
+          config: {
+            abortSignal: request.signal,
+            systemInstruction: request.systemInstruction,
+            temperature: options.temperature,
+            thinkingConfig,
+            tools: [{
+              functionDeclarations: request.tools.map(tool => ({
+                name: tool.name,
+                description: tool.description,
+                parameters: tool.parameters as any,
+              })),
+            }],
+            toolConfig: {
+              functionCallingConfig: request.forceToolNames
+                ? {
+                    mode: FunctionCallingConfigMode.ANY,
+                    allowedFunctionNames: request.forceToolNames,
+                  }
+                : { mode: FunctionCallingConfigMode.AUTO },
+            },
+          },
+        });
+        request.signal?.throwIfAborted();
+
+        if (options.onUsage) {
+          const usage = extractUsageMetadata(response as { usageMetadata?: unknown });
+          await options.onUsage({
+            model,
+            status: 'succeeded',
+            inputTokens: usage.inputTokens,
+            outputTokens: usage.outputTokens,
+            totalTokens: usage.totalTokens,
+            usageDetails: usage.usageDetails,
+          });
+        }
+
+        const content = response.candidates?.[0]?.content;
+        if (!content?.parts?.length) {
+          throw new Error('Empty agent response from Gemini');
+        }
+
+        return {
+          content: content as AgentModelResponse['content'],
+          functionCalls: (response.functionCalls ?? [])
+            .filter(call => typeof call.name === 'string' && call.name.length > 0)
+            .map(call => ({
+              id: call.id,
+              name: call.name!,
+              args: call.args ?? {},
+            })),
+        };
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+        if (request.signal?.aborted) {
+          throw request.signal.reason;
+        }
+        if (thinkingConfig && !thinkingFallbackUsed && shouldRetryWithoutThinking(lastError)) {
+          thinkingFallbackUsed = true;
+          thinkingConfig = undefined;
+          continue;
+        }
+
+        remainingRetries -= 1;
+        if (remainingRetries > 0) {
+          const failedAttempts = maxRetries - remainingRetries;
+          const delay = Math.pow(2, failedAttempts - 1) * 1000 + Math.random() * 1000;
+          await waitForRetry(delay, request.signal);
+        }
+      }
+    }
+
+    throw new Error(`Agent model failed after ${maxRetries} attempts: ${lastError?.message}`);
   };
 }
 
@@ -296,10 +415,12 @@ export async function generateJSONFromContents<T>(
 
   while (remainingRetries > 0) {
     try {
+      options.signal?.throwIfAborted();
       const response = await ai.models.generateContent({
         model,
         contents,
         config: {
+          abortSignal: options.signal,
           systemInstruction,
           temperature: options.temperature,
           responseMimeType: 'application/json',
@@ -308,6 +429,7 @@ export async function generateJSONFromContents<T>(
           tools: options.tools as any,
         },
       });
+      options.signal?.throwIfAborted();
 
       const text = response.text;
       if (!text) {
@@ -330,6 +452,9 @@ export async function generateJSONFromContents<T>(
       return parsed;
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));
+      if (options.signal?.aborted) {
+        throw options.signal.reason;
+      }
       console.error(`Attempt ${maxRetries - remainingRetries + 1}/${maxRetries} failed:`, lastError.message);
 
       if (thinkingConfig && !thinkingFallbackUsed && shouldRetryWithoutThinking(lastError)) {
@@ -344,7 +469,7 @@ export async function generateJSONFromContents<T>(
       if (remainingRetries > 0) {
         const failedAttempts = maxRetries - remainingRetries;
         const delay = Math.pow(2, failedAttempts - 1) * 1000 + Math.random() * 1000;
-        await new Promise(resolve => setTimeout(resolve, delay));
+        await waitForRetry(delay, options.signal);
       }
     }
   }

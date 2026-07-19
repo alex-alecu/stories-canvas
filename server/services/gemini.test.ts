@@ -13,6 +13,7 @@ test('generateJSON passes story controls through to Gemini', async () => {
   const gemini = await import('./gemini.js');
   const calls: GenerateContentCall[] = [];
   const original = gemini.ai.models.generateContent;
+  const controller = new AbortController();
 
   (gemini.ai.models as { generateContent: typeof original }).generateContent = (async (request) => {
     calls.push(request as GenerateContentCall);
@@ -36,6 +37,7 @@ test('generateJSON passes story controls through to Gemini', async () => {
         thinkingConfig: { thinkingBudget: 512 },
         tools: [{ googleSearch: {} }],
         maxRetries: 1,
+        signal: controller.signal,
       },
     );
 
@@ -45,6 +47,7 @@ test('generateJSON passes story controls through to Gemini', async () => {
     assert.equal(calls[0].config.temperature, 0.6);
     assert.deepEqual(calls[0].config.thinkingConfig, { thinkingBudget: 512 });
     assert.deepEqual(calls[0].config.tools, [{ googleSearch: {} }]);
+    assert.equal(calls[0].config.abortSignal, controller.signal);
   } finally {
     (gemini.ai.models as { generateContent: typeof original }).generateContent = original;
   }
@@ -86,6 +89,132 @@ test('generateJSONFromContents passes multi-turn contents and max Gemini 3 think
     assert.equal(calls.length, 1);
     assert.deepEqual(calls[0].contents, contents);
     assert.deepEqual(calls[0].config.thinkingConfig, { thinkingLevel: 'HIGH' });
+  } finally {
+    (gemini.ai.models as { generateContent: typeof original }).generateContent = original;
+  }
+});
+
+test('createGeminiAgentModel preserves tool calls and can force terminal tools', async () => {
+  const gemini = await import('./gemini.js');
+  const calls: GenerateContentCall[] = [];
+  const original = gemini.ai.models.generateContent;
+
+  (gemini.ai.models as { generateContent: typeof original }).generateContent = (async (request) => {
+    calls.push(request as GenerateContentCall);
+    return {
+      candidates: [{
+        content: {
+          role: 'model',
+          parts: [{ functionCall: { id: 'call-1', name: 'finish', args: { ok: true } } }],
+        },
+      }],
+      functionCalls: [{ id: 'call-1', name: 'finish', args: { ok: true } }],
+    } as never;
+  }) as typeof original;
+
+  try {
+    const model = gemini.createGeminiAgentModel({ model: 'gemini-3.1-pro-preview' });
+    const response = await model({
+      systemInstruction: 'Use tools.',
+      contents: [{ role: 'user', parts: [{ text: 'Begin.' }] }],
+      tools: [{
+        name: 'finish',
+        description: 'Finish the task.',
+        parameters: { type: 'OBJECT', properties: {} },
+      }],
+      forceToolNames: ['finish'],
+    });
+
+    assert.deepEqual(response.functionCalls, [{ id: 'call-1', name: 'finish', args: { ok: true } }]);
+    assert.deepEqual(
+      (calls[0].config.toolConfig as { functionCallingConfig: unknown }).functionCallingConfig,
+      { mode: 'ANY', allowedFunctionNames: ['finish'] },
+    );
+    assert.deepEqual(calls[0].config.tools, [{
+      functionDeclarations: [{
+        name: 'finish',
+        description: 'Finish the task.',
+        parameters: { type: 'OBJECT', properties: {} },
+      }],
+    }]);
+  } finally {
+    (gemini.ai.models as { generateContent: typeof original }).generateContent = original;
+  }
+});
+
+test('createGeminiAgentModel retries an empty candidate response', async () => {
+  const gemini = await import('./gemini.js');
+  const calls: GenerateContentCall[] = [];
+  const original = gemini.ai.models.generateContent;
+
+  (gemini.ai.models as { generateContent: typeof original }).generateContent = (async (request) => {
+    calls.push(request as GenerateContentCall);
+    if (calls.length === 1) {
+      return { candidates: [] } as never;
+    }
+
+    return {
+      candidates: [{
+        content: {
+          role: 'model',
+          parts: [{ functionCall: { id: 'call-2', name: 'finish', args: {} } }],
+        },
+      }],
+      functionCalls: [{ id: 'call-2', name: 'finish', args: {} }],
+    } as never;
+  }) as typeof original;
+
+  try {
+    const model = gemini.createGeminiAgentModel({ maxRetries: 2 });
+    const response = await model({
+      systemInstruction: 'Use tools.',
+      contents: [{ role: 'user', parts: [{ text: 'Begin.' }] }],
+      tools: [{
+        name: 'finish',
+        description: 'Finish the task.',
+        parameters: { type: 'OBJECT', properties: {} },
+      }],
+    });
+
+    assert.equal(calls.length, 2);
+    assert.deepEqual(response.functionCalls, [{ id: 'call-2', name: 'finish', args: {} }]);
+  } finally {
+    (gemini.ai.models as { generateContent: typeof original }).generateContent = original;
+  }
+});
+
+test('createGeminiAgentModel aborts the in-flight Gemini request', async () => {
+  const gemini = await import('./gemini.js');
+  const original = gemini.ai.models.generateContent;
+  const controller = new AbortController();
+  let receivedSignal: AbortSignal | undefined;
+
+  (gemini.ai.models as { generateContent: typeof original }).generateContent = (async (request) => {
+    receivedSignal = request.config?.abortSignal;
+    return new Promise((_resolve, reject) => {
+      receivedSignal?.addEventListener('abort', () => reject(receivedSignal?.reason), { once: true });
+    });
+  }) as typeof original;
+
+  try {
+    const model = gemini.createGeminiAgentModel({ maxRetries: 2 });
+    const pending = model({
+      systemInstruction: 'Use tools.',
+      contents: [{ role: 'user', parts: [{ text: 'Begin.' }] }],
+      tools: [{
+        name: 'finish',
+        description: 'Finish the task.',
+        parameters: { type: 'OBJECT', properties: {} },
+      }],
+      signal: controller.signal,
+    });
+
+    controller.abort();
+    await assert.rejects(
+      pending,
+      error => error instanceof DOMException && error.name === 'AbortError',
+    );
+    assert.equal(receivedSignal, controller.signal);
   } finally {
     (gemini.ai.models as { generateContent: typeof original }).generateContent = original;
   }
