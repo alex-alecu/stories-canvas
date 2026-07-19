@@ -1,18 +1,12 @@
-import { config } from '../config.js';
 import type {
   ArtStyleKey,
   GenerationActivity,
   Scenario,
-  StoryUsageStatus,
 } from '../../shared/types.js';
 import {
-  runAgent,
-  type AgentModel,
-  type AgentSubagentOptions,
   type AgentTool,
-  type AgentTurnUpdate,
 } from './agentRuntime.js';
-import { createGeminiAgentModel, generateJSON, getMaxThinkingConfig } from './gemini.js';
+import { generateJSON } from './gemini.js';
 import {
   buildDraftScenarioPrompt,
   buildStoryAgentSystemInstruction,
@@ -28,34 +22,14 @@ import {
 } from './scenarioValidation.js';
 import { resolveRetellingSource, type ResolvedRetellingSource } from './storySources.js';
 import { storyScriptToolParameters } from './storyScriptSchema.js';
-import { loadMarkdownFile } from './promptFiles.js';
+import {
+  runStoryAgent,
+  type StoryAgentProgressUpdate,
+  type StoryAgentRunnerDependencies,
+  type StoryAgentUsageCallbacks,
+} from './storyAgentRunner.js';
 
-export const MAIN_STORY_AGENT_MAX_TURNS = 50;
-export const SUBAGENT_MAX_TURNS = 10;
-const GENERIC_SUBAGENT_SYSTEM_INSTRUCTION = loadMarkdownFile('agent-prompts/system/subagent-system.md');
-
-interface UsageEvent {
-  model: string;
-  status: StoryUsageStatus;
-  inputTokens: number;
-  outputTokens: number;
-  totalTokens: number;
-  usageDetails: Record<string, unknown>;
-}
-
-export interface StoryAgentUsageCallbacks {
-  onSourceAnalysisUsage?: (usage: UsageEvent) => void | Promise<void>;
-  onDraftUsage?: (usage: UsageEvent) => void | Promise<void>;
-  onReviewUsage?: (usage: UsageEvent) => void | Promise<void>;
-  onRewriteUsage?: (usage: UsageEvent) => void | Promise<void>;
-}
-
-export interface StoryAgentProgressUpdate {
-  status: 'generating_scenario' | 'reviewing_scenario';
-  currentPhase: string;
-  message: string;
-  activity: GenerationActivity;
-}
+export type { StoryAgentProgressUpdate, StoryAgentUsageCallbacks } from './storyAgentRunner.js';
 
 export interface StoryAgentResult {
   scenario: Scenario;
@@ -70,7 +44,7 @@ interface StoryAgentState {
 }
 
 export interface StoryAgentDependencies {
-  modelFactory?: (role: 'main' | 'subagent', subagentIndex?: number) => AgentModel;
+  runner?: StoryAgentRunnerDependencies;
   resolveSource?: typeof resolveRetellingSource;
 }
 
@@ -103,56 +77,6 @@ function activity(
   extras: Partial<GenerationActivity> = {},
 ): GenerationActivity {
   return { id, kind, status, label, ...extras };
-}
-
-/** Reports parent-agent work without mixing progress formatting into orchestration. */
-function reportMainAgentProgress(
-  onProgress: ((update: StoryAgentProgressUpdate) => void) | undefined,
-  update: AgentTurnUpdate,
-): void {
-  const isComplete = update.phase === 'completed';
-  onProgress?.({
-    status: 'generating_scenario',
-    currentPhase: isComplete ? 'Story script complete.' : 'Main story agent working...',
-    message: isComplete ? 'The final story script is ready.' : 'Writing and refining the story script...',
-    activity: activity(
-      'main-agent',
-      'main_agent',
-      isComplete ? 'completed' : 'working',
-      'Main story agent',
-      {
-        detail: update.toolName ? `Using ${update.toolName}` : 'Working on the story',
-        turn: update.turn,
-        maxTurns: update.maxTurns,
-        turnsRemaining: update.turnsRemaining,
-      },
-    ),
-  });
-}
-
-/** Maps generic delegated-session activity onto the story progress feed. */
-function reportIndependentReviewProgress(
-  onProgress: ((update: StoryAgentProgressUpdate) => void) | undefined,
-  update: Parameters<NonNullable<AgentSubagentOptions<StoryAgentState, Record<string, never>>['onTurn']>>[0],
-): void {
-  onProgress?.({
-    status: 'reviewing_scenario',
-    currentPhase: 'Reviewing story script...',
-    message: 'An independent review is checking the current script...',
-    activity: activity(
-      `subagent-${update.index}`,
-      'subagent',
-      update.phase === 'completed' ? 'completed' : 'working',
-      `Independent review ${update.index}`,
-      {
-        detail: update.phase === 'completed' ? 'Review complete' : 'Reviewing the handed-off work',
-        turn: update.turn,
-        maxTurns: update.maxTurns,
-        turnsRemaining: update.turnsRemaining,
-        reviewCycle: update.index,
-      },
-    ),
-  });
 }
 
 /** Creates the validated story tools; agent-session mechanics remain in the generic runtime. */
@@ -268,39 +192,18 @@ export async function generateStoryScriptWithAgents(
     version: 0,
   };
 
-  const defaultModelFactory = (role: 'main' | 'subagent'): AgentModel => createGeminiAgentModel({
-    model: config.scenarioModel,
-    temperature: role === 'subagent' ? config.scenarioReviewTemperature : config.scenarioTemperature,
-    thinkingConfig: getMaxThinkingConfig(),
-    onUsage: role === 'subagent'
-      ? usageCallbacks?.onReviewUsage
-      : usage => (
-          state.version > 0
-            ? usageCallbacks?.onRewriteUsage?.(usage)
-            : usageCallbacks?.onDraftUsage?.(usage)
-        ),
-  });
-  const modelFactory = dependencies.modelFactory ?? defaultModelFactory;
   const tools = createStoryTools(context, onProgress);
 
-  const scenario = await runAgent({
-    name: 'main story agent',
+  const scenario = await runStoryAgent({
     systemInstruction: buildStoryAgentSystemInstruction(context),
     initialPrompt: buildDraftScenarioPrompt(context),
-    maxTurns: MAIN_STORY_AGENT_MAX_TURNS,
-    model: modelFactory('main'),
     tools,
     context: state,
-    terminalToolNames: ['submit_story_script'],
-    subagents: {
-      systemInstruction: GENERIC_SUBAGENT_SYSTEM_INSTRUCTION,
-      maxTurns: SUBAGENT_MAX_TURNS,
-      modelFactory: request => modelFactory('subagent', request.index),
-      createContext: () => ({}),
-      onTurn: update => reportIndependentReviewProgress(onProgress, update),
-    },
+    getSavedVersion: () => state.version,
+    onProgress,
+    usageCallbacks,
+    dependencies: dependencies.runner,
     signal,
-    onTurn: update => reportMainAgentProgress(onProgress, update),
   });
 
   return {

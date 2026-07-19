@@ -120,7 +120,7 @@ test('story agent validates revisions and uses prompt-driven independent review 
     update => progressKinds.push(update.activity.kind),
     undefined,
     {
-      modelFactory,
+      runner: { modelFactory },
       resolveSource: async () => undefined,
     },
   );
