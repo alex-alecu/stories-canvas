@@ -1,6 +1,6 @@
 ## Target Language Rules
 
-- The system prompts are written in English, but the story output must follow the user's selected language.
+- The system prompts are written in English, but the story output must follow the user's selected language, except for any exact wording the user explicitly requires verbatim.
 - Write the title, page text, character names, roles, and personality descriptions in {{language_label}}.
 - Use correct native spelling and diacritics for {{language_label}} in the title, page text, character names, roles, and personality descriptions.
 - Keep only these fields in English because they are sent to the image model: appearance, clothing, characterSheetPrompt, imagePrompt.
