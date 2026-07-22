@@ -3,7 +3,7 @@ import type { Translations } from '../types';
 const ro: Translations = {
   // App
   appTitle: 'Povești Magice',
-  appSubtitle: 'Creează povești ilustrate magice pentru copiii tăi',
+  appSubtitle: 'Creează povești personalizate care îți ajută copilul să treacă prin frici, stres și provocările de zi cu zi',
 
   // Navigation
   explore: 'Explorează',

@@ -2,7 +2,7 @@ import type { Translations } from '../types';
 
 const en: Translations = {
   appTitle: 'Magic Stories',
-  appSubtitle: 'Create magical illustrated stories with the help of AI',
+  appSubtitle: 'Create personalized stories that help your child navigate fears, stress, and everyday challenges',
 
   explore: 'Explore',
   login: 'Sign In',
