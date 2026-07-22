@@ -83,18 +83,52 @@ test('story prompt assembly keeps age scenario, appearance, and language rules t
   assert.match(systemInstruction, /Required Story Shape/);
   assert.match(systemInstruction, /grounded conflict, active problem-solving, and a dramatic but child-safe reversal/i);
   assert.match(systemInstruction, /Character types may be children, adults, elders, families, animals/i);
+  assert.match(systemInstruction, /Keep generic adventures, fantasies, retellings, and other premises generic/i);
+  assert.match(systemInstruction, /current fear, worry, separation, transition, social conflict, or mistake/i);
+  assert.match(systemInstruction, /never shame, tease, dismiss, test, or force the child into bravery/i);
+  assert.match(systemInstruction, /end the final page text with that sentence verbatim/i);
   assert.match(systemInstruction, /Write the title, page text, character names, roles, and personality descriptions in English/);
+  assert.match(systemInstruction, /except for any exact wording the user explicitly requires verbatim/i);
   assert.match(systemInstruction, /keep the exact spelling from characters\[\]\.name whenever you mention a character/i);
   assert.match(systemInstruction, /keep appearance, clothing, characterSheetPrompt, and imagePrompt visually originalized/i);
   assert.doesNotMatch(agentInstruction, /sub-?agent|spawn_subagent/i);
   assert.match(agentInstruction, /fresh, independent review/i);
   assert.match(agentInstruction, /original request, target age, language/i);
+  assert.match(agentInstruction, /exact required final wording/i);
   assert.match(agentInstruction, /Apply the review yourself/);
   assert.match(draftPrompt, /Target age: 6/);
   assert.match(draftPrompt, /Return no more than 10 pages, numbered sequentially from 1/);
   assert.match(draftPrompt, /Classic hand-drawn storybook illustration/);
   assert.match(draftPrompt, /If the system context includes Faithful Public-Domain Retelling Rules, adapt that source faithfully/);
   assert.match(draftPrompt, /A brave bunny follows a lantern through the rain\./);
+});
+
+test('story prompts preserve everyday child scenarios and an exact requested ending', async () => {
+  const storyPrompt = await import('./storyPrompt.js');
+  const situations = [
+    'First day at kindergarten',
+    'Being afraid of the dark',
+    'Sharing a favourite toy',
+    'Visiting the dentist',
+    'Missing a parent',
+    'Making a new friend',
+    'Welcoming a sibling',
+    'Learning to apologise',
+  ];
+  const requiredEnding = 'Create a version about your child.';
+
+  for (const situation of situations) {
+    const userRequest = `${situation}\n\nEach story should end with: “${requiredEnding}”`;
+    const context = storyPrompt.buildStoryPromptContext(userRequest, 'en', 4, 'storybook');
+    const draftPrompt = storyPrompt.buildDraftScenarioPrompt(context);
+    const reviewPrompt = storyPrompt.buildScenarioReviewPrompt(context, makeScenario({ targetAge: 4 }));
+
+    assert.match(draftPrompt, new RegExp(situation));
+    assert.match(draftPrompt, new RegExp(requiredEnding.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+    assert.match(reviewPrompt, /verify that the final page text ends with it verbatim/i);
+    assert.match(reviewPrompt, new RegExp(situation));
+    assert.match(reviewPrompt, new RegExp(requiredEnding.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  }
 });
 
 test('story prompt assembly includes source grounding only for faithful retellings', async () => {

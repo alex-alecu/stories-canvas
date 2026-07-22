@@ -1,5 +1,7 @@
 Mode: Deep editorial review before final script.
 Review the scenario against the user request, target age, and any source beat sheet.
+Flag any omitted or altered explicit user constraint. If the user requested an exact final sentence, verify that the final page text ends with it verbatim after the story's emotional resolution.
+For a current fear, worry, separation, transition, social conflict, or mistake, check that the feeling is validated without shame or false guarantees and that progress comes through believable support plus the protagonist's small actions.
 A simpler adaptation is acceptable; a shortcut that weakens causality is not.
 For faithful retellings, preserve canonical roles, event order, magical mechanics, named objects/places, antagonist role, and ending.
 Flag missing native diacritics in the title, page text, character names, roles, and target-language fields.

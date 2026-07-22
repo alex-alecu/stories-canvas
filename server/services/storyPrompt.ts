@@ -74,6 +74,7 @@ const LANGUAGE_PROMPT_CONFIG: Record<SupportedStoryLanguage, LanguagePromptConfi
 export const STORY_GENERATOR_TEMPLATE = loadPromptMarkdown('en/operations/story-generator-template.md');
 
 const SHARED_APPEARANCE_INSTRUCTION_TEMPLATE = loadPromptMarkdown('en/shared/appearance.md');
+const SHARED_EVERYDAY_EMOTIONS_INSTRUCTION_TEMPLATE = loadPromptMarkdown('en/shared/everyday-emotions.md');
 const SHARED_LANGUAGE_INSTRUCTION_TEMPLATE = loadPromptMarkdown('en/shared/language.md');
 const SHARED_RETELLING_INSTRUCTION_TEMPLATE = loadPromptMarkdown('en/shared/retelling.md');
 const STORY_SYSTEM_INSTRUCTION_TEMPLATE = loadPromptMarkdown('en/system/story-system.md');
@@ -191,6 +192,10 @@ function buildSharedLanguageInstruction(context: StoryPromptContext): string {
   });
 }
 
+function buildSharedEverydayEmotionsInstruction(): string {
+  return SHARED_EVERYDAY_EMOTIONS_INSTRUCTION_TEMPLATE;
+}
+
 function formatBeatSheetList(label: string, values: string[]): string {
   if (values.length === 0) return `${label}: none specified`;
   return `${label}:\n${values.map(value => `- ${value}`).join('\n')}`;
@@ -229,6 +234,7 @@ function buildStoryCommonInstruction(context: StoryPromptContext): string {
   return [
     buildScenarioInstruction(context),
     buildSharedAppearanceInstruction(context),
+    buildSharedEverydayEmotionsInstruction(),
     buildSharedLanguageInstruction(context),
     buildSharedRetellingInstruction(context),
   ].filter((section): section is string => Boolean(section)).join('\n\n');
