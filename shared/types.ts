@@ -551,6 +551,31 @@ export interface AdminUserSummary {
   availableCredits: number;
   isAdmin: boolean;
   createdAt?: string;
+  averageCreditValueMinor: number | null;
+  revenueCurrency: string;
+}
+
+export interface PaginatedResponse<T> {
+  items: T[];
+  page: number;
+  pageSize: number;
+  totalCount: number;
+}
+
+export interface AdminStorySummary {
+  id: string;
+  userId?: string;
+  email: string;
+  title: string;
+  createdAt: string;
+  pages: number;
+  storyMode: StoryMode;
+  textCostUsdMicros: number;
+  imageCostUsdMicros: number;
+  audioCostUsdMicros: number;
+  totalCostUsdMicros: number;
+  creditsConsumed: number;
+  profitUsdMicros: number | null;
 }
 
 export interface AdminUserStoryCostSummary {
@@ -591,4 +616,6 @@ export interface AdminWebhookEvent {
 export interface AdminOverview {
   offers: StoryPackOffer[];
   webhookEvents: AdminWebhookEvent[];
+  modelPrices: ModelPriceCatalogEntry[];
+  priceCatalogStatus: PriceCatalogStatus;
 }

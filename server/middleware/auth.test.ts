@@ -67,3 +67,43 @@ test('optionalAuth caches token lookups for the configured TTL', async (t) => {
   assert.equal(first.authUser?.id, 'cached-user');
   assert.equal(second.authUser?.id, 'cached-user');
 });
+
+test('requireAdmin denies non-admin users and accepts admins', async () => {
+  const { requireAdmin } = await import('./auth.js');
+  const makeResponse = () => {
+    const result = { statusCode: 200, body: undefined as unknown };
+    return {
+      result,
+      response: {
+        status(code: number) {
+          result.statusCode = code;
+          return this;
+        },
+        json(body: unknown) {
+          result.body = body;
+          return this;
+        },
+      } as unknown as Response,
+    };
+  };
+
+  const denied = makeResponse();
+  let deniedNext = false;
+  await requireAdmin(
+    { headers: {}, authUser: { id: 'user-1', isAdmin: false } } as Request,
+    denied.response,
+    (() => { deniedNext = true; }) as NextFunction,
+  );
+  assert.equal(denied.result.statusCode, 403);
+  assert.equal(deniedNext, false);
+
+  const allowed = makeResponse();
+  let allowedNext = false;
+  await requireAdmin(
+    { headers: {}, authUser: { id: 'admin-1', isAdmin: true } } as Request,
+    allowed.response,
+    (() => { allowedNext = true; }) as NextFunction,
+  );
+  assert.equal(allowed.result.statusCode, 200);
+  assert.equal(allowedNext, true);
+});
