@@ -1,4 +1,5 @@
 import path from 'path';
+import { createHash } from 'node:crypto';
 
 function requireEnv(key: string): string {
   const value = process.env[key];
@@ -36,6 +37,60 @@ function numberEnv(
 
 function integerEnv(key: string, fallback: number): number {
   return numberEnv(key, fallback, raw => Number.parseInt(raw, 10));
+}
+
+export interface StoryPackPricingConfig {
+  currency: string;
+  pricesMinor: {
+    pack_5: number;
+    pack_12: number;
+    pack_20: number;
+  };
+  fingerprint: string;
+}
+
+export function resolveStoryPackPricingConfig(
+  env: NodeJS.ProcessEnv = process.env,
+): StoryPackPricingConfig | undefined {
+  const keys = [
+    'STORY_PACK_CURRENCY',
+    'STORY_PACK_5_PRICE_MINOR',
+    'STORY_PACK_12_PRICE_MINOR',
+    'STORY_PACK_20_PRICE_MINOR',
+  ] as const;
+  const configured = keys.filter(key => !!env[key]?.trim());
+  if (configured.length === 0) return undefined;
+  if (configured.length !== keys.length) {
+    throw new Error(`Story pack pricing requires all of: ${keys.join(', ')}`);
+  }
+
+  const currency = env.STORY_PACK_CURRENCY!.trim().toLowerCase();
+  if (!/^[a-z]{3}$/.test(currency)) {
+    throw new Error('STORY_PACK_CURRENCY must be a three-letter currency code');
+  }
+
+  const readPrice = (key: typeof keys[number]): number => {
+    const raw = env[key]!.trim();
+    if (!/^\d+$/.test(raw)) {
+      throw new Error(`${key} must be a non-negative integer in minor currency units`);
+    }
+    const value = Number(raw);
+    if (!Number.isSafeInteger(value)) {
+      throw new Error(`${key} must be a safe integer`);
+    }
+    return value;
+  };
+
+  const pricesMinor = {
+    pack_5: readPrice('STORY_PACK_5_PRICE_MINOR'),
+    pack_12: readPrice('STORY_PACK_12_PRICE_MINOR'),
+    pack_20: readPrice('STORY_PACK_20_PRICE_MINOR'),
+  };
+  const fingerprint = createHash('sha256')
+    .update(JSON.stringify({ currency, pricesMinor }))
+    .digest('hex');
+
+  return { currency, pricesMinor, fingerprint };
 }
 
 type SiteLanguage = 'ro' | 'en';
@@ -98,7 +153,9 @@ export const config = {
   scenarioTemperature: numberEnv('SCENARIO_TEMPERATURE', 0.6, Number.parseFloat),
   scenarioReviewTemperature: numberEnv('SCENARIO_REVIEW_TEMPERATURE', 0.2, Number.parseFloat),
   sourceAnalysisModel: process.env.SOURCE_ANALYSIS_MODEL || 'gemini-3.1-flash-lite',
-  pageTextReviewModel: process.env.PAGE_TEXT_REVIEW_MODEL || 'gemini-3.1-flash-lite',
+  reviewModel: process.env.REVIEW_MODEL || 'gemini-3.1-flash-lite',
+  pageTextReviewModel: process.env.REVIEW_MODEL || process.env.PAGE_TEXT_REVIEW_MODEL || 'gemini-3.1-flash-lite',
+  storyPackPricing: resolveStoryPackPricingConfig(),
 
   // Supabase configuration
   supabaseUrl,
@@ -110,6 +167,7 @@ export const config = {
   // ElevenLabs configuration
   elevenLabsApiKey: optionalEnv('ELEVENLABS_API_KEY'),
   elevenLabsModel: process.env.ELEVENLABS_MODEL || 'eleven_multilingual_v2',
+  elevenLabsPriceUsdPer1kCharacters: numberEnv('ELEVENLABS_PRICE_USD_PER_1K_CHARACTERS', 0.10, Number.parseFloat),
   voiceIds: {
     jora: optionalEnv('VOICE_JORA_ID') || 'OlBp4oyr3FBAGEAtJOnU', // Jora Slobod
     serban: optionalEnv('VOICE_SERBAN_ID') || '8nBBDfYxYXmDNaqTCxPH', // Serban Popescu

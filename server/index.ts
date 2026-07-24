@@ -3,6 +3,7 @@ import { config } from './config.js';
 import { isGenerationActive } from './services/generationRegistry.js';
 import { runRecoveryPass } from './services/recoveryRunner.js';
 import { recoverStuckStories } from './services/supabaseStorage.js';
+import { syncStoryPackPricingFromEnvironment } from './services/billingStorage.js';
 
 const app = createApp();
 
@@ -15,6 +16,12 @@ app.listen(config.port, () => {
 
   // Recover stories stuck in generating states from a previous crash/restart
   if (config.useSupabase) {
+    void syncStoryPackPricingFromEnvironment(config.storyPackPricing)
+      .then(applied => {
+        if (applied) console.log('  Applied environment story pack pricing');
+      })
+      .catch(error => console.error('Failed to sync environment story pack pricing:', error));
+
     void runRecoveryPass(
       'startup',
       () => recoverStuckStories({ isGenerationActive }),

@@ -1,4 +1,5 @@
 import { getSupabase } from './supabase.js';
+import type { StoryPackPricingConfig } from '../config.js';
 import type {
   BillingHistoryResponse,
   BillingOverview,
@@ -70,6 +71,25 @@ export class InsufficientCreditsError extends Error {
     super('INSUFFICIENT_CREDITS');
     this.name = 'InsufficientCreditsError';
   }
+}
+
+export async function syncStoryPackPricingFromEnvironment(
+  pricing: StoryPackPricingConfig | undefined,
+): Promise<boolean> {
+  if (!pricing) return false;
+
+  const { data, error } = await getSupabase().rpc('apply_story_pack_environment_defaults', {
+    p_fingerprint: pricing.fingerprint,
+    p_currency: pricing.currency,
+    p_pack_5_price_minor: pricing.pricesMinor.pack_5,
+    p_pack_12_price_minor: pricing.pricesMinor.pack_12,
+    p_pack_20_price_minor: pricing.pricesMinor.pack_20,
+  });
+  if (error) {
+    throw new Error(`Failed to apply environment story pack pricing: ${error.message}`);
+  }
+
+  return data === true;
 }
 
 function rowToOffer(row: StoryPackOfferRow): StoryPackOffer {

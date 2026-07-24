@@ -3,7 +3,7 @@ import test from 'node:test';
 
 process.env.GEMINI_API_KEY ??= 'test-key';
 
-const { resolveDefaultAppLanguage } = await import('../config.js');
+const { resolveDefaultAppLanguage, resolveStoryPackPricingConfig } = await import('../config.js');
 
 test('resolveDefaultAppLanguage only accepts site-localized deployment languages', () => {
   assert.equal(resolveDefaultAppLanguage('en'), 'en');
@@ -11,4 +11,43 @@ test('resolveDefaultAppLanguage only accepts site-localized deployment languages
   assert.equal(resolveDefaultAppLanguage('ro'), 'ro');
   assert.equal(resolveDefaultAppLanguage('de'), 'ro');
   assert.equal(resolveDefaultAppLanguage(undefined), 'ro');
+});
+
+test('resolveStoryPackPricingConfig validates and fingerprints complete pricing', () => {
+  const pricing = resolveStoryPackPricingConfig({
+    STORY_PACK_CURRENCY: ' USD ',
+    STORY_PACK_5_PRICE_MINOR: '1299',
+    STORY_PACK_12_PRICE_MINOR: '2799',
+    STORY_PACK_20_PRICE_MINOR: '4299',
+  });
+
+  assert.equal(pricing?.currency, 'usd');
+  assert.deepEqual(pricing?.pricesMinor, { pack_5: 1299, pack_12: 2799, pack_20: 4299 });
+  assert.match(pricing?.fingerprint ?? '', /^[a-f0-9]{64}$/);
+  assert.equal(resolveStoryPackPricingConfig({}), undefined);
+});
+
+test('resolveStoryPackPricingConfig rejects partial and malformed pricing', () => {
+  assert.throws(
+    () => resolveStoryPackPricingConfig({ STORY_PACK_CURRENCY: 'usd' }),
+    /requires all of/,
+  );
+  assert.throws(
+    () => resolveStoryPackPricingConfig({
+      STORY_PACK_CURRENCY: 'US',
+      STORY_PACK_5_PRICE_MINOR: '1299',
+      STORY_PACK_12_PRICE_MINOR: '2799',
+      STORY_PACK_20_PRICE_MINOR: '4299',
+    }),
+    /three-letter currency/,
+  );
+  assert.throws(
+    () => resolveStoryPackPricingConfig({
+      STORY_PACK_CURRENCY: 'usd',
+      STORY_PACK_5_PRICE_MINOR: '12.99',
+      STORY_PACK_12_PRICE_MINOR: '2799',
+      STORY_PACK_20_PRICE_MINOR: '4299',
+    }),
+    /non-negative integer/,
+  );
 });
