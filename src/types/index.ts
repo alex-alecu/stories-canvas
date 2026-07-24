@@ -35,8 +35,12 @@ export type {
   BillingCheckoutMarketingPayload,
   AdminUserSummary,
   AdminUserDetail,
+  AdminStorySummary,
+  PaginatedResponse,
   AdminWebhookEvent,
   AdminOverview,
+  ModelPriceCatalogEntry,
+  PriceCatalogStatus,
 } from '../../shared/types';
 
 export interface StorySummary {

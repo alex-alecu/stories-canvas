@@ -1,12 +1,15 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   AdminOverview,
+  AdminStorySummary,
   AdminUserDetail,
   AdminUserSummary,
   BillingCheckoutMarketingPayload,
   BillingCheckoutResponse,
   BillingHistoryResponse,
   BillingOverview,
+  PaginatedResponse,
+  StoryMode,
   StoryPackOffer,
 } from '../types';
 import { getAuthHeaders } from '../lib/authHeaders';
@@ -63,11 +66,42 @@ export function useAdminOverview(enabled = true) {
   });
 }
 
-export function useAdminUsers(query: string, enabled = true) {
+export function useAdminUsers(params: {
+  query: string;
+  page: number;
+  pageSize: number;
+}, enabled = true) {
   return useQuery({
-    queryKey: ['admin', 'users', query],
-    queryFn: () => fetchJson<AdminUserSummary[]>(`/api/admin/users?query=${encodeURIComponent(query)}`),
+    queryKey: ['admin', 'users', params],
+    queryFn: () => fetchJson<PaginatedResponse<AdminUserSummary>>(
+      `/api/admin/users?q=${encodeURIComponent(params.query)}&page=${params.page}&size=${params.pageSize}`,
+    ),
     enabled,
+  });
+}
+
+export function useAdminStories(params: {
+  query: string;
+  type: 'all' | StoryMode;
+  page: number;
+  pageSize: number;
+}, enabled = true) {
+  return useQuery({
+    queryKey: ['admin', 'stories', params],
+    queryFn: () => fetchJson<PaginatedResponse<AdminStorySummary>>(
+      `/api/admin/stories?q=${encodeURIComponent(params.query)}&type=${params.type}&page=${params.page}&size=${params.pageSize}`,
+    ),
+    enabled,
+  });
+}
+
+export function useRefreshModelPrices() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => fetchJson<AdminOverview>('/api/admin/prices/refresh', { method: 'POST' }),
+    onSuccess: (overview) => {
+      queryClient.setQueryData(['admin', 'overview'], overview);
+    },
   });
 }
 
