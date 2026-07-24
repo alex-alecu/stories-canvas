@@ -39,6 +39,7 @@ export interface JSONGenerationOptions {
     inputTokens: number;
     outputTokens: number;
     totalTokens: number;
+    usageAvailable: boolean;
     usageDetails: Record<string, unknown>;
   }) => void | Promise<void>;
 }
@@ -107,6 +108,7 @@ function extractUsageMetadata(response: { usageMetadata?: unknown }): {
   outputTokens: number;
   totalTokens: number;
   usageDetails: Record<string, unknown>;
+  available: boolean;
 } {
   const usageMetadata = response.usageMetadata;
   if (!usageMetadata || typeof usageMetadata !== 'object') {
@@ -115,6 +117,7 @@ function extractUsageMetadata(response: { usageMetadata?: unknown }): {
       outputTokens: 0,
       totalTokens: 0,
       usageDetails: {},
+      available: false,
     };
   }
 
@@ -132,6 +135,7 @@ function extractUsageMetadata(response: { usageMetadata?: unknown }): {
     outputTokens,
     totalTokens,
     usageDetails: usage,
+    available: true,
   };
 }
 
@@ -162,6 +166,7 @@ export function createGeminiAgentModel(options: GeminiAgentModelOptions = {}): A
     let lastError: Error | undefined;
 
     while (remainingRetries > 0) {
+      let usageReported = false;
       try {
         request.signal?.throwIfAborted();
         const response = await ai.models.generateContent({
@@ -191,19 +196,21 @@ export function createGeminiAgentModel(options: GeminiAgentModelOptions = {}): A
         });
         request.signal?.throwIfAborted();
 
+        const usage = extractUsageMetadata(response as { usageMetadata?: unknown });
+        const content = response.candidates?.[0]?.content;
         if (options.onUsage) {
-          const usage = extractUsageMetadata(response as { usageMetadata?: unknown });
           await options.onUsage({
             model,
-            status: 'succeeded',
+            status: content?.parts?.length ? 'succeeded' : 'failed',
             inputTokens: usage.inputTokens,
             outputTokens: usage.outputTokens,
             totalTokens: usage.totalTokens,
+            usageAvailable: usage.available,
             usageDetails: usage.usageDetails,
           });
+          usageReported = true;
         }
 
-        const content = response.candidates?.[0]?.content;
         if (!content?.parts?.length) {
           throw new Error('Empty agent response from Gemini');
         }
@@ -220,6 +227,17 @@ export function createGeminiAgentModel(options: GeminiAgentModelOptions = {}): A
         };
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error));
+        if (!usageReported && options.onUsage) {
+          await options.onUsage({
+            model,
+            status: 'failed',
+            inputTokens: 0,
+            outputTokens: 0,
+            totalTokens: 0,
+            usageAvailable: false,
+            usageDetails: { error: lastError.message },
+          });
+        }
         if (request.signal?.aborted) {
           throw request.signal.reason;
         }
@@ -414,6 +432,7 @@ export async function generateJSONFromContents<T>(
   let remainingRetries = maxRetries;
 
   while (remainingRetries > 0) {
+    let usageReported = false;
     try {
       options.signal?.throwIfAborted();
       const response = await ai.models.generateContent({
@@ -432,26 +451,38 @@ export async function generateJSONFromContents<T>(
       options.signal?.throwIfAborted();
 
       const text = response.text;
-      if (!text) {
-        throw new Error('Empty response from Gemini');
-      }
-
+      const usage = extractUsageMetadata(response as { usageMetadata?: unknown });
       if (options.onUsage) {
-        const usage = extractUsageMetadata(response as { usageMetadata?: unknown });
         await options.onUsage({
           model,
-          status: 'succeeded',
+          status: text ? 'succeeded' : 'failed',
           inputTokens: usage.inputTokens,
           outputTokens: usage.outputTokens,
           totalTokens: usage.totalTokens,
+          usageAvailable: usage.available,
           usageDetails: usage.usageDetails,
         });
+        usageReported = true;
+      }
+      if (!text) {
+        throw new Error('Empty response from Gemini');
       }
 
       const parsed = JSON.parse(text) as T;
       return parsed;
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));
+      if (!usageReported && options.onUsage) {
+        await options.onUsage({
+          model,
+          status: 'failed',
+          inputTokens: 0,
+          outputTokens: 0,
+          totalTokens: 0,
+          usageAvailable: false,
+          usageDetails: { error: lastError.message },
+        });
+      }
       if (options.signal?.aborted) {
         throw options.signal.reason;
       }
@@ -503,6 +534,8 @@ export async function generateImage(
       outputTokens: number;
       totalTokens: number;
       generatedImages: number;
+      imageOutputTokens: number;
+      usageAvailable: boolean;
       usageDetails: Record<string, unknown>;
     }) => void | Promise<void>;
   },
@@ -523,15 +556,31 @@ export async function generateImage(
 
   for (let index = 0; index < modelsToTry.length; index++) {
     const model = modelsToTry[index];
-    const response = await ai.models.generateContent({
-      model,
-      contents,
-      config: {
-        responseModalities: ['IMAGE'],
-        imageGenerationConfig: { aspectRatio: '4:3' },
-        safetySettings: IMAGE_SAFETY_SETTINGS,
-      } as any,
-    }) as ImageGenerationResponse;
+    let response: ImageGenerationResponse;
+    try {
+      response = await ai.models.generateContent({
+        model,
+        contents,
+        config: {
+          responseModalities: ['IMAGE'],
+          imageGenerationConfig: { aspectRatio: '4:3' },
+          safetySettings: IMAGE_SAFETY_SETTINGS,
+        } as any,
+      }) as ImageGenerationResponse;
+    } catch (error) {
+      await options.onUsage?.({
+        model,
+        status: 'failed',
+        inputTokens: 0,
+        outputTokens: 0,
+        totalTokens: 0,
+        generatedImages: 0,
+        imageOutputTokens: 0,
+        usageAvailable: false,
+        usageDetails: { error: error instanceof Error ? error.message : String(error) },
+      });
+      throw error;
+    }
 
     const imageData = extractImageData(response);
     if (imageData) {
@@ -544,6 +593,8 @@ export async function generateImage(
           outputTokens: usage.outputTokens,
           totalTokens: usage.totalTokens,
           generatedImages: 1,
+          imageOutputTokens: usage.outputTokens,
+          usageAvailable: usage.available,
           usageDetails: usage.usageDetails,
         });
       }
@@ -560,6 +611,8 @@ export async function generateImage(
         outputTokens: usage.outputTokens,
         totalTokens: usage.totalTokens,
         generatedImages: 0,
+        imageOutputTokens: usage.outputTokens,
+        usageAvailable: usage.available,
         usageDetails: usage.usageDetails,
       });
     }

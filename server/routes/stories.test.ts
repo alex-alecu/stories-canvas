@@ -470,7 +470,7 @@ test('POST /api/stories persists generation inputs and usage totals for filesyst
   const body = await response.json() as { id: string };
   const savedStory = await waitFor(
     () => readStoryMeta(dataDir, body.id),
-    story => story.status === 'completed' && (story.usageTotals?.costUsdMicros ?? 0) > 0,
+    story => story.status === 'completed',
   );
 
   assert.equal(savedStory.generationInputs?.prompt, 'Creeaza povestea lui Greuceanu cat mai aproape de original.');
@@ -491,9 +491,7 @@ test('POST /api/stories persists generation inputs and usage totals for filesyst
   assert.equal(savedStory.usageTotals?.inputTokens, 192);
   assert.equal(savedStory.usageTotals?.outputTokens, 100);
   assert.equal(savedStory.usageTotals?.totalTokens, 292);
-  assert.ok((savedStory.usageTotals?.textCostUsdMicros ?? 0) > 0);
-  assert.ok((savedStory.usageTotals?.imageCostUsdMicros ?? 0) > 0);
-  assert.ok((savedStory.usageTotals?.audioCostUsdMicros ?? 0) > 0);
+  assert.equal(savedStory.usageTotals?.costUsdMicros, 0);
 
   const usageEvents = await readUsageEvents(dataDir, body.id);
   assert.equal(usageEvents.length, 5);
@@ -506,6 +504,7 @@ test('POST /api/stories persists generation inputs and usage totals for filesyst
   ]);
   assert.ok(usageEvents.every(event => event.source === 'initial_generation'));
   assert.ok(usageEvents.every(event => event.status === 'succeeded'));
+  assert.ok(usageEvents.every(event => event.pricingStatus === 'incomplete'));
 });
 
 test('POST /api/stories rejects Pro + Audio when narration is unavailable', async (t) => {

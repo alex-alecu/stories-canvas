@@ -11,6 +11,7 @@ import type {
   StoryUsageStatus,
   StoryUsageTotals,
   VoiceKey,
+  ModelPricingSnapshot,
 } from '../../shared/types.js';
 import {
   STORY_USAGE_PRICING_VERSION,
@@ -18,6 +19,7 @@ import {
   computeGeminiImageCostUsdMicros,
   computeGeminiTextCostUsdMicros,
 } from './storyUsagePricing.js';
+import { resolveModelPricingSnapshot } from './modelPriceCatalog.js';
 
 export const EMPTY_STORY_USAGE_TOTALS: StoryUsageTotals = {
   inputTokens: 0,
@@ -39,7 +41,9 @@ export interface StoryUsageRecordInput {
   inputTokens?: number;
   outputTokens?: number;
   generatedImages?: number;
+  imageOutputTokens?: number;
   billedCharacters?: number;
+  usageAvailable?: boolean;
   usageDetails?: Record<string, unknown>;
 }
 
@@ -91,16 +95,23 @@ export function buildStoryGenerationInputs(params: {
   };
 }
 
-function resolveCostMicros(input: StoryUsageRecordInput, inputTokens: number, outputTokens: number): number {
+function resolveCostMicros(
+  input: StoryUsageRecordInput,
+  pricing: ModelPricingSnapshot,
+  inputTokens: number,
+  outputTokens: number,
+  imageOutputTokens: number,
+  billedCharacters: number,
+): number {
   if (input.provider === 'elevenlabs') {
-    return computeElevenLabsCostUsdMicros(input.model, input.billedCharacters ?? 0);
+    return computeElevenLabsCostUsdMicros(pricing, billedCharacters);
   }
 
   if (input.operation === 'character_sheet' || input.operation === 'page_image') {
-    return computeGeminiImageCostUsdMicros(input.model, inputTokens, input.generatedImages ?? 0);
+    return computeGeminiImageCostUsdMicros(pricing, inputTokens, imageOutputTokens);
   }
 
-  return computeGeminiTextCostUsdMicros(input.model, inputTokens, outputTokens);
+  return computeGeminiTextCostUsdMicros(pricing, inputTokens, outputTokens);
 }
 
 function buildTotalsDelta(input: StoryUsageRecordInput, inputTokens: number, outputTokens: number, totalTokens: number, costUsdMicros: number): StoryUsageTotals {
@@ -131,11 +142,19 @@ export async function recordStoryUsage(
   storyId: string,
   userId: string | undefined,
   input: StoryUsageRecordInput,
+  pricingResolver: (model: string) => Promise<ModelPricingSnapshot | undefined> = resolveModelPricingSnapshot,
 ): Promise<StoryUsageEvent> {
-  const inputTokens = Math.max(0, input.inputTokens ?? 0);
-  const outputTokens = Math.max(0, input.outputTokens ?? 0);
+  const usageAvailable = input.usageAvailable !== false;
+  const inputTokens = usageAvailable ? Math.max(0, input.inputTokens ?? 0) : 0;
+  const outputTokens = usageAvailable ? Math.max(0, input.outputTokens ?? 0) : 0;
+  const imageOutputTokens = usageAvailable ? Math.max(0, input.imageOutputTokens ?? 0) : 0;
+  const billedCharacters = usageAvailable ? Math.max(0, input.billedCharacters ?? 0) : 0;
   const totalTokens = inputTokens + outputTokens;
-  const costUsdMicros = resolveCostMicros(input, inputTokens, outputTokens);
+  const pricingSnapshot = await pricingResolver(input.model);
+  const calculatedAt = new Date().toISOString();
+  const costUsdMicros = pricingSnapshot
+    ? resolveCostMicros(input, pricingSnapshot, inputTokens, outputTokens, imageOutputTokens, billedCharacters)
+    : 0;
   const event: StoryUsageEvent = {
     id: crypto.randomUUID(),
     storyId,
@@ -149,12 +168,20 @@ export async function recordStoryUsage(
     inputTokens,
     outputTokens,
     totalTokens,
+    generatedImages: Math.max(0, input.generatedImages ?? 0),
+    billedCharacters,
+    imageOutputTokens,
     costUsdMicros,
     usageDetails: {
       ...(input.usageDetails ?? {}),
       ...(input.generatedImages !== undefined ? { generatedImages: input.generatedImages } : {}),
       ...(input.billedCharacters !== undefined ? { billedCharacters: input.billedCharacters } : {}),
     },
+    pricingSnapshot: pricingSnapshot
+      ? { ...pricingSnapshot, roles: [...pricingSnapshot.roles] }
+      : {},
+    pricingStatus: usageAvailable && pricingSnapshot ? 'complete' : 'incomplete',
+    calculatedAt,
     createdAt: new Date().toISOString(),
   };
 

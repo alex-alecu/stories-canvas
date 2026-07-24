@@ -21,6 +21,7 @@ interface UsageEvent {
   outputTokens: number;
   totalTokens: number;
   usageDetails: Record<string, unknown>;
+  usageAvailable?: boolean;
 }
 
 export interface StoryAgentUsageCallbacks {
@@ -51,6 +52,10 @@ interface RunStoryAgentOptions<TContext> {
   usageCallbacks?: StoryAgentUsageCallbacks;
   dependencies?: StoryAgentRunnerDependencies;
   signal?: AbortSignal;
+}
+
+export function getStoryAgentModelName(role: 'main' | 'subagent'): string {
+  return role === 'subagent' ? config.reviewModel : config.scenarioModel;
 }
 
 function activity(
@@ -118,10 +123,11 @@ function createModelFactory<TContext>(
   options: RunStoryAgentOptions<TContext>,
 ): NonNullable<StoryAgentRunnerDependencies['modelFactory']> {
   if (options.dependencies?.modelFactory) return options.dependencies.modelFactory;
+  const modelFor = (role: 'main' | 'subagent') => getStoryAgentModelName(role);
   return role => createGeminiAgentModel({
-    model: config.scenarioModel,
+    model: modelFor(role),
     temperature: role === 'subagent' ? config.scenarioReviewTemperature : config.scenarioTemperature,
-    thinkingConfig: getMaxThinkingConfig(),
+    thinkingConfig: getMaxThinkingConfig(modelFor(role)),
     onUsage: role === 'subagent'
       ? options.usageCallbacks?.onReviewUsage
       : usage => (

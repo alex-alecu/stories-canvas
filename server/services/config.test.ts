@@ -3,7 +3,11 @@ import test from 'node:test';
 
 process.env.GEMINI_API_KEY ??= 'test-key';
 
-const { resolveDefaultAppLanguage, resolveStoryPackPricingConfig } = await import('../config.js');
+const {
+  resolveDefaultAppLanguage,
+  resolveNonNegativeNumberEnv,
+  resolveStoryPackPricingConfig,
+} = await import('../config.js');
 
 test('resolveDefaultAppLanguage only accepts site-localized deployment languages', () => {
   assert.equal(resolveDefaultAppLanguage('en'), 'en');
@@ -11,6 +15,13 @@ test('resolveDefaultAppLanguage only accepts site-localized deployment languages
   assert.equal(resolveDefaultAppLanguage('ro'), 'ro');
   assert.equal(resolveDefaultAppLanguage('de'), 'ro');
   assert.equal(resolveDefaultAppLanguage(undefined), 'ro');
+});
+
+test('resolveNonNegativeNumberEnv validates provider rates', () => {
+  assert.equal(resolveNonNegativeNumberEnv('RATE', 0.1, {}), 0.1);
+  assert.equal(resolveNonNegativeNumberEnv('RATE', 0.1, { RATE: '0.25' }), 0.25);
+  assert.throws(() => resolveNonNegativeNumberEnv('RATE', 0.1, { RATE: '-1' }), /non-negative number/);
+  assert.throws(() => resolveNonNegativeNumberEnv('RATE', 0.1, { RATE: 'nope' }), /non-negative number/);
 });
 
 test('resolveStoryPackPricingConfig validates and fingerprints complete pricing', () => {

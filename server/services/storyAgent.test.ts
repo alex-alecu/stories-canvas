@@ -6,6 +6,12 @@ import type { AgentModel } from './agentRuntime.js';
 
 process.env.GEMINI_API_KEY ??= 'test-key';
 
+test('independent reviews use Flash-Lite while main story work stays on Pro', async () => {
+  const { getStoryAgentModelName } = await import('./storyAgentRunner.js');
+  assert.equal(getStoryAgentModelName('main'), 'gemini-3.1-pro-preview');
+  assert.equal(getStoryAgentModelName('subagent'), 'gemini-3.1-flash-lite');
+});
+
 function makeScenario(characterCount = 2, tooManySentences = false): Scenario {
   const characters = Array.from({ length: characterCount }, (_, index) => ({
     name: `Friend ${index + 1}`,

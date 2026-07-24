@@ -115,6 +115,7 @@ export async function generatePageAudio(
           model: config.elevenLabsModel,
           status: 'succeeded',
           billedCharacters,
+          usageAvailable: true,
           usageDetails: {
             voiceKey,
             voiceId: settings.voiceId,
@@ -125,8 +126,10 @@ export async function generatePageAudio(
         await onUsage?.({
           model: config.elevenLabsModel,
           status: 'failed',
-          billedCharacters,
+          billedCharacters: 0,
+          usageAvailable: false,
           usageDetails: {
+            requestedCharacters: billedCharacters,
             voiceKey,
             voiceId: settings.voiceId,
             error: error instanceof Error ? error.message : String(error),
@@ -177,6 +180,7 @@ type AudioUsageCallback = (usage: {
   model: string;
   status: 'succeeded' | 'failed';
   billedCharacters: number;
+  usageAvailable: boolean;
   usageDetails: Record<string, unknown>;
 }) => void | Promise<void>;
 
@@ -198,6 +202,7 @@ export async function generateAllPageAudio(
     model: string;
     status: 'succeeded' | 'failed';
     billedCharacters: number;
+    usageAvailable?: boolean;
     usageDetails: Record<string, unknown>;
   }) => void | Promise<void>,
 ): Promise<AudioGenerationResult> {
@@ -273,6 +278,7 @@ export async function retryMissingAudio(
     model: string;
     status: 'succeeded' | 'failed';
     billedCharacters: number;
+    usageAvailable?: boolean;
     usageDetails: Record<string, unknown>;
   }) => void | Promise<void>,
 ): Promise<AudioGenerationResult> {

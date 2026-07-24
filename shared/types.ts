@@ -17,6 +17,7 @@ export type StoryUsageOperation =
   | 'scenario_validation_repair'
   | 'scenario_review'
   | 'scenario_review_rewrite'
+  | 'page_text_review'
   | 'character_sheet'
   | 'page_image'
   | 'page_audio';
@@ -277,9 +278,38 @@ export interface StoryUsageEvent {
   inputTokens: number;
   outputTokens: number;
   totalTokens: number;
+  generatedImages: number;
+  billedCharacters: number;
+  imageOutputTokens: number;
   costUsdMicros: number;
   usageDetails: Record<string, unknown>;
+  pricingSnapshot: ModelPricingSnapshot | Record<string, never>;
+  pricingStatus: 'complete' | 'incomplete' | 'estimated';
+  calculatedAt: string;
   createdAt: string;
+}
+
+export interface ModelPriceCatalogEntry {
+  model: string;
+  provider: StoryUsageProvider;
+  roles: string[];
+  unit: string;
+  inputUsdPerToken: string;
+  outputUsdPerToken: string;
+  imageOutputUsdPerToken: string;
+  audioUsdPerCharacter: string;
+  sourceUrl: string;
+  endpointTag: string;
+  fetchedAt: string;
+}
+
+export type ModelPricingSnapshot = ModelPriceCatalogEntry;
+
+export interface PriceCatalogStatus {
+  lastAttemptAt?: string;
+  lastSuccessAt?: string;
+  lastError?: string;
+  stale: boolean;
 }
 
 export interface StoryImageSources {

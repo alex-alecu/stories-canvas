@@ -25,6 +25,7 @@ export interface PageTextReviewResult {
 
 type ReviewPurpose = 'page_text' | 'image_feedback';
 type GenerateJSONFn = typeof gemini.generateJSON;
+type UsageCallback = NonNullable<gemini.JSONGenerationOptions['onUsage']>;
 
 interface RawPageTextReviewResult {
   allowed?: unknown;
@@ -110,6 +111,7 @@ export async function reviewPageText(
     purpose?: ReviewPurpose;
   },
   generateJSON: GenerateJSONFn = gemini.generateJSON,
+  onUsage?: UsageCallback,
 ): Promise<PageTextReviewResult> {
   try {
     const raw = await generateJSON<RawPageTextReviewResult>(
@@ -125,6 +127,7 @@ export async function reviewPageText(
         model: config.pageTextReviewModel,
         temperature: 0,
         maxRetries: 1,
+        onUsage,
       },
     );
     return normalizeReviewResult(raw);

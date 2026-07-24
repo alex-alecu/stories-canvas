@@ -234,8 +234,9 @@ export async function reviewScenarioWithModel(
     buildStoryReviewSystemInstruction(context),
     scenarioReviewSchema,
     {
+      model: config.reviewModel,
       temperature: config.scenarioReviewTemperature,
-      thinkingConfig: getMaxThinkingConfig(),
+      thinkingConfig: getMaxThinkingConfig(config.reviewModel),
       onUsage,
     },
   );
@@ -324,8 +325,9 @@ export async function rewriteScenarioFromReviewWithModel(
       required: ['title', 'targetAge', 'characters', 'pages'],
     },
     {
+      model: config.scenarioModel,
       temperature: config.scenarioReviewTemperature,
-      thinkingConfig: getMaxThinkingConfig(),
+      thinkingConfig: getMaxThinkingConfig(config.scenarioModel),
       onUsage,
     },
   );

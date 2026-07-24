@@ -23,7 +23,7 @@ import {
 } from '../utils/storyMedia.js';
 import { generateCoverImageVariantSources, STORY_IMAGES_BUCKET } from './coverImageVariants.js';
 import { parseArtStyle } from './storyStyle.js';
-import { EMPTY_STORY_USAGE_TOTALS, normalizeStoryUsageTotals } from './storyUsage.js';
+import { normalizeStoryUsageTotals } from './storyUsage.js';
 
 const BUCKET = STORY_IMAGES_BUCKET;
 const TRANSIENT_HTTP_STATUSES = new Set([500, 502, 503, 504]);
@@ -639,69 +639,37 @@ export async function setStoryReaction(
   };
 }
 
-function mergeStoryUsageTotals(
-  current: StoryUsageTotals | undefined,
-  delta: StoryUsageTotals,
-): StoryUsageTotals {
-  const existing = normalizeStoryUsageTotals(current);
-  return {
-    inputTokens: existing.inputTokens + delta.inputTokens,
-    outputTokens: existing.outputTokens + delta.outputTokens,
-    totalTokens: existing.totalTokens + delta.totalTokens,
-    costUsdMicros: existing.costUsdMicros + delta.costUsdMicros,
-    textCostUsdMicros: existing.textCostUsdMicros + delta.textCostUsdMicros,
-    imageCostUsdMicros: existing.imageCostUsdMicros + delta.imageCostUsdMicros,
-    audioCostUsdMicros: existing.audioCostUsdMicros + delta.audioCostUsdMicros,
-  };
-}
-
 export async function appendStoryUsageEvent(
   storyId: string,
   event: StoryUsageEvent,
-  totalsDelta: StoryUsageTotals,
+  _totalsDelta: StoryUsageTotals,
 ): Promise<void> {
   const supabase = getSupabase();
-  const story = await getStory(storyId);
-  if (!story) {
-    throw new Error(`Failed to append story usage event: story ${storyId} not found`);
-  }
-
-  const mergedTotals = mergeStoryUsageTotals(story.usageTotals ?? EMPTY_STORY_USAGE_TOTALS, totalsDelta);
-  const { error: insertError } = await supabase.from('story_usage_events').insert({
-    id: event.id,
-    story_id: event.storyId,
-    user_id: event.userId ?? null,
-    provider: event.provider,
-    operation: event.operation,
-    source: event.source,
-    status: event.status,
-    model: event.model,
-    page_number: event.pageNumber ?? null,
-    input_tokens: event.inputTokens,
-    output_tokens: event.outputTokens,
-    total_tokens: event.totalTokens,
-    cost_usd_micros: event.costUsdMicros,
-    usage_details: event.usageDetails,
-    created_at: event.createdAt,
+  const { error } = await supabase.rpc('record_story_usage_event', {
+    p_id: event.id,
+    p_story_id: storyId,
+    p_user_id: event.userId ?? null,
+    p_provider: event.provider,
+    p_operation: event.operation,
+    p_source: event.source,
+    p_status: event.status,
+    p_model: event.model,
+    p_page_number: event.pageNumber ?? null,
+    p_input_tokens: event.inputTokens,
+    p_output_tokens: event.outputTokens,
+    p_total_tokens: event.totalTokens,
+    p_generated_images: event.generatedImages,
+    p_billed_characters: event.billedCharacters,
+    p_image_output_tokens: event.imageOutputTokens,
+    p_cost_usd_micros: event.costUsdMicros,
+    p_usage_details: event.usageDetails,
+    p_pricing_snapshot: event.pricingSnapshot,
+    p_pricing_status: event.pricingStatus,
+    p_calculated_at: event.calculatedAt,
+    p_created_at: event.createdAt,
   });
-  if (insertError) {
-    throw new Error(`Failed to insert story usage event: ${insertError.message}`);
-  }
-
-  const { error: updateError } = await supabase
-    .from('stories')
-    .update({
-      usage_input_tokens: mergedTotals.inputTokens,
-      usage_output_tokens: mergedTotals.outputTokens,
-      usage_total_tokens: mergedTotals.totalTokens,
-      usage_cost_usd_micros: mergedTotals.costUsdMicros,
-      usage_text_cost_usd_micros: mergedTotals.textCostUsdMicros,
-      usage_image_cost_usd_micros: mergedTotals.imageCostUsdMicros,
-      usage_audio_cost_usd_micros: mergedTotals.audioCostUsdMicros,
-    })
-    .eq('id', storyId);
-  if (updateError) {
-    throw new Error(`Failed to update story usage totals: ${updateError.message}`);
+  if (error) {
+    throw new Error(`Failed to record story usage event: ${error.message}`);
   }
 }
 

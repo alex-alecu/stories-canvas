@@ -39,6 +39,20 @@ function integerEnv(key: string, fallback: number): number {
   return numberEnv(key, fallback, raw => Number.parseInt(raw, 10));
 }
 
+export function resolveNonNegativeNumberEnv(
+  key: string,
+  fallback: number,
+  env: NodeJS.ProcessEnv = process.env,
+): number {
+  const raw = env[key]?.trim();
+  if (!raw) return fallback;
+  const value = Number(raw);
+  if (!Number.isFinite(value) || value < 0) {
+    throw new Error(`${key} must be a non-negative number`);
+  }
+  return value;
+}
+
 export interface StoryPackPricingConfig {
   currency: string;
   pricesMinor: {
@@ -167,7 +181,7 @@ export const config = {
   // ElevenLabs configuration
   elevenLabsApiKey: optionalEnv('ELEVENLABS_API_KEY'),
   elevenLabsModel: process.env.ELEVENLABS_MODEL || 'eleven_multilingual_v2',
-  elevenLabsPriceUsdPer1kCharacters: numberEnv('ELEVENLABS_PRICE_USD_PER_1K_CHARACTERS', 0.10, Number.parseFloat),
+  elevenLabsPriceUsdPer1kCharacters: resolveNonNegativeNumberEnv('ELEVENLABS_PRICE_USD_PER_1K_CHARACTERS', 0.10),
   voiceIds: {
     jora: optionalEnv('VOICE_JORA_ID') || 'OlBp4oyr3FBAGEAtJOnU', // Jora Slobod
     serban: optionalEnv('VOICE_SERBAN_ID') || '8nBBDfYxYXmDNaqTCxPH', // Serban Popescu

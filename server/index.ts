@@ -4,6 +4,7 @@ import { isGenerationActive } from './services/generationRegistry.js';
 import { runRecoveryPass } from './services/recoveryRunner.js';
 import { recoverStuckStories } from './services/supabaseStorage.js';
 import { syncStoryPackPricingFromEnvironment } from './services/billingStorage.js';
+import { refreshModelPriceCatalog } from './services/modelPriceCatalog.js';
 
 const app = createApp();
 
@@ -21,6 +22,11 @@ app.listen(config.port, () => {
         if (applied) console.log('  Applied environment story pack pricing');
       })
       .catch(error => console.error('Failed to sync environment story pack pricing:', error));
+
+    const refreshPrices = () => refreshModelPriceCatalog()
+      .catch(error => console.error('Failed to refresh model price catalog:', error));
+    void refreshPrices();
+    setInterval(() => void refreshPrices(), 60 * 60 * 1000);
 
     void runRecoveryPass(
       'startup',

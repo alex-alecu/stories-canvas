@@ -815,13 +815,14 @@ function createUsageRecorder(storyId: string, userId: string | undefined, source
   }
 
   return {
-    recordText: async (operation: 'source_analysis' | 'scenario_draft' | 'scenario_validation_repair' | 'scenario_review' | 'scenario_review_rewrite', usage: {
+    recordText: async (operation: 'source_analysis' | 'scenario_draft' | 'scenario_validation_repair' | 'scenario_review' | 'scenario_review_rewrite' | 'page_text_review', usage: {
       model: string;
       status: 'succeeded' | 'failed';
       inputTokens: number;
       outputTokens: number;
       totalTokens: number;
       usageDetails: Record<string, unknown>;
+      usageAvailable?: boolean;
     }) => {
       await safeRecord(operation, async () => {
         await recordStoryUsage(usageStorage, storyId, userId, {
@@ -833,6 +834,7 @@ function createUsageRecorder(storyId: string, userId: string | undefined, source
           inputTokens: usage.inputTokens,
           outputTokens: usage.outputTokens,
           usageDetails: usage.usageDetails,
+          usageAvailable: usage.usageAvailable,
         });
       });
     },
@@ -843,6 +845,8 @@ function createUsageRecorder(storyId: string, userId: string | undefined, source
       outputTokens: number;
       totalTokens: number;
       generatedImages: number;
+      imageOutputTokens?: number;
+      usageAvailable?: boolean;
       usageDetails: Record<string, unknown>;
     }) => {
       await safeRecord('character_sheet', async () => {
@@ -855,6 +859,8 @@ function createUsageRecorder(storyId: string, userId: string | undefined, source
           inputTokens: usage.inputTokens,
           outputTokens: usage.outputTokens,
           generatedImages: usage.generatedImages,
+          imageOutputTokens: usage.imageOutputTokens,
+          usageAvailable: usage.usageAvailable,
           usageDetails: usage.usageDetails,
         });
       });
@@ -866,6 +872,8 @@ function createUsageRecorder(storyId: string, userId: string | undefined, source
       outputTokens: number;
       totalTokens: number;
       generatedImages: number;
+      imageOutputTokens?: number;
+      usageAvailable?: boolean;
       usageDetails: Record<string, unknown>;
     }) => {
       await safeRecord(`page_image:${pageNumber}`, async () => {
@@ -879,6 +887,8 @@ function createUsageRecorder(storyId: string, userId: string | undefined, source
           inputTokens: usage.inputTokens,
           outputTokens: usage.outputTokens,
           generatedImages: usage.generatedImages,
+          imageOutputTokens: usage.imageOutputTokens,
+          usageAvailable: usage.usageAvailable,
           usageDetails: usage.usageDetails,
         });
       });
@@ -887,6 +897,7 @@ function createUsageRecorder(storyId: string, userId: string | undefined, source
       model: string;
       status: 'succeeded' | 'failed';
       billedCharacters: number;
+      usageAvailable?: boolean;
       usageDetails: Record<string, unknown>;
     }) => {
       await safeRecord(`page_audio:${pageNumber}`, async () => {
@@ -898,6 +909,7 @@ function createUsageRecorder(storyId: string, userId: string | undefined, source
           model: usage.model,
           pageNumber,
           billedCharacters: usage.billedCharacters,
+          usageAvailable: usage.usageAvailable,
           usageDetails: usage.usageDetails,
         });
       });
@@ -2617,7 +2629,11 @@ router.post('/:id/pages/:pageNumber/regenerate-image', optionalAuth, async (req:
       targetAge: story.scenario.targetAge,
       language: story.language,
       purpose: 'image_feedback',
-    });
+    }, undefined, usage => createUsageRecorder(
+      storyId,
+      req.authUser?.id,
+      'regenerate_page_image',
+    ).recordText('page_text_review', usage));
     if (!review.allowed) {
       notifyStoryBlock({
         blockType: 'safety_block',
@@ -2940,7 +2956,11 @@ router.patch('/:id/pages/:pageNumber/script-audio', optionalAuth, async (req: Re
       targetAge: story.scenario.targetAge,
       language: story.language,
       purpose: 'page_text',
-    });
+    }, undefined, usage => createUsageRecorder(
+      storyId,
+      req.authUser?.id,
+      'regenerate_page_audio',
+    ).recordText('page_text_review', usage));
     if (!review.allowed) {
       notifyStoryBlock({
         blockType: 'safety_block',
