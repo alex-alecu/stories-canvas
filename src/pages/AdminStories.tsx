@@ -115,8 +115,8 @@ export default function AdminStories() {
               <table className="min-w-[1220px] w-full text-left text-sm">
                 <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500 dark:bg-surface-dark dark:text-gray-400">
                   <tr>
+                    <th className="px-5 py-3">User email</th>
                     <th className="px-5 py-3">Story</th>
-                    <th className="px-5 py-3">User</th>
                     <th className="px-5 py-3">Created</th>
                     <th className="px-5 py-3">Type</th>
                     <th className="px-5 py-3 text-right">Pages</th>
@@ -135,21 +135,21 @@ export default function AdminStories() {
                     <tr><td colSpan={11} className="px-5 py-8 text-center text-gray-500 dark:text-gray-400">No stories match these filters.</td></tr>
                   ) : data.items.map(story => (
                     <tr key={story.id}>
+                      <td className="max-w-64 px-5 py-4"><p className="truncate text-gray-600 dark:text-gray-300">{story.email}</p></td>
                       <td className="max-w-64 px-5 py-4">
                         <Link to={`/story/${story.id}`} className="block truncate font-semibold text-gray-900 hover:text-primary-600 hover:underline dark:text-gray-100 dark:hover:text-primary-300">{story.title}</Link>
                         <p className="mt-1 truncate text-xs text-gray-400">{story.id}</p>
                       </td>
-                      <td className="max-w-64 px-5 py-4"><p className="truncate text-gray-600 dark:text-gray-300">{story.email}</p></td>
                       <td className="whitespace-nowrap px-5 py-4 text-gray-600 dark:text-gray-300">{formatLocalizedDate(story.createdAt, language, t.adminNever)}</td>
                       <td className="px-5 py-4"><span className="rounded-full bg-primary-50 px-2.5 py-1 text-xs font-semibold text-primary-700 dark:bg-primary-900/30 dark:text-primary-200">{storyModeLabel(story.storyMode)}</span></td>
                       <td className="px-5 py-4 text-right text-gray-600 dark:text-gray-300">{story.pages}</td>
-                      <td className="px-5 py-4 text-right text-gray-600 dark:text-gray-300">{formatUsdMicros(story.textCostUsdMicros, language)}</td>
-                      <td className="px-5 py-4 text-right text-gray-600 dark:text-gray-300">{formatUsdMicros(story.imageCostUsdMicros, language)}</td>
-                      <td className="px-5 py-4 text-right text-gray-600 dark:text-gray-300">{formatUsdMicros(story.audioCostUsdMicros, language)}</td>
-                      <td className="px-5 py-4 text-right font-semibold text-gray-900 dark:text-gray-100">{formatUsdMicros(story.totalCostUsdMicros, language)}</td>
-                      <td className="px-5 py-4 text-right text-gray-600 dark:text-gray-300">{story.creditsConsumed}</td>
+                      <td className="px-5 py-4 text-right text-gray-600 dark:text-gray-300">{formatUsdMicros(story.textCostUsdMicros, language, 2)}</td>
+                      <td className="px-5 py-4 text-right text-gray-600 dark:text-gray-300">{formatUsdMicros(story.imageCostUsdMicros, language, 2)}</td>
+                      <td className="px-5 py-4 text-right text-gray-600 dark:text-gray-300">{formatUsdMicros(story.audioCostUsdMicros, language, 2)}</td>
+                      <td className="px-5 py-4 text-right font-semibold text-gray-900 dark:text-gray-100">{formatUsdMicros(story.totalCostUsdMicros, language, 2)}</td>
+                      <td className="px-5 py-4 text-right text-gray-600 dark:text-gray-300">{story.creditsConsumed.toLocaleString(language, { maximumFractionDigits: 2 })}</td>
                       <td className={`px-5 py-4 text-right font-semibold ${story.profitUsdMicros === null ? 'text-gray-400' : story.profitUsdMicros >= 0 ? 'text-green-600 dark:text-green-300' : 'text-red-600 dark:text-red-300'}`}>
-                        {story.profitUsdMicros === null ? 'Unavailable' : formatUsdMicros(story.profitUsdMicros, language)}
+                        {story.profitUsdMicros === null ? 'Unavailable' : formatUsdMicros(story.profitUsdMicros, language, 2)}
                       </td>
                     </tr>
                   ))}

@@ -1,9 +1,11 @@
-export function formatUsdMicros(value: number, locale: string): string {
+export function formatUsdMicros(value: number, locale: string, maximumFractionDigits = 6): string {
   return new Intl.NumberFormat(locale, {
     style: 'currency',
     currency: 'USD',
-    minimumFractionDigits: value !== 0 && Math.abs(value) < 10_000 ? 4 : 2,
-    maximumFractionDigits: 6,
+    minimumFractionDigits: maximumFractionDigits === 2
+      ? 2
+      : value !== 0 && Math.abs(value) < 10_000 ? 4 : 2,
+    maximumFractionDigits,
   }).format(value / 1_000_000);
 }
 
