@@ -65,7 +65,8 @@ The first admin accounts are bootstrapped from `ADMIN_BOOTSTRAP_EMAILS`.
 
 Copy `.env.example` to `.env` and fill in the values you need:
 
-- `GEMINI_API_KEY` is required
+- `OPENAI_API_KEY` enables all text generation and text review. The fixed text model is `gpt-5.6-sol`. The server can start without this key, but text requests need it.
+- `GEMINI_API_KEY` is required for image generation. `IMAGE_MODEL` and `IMAGE_MODEL_PRO` are optional Gemini image model overrides.
 - `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_KEY` enable auth, storage, billing, and admin APIs
 - `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` enable Checkout and webhook fulfillment
 - `APP_BASE_URL` should match the browser origin used for local or deployed checkout redirects

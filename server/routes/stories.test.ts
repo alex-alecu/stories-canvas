@@ -149,7 +149,14 @@ async function readStoryMeta(dataDir: string, storyId: string): Promise<Omit<Sto
 
 async function readUsageEvents(dataDir: string, storyId: string) {
   const raw = await fs.readFile(path.join(dataDir, storyId, 'usage-events.json'), 'utf-8');
-  return JSON.parse(raw) as Array<{ operation: string; source: string; status: string; costUsdMicros: number }>;
+  return JSON.parse(raw) as Array<{
+    operation: string;
+    provider: string;
+    source: string;
+    status: string;
+    costUsdMicros: number;
+    pricingStatus: string;
+  }>;
 }
 
 test('POST /api/stories stores canonical narrator keys unchanged', async (t) => {
@@ -321,20 +328,32 @@ test('POST /api/stories persists generation inputs and usage totals for filesyst
     },
   ) => {
     await usageCallbacks?.onSourceAnalysisUsage?.({
-      model: 'gemini-3.1-flash-lite',
+      model: 'gpt-5.6-sol',
       status: 'succeeded',
       inputTokens: 50,
       outputTokens: 20,
       totalTokens: 70,
-      usageDetails: { promptTokenCount: 50, candidatesTokenCount: 20, totalTokenCount: 70 },
+      usageDetails: {
+        input_tokens: 50,
+        input_tokens_details: { cached_tokens: 0, cache_write_tokens: 0 },
+        output_tokens: 20,
+        output_tokens_details: { reasoning_tokens: 5 },
+        total_tokens: 70,
+      },
     });
     await usageCallbacks?.onDraftUsage?.({
-      model: 'gemini-3.1-pro-preview',
+      model: 'gpt-5.6-sol',
       status: 'succeeded',
       inputTokens: 120,
       outputTokens: 80,
       totalTokens: 200,
-      usageDetails: { promptTokenCount: 120, candidatesTokenCount: 80, totalTokenCount: 200 },
+      usageDetails: {
+        input_tokens: 120,
+        input_tokens_details: { cached_tokens: 0, cache_write_tokens: 0 },
+        output_tokens: 80,
+        output_tokens_details: { reasoning_tokens: 25 },
+        total_tokens: 200,
+      },
     });
     return {
       scenario,
@@ -501,6 +520,13 @@ test('POST /api/stories persists generation inputs and usage totals for filesyst
     'character_sheet',
     'page_image',
     'page_audio',
+  ]);
+  assert.deepEqual(usageEvents.map(event => event.provider), [
+    'openai',
+    'openai',
+    'gemini',
+    'gemini',
+    'elevenlabs',
   ]);
   assert.ok(usageEvents.every(event => event.source === 'initial_generation'));
   assert.ok(usageEvents.every(event => event.status === 'succeeded'));

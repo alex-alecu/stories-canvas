@@ -8,8 +8,7 @@ import {
   type StoryPromptContext,
 } from './storyPrompt.js';
 import { normalizeScenarioWhitespace } from './scenarioValidation.js';
-import { getMaxThinkingConfig } from './gemini.js';
-import type { JSONGenerationOptions } from './gemini.js';
+import type { TextGenerationOptions } from './openai.js';
 import type { StoryUsageStatus } from '../../shared/types.js';
 
 export const SCENARIO_REVIEW_ISSUE_CODES = [
@@ -42,14 +41,14 @@ type GenerateJSONFn = <T>(
   prompt: string,
   systemInstruction: string,
   schema: Record<string, unknown>,
-  options?: JSONGenerationOptions,
+  options?: TextGenerationOptions,
 ) => Promise<T>;
 
 type GenerateJSONFromContentsFn = <T>(
   contents: Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }>,
   systemInstruction: string,
   schema: Record<string, unknown>,
-  options?: JSONGenerationOptions,
+  options?: TextGenerationOptions,
 ) => Promise<T>;
 
 function userContent(text: string) {
@@ -235,8 +234,7 @@ export async function reviewScenarioWithModel(
     scenarioReviewSchema,
     {
       model: config.reviewModel,
-      temperature: config.scenarioReviewTemperature,
-      thinkingConfig: getMaxThinkingConfig(config.reviewModel),
+      reasoningEffort: 'high',
       onUsage,
     },
   );
@@ -326,8 +324,7 @@ export async function rewriteScenarioFromReviewWithModel(
     },
     {
       model: config.scenarioModel,
-      temperature: config.scenarioReviewTemperature,
-      thinkingConfig: getMaxThinkingConfig(config.scenarioModel),
+      reasoningEffort: 'high',
       onUsage,
     },
   );

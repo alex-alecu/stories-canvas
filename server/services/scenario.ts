@@ -1,5 +1,5 @@
 import { config } from '../config.js';
-import * as gemini from './gemini.js';
+import * as openai from './openai.js';
 import {
   buildDraftScenarioPrompt,
   buildRepairScenarioPrompt,
@@ -31,8 +31,8 @@ import type { GenerationActivity } from '../../shared/types.js';
 
 const scenarioSchema = storyScriptSchema;
 
-type GenerateJSONFn = typeof gemini.generateJSON;
-type GenerateJSONFromContentsFn = typeof gemini.generateJSONFromContents;
+type GenerateJSONFn = typeof openai.generateJSON;
+type GenerateJSONFromContentsFn = typeof openai.generateJSONFromContents;
 
 const AUTO_REPAIRABLE_TEXT_ISSUE_CODES = new Set([
   'page.text.ageLength',
@@ -209,8 +209,7 @@ async function generateDraftScenario(
     systemInstruction,
     scenarioSchema,
     {
-      temperature: config.scenarioTemperature,
-      thinkingConfig: gemini.getMaxThinkingConfig(),
+      reasoningEffort: 'high',
       onUsage: usageCallbacks?.onDraftUsage,
     },
   );
@@ -231,8 +230,7 @@ async function generateRepairScenario(
     systemInstruction,
     scenarioSchema,
     {
-      temperature: config.scenarioReviewTemperature,
-      thinkingConfig: gemini.getMaxThinkingConfig(),
+      reasoningEffort: 'high',
       onUsage: usageCallbacks?.onValidationRepairUsage,
     },
   );
@@ -454,10 +452,10 @@ export async function generateScenario(
     language,
     age,
     style,
-    gemini.generateJSON,
+    openai.generateJSON,
     onProgress,
     usageCallbacks,
-    gemini.generateJSONFromContents,
+    openai.generateJSONFromContents,
   );
 }
 
@@ -497,9 +495,9 @@ export async function reviewScenario(
     age,
     style,
     scenario,
-    gemini.generateJSON,
+    openai.generateJSON,
     onProgress,
     usageCallbacks,
-    gemini.generateJSONFromContents,
+    openai.generateJSONFromContents,
   );
 }

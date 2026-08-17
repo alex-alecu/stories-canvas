@@ -4,10 +4,18 @@ import test from 'node:test';
 process.env.GEMINI_API_KEY ??= 'test-key';
 
 const {
+  config,
   resolveDefaultAppLanguage,
   resolveNonNegativeNumberEnv,
   resolveStoryPackPricingConfig,
 } = await import('../config.js');
+
+test('all text roles use the fixed OpenAI model', () => {
+  assert.equal(config.scenarioModel, 'gpt-5.6-sol');
+  assert.equal(config.reviewModel, 'gpt-5.6-sol');
+  assert.equal(config.sourceAnalysisModel, 'gpt-5.6-sol');
+  assert.equal(config.pageTextReviewModel, 'gpt-5.6-sol');
+});
 
 test('resolveDefaultAppLanguage only accepts site-localized deployment languages', () => {
   assert.equal(resolveDefaultAppLanguage('en'), 'en');

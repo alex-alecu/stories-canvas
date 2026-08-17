@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import type { TextGenerationOptions } from './openai.js';
 
 process.env.GEMINI_API_KEY ??= 'test-key';
 
@@ -16,11 +17,11 @@ test('reviewPageText allows safe page text', async () => {
       language: 'en',
       purpose: 'page_text',
     },
-    async (_prompt, _system, _schema, options) => {
-      assert.equal(options?.model, 'gemini-3.1-flash-lite');
+    async <T>(_prompt: string, _system: string, _schema: Record<string, unknown>, options?: TextGenerationOptions): Promise<T> => {
+      assert.equal(options?.model, 'gpt-5.6-sol');
       assert.equal(options?.temperature, 0);
-      assert.equal('thinkingConfig' in (options ?? {}), false);
-      return { allowed: true, reasonCode: '', explanation: '' };
+      assert.equal(options?.reasoningEffort, 'none');
+      return { allowed: true, reasonCode: '', explanation: '' } as T;
     },
   );
 
@@ -36,11 +37,11 @@ test('reviewPageText blocks profanity with a normalized reason', async () => {
       language: 'en',
       purpose: 'page_text',
     },
-    async () => ({
+    async <T>() => ({
       allowed: false,
       reasonCode: 'profanity',
       explanation: 'Please keep the page child-friendly.',
-    }),
+    }) as T,
   );
 
   assert.deepEqual(result, {
@@ -59,11 +60,11 @@ test('reviewPageText blocks harmful age-inappropriate content', async () => {
       language: 'en',
       purpose: 'image_feedback',
     },
-    async () => ({
+    async <T>() => ({
       allowed: false,
       reasonCode: 'age_inappropriate',
       explanation: 'This is too intense for the selected age.',
-    }),
+    }) as T,
   );
 
   assert.equal(result.allowed, false);

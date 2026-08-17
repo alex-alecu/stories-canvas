@@ -99,6 +99,21 @@ function priceColumns(entry: ModelPriceCatalogEntry) {
   if (entry.provider === 'elevenlabs') {
     return [{ label: 'Audio', value: formatRate(entry.audioUsdPerCharacter, 'character') }];
   }
+  if (entry.provider === 'openai') {
+    const webSearchRate = Number(entry.webSearchUsdPerCall);
+    return [
+      { label: 'Input', value: formatRate(entry.inputUsdPerToken, 'token') },
+      { label: 'Cached input', value: formatRate(entry.cachedInputUsdPerToken, 'token') },
+      { label: 'Cache write', value: formatRate(entry.cacheWriteUsdPerToken, 'token') },
+      { label: 'Output', value: formatRate(entry.outputUsdPerToken, 'token') },
+      {
+        label: 'Web search',
+        value: Number.isFinite(webSearchRate) && webSearchRate > 0
+          ? `$${(webSearchRate * 1_000).toLocaleString('en-US', { maximumFractionDigits: 6 })} / 1K`
+          : '—',
+      },
+    ];
+  }
   return [
     { label: 'Input', value: formatRate(entry.inputUsdPerToken, 'token') },
     { label: 'Output', value: formatRate(entry.outputUsdPerToken, 'token') },
