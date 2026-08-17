@@ -48,7 +48,7 @@ INSERT INTO public.model_price_catalog (
   0.01,
   'https://developers.openai.com/api/docs/pricing',
   'openai-standard-tiered-context',
-  NOW(),
+  '2026-08-17T00:00:00.000Z'::TIMESTAMPTZ,
   NOW()
 )
 ON CONFLICT (model) DO UPDATE SET

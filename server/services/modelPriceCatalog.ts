@@ -44,7 +44,10 @@ export const OPENAI_TEXT_MODEL_PRICE = {
   webSearchUsdPerCall: '0.01',
   sourceUrl: 'https://developers.openai.com/api/docs/pricing',
   endpointTag: 'openai-standard-tiered-context',
+  fetchedAt: '2026-08-17T00:00:00.000Z',
 } as const;
+
+const PRICE_CATALOG_STALE_AFTER_MS = 24 * 60 * 60 * 1000;
 
 interface OpenRouterEndpoint {
   provider_name?: unknown;
@@ -125,7 +128,6 @@ export async function fetchModelPriceCatalog(
   catalogEntries.push({
     ...OPENAI_TEXT_MODEL_PRICE,
     roles: [...OPENAI_TEXT_MODEL_PRICE.roles],
-    fetchedAt: fetchedAt.toISOString(),
   });
 
   const audioRate = config.elevenLabsPriceUsdPer1kCharacters / 1000;
@@ -178,6 +180,22 @@ function remember(entries: ModelPriceCatalogEntry[]): void {
   for (const entry of entries) cache.set(entry.model, entry);
 }
 
+function timestampIsStale(timestamp: string | undefined, nowMs: number): boolean {
+  if (!timestamp) return true;
+  const timestampMs = new Date(timestamp).getTime();
+  return !Number.isFinite(timestampMs) || nowMs - timestampMs >= PRICE_CATALOG_STALE_AFTER_MS;
+}
+
+export function isModelPriceCatalogStale(
+  entries: ModelPriceCatalogEntry[],
+  lastSuccessAt: string | undefined,
+  now = new Date(),
+): boolean {
+  const nowMs = now.getTime();
+  return timestampIsStale(lastSuccessAt, nowMs)
+    || entries.some(entry => timestampIsStale(entry.fetchedAt, nowMs));
+}
+
 export async function loadModelPriceCatalog(): Promise<{
   entries: ModelPriceCatalogEntry[];
   status: PriceCatalogStatus;
@@ -197,7 +215,7 @@ export async function loadModelPriceCatalog(): Promise<{
     lastAttemptAt: state.last_attempt_at ?? undefined,
     lastSuccessAt,
     lastError: state.last_error ?? undefined,
-    stale: !lastSuccessAt || Date.now() - new Date(lastSuccessAt).getTime() >= 24 * 60 * 60 * 1000,
+    stale: isModelPriceCatalogStale(entries, lastSuccessAt),
   };
   return { entries, status: cachedStatus };
 }
@@ -251,7 +269,13 @@ export async function refreshModelPriceCatalog(options: { force?: boolean } = {}
     });
     if (finishError) throw new Error(`Failed to finish model price refresh: ${finishError.message}`);
     remember(entries);
-    cachedStatus = { lastAttemptAt: new Date().toISOString(), lastSuccessAt: new Date().toISOString(), stale: false };
+    const completedAt = new Date();
+    const lastSuccessAt = completedAt.toISOString();
+    cachedStatus = {
+      lastAttemptAt: lastSuccessAt,
+      lastSuccessAt,
+      stale: isModelPriceCatalogStale(entries, lastSuccessAt, completedAt),
+    };
     return true;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

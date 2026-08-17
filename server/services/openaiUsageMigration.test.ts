@@ -25,6 +25,7 @@ test('OpenAI usage migration adds price units and keeps usage functions private'
   assert.match(sql, /input_price_multiplier := 2/);
   assert.match(sql, /output_price_multiplier := 1\.5/);
   assert.match(sql, /'openai-standard-tiered-context'/);
+  assert.match(sql, /'2026-08-17T00:00:00\.000Z'::TIMESTAMPTZ/);
   assert.match(sql, /REVOKE EXECUTE ON FUNCTION public\.record_story_usage_event[\s\S]+FROM PUBLIC, anon, authenticated/);
   assert.match(sql, /GRANT EXECUTE ON FUNCTION public\.record_story_usage_event[\s\S]+TO service_role/);
 });
