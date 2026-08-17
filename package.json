@@ -23,6 +23,7 @@
     "@supabase/supabase-js": "^2.97.0",
     "@tanstack/react-query": "^5.62.0",
     "express": "^4.21.0",
+    "openai": "^7.4.0",
     "p-limit": "^6.1.0",
     "p-retry": "^6.2.0",
     "react": "^19.0.0",

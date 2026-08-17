@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { config } from '../config.js';
 import { getSupabase } from './supabase.js';
-import type { JSONGenerationOptions } from './gemini.js';
+import type { TextGenerationOptions } from './openai.js';
 import { loadPromptMarkdown } from './promptFiles.js';
 import type {
   CanonicalBeatSheet,
@@ -39,7 +39,7 @@ interface ManifestStorySource {
   canonicalBeatSheet?: CanonicalBeatSheet;
 }
 
-type StorySourceProvider = 'wikisource' | 'project_gutenberg' | 'gemini_search';
+type StorySourceProvider = 'wikisource' | 'project_gutenberg' | 'gemini_search' | 'openai_search';
 
 export interface ResolvedRetellingSource extends RetellingSourcePromptContext {
   sourceTextHash: string;
@@ -61,7 +61,7 @@ type GenerateJSONFn = <T>(
   prompt: string,
   systemInstruction: string,
   schema: Record<string, unknown>,
-  options?: JSONGenerationOptions,
+  options?: TextGenerationOptions,
 ) => Promise<T>;
 
 export interface SourceResolverOptions {
@@ -664,7 +664,7 @@ async function analyzeSourceText(
       sourceAnalysisSchema,
       {
         model: config.sourceAnalysisModel,
-        temperature: 0.1,
+        reasoningEffort: 'medium',
         onUsage: options.onUsage,
         signal: options.signal,
       },
@@ -749,8 +749,8 @@ async function searchPublicDomainSource(
     searchSourceSchema,
     {
       model: config.sourceAnalysisModel,
-      temperature: 0.1,
-      tools: [{ googleSearch: {} }],
+      reasoningEffort: 'medium',
+      tools: [{ type: 'web_search', search_context_size: 'high' }],
       onUsage: options.onUsage,
       signal: options.signal,
     },
@@ -767,7 +767,7 @@ async function searchPublicDomainSource(
     ? 'project_gutenberg'
     : rawProvider.includes('wikisource')
       ? 'wikisource'
-      : 'gemini_search';
+      : 'openai_search';
 
   const beatSheet = normalizeBeatSheet(raw);
   if (!isUsableCanonicalBeatSheet(beatSheet)) {

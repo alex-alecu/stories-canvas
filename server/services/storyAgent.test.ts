@@ -6,10 +6,10 @@ import type { AgentModel } from './agentRuntime.js';
 
 process.env.GEMINI_API_KEY ??= 'test-key';
 
-test('independent reviews use Flash-Lite while main story work stays on Pro', async () => {
+test('independent reviews and main story work use GPT-5.6 Sol', async () => {
   const { getStoryAgentModelName } = await import('./storyAgentRunner.js');
-  assert.equal(getStoryAgentModelName('main'), 'gemini-3.1-pro-preview');
-  assert.equal(getStoryAgentModelName('subagent'), 'gemini-3.1-flash-lite');
+  assert.equal(getStoryAgentModelName('main'), 'gpt-5.6-sol');
+  assert.equal(getStoryAgentModelName('subagent'), 'gpt-5.6-sol');
 });
 
 function makeScenario(characterCount = 2, tooManySentences = false): Scenario {

@@ -41,10 +41,26 @@ test('fetchModelPriceCatalog maps text, image-output, and audio rates', async ()
     new Date('2026-07-24T10:00:00.000Z'),
   );
 
-  assert.equal(entries.length, 5);
+  assert.equal(entries.length, 6);
   assert.equal(entries.find(entry => entry.model === 'gemini-3.1-pro-preview')?.inputUsdPerToken, '0.000002');
   assert.equal(entries.find(entry => entry.model === 'gemini-3.1-flash-image-preview')?.imageOutputUsdPerToken, '0.00006');
   assert.equal(entries.find(entry => entry.provider === 'elevenlabs')?.audioUsdPerCharacter, '0.0001');
+
+  const openai = entries.find(entry => entry.model === 'gpt-5.6-sol');
+  assert.equal(openai?.provider, 'openai');
+  assert.equal(openai?.inputUsdPerToken, '0.000005');
+  assert.equal(openai?.cachedInputUsdPerToken, '0.0000005');
+  assert.equal(openai?.cacheWriteUsdPerToken, '0.00000625');
+  assert.equal(openai?.outputUsdPerToken, '0.00003');
+  assert.equal(openai?.webSearchUsdPerCall, '0.01');
+  assert.deepEqual(openai?.roles, [
+    'source analysis',
+    'draft',
+    'validation repair',
+    'review',
+    'review rewrite',
+    'page text review',
+  ]);
 });
 
 test('price catalog rejects ambiguous and malformed endpoint responses', async () => {

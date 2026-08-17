@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import type { JSONGenerationOptions } from './gemini.js';
+import type { TextGenerationOptions } from './openai.js';
 
 process.env.GEMINI_API_KEY ??= 'test-key';
 
@@ -11,7 +11,7 @@ function makeSearchBeatSheet() {
     confidence: 0.91,
     title: 'The Lost Crown',
     author: 'Anonymous',
-    provider: 'Wikisource',
+    provider: 'OpenAI Search',
     sourceUrl: 'https://en.wikisource.org/wiki/The_Lost_Crown',
     licenseNote: 'Public-domain source hosted on Wikisource.',
     sourceAnalysisVersion: 2,
@@ -207,11 +207,11 @@ test('source analysis reads later chunks so long sources keep their canonical en
   const storySources = await import('./storySources.js');
   Object.assign(config, {
     useSupabase: false,
-    sourceAnalysisModel: 'gemini-3.1-flash-lite',
+    sourceAnalysisModel: 'gpt-5.6-sol',
   });
 
   const longSourceText = `${'Opening bridge test. '.repeat(2200)}\n\n${'Middle impossible quests. '.repeat(2200)}\n\nENDING_MARKER The hero is revived with living water and the false servant is defeated.`;
-  const calls: Array<{ prompt: string; options?: JSONGenerationOptions }> = [];
+  const calls: Array<{ prompt: string; options?: TextGenerationOptions }> = [];
 
   const source = await storySources.resolveRetellingSource(
     {
@@ -223,7 +223,7 @@ test('source analysis reads later chunks so long sources keep their canonical en
         prompt: string,
         _systemInstruction: string,
         _schema: Record<string, unknown>,
-        options?: JSONGenerationOptions,
+        options?: TextGenerationOptions,
       ) => {
         calls.push({ prompt, options });
         const hasEnding = prompt.includes('ENDING_MARKER');
@@ -277,7 +277,7 @@ test('source analysis stops before the next chunk after cancellation', async () 
   const storySources = await import('./storySources.js');
   Object.assign(config, {
     useSupabase: false,
-    sourceAnalysisModel: 'gemini-3.1-flash-lite',
+    sourceAnalysisModel: 'gpt-5.6-sol',
   });
 
   const controller = new AbortController();
@@ -296,7 +296,7 @@ test('source analysis stops before the next chunk after cancellation', async () 
           _prompt: string,
           _systemInstruction: string,
           _schema: Record<string, unknown>,
-          options?: JSONGenerationOptions,
+          options?: TextGenerationOptions,
         ) => {
           generateCalls += 1;
           assert.equal(options?.signal, controller.signal);
@@ -326,12 +326,12 @@ test('source analysis stops before the next chunk after cancellation', async () 
   assert.equal(generateCalls, 1);
 });
 
-test('unknown public-domain requests try trusted providers before Gemini Search fallback', async () => {
+test('unknown public-domain requests try trusted providers before OpenAI Search fallback', async () => {
   const { config } = await import('../config.js');
   const storySources = await import('./storySources.js');
   Object.assign(config, {
     useSupabase: false,
-    sourceAnalysisModel: 'gemini-3.1-flash-lite',
+    sourceAnalysisModel: 'gpt-5.6-sol',
   });
 
   const requestedUrls: string[] = [];
@@ -346,7 +346,7 @@ test('unknown public-domain requests try trusted providers before Gemini Search 
         prompt: string,
         _systemInstruction: string,
         _schema: Record<string, unknown>,
-        options?: JSONGenerationOptions,
+        options?: TextGenerationOptions,
       ) => {
         calls.push({ prompt, options });
         return makeSearchBeatSheet() as T;
@@ -366,15 +366,15 @@ test('unknown public-domain requests try trusted providers before Gemini Search 
   assert.ok(requestedUrls.some(url => url.includes('en.wikisource.org/w/api.php')));
   assert.ok(requestedUrls.some(url => url.includes('gutenberg.org/ebooks/search')));
   assert.equal(calls.length, 1);
-  assert.deepEqual(calls[0].options?.tools, [{ googleSearch: {} }]);
+  assert.deepEqual(calls[0].options?.tools, [{ type: 'web_search', search_context_size: 'high' }]);
 });
 
-test('unknown public-domain requests can fall back to Gemini Google Search', async () => {
+test('unknown public-domain requests can fall back to OpenAI web search', async () => {
   const { config } = await import('../config.js');
   const storySources = await import('./storySources.js');
   Object.assign(config, {
     useSupabase: false,
-    sourceAnalysisModel: 'gemini-3.1-flash-lite',
+    sourceAnalysisModel: 'gpt-5.6-sol',
   });
 
   const calls: Array<{ prompt: string; options?: { model?: string; tools?: unknown[] } }> = [];
@@ -388,7 +388,7 @@ test('unknown public-domain requests can fall back to Gemini Google Search', asy
         prompt: string,
         _systemInstruction: string,
         _schema: Record<string, unknown>,
-        options?: JSONGenerationOptions,
+        options?: TextGenerationOptions,
       ) => {
         calls.push({ prompt, options });
         return makeSearchBeatSheet() as T;
@@ -402,10 +402,10 @@ test('unknown public-domain requests can fall back to Gemini Google Search', asy
   );
 
   assert.equal(source?.title, 'The Lost Crown');
-  assert.equal(source?.provider, 'wikisource');
+  assert.equal(source?.provider, 'openai_search');
   assert.equal(source?.sourceCacheHit, false);
   assert.equal(calls.length, 1);
-  assert.equal(calls[0].options?.model, 'gemini-3.1-flash-lite');
-  assert.deepEqual(calls[0].options?.tools, [{ googleSearch: {} }]);
+  assert.equal(calls[0].options?.model, 'gpt-5.6-sol');
+  assert.deepEqual(calls[0].options?.tools, [{ type: 'web_search', search_context_size: 'high' }]);
   assert.match(calls[0].prompt, /Find a trusted public-domain source/);
 });

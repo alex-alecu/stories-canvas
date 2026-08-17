@@ -319,7 +319,7 @@ test('story generator template keeps the reusable prompt guidance', async () => 
 test('generateScenarioWithModel uses draft, repair, deep review, and apply settings in order', async () => {
   const scenarioModule = await import('./scenario.js');
   const { config } = await import('../config.js');
-  const calls: Array<{ prompt: string; options?: { temperature?: number; thinkingConfig?: { thinkingBudget?: number; thinkingLevel?: string } } }> = [];
+  const calls: Array<{ prompt: string; options?: { temperature?: number; reasoningEffort?: string } }> = [];
 
   const invalidDraft = makeScenario({
     targetAge: 4,
@@ -335,7 +335,7 @@ test('generateScenarioWithModel uses draft, repair, deep review, and apply setti
     prompt: string,
     _systemInstruction: string,
     _schema: Record<string, unknown>,
-    options?: { temperature?: number; thinkingConfig?: { thinkingBudget?: number; thinkingLevel?: string } },
+    options?: { temperature?: number; reasoningEffort?: string },
   ): Promise<any> => {
     calls.push({ prompt, options });
     if (calls.length === 1) return invalidDraft;
@@ -358,18 +358,18 @@ test('generateScenarioWithModel uses draft, repair, deep review, and apply setti
   );
 
   assert.equal(calls.length, 4);
-  assert.equal(calls[0].options?.temperature, config.scenarioTemperature);
-  assert.deepEqual(calls[0].options?.thinkingConfig, { thinkingLevel: 'HIGH' });
-  assert.equal(calls[1].options?.temperature, config.scenarioReviewTemperature);
-  assert.deepEqual(calls[1].options?.thinkingConfig, { thinkingLevel: 'HIGH' });
+  assert.equal(calls[0].options?.temperature, undefined);
+  assert.equal(calls[0].options?.reasoningEffort, 'high');
+  assert.equal(calls[1].options?.temperature, undefined);
+  assert.equal(calls[1].options?.reasoningEffort, 'high');
   assert.match(calls[1].prompt, /Validation issues to fix:/);
   assert.match(calls[1].prompt, /targetAge must match the requested age of 3/);
   assert.match(calls[1].prompt, /pageNumber must be 2/);
-  assert.equal(calls[2].options?.temperature, config.scenarioReviewTemperature);
-  assert.deepEqual(calls[2].options?.thinkingConfig, { thinkingLevel: 'HIGH' });
+  assert.equal(calls[2].options?.temperature, undefined);
+  assert.equal(calls[2].options?.reasoningEffort, 'high');
   assert.match(calls[2].prompt, /Mode: Deep editorial review before final script\./);
-  assert.equal(calls[3].options?.temperature, config.scenarioReviewTemperature);
-  assert.deepEqual(calls[3].options?.thinkingConfig, { thinkingLevel: 'HIGH' });
+  assert.equal(calls[3].options?.temperature, undefined);
+  assert.equal(calls[3].options?.reasoningEffort, 'high');
   assert.match(calls[3].prompt, /Mode: Apply the deep editorial review to produce the final scenario JSON\./);
   assert.ok(scenario.pages.every(page => page.status === 'pending'));
 });

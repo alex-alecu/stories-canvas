@@ -145,10 +145,12 @@ const defaultLanguage = appLanguageEnv();
 const defaultSiteCopy = defaultLanguage === 'ro' ? DEFAULT_SITE_COPY.ro : DEFAULT_SITE_COPY.en;
 const supabaseUrl = optionalEnv('SUPABASE_URL');
 const supabaseServiceKey = optionalEnv('SUPABASE_SERVICE_KEY');
+const openAITextModel = 'gpt-5.6-sol';
 
 export const config = {
   geminiApiKey: requireEnv('GEMINI_API_KEY'),
-  scenarioModel: process.env.SCENARIO_MODEL || 'gemini-3.1-pro-preview',
+  openaiApiKey: optionalEnv('OPENAI_API_KEY'),
+  scenarioModel: openAITextModel,
   imageModel: process.env.IMAGE_MODEL || 'gemini-3.1-flash-image-preview',
   imageModelPro: process.env.IMAGE_MODEL_PRO || 'gemini-3-pro-image-preview',
   imageConcurrency: integerEnv('IMAGE_CONCURRENCY', 3),
@@ -164,11 +166,9 @@ export const config = {
   sseIpConnectionLimit: integerEnv('SSE_IP_CONNECTION_LIMIT', 10),
   sseStoryIpConnectionLimit: integerEnv('SSE_STORY_IP_CONNECTION_LIMIT', 3),
   authCacheTtlMs: integerEnv('AUTH_CACHE_TTL_MS', 60_000),
-  scenarioTemperature: numberEnv('SCENARIO_TEMPERATURE', 0.6, Number.parseFloat),
-  scenarioReviewTemperature: numberEnv('SCENARIO_REVIEW_TEMPERATURE', 0.2, Number.parseFloat),
-  sourceAnalysisModel: process.env.SOURCE_ANALYSIS_MODEL || 'gemini-3.1-flash-lite',
-  reviewModel: process.env.REVIEW_MODEL || 'gemini-3.1-flash-lite',
-  pageTextReviewModel: process.env.REVIEW_MODEL || process.env.PAGE_TEXT_REVIEW_MODEL || 'gemini-3.1-flash-lite',
+  sourceAnalysisModel: openAITextModel,
+  reviewModel: openAITextModel,
+  pageTextReviewModel: openAITextModel,
   storyPackPricing: resolveStoryPackPricingConfig(),
 
   // Supabase configuration

@@ -1,5 +1,5 @@
 import { config } from '../config.js';
-import * as gemini from './gemini.js';
+import * as openai from './openai.js';
 import { loadPromptMarkdown } from './promptFiles.js';
 
 export const PAGE_TEXT_REVIEW_REASON_CODES = [
@@ -24,8 +24,8 @@ export interface PageTextReviewResult {
 }
 
 type ReviewPurpose = 'page_text' | 'image_feedback';
-type GenerateJSONFn = typeof gemini.generateJSON;
-type UsageCallback = NonNullable<gemini.JSONGenerationOptions['onUsage']>;
+type GenerateJSONFn = typeof openai.generateJSON;
+type UsageCallback = NonNullable<openai.TextGenerationOptions['onUsage']>;
 
 interface RawPageTextReviewResult {
   allowed?: unknown;
@@ -110,7 +110,7 @@ export async function reviewPageText(
     language?: string;
     purpose?: ReviewPurpose;
   },
-  generateJSON: GenerateJSONFn = gemini.generateJSON,
+  generateJSON: GenerateJSONFn = openai.generateJSON,
   onUsage?: UsageCallback,
 ): Promise<PageTextReviewResult> {
   try {
@@ -126,6 +126,7 @@ export async function reviewPageText(
       {
         model: config.pageTextReviewModel,
         temperature: 0,
+        reasoningEffort: 'none',
         maxRetries: 1,
         onUsage,
       },

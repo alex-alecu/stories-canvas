@@ -30,6 +30,22 @@ export const OPENROUTER_MODEL_SOURCES = [
   },
 ] as const;
 
+export const OPENAI_TEXT_MODEL_PRICE = {
+  model: 'gpt-5.6-sol',
+  provider: 'openai' as const,
+  roles: ['source analysis', 'draft', 'validation repair', 'review', 'review rewrite', 'page text review'],
+  unit: 'input/output tokens and web search calls',
+  inputUsdPerToken: '0.000005',
+  cachedInputUsdPerToken: '0.0000005',
+  cacheWriteUsdPerToken: '0.00000625',
+  outputUsdPerToken: '0.00003',
+  imageOutputUsdPerToken: '0',
+  audioUsdPerCharacter: '0',
+  webSearchUsdPerCall: '0.01',
+  sourceUrl: 'https://developers.openai.com/api/docs/pricing',
+  endpointTag: 'openai-standard-tiered-context',
+} as const;
+
 interface OpenRouterEndpoint {
   provider_name?: unknown;
   tag?: unknown;
@@ -77,7 +93,7 @@ export async function fetchModelPriceCatalog(
   fetchFn: typeof fetch = fetch,
   fetchedAt = new Date(),
 ): Promise<ModelPriceCatalogEntry[]> {
-  const geminiEntries: ModelPriceCatalogEntry[] = await Promise.all(OPENROUTER_MODEL_SOURCES.map(async source => {
+  const catalogEntries: ModelPriceCatalogEntry[] = await Promise.all(OPENROUTER_MODEL_SOURCES.map(async source => {
     const response = await fetchFn(source.url, {
       headers: { Accept: 'application/json' },
       signal: AbortSignal.timeout(15_000),
@@ -94,45 +110,63 @@ export async function fetchModelPriceCatalog(
       roles: [...source.roles],
       unit: source.unit,
       inputUsdPerToken: decimal(pricing.prompt, 'prompt'),
+      cachedInputUsdPerToken: '0',
+      cacheWriteUsdPerToken: '0',
       outputUsdPerToken: decimal(pricing.completion, 'completion'),
       imageOutputUsdPerToken: isImage ? decimal(pricing.image_output, 'image_output') : '0',
       audioUsdPerCharacter: '0',
+      webSearchUsdPerCall: '0',
       sourceUrl: source.url,
       endpointTag: String(endpoint.tag),
       fetchedAt: fetchedAt.toISOString(),
     } satisfies ModelPriceCatalogEntry;
   }));
 
+  catalogEntries.push({
+    ...OPENAI_TEXT_MODEL_PRICE,
+    roles: [...OPENAI_TEXT_MODEL_PRICE.roles],
+    fetchedAt: fetchedAt.toISOString(),
+  });
+
   const audioRate = config.elevenLabsPriceUsdPer1kCharacters / 1000;
   if (!Number.isFinite(audioRate) || audioRate < 0) {
     throw new Error('ELEVENLABS_PRICE_USD_PER_1K_CHARACTERS must be non-negative');
   }
-  geminiEntries.push({
+  catalogEntries.push({
     model: config.elevenLabsModel,
     provider: 'elevenlabs',
     roles: ['audio'],
     unit: 'billed characters',
     inputUsdPerToken: '0',
+    cachedInputUsdPerToken: '0',
+    cacheWriteUsdPerToken: '0',
     outputUsdPerToken: '0',
     imageOutputUsdPerToken: '0',
     audioUsdPerCharacter: audioRate.toFixed(12).replace(/0+$/, '').replace(/\.$/, ''),
+    webSearchUsdPerCall: '0',
     sourceUrl: 'environment:ELEVENLABS_PRICE_USD_PER_1K_CHARACTERS',
     endpointTag: 'environment',
     fetchedAt: fetchedAt.toISOString(),
   });
-  return geminiEntries;
+  return catalogEntries;
 }
 
 function rowToEntry(row: Record<string, unknown>): ModelPriceCatalogEntry {
+  const provider = row.provider === 'openai'
+    ? 'openai'
+    : row.provider === 'elevenlabs' ? 'elevenlabs' : 'gemini';
   return {
     model: String(row.model),
-    provider: row.provider === 'elevenlabs' ? 'elevenlabs' : 'gemini',
+    provider,
     roles: Array.isArray(row.roles) ? row.roles.map(String) : [],
     unit: String(row.unit),
     inputUsdPerToken: String(row.input_usd_per_token),
+    cachedInputUsdPerToken: String(row.cached_input_usd_per_token ?? '0'),
+    cacheWriteUsdPerToken: String(row.cache_write_usd_per_token ?? '0'),
     outputUsdPerToken: String(row.output_usd_per_token),
     imageOutputUsdPerToken: String(row.image_output_usd_per_token),
     audioUsdPerCharacter: String(row.audio_usd_per_character),
+    webSearchUsdPerCall: String(row.web_search_usd_per_call ?? '0'),
     sourceUrl: String(row.source_url),
     endpointTag: String(row.endpoint_tag),
     fetchedAt: String(row.fetched_at),
@@ -197,9 +231,12 @@ export async function refreshModelPriceCatalog(options: { force?: boolean } = {}
         roles: entry.roles,
         unit: entry.unit,
         input_usd_per_token: entry.inputUsdPerToken,
+        cached_input_usd_per_token: entry.cachedInputUsdPerToken,
+        cache_write_usd_per_token: entry.cacheWriteUsdPerToken,
         output_usd_per_token: entry.outputUsdPerToken,
         image_output_usd_per_token: entry.imageOutputUsdPerToken,
         audio_usd_per_character: entry.audioUsdPerCharacter,
+        web_search_usd_per_call: entry.webSearchUsdPerCall,
         source_url: entry.sourceUrl,
         endpoint_tag: entry.endpointTag,
         fetched_at: entry.fetchedAt,

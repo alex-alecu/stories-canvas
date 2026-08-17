@@ -7,7 +7,7 @@ import {
   type AgentTool,
   type AgentTurnUpdate,
 } from './agentRuntime.js';
-import { createGeminiAgentModel, getMaxThinkingConfig } from './gemini.js';
+import { createOpenAIAgentModel } from './openai.js';
 import { loadMarkdownFile } from './promptFiles.js';
 
 export const MAIN_STORY_AGENT_MAX_TURNS = 50;
@@ -118,16 +118,15 @@ function reportIndependentReviewProgress<TContext>(
   });
 }
 
-/** Selects parent and delegated Gemini models while keeping accounting role-aware. */
+/** Selects parent and delegated OpenAI models while keeping accounting role-aware. */
 function createModelFactory<TContext>(
   options: RunStoryAgentOptions<TContext>,
 ): NonNullable<StoryAgentRunnerDependencies['modelFactory']> {
   if (options.dependencies?.modelFactory) return options.dependencies.modelFactory;
   const modelFor = (role: 'main' | 'subagent') => getStoryAgentModelName(role);
-  return role => createGeminiAgentModel({
+  return role => createOpenAIAgentModel({
     model: modelFor(role),
-    temperature: role === 'subagent' ? config.scenarioReviewTemperature : config.scenarioTemperature,
-    thinkingConfig: getMaxThinkingConfig(modelFor(role)),
+    reasoningEffort: 'high',
     onUsage: role === 'subagent'
       ? options.usageCallbacks?.onReviewUsage
       : usage => (

@@ -17,7 +17,7 @@ import {
   STORY_USAGE_PRICING_VERSION,
   computeElevenLabsCostUsdMicros,
   computeGeminiImageCostUsdMicros,
-  computeGeminiTextCostUsdMicros,
+  computeTextCostUsdMicros,
 } from './storyUsagePricing.js';
 import { resolveModelPricingSnapshot } from './modelPriceCatalog.js';
 
@@ -49,6 +49,60 @@ export interface StoryUsageRecordInput {
 
 export interface StoryUsageStorage {
   appendStoryUsageEvent(storyId: string, event: StoryUsageEvent, totalsDelta: StoryUsageTotals): Promise<void>;
+}
+
+interface TextUsageBillingUnits {
+  cachedInputTokens: number;
+  cacheWriteInputTokens: number;
+  webSearchCalls: number;
+}
+
+function record(value: unknown): Record<string, unknown> | undefined {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : undefined;
+}
+
+function nonNegativeNumber(...values: unknown[]): number {
+  for (const value of values) {
+    if (typeof value === 'number' && Number.isFinite(value)) return Math.max(0, value);
+  }
+  return 0;
+}
+
+function resolveTextUsageBillingUnits(usageDetails: Record<string, unknown> | undefined): TextUsageBillingUnits {
+  const details = usageDetails ?? {};
+  const responseUsage = record(details.responseUsage) ?? record(details.usage) ?? details;
+  const inputDetails = record(responseUsage.input_tokens_details)
+    ?? record(responseUsage.inputTokensDetails)
+    ?? record(details.input_tokens_details)
+    ?? record(details.inputTokensDetails)
+    ?? {};
+
+  return {
+    cachedInputTokens: nonNegativeNumber(
+      inputDetails.cached_tokens,
+      inputDetails.cachedTokens,
+      responseUsage.cached_input_tokens,
+      responseUsage.cachedInputTokens,
+      details.cached_input_tokens,
+      details.cachedInputTokens,
+    ),
+    cacheWriteInputTokens: nonNegativeNumber(
+      inputDetails.cache_write_tokens,
+      inputDetails.cacheWriteTokens,
+      responseUsage.cache_write_input_tokens,
+      responseUsage.cacheWriteInputTokens,
+      details.cache_write_input_tokens,
+      details.cacheWriteInputTokens,
+    ),
+    webSearchCalls: nonNegativeNumber(
+      responseUsage.web_search_calls,
+      responseUsage.webSearchCalls,
+      details.web_search_calls,
+      details.webSearchCalls,
+    ),
+  };
 }
 
 export function normalizeStoryUsageTotals(usageTotals?: Partial<StoryUsageTotals> | null): StoryUsageTotals {
@@ -102,6 +156,7 @@ function resolveCostMicros(
   outputTokens: number,
   imageOutputTokens: number,
   billedCharacters: number,
+  textUsageBillingUnits: TextUsageBillingUnits,
 ): number {
   if (input.provider === 'elevenlabs') {
     return computeElevenLabsCostUsdMicros(pricing, billedCharacters);
@@ -111,7 +166,7 @@ function resolveCostMicros(
     return computeGeminiImageCostUsdMicros(pricing, inputTokens, imageOutputTokens);
   }
 
-  return computeGeminiTextCostUsdMicros(pricing, inputTokens, outputTokens);
+  return computeTextCostUsdMicros(pricing, inputTokens, outputTokens, textUsageBillingUnits);
 }
 
 function buildTotalsDelta(input: StoryUsageRecordInput, inputTokens: number, outputTokens: number, totalTokens: number, costUsdMicros: number): StoryUsageTotals {
@@ -150,10 +205,21 @@ export async function recordStoryUsage(
   const imageOutputTokens = usageAvailable ? Math.max(0, input.imageOutputTokens ?? 0) : 0;
   const billedCharacters = usageAvailable ? Math.max(0, input.billedCharacters ?? 0) : 0;
   const totalTokens = inputTokens + outputTokens;
+  const textUsageBillingUnits = usageAvailable
+    ? resolveTextUsageBillingUnits(input.usageDetails)
+    : { cachedInputTokens: 0, cacheWriteInputTokens: 0, webSearchCalls: 0 };
   const pricingSnapshot = await pricingResolver(input.model);
   const calculatedAt = new Date().toISOString();
   const costUsdMicros = pricingSnapshot
-    ? resolveCostMicros(input, pricingSnapshot, inputTokens, outputTokens, imageOutputTokens, billedCharacters)
+    ? resolveCostMicros(
+      input,
+      pricingSnapshot,
+      inputTokens,
+      outputTokens,
+      imageOutputTokens,
+      billedCharacters,
+      textUsageBillingUnits,
+    )
     : 0;
   const event: StoryUsageEvent = {
     id: crypto.randomUUID(),

@@ -21,7 +21,7 @@ function makeStory(overrides: Partial<StoryMeta> = {}): StoryMeta {
       voice: 'corina',
       audioEnabled: true,
       proModel: true,
-      scenarioModel: 'gemini-3.1-pro-preview',
+      scenarioModel: 'gpt-5.6-sol',
       imageModel: 'gemini-3.1-flash-image-preview',
       imageModelPro: 'gemini-3-pro-image-preview',
       audioModel: 'eleven_multilingual_v2',

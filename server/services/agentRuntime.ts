@@ -114,7 +114,7 @@ function textContent(text: string): AgentContent {
   return { role: 'user', parts: [{ text }] };
 }
 
-/** Converts tool results into the function-response turn expected by Gemini. */
+/** Converts tool results into the provider-neutral function-response turn. */
 function functionResponseContent(
   calls: AgentFunctionCall[],
   responses: Array<Record<string, unknown>>,

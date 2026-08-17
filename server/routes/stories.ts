@@ -826,7 +826,7 @@ function createUsageRecorder(storyId: string, userId: string | undefined, source
     }) => {
       await safeRecord(operation, async () => {
         await recordStoryUsage(usageStorage, storyId, userId, {
-          provider: 'gemini',
+          provider: 'openai',
           operation,
           source,
           status: usage.status,
