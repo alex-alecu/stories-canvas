@@ -22,6 +22,7 @@ import {
 } from './scenarioValidation.js';
 import { resolveRetellingSource, type ResolvedRetellingSource } from './storySources.js';
 import { storyScriptToolParameters } from './storyScriptSchema.js';
+import { enforceStoryQuality } from './storyQualityGate.js';
 import {
   runStoryAgent,
   type StoryAgentProgressUpdate,
@@ -46,6 +47,7 @@ interface StoryAgentState {
 export interface StoryAgentDependencies {
   runner?: StoryAgentRunnerDependencies;
   resolveSource?: typeof resolveRetellingSource;
+  enforceQuality?: typeof enforceStoryQuality;
 }
 
 function validationOptions(context: StoryPromptContext): ScenarioValidationOptions {
@@ -194,7 +196,7 @@ export async function generateStoryScriptWithAgents(
 
   const tools = createStoryTools(context, onProgress);
 
-  const scenario = await runStoryAgent({
+  const agentScenario = await runStoryAgent({
     systemInstruction: buildStoryAgentSystemInstruction(context),
     initialPrompt: buildDraftScenarioPrompt(context),
     tools,
@@ -203,6 +205,13 @@ export async function generateStoryScriptWithAgents(
     onProgress,
     usageCallbacks,
     dependencies: dependencies.runner,
+    signal,
+  });
+  signal?.throwIfAborted();
+  const enforceQuality = dependencies.enforceQuality ?? enforceStoryQuality;
+  const scenario = await enforceQuality(context, agentScenario, {
+    onReviewUsage: usageCallbacks?.onReviewUsage,
+    onRewriteUsage: usageCallbacks?.onRewriteUsage,
     signal,
   });
 

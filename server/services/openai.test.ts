@@ -213,6 +213,39 @@ test('generateJSONFromContents maps model text to an assistant message', async (
   ]);
 });
 
+test('generateJSONFromContents sends base64 image inputs with structured output requests', async () => {
+  let body: Record<string, unknown> | undefined;
+  const result = await generateJSONFromContents<{ pass: boolean }>(
+    [{
+      role: 'user',
+      parts: [
+        { text: 'Compare this page with the reference.' },
+        { inlineData: { data: 'cGFnZQ==', mimeType: 'image/png', detail: 'high' } },
+        { inlineData: { data: 'cmVm', mimeType: 'image/webp', detail: 'low' } },
+      ],
+    }],
+    'Inspect the images.',
+    { type: 'OBJECT', properties: { pass: { type: 'BOOLEAN' } }, required: ['pass'] },
+    {
+      maxRetries: 1,
+      client: fakeClient(async requestBody => {
+        body = requestBody;
+        return response({ output_text: '{"pass":true}' });
+      }),
+    },
+  );
+
+  assert.deepEqual(result, { pass: true });
+  assert.deepEqual(body?.input, [{
+    role: 'user',
+    content: [
+      { type: 'input_text', text: 'Compare this page with the reference.' },
+      { type: 'input_image', detail: 'high', image_url: 'data:image/png;base64,cGFnZQ==' },
+      { type: 'input_image', detail: 'low', image_url: 'data:image/webp;base64,cmVm' },
+    ],
+  }]);
+});
+
 test('createOpenAIAgentModel preserves output items and tool call IDs', async () => {
   const calls: Array<Record<string, unknown>> = [];
   const reasoningItem = {

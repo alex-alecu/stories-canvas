@@ -22,3 +22,13 @@ test('generation cost migration freezes snapshots and repairs aggregates atomica
   assert.match(sql, /lease_expires_at > NOW\(\)/);
   assert.match(sql, /ENABLE ROW LEVEL SECURITY/);
 });
+
+test('image review usage migration adds the OpenAI visual review operation', async () => {
+  const sql = await fs.readFile(path.join(
+    process.cwd(), 'supabase', 'migrations', '20260820120311_add_page_image_review_usage.sql',
+  ), 'utf-8');
+
+  assert.match(sql, /'page_image_review'/);
+  assert.match(sql, /story_usage_events_operation_check/);
+  assert.match(sql, /'page image review' = ANY\(roles\)/);
+});

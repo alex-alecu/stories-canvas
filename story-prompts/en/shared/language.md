@@ -7,4 +7,6 @@
 - Inside appearance, clothing, characterSheetPrompt, and imagePrompt, keep the exact spelling from characters[].name whenever you mention a character. Do not translate, anglicize, or swap those names for franchise or canonical variants.
 - For faithful retellings, preserve canonical names, place names, and object names with their native diacritics unless the source context explicitly uses a different spelling.
 - Use warm, natural {{language_label}} names. Example style: {{language_sample_names}}.
+- Write complete, natural sentences that a native speaker would use when reading aloud. Do not use note-like fragments, compressed lists, or translated English sentence patterns.
+- Make the actor clear in every action. Repeat a name when a pronoun could refer to more than one character.
 - If the user provides a specific character name, place name, object name, or cultural detail, preserve it unless the prompt clearly asks for localization.

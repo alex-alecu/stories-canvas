@@ -18,6 +18,7 @@ export type StoryUsageOperation =
   | 'scenario_review'
   | 'scenario_review_rewrite'
   | 'page_text_review'
+  | 'page_image_review'
   | 'character_sheet'
   | 'page_image'
   | 'page_audio';

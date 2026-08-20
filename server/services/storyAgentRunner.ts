@@ -10,8 +10,8 @@ import {
 import { createOpenAIAgentModel } from './openai.js';
 import { loadMarkdownFile } from './promptFiles.js';
 
-export const MAIN_STORY_AGENT_MAX_TURNS = 50;
-export const SUBAGENT_MAX_TURNS = 10;
+export const MAIN_STORY_AGENT_MAX_TURNS = 20;
+export const SUBAGENT_MAX_TURNS = 6;
 const GENERIC_SUBAGENT_SYSTEM_INSTRUCTION = loadMarkdownFile('agent-prompts/system/subagent-system.md');
 
 interface UsageEvent {
@@ -126,7 +126,7 @@ function createModelFactory<TContext>(
   const modelFor = (role: 'main' | 'subagent') => getStoryAgentModelName(role);
   return role => createOpenAIAgentModel({
     model: modelFor(role),
-    reasoningEffort: 'high',
+    reasoningEffort: role === 'subagent' ? 'medium' : 'high',
     onUsage: role === 'subagent'
       ? options.usageCallbacks?.onReviewUsage
       : usage => (

@@ -815,7 +815,7 @@ function createUsageRecorder(storyId: string, userId: string | undefined, source
   }
 
   return {
-    recordText: async (operation: 'source_analysis' | 'scenario_draft' | 'scenario_validation_repair' | 'scenario_review' | 'scenario_review_rewrite' | 'page_text_review', usage: {
+    recordText: async (operation: 'source_analysis' | 'scenario_draft' | 'scenario_validation_repair' | 'scenario_review' | 'scenario_review_rewrite' | 'page_text_review' | 'page_image_review', usage: {
       model: string;
       status: 'succeeded' | 'failed';
       inputTokens: number;
@@ -1408,6 +1408,8 @@ async function runGenerationPipeline(
       signal,
       pro,
       (page, usage) => usageRecorder.recordPageImage(page.pageNumber, usage),
+      (page, usage) => usageRecorder.recordText('page_image_review', usage),
+      scenario.targetAge,
     );
 
     // Update cover image URL
@@ -1825,6 +1827,8 @@ async function runRegenerateAssetsPipeline(
       signal,
       undefined,
       (page, usage) => usageRecorder.recordPageImage(page.pageNumber, usage),
+      (page, usage) => usageRecorder.recordText('page_image_review', usage),
+      scenario.targetAge,
     );
 
     if (config.useSupabase) {
@@ -2133,6 +2137,9 @@ async function runRetryPipeline(
         undefined,
         (page, usage) => usageRecorder.recordPageImage(page.pageNumber, usage),
         (_character, usage) => usageRecorder.recordCharacterSheet(usage),
+        {},
+        (page, usage) => usageRecorder.recordText('page_image_review', usage),
+        scenario.targetAge,
       );
 
       // Update cover image if page 1 was retried and succeeded
@@ -2787,6 +2794,8 @@ async function runRegeneratePageImagePipeline(
       (page, usage) => usageRecorder.recordPageImage(page.pageNumber, usage),
       (_character, usage) => usageRecorder.recordCharacterSheet(usage),
       { includeCurrentSceneReference: true },
+      (page, usage) => usageRecorder.recordText('page_image_review', usage),
+      scenarioForGeneration.targetAge,
     );
 
     if (signal.aborted) throw new Error('Generation cancelled');

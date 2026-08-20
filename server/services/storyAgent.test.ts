@@ -48,7 +48,7 @@ function toolCall(name: string, args: Record<string, unknown>, id: string) {
   };
 }
 
-test('story agent validates revisions and uses prompt-driven independent review results', async () => {
+test('story agent validates revisions, uses one independent review, and runs the final quality gate', async () => {
   const { generateStoryScriptWithAgents } = await import('./storyAgent.js');
   const userPrompt = 'Tell a gentle story about a lantern.';
   const invalidScenario = makeScenario(4, true);
@@ -68,18 +68,13 @@ test('story agent validates revisions and uses prompt-driven independent review 
       handoff: handoff(validScenario, 1),
     }, 'review-1'),
     toolCall('save_story_script', { script: validScenario }, 'save-review-1'),
-    toolCall('spawn_subagent', {
-      task: 'Independently review the handed-off story script only and report actionable findings.',
-      handoff: handoff(validScenario, 2),
-    }, 'review-2'),
-    toolCall('save_story_script', { script: validScenario }, 'save-review-2'),
     toolCall('submit_story_script', {}, 'submit'),
   ];
   let mainIndex = 0;
   let subagentsCreated = 0;
   let invalidResponseSeen = false;
   let firstReviewSeen = false;
-  let secondReviewSeen = false;
+  let qualityGateSeen = false;
   const progressKinds: string[] = [];
 
   const modelFactory = (role: 'main' | 'subagent'): AgentModel => {
@@ -104,13 +99,12 @@ test('story agent validates revisions and uses prompt-driven independent review 
             && functionResponse.response.error?.includes('too many sentences');
         }));
       }
-      if (mainIndex === 3 || mainIndex === 5) {
+      if (mainIndex === 3) {
         const reviewSeen = request.contents.some(content => content.parts.some(part => {
           const functionResponse = part.functionResponse as { response?: { result?: string } } | undefined;
           return functionResponse?.response?.result?.includes('coherent and age appropriate') ?? false;
         }));
-        if (mainIndex === 3) firstReviewSeen = reviewSeen;
-        if (mainIndex === 5) secondReviewSeen = reviewSeen;
+        firstReviewSeen = reviewSeen;
       }
       const response = mainCalls[mainIndex];
       mainIndex += 1;
@@ -128,16 +122,20 @@ test('story agent validates revisions and uses prompt-driven independent review 
     {
       runner: { modelFactory },
       resolveSource: async () => undefined,
+      enforceQuality: async (_context, scenario) => {
+        qualityGateSeen = true;
+        return scenario;
+      },
     },
   );
 
   assert.equal(result.scenario.characters.length, 2);
   assert.equal(result.scenario.pages[2].text, validScenario.pages[2].text);
-  assert.equal(subagentsCreated, 2);
+  assert.equal(subagentsCreated, 1);
   assert.equal(mainIndex, mainCalls.length);
   assert.equal(invalidResponseSeen, true);
   assert.equal(firstReviewSeen, true);
-  assert.equal(secondReviewSeen, true);
+  assert.equal(qualityGateSeen, true);
   assert.ok(progressKinds.includes('main_agent'));
   assert.ok(progressKinds.includes('subagent'));
   assert.ok(progressKinds.includes('script'));
