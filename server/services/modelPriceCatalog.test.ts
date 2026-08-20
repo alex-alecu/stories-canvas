@@ -65,6 +65,7 @@ test('fetchModelPriceCatalog maps text, image-output, and audio rates', async ()
     'review',
     'review rewrite',
     'page text review',
+    'page image review',
   ]);
 });
 

@@ -217,9 +217,10 @@ test('generateSceneImage includes current page image as regeneration context', a
     {
       generateImage: async (prompt, referenceImages) => {
         capturedPrompt = prompt;
-        capturedReferenceImages = referenceImages;
+        capturedReferenceImages = referenceImages ?? [];
         return 'scene-image-base64';
       },
+      reviewImage: async () => ({ pass: true, summary: 'Ready.', retryFeedback: '', issues: [] }),
       retryOptions: {
         retries: 0,
         minTimeout: 0,
@@ -238,6 +239,127 @@ test('generateSceneImage includes current page image as regeneration context', a
     { data: 'current-page-image-base64', mimeType: 'image/png' },
   ]);
   assert.match(capturedPrompt, /current page image to preserve/);
+});
+
+test('generateSceneImage retries a failed visual review without a drifted previous scene', async () => {
+  const sceneGenerator = await import('./sceneGenerator.js');
+  const hero: Character = {
+    name: 'Prâslea',
+    role: 'hero',
+    appearance: 'Warm olive skin and wavy black hair.',
+    clothing: 'Moss-green tunic and ochre cloak.',
+    personality: 'Brave.',
+    characterSheetPrompt: 'Reference sheet for Prâslea.',
+  };
+  const references: string[][] = [];
+  const prompts: string[] = [];
+  let reviews = 0;
+  let saved = '';
+
+  const result = await sceneGenerator.generateSceneImage(
+    'story-quality-retry',
+    makePage({
+      pageNumber: 7,
+      text: 'Prâslea enters the copper palace.',
+      imagePrompt: 'Prâslea enters the copper palace.',
+      characters: ['Prâslea'],
+    }),
+    [hero],
+    new Map([['Prâslea', 'hero-sheet']]),
+    'Storybook illustration style',
+    undefined,
+    undefined,
+    'previous-scene',
+    true,
+    {
+      generateImage: async (prompt, referenceImages) => {
+        prompts.push(prompt);
+        references.push((referenceImages ?? []).map(image => image.data));
+        return prompts.length === 1 ? 'wrong-hero' : 'correct-hero';
+      },
+      reviewImage: async () => {
+        reviews++;
+        return reviews === 1
+          ? {
+              pass: false,
+              summary: 'The hero identity changed.',
+              retryFeedback: 'Use olive skin and black hair from the reference sheet.',
+              issues: [{
+                code: 'wrong_character_identity',
+                severity: 'major',
+                characterName: 'Prâslea',
+                summary: 'The hero is blond.',
+              }],
+            }
+          : { pass: true, summary: 'Ready.', retryFeedback: '', issues: [] };
+      },
+      retryOptions: { retries: 0, minTimeout: 0, maxTimeout: 0, randomize: false },
+      saveSceneImage: async (_storyId, _filename, base64) => { saved = base64; },
+      updatePageStatus: async () => {},
+    },
+  );
+
+  assert.equal(result, 'correct-hero');
+  assert.equal(saved, 'correct-hero');
+  assert.equal(reviews, 2);
+  assert.deepEqual(references, [
+    ['hero-sheet', 'previous-scene'],
+    ['hero-sheet'],
+  ]);
+  assert.match(prompts[1], /VISUAL QUALITY CORRECTION/);
+  assert.match(prompts[1], /olive skin and black hair/i);
+});
+
+test('generateSceneImage keeps four character sheets with scene continuity references', async () => {
+  const sceneGenerator = await import('./sceneGenerator.js');
+  const characters: Character[] = Array.from({ length: 4 }, (_, index) => ({
+    name: `Hero ${index + 1}`,
+    role: 'hero',
+    appearance: `Distinct appearance ${index + 1}.`,
+    clothing: `Distinct clothing ${index + 1}.`,
+    personality: 'Brave.',
+    characterSheetPrompt: `Reference sheet ${index + 1}.`,
+  }));
+  let references: string[] = [];
+
+  const result = await sceneGenerator.generateSceneImage(
+    'story-four-character-references',
+    makePage({
+      pageNumber: 8,
+      text: 'The four heroes meet in the garden.',
+      imagePrompt: 'The four heroes meet in the garden.',
+      characters: characters.map(character => character.name),
+    }),
+    characters,
+    new Map(characters.map((character, index) => [character.name, `sheet-${index + 1}`])),
+    'Storybook illustration style',
+    undefined,
+    undefined,
+    'previous-scene',
+    false,
+    {
+      generateImage: async (_prompt, referenceImages) => {
+        references = (referenceImages ?? []).map(image => image.data);
+        return 'scene-image';
+      },
+      reviewImage: async () => ({ pass: true, summary: 'Ready.', retryFeedback: '', issues: [] }),
+      retryOptions: { retries: 0, minTimeout: 0, maxTimeout: 0, randomize: false },
+      saveSceneImage: async () => {},
+      updatePageStatus: async () => {},
+    },
+    undefined,
+    'current-scene',
+  );
+
+  assert.equal(result, 'scene-image');
+  assert.deepEqual(references, [
+    'sheet-1',
+    'sheet-2',
+    'sheet-3',
+    'sheet-4',
+    'current-scene',
+    'previous-scene',
+  ]);
 });
 
 test('generateSceneImage logs the exact prohibited prompt and provider-policy debug context', async () => {
@@ -365,6 +487,7 @@ test('generateSceneImage sanitizes outbound prompts without mutating visible sto
         capturedPrompts.push(prompt);
         return 'scene-image-base64';
       },
+      reviewImage: async () => ({ pass: true, summary: 'Ready.', retryFeedback: '', issues: [] }),
       retryOptions: {
         retries: 0,
         minTimeout: 0,

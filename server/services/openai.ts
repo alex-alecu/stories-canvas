@@ -3,6 +3,7 @@ import type {
   Response,
   ResponseCreateParamsNonStreaming,
   ResponseFunctionToolCall,
+  ResponseInputContent,
   ResponseInputItem,
   Tool,
 } from 'openai/resources/responses/responses';
@@ -147,6 +148,25 @@ function textFromPart(part: Record<string, unknown>): string | undefined {
   return typeof part.text === 'string' ? part.text : undefined;
 }
 
+function imageFromPart(part: Record<string, unknown>): ResponseInputContent | undefined {
+  const value = part.inlineData;
+  if (!value || typeof value !== 'object') return undefined;
+  const inlineData = value as Record<string, unknown>;
+  const data = typeof inlineData.data === 'string' ? inlineData.data : '';
+  const mimeType = typeof inlineData.mimeType === 'string' ? inlineData.mimeType : '';
+  if (!data || !/^image\/(?:png|jpeg|webp)$/u.test(mimeType)) return undefined;
+  const detail = inlineData.detail === 'low'
+    || inlineData.detail === 'high'
+    || inlineData.detail === 'original'
+    ? inlineData.detail
+    : 'auto';
+  return {
+    type: 'input_image',
+    detail,
+    image_url: `data:${mimeType};base64,${data}`,
+  };
+}
+
 function toResponseInput(contents: TextContentInput | AgentContent[]): ResponseInputItem[] {
   if (typeof contents === 'string') {
     return [{ role: 'user', content: contents }];
@@ -155,6 +175,7 @@ function toResponseInput(contents: TextContentInput | AgentContent[]): ResponseI
   const input: ResponseInputItem[] = [];
   for (const content of contents) {
     const textParts: string[] = [];
+    const messageParts: ResponseInputContent[] = [];
     for (const part of content.parts) {
       const storedItem = toStoredOutputItem(part);
       if (storedItem) {
@@ -168,14 +189,25 @@ function toResponseInput(contents: TextContentInput | AgentContent[]): ResponseI
         continue;
       }
 
+      const image = imageFromPart(part);
+      if (image) {
+        messageParts.push(image);
+        continue;
+      }
+
       const text = textFromPart(part);
-      if (text !== undefined) textParts.push(text);
+      if (text !== undefined) {
+        textParts.push(text);
+        messageParts.push({ type: 'input_text', text });
+      }
     }
 
-    if (textParts.length > 0) {
+    if (messageParts.length > 0) {
       input.push({
         role: content.role === 'model' ? 'assistant' : content.role,
-        content: textParts.join('\n'),
+        content: messageParts.some(part => part.type === 'input_image')
+          ? messageParts
+          : textParts.join('\n'),
       });
     }
   }

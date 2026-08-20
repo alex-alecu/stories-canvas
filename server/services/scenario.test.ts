@@ -188,7 +188,7 @@ test('deep scenario review prompt stays concise and targets script quality', asy
   );
 
   const reviewPrompt = storyPrompt.buildScenarioReviewPrompt(context, makeScenario({ targetAge: 7 }));
-  const instructionBlock = reviewPrompt.split('\n\nTarget age:')[0];
+  const instructionBlock = reviewPrompt.replace(/\r\n/g, '\n').split('\n\nTarget age:')[0];
 
   assert.ok(instructionBlock.split('\n').length < 30);
   assert.match(instructionBlock, /Flag missing native diacritics/);
@@ -707,6 +707,22 @@ test('validateScenario rejects age-6 pages that are too long for the overlay bud
   const issues = validateScenario(scenario, 6);
 
   assert.ok(issues.some(issue => issue.code === 'page.text.ageLength'));
+});
+
+test('validateScenario rejects a visible named character missing from the page character list', async () => {
+  const { validateScenario } = await import('./scenarioValidation.js');
+  const scenario = makeScenario({
+    pages: makeValidPages().map((page, index) => index === 1
+      ? {
+          ...page,
+          imagePrompt: 'Mia and Pip hold the kite together in the garden.',
+          characters: ['Mia'],
+        }
+      : page),
+  });
+
+  const issues = validateScenario(scenario, scenario.targetAge);
+  assert.ok(issues.some(issue => issue.code === 'page.characters.missingVisible'));
 });
 
 test('validateScenario keeps original casts small but allows expanded retelling casts', async () => {

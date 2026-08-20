@@ -44,6 +44,17 @@ function countSentences(text: string): number {
   return segments.length > 0 ? segments.length : 1;
 }
 
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function containsExactName(text: string, name: string): boolean {
+  return new RegExp(
+    `(^|[^\\p{L}\\p{N}])${escapeRegExp(name)}(?=$|[^\\p{L}\\p{N}])`,
+    'iu',
+  ).test(text);
+}
+
 export function getScenarioTextRules(targetAge: number): ScenarioTextRules {
   if (targetAge <= 3) {
     return { maxChars: 160, maxSentences: 4 };
@@ -299,6 +310,16 @@ export function validateScenario(
       }
 
       referencedCharacters.add(normalizedKey);
+    }
+
+    for (const [normalizedKey, characterName] of characterNames.entries()) {
+      if (containsExactName(page.imagePrompt, characterName) && !pageCharacterSet.has(normalizedKey)) {
+        issues.push({
+          code: 'page.characters.missingVisible',
+          path: `${pathPrefix}.characters`,
+          message: `imagePrompt names visible character "${characterName}", so the page characters list must include it`,
+        });
+      }
     }
   }
 

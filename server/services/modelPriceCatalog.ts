@@ -33,7 +33,15 @@ export const OPENROUTER_MODEL_SOURCES = [
 export const OPENAI_TEXT_MODEL_PRICE = {
   model: 'gpt-5.6-sol',
   provider: 'openai' as const,
-  roles: ['source analysis', 'draft', 'validation repair', 'review', 'review rewrite', 'page text review'],
+  roles: [
+    'source analysis',
+    'draft',
+    'validation repair',
+    'review',
+    'review rewrite',
+    'page text review',
+    'page image review',
+  ],
   unit: 'input/output tokens and web search calls',
   inputUsdPerToken: '0.000005',
   cachedInputUsdPerToken: '0.0000005',
