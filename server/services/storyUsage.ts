@@ -1,5 +1,5 @@
 import { config } from '../config.js';
-import { requestUsageId } from './openrouter.js';
+import { requestUsageId } from './openrouterClient.js';
 import crypto from 'crypto';
 import type {
   ArtStyleKey,

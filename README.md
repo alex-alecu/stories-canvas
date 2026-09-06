@@ -8,7 +8,7 @@ The public gallery is free. Accounts hold prepaid funds in US dollars. A new sto
 
 - Users select one of six text models, a thinking level, and optional narration.
 - Each OpenRouter response supplies its actual USD cost. The app stores the response ID, model, thinking level, token usage, and cost.
-- Image and audio costs use the saved model price catalog. Generation stops if the required price is unavailable.
+- Images also use OpenRouter's reported request cost. Only ElevenLabs narration uses the saved price catalog. Generation stops if a required cost is unavailable.
 - Each request creates one cost entry and one wallet debit in the same database transaction. Duplicate event IDs cannot charge twice.
 - Costs use six decimal places. The app has no added generation markup. Provider funding and Stripe payment fees are operating costs.
 - Completed request costs still apply after a later failure or cancellation. Requests already in progress can take a balance below zero. Further generation then stops.
@@ -56,7 +56,7 @@ The text prompt that accompanies these reference images re-describes each charac
 
 Before any image request is sent to a provider, the app also sanitizes the outbound prompt: branded animation-style references are originalized and exact character names are replaced with neutral aliases. This keeps the stored story content unchanged while reducing provider policy blocks.
 
-If the current Google-backed image path remains too restrictive for some prompts, the next providers to evaluate are OpenAI GPT Image, Black Forest Labs FLUX, and Ideogram.
+Images use the [OpenRouter Image API](https://openrouter.ai/docs/guides/overview/multimodal/image-generation). The default models are `google/gemini-3.1-flash-image-preview` and `google/gemini-3-pro-image-preview`. Requests retain character and scene references, use the 4:3 format at 1K resolution, and save PNG files. The app uses the selected image model without an automatic upgrade from Flash to Pro. Cancellation reaches active image requests and stops further retries.
 
 This layered approach — character sheets for identity, previous scene for style and environment — is what keeps the story visually consistent from the first page to the last.
 
@@ -81,8 +81,8 @@ The first admin accounts are bootstrapped from `ADMIN_BOOTSTRAP_EMAILS`.
 
 Copy `.env.example` to `.env` and fill in the values you need:
 
-- `OPENROUTER_API_KEY` enables all text generation and text review. Keep it on the server. Direct OpenAI credentials are no longer used.
-- `GEMINI_API_KEY` is required for image generation. `IMAGE_MODEL` and `IMAGE_MODEL_PRO` are optional Gemini image model overrides.
+- `OPENROUTER_API_KEY` enables text, image generation, and reviews. Keep it on the server. Direct OpenAI and Gemini keys are no longer used.
+- `IMAGE_MODEL` and `IMAGE_MODEL_PRO` are optional OpenRouter image model IDs. Existing bare `gemini-*` IDs are converted to `google/gemini-*` IDs.
 - `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_KEY` enable auth, storage, billing, and admin APIs
 - `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` enable Checkout and webhook fulfillment
 - `APP_BASE_URL` should match the browser origin used for local or deployed checkout redirects
@@ -116,10 +116,12 @@ stripe listen \
 ## Deployment and Checks
 
 1. Stop active generation before the cutover. Back up the database.
-2. Apply all migrations, including `20260906075743_openrouter_usd_wallet.sql`.
-3. Set `OPENROUTER_API_KEY` and deploy the application with the migration. Existing Gemini, ElevenLabs, Supabase, and Stripe keys remain in use.
+2. Apply all migrations, including `20260906075743_openrouter_usd_wallet.sql` and `20260906100130_openrouter_image_usage.sql`.
+3. Set `OPENROUTER_API_KEY` and deploy the application with the migrations. Remove the old Gemini key. Existing ElevenLabs, Supabase, and Stripe keys remain in use.
 4. Remove old `STORY_PACK_*` environment defaults. USD funding amounts are now set in the admin screen.
 5. Verify a Stripe sandbox purchase. A completed USD Checkout grants the exact amount in its signed snapshot, once. Old Checkout sessions retain their legacy credit value at the 1:1 conversion rate.
 6. Confirm $9.99 blocks a new story and $10 allows it. Select a different model and thinking level. Check the saved settings, request cost, wallet debit, and updated balance after generation.
 
 The balance history links each cost to its story. Text costs come from the response, with a generation-ID lookup if the inline cost is absent. If no cost is available, an incomplete event is saved and generation stops for account support review.
+
+Image costs use the same response-cost lookup. Paid responses are never repeated because of a cost-recording or image-decoding failure. A lost connection saves an unknown cost and stops the request without a retry. The direct Google SDK, Gemini image service, safety-setting overrides, old live text/image price fetchers, and fixed-credit calculations have been removed. Historical usage rows and their price snapshots remain available for reports.

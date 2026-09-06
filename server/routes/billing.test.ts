@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import { once } from 'node:events';
 import test from 'node:test';
 
-process.env.GEMINI_API_KEY ??= 'test-key';
 
 type TestAuthUser = {
   id: string;

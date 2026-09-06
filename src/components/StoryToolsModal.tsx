@@ -6,8 +6,6 @@ import {
   DEFAULT_VOICE_KEY,
   STORY_REACTION_FEEDBACK_MAX_CHARS,
   VOICE_OPTIONS,
-  getStoryAudioCreditCost,
-  getStoryImagePageCreditCost,
   normalizeVoiceKey,
   type VoiceKey,
 } from '../../shared/types';
@@ -144,10 +142,7 @@ export default function StoryToolsModal({
   const activeProgress = isTrackingGeneration ? sseProgress : progress;
   const storyVoice = normalizeVoiceKey(voice);
   const availableCredits = billingOverview?.balance.availableCredits ?? 0;
-  const imageCost = getStoryImagePageCreditCost(imageMode);
-  const pageAudioCost = getStoryAudioCreditCost(1);
   const pageTextMaxChars = getPageTextMaxChars(scenario.targetAge);
-  const addNarrationCost = getStoryAudioCreditCost(scenario.pages.filter(page => !page.audioUrl).length || scenario.pages.length);
   const characterSheets = assets?.characterSheets ?? [];
   const currentImageUrl = currentPage?.imageUrl || `/api/stories/${storyId}/images/page-${String(currentPage?.pageNumber ?? 1).padStart(2, '0')}.png`;
   const currentVoiceLabel = storyVoice
@@ -162,9 +157,7 @@ export default function StoryToolsModal({
   const pageTextChanged = pageTextTrimmed !== (currentPage?.text ?? '').replace(/\s+/g, ' ').trim();
   const pageTextInvalid = !pageTextTrimmed || pageTextTrimmed.length > pageTextMaxChars;
 
-  const isCreditShort = useCallback((cost: number) => (
-    !!user && !!billingOverview && availableCredits <= 0
-  ), [availableCredits, billingOverview, user]);
+  const needsFunds = !!user && !!billingOverview && availableCredits <= 0;
 
   const goToBilling = useCallback(() => {
     const returnTo = `${location.pathname}${location.search}`;
@@ -349,7 +342,7 @@ export default function StoryToolsModal({
 
   const handleGenerateAudio = useCallback(async () => {
     if (!canStartAddNarration) return;
-    if (isCreditShort(addNarrationCost)) {
+    if (needsFunds) {
       goToBilling();
       return;
     }
@@ -364,12 +357,11 @@ export default function StoryToolsModal({
       clearOperationGracePeriod();
     }
   }, [
-    addNarrationCost,
     canStartAddNarration,
     clearOperationGracePeriod,
     generateAudio,
     goToBilling,
-    isCreditShort,
+    needsFunds,
     selectedVoice,
     startOperationGracePeriod,
     storyId,
@@ -423,7 +415,7 @@ export default function StoryToolsModal({
 
   const handleImageSubmit = useCallback(async () => {
     if (!currentPage || !canUsePageActions) return;
-    if (isCreditShort(imageCost)) {
+    if (needsFunds) {
       goToBilling();
       return;
     }
@@ -458,10 +450,9 @@ export default function StoryToolsModal({
     clearOperationGracePeriod,
     currentPage,
     goToBilling,
-    imageCost,
     imageFeedbackTrimmed,
     imageMode,
-    isCreditShort,
+    needsFunds,
     regenerateImage,
     startOperationGracePeriod,
     storyId,
@@ -470,7 +461,7 @@ export default function StoryToolsModal({
 
   const handlePageAudioSubmit = useCallback(async () => {
     if (!currentPage || !canUsePageActions || !storyVoice) return;
-    if (isCreditShort(pageAudioCost)) {
+    if (needsFunds) {
       goToBilling();
       return;
     }
@@ -500,8 +491,7 @@ export default function StoryToolsModal({
     clearOperationGracePeriod,
     currentPage,
     goToBilling,
-    isCreditShort,
-    pageAudioCost,
+    needsFunds,
     pageTextInvalid,
     pageTextMaxChars,
     pageTextTrimmed,
@@ -751,7 +741,7 @@ export default function StoryToolsModal({
               <h3 className="text-sm font-semibold text-white">{t.addNarration}</h3>
               <p className="mt-1 text-sm text-white/55">{getWalletCopy(language).actualCost}</p>
             </div>
-            {isCreditShort(addNarrationCost) && (
+            {needsFunds && (
               <span className="rounded-full bg-amber-500/15 px-2 py-1 text-xs text-amber-200">{t.notEnoughCredits}</span>
             )}
           </div>
@@ -786,7 +776,7 @@ export default function StoryToolsModal({
               disabled={isBusy || !canStartAddNarration}
               className="rounded-lg bg-primary-500 px-5 py-2 text-sm font-bold text-white transition-colors hover:bg-primary-600 disabled:cursor-not-allowed disabled:bg-primary-500/45"
             >
-              {isCreditShort(addNarrationCost) ? t.getCredits : isAddingNarration ? t.generatingNarration : t.generateNarration}
+              {needsFunds ? t.getCredits : isAddingNarration ? t.generatingNarration : t.generateNarration}
             </button>
           </div>
         </section>
@@ -889,7 +879,7 @@ export default function StoryToolsModal({
         disabled={!canUsePageActions || isBusy || regenerateImage.isPending || !imageFeedbackTrimmed}
         className="w-full rounded-lg bg-primary-500 px-5 py-3 text-sm font-bold text-white transition-colors hover:bg-primary-600 disabled:cursor-not-allowed disabled:bg-primary-500/45"
       >
-        {isCreditShort(imageCost) ? t.getCredits : isRegeneratingImage ? t.regenerating : t.regeneratePageImageTitle}
+        {needsFunds ? t.getCredits : isRegeneratingImage ? t.regenerating : t.regeneratePageImageTitle}
       </button>
     </div>
   );
@@ -940,7 +930,7 @@ export default function StoryToolsModal({
         disabled={!storyVoice || !canUsePageActions || isBusy || regeneratePageAudio.isPending || pageTextInvalid || !pageTextChanged}
         className="w-full rounded-lg bg-primary-500 px-5 py-3 text-sm font-bold text-white transition-colors hover:bg-primary-600 disabled:cursor-not-allowed disabled:bg-primary-500/45"
       >
-        {isCreditShort(pageAudioCost) ? t.getCredits : isRegeneratingPageAudio ? t.updating : t.updateScriptAndAudio}
+        {needsFunds ? t.getCredits : isRegeneratingPageAudio ? t.updating : t.updateScriptAndAudio}
       </button>
     </div>
   );

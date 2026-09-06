@@ -1,4 +1,4 @@
-import { requireMediaPricing } from './modelPriceCatalog.js';
+import { requireAudioPricing } from './modelPriceCatalog.js';
 import { ElevenLabsClient } from '@elevenlabs/elevenlabs-js';
 import pRetry, { AbortError } from 'p-retry';
 import { config } from '../config.js';
@@ -90,7 +90,7 @@ export async function generatePageAudio(
   voiceKey: VoiceKey,
   onUsage?: AudioUsageCallback,
 ): Promise<Buffer> {
-  await requireMediaPricing(config.elevenLabsModel, 'audio');
+  await requireAudioPricing(config.elevenLabsModel);
   const elevenlabs = getClient();
   const settings = getVoiceSettings(voiceKey);
   const billedCharacters = text.length;

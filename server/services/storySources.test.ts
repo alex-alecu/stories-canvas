@@ -3,7 +3,6 @@ import test from 'node:test';
 
 import type { TextGenerationOptions } from './openrouter.js';
 
-process.env.GEMINI_API_KEY ??= 'test-key';
 
 function makeSearchBeatSheet() {
   return {

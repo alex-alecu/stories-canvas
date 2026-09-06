@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { TextGenerationOptions } from './openrouter.js';
 
-process.env.GEMINI_API_KEY ??= 'test-key';
 
 async function loadReviewPageText() {
   return (await import('./pageTextReview.js')).reviewPageText;

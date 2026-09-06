@@ -49,15 +49,10 @@ import {
   DEFAULT_ART_STYLE,
   STORY_REACTION_FEEDBACK_MAX_CHARS,
   estimateInitialStoryPageCount,
-  getStoryAudioCreditCost,
-  getStoryCreditCost,
-  getStoryImageCreditCost,
-  getStoryImagePageCreditCost,
   getVoiceName,
   isStoryMode,
   isStoryReaction,
   normalizeVoiceKey,
-  roundCreditAmount,
 } from '../../shared/types.js';
 import { MEDIA_CACHE_CONTROL, getPageAudioFilename, getPageImageFilename, pageHasAudio } from '../utils/storyMedia.js';
 import {
@@ -868,7 +863,7 @@ function createUsageRecorder(storyId: string, userId: string | undefined, source
     }) => {
       await safeRecord('character_sheet', async () => {
         await recordStoryUsage(usageStorage, storyId, userId, {
-          provider: 'gemini',
+          provider: 'openrouter',
           operation: 'character_sheet',
           source,
           status: usage.status,
@@ -895,7 +890,7 @@ function createUsageRecorder(storyId: string, userId: string | undefined, source
     }) => {
       await safeRecord(`page_image:${pageNumber}`, async () => {
         await recordStoryUsage(usageStorage, storyId, userId, {
-          provider: 'gemini',
+          provider: 'openrouter',
           operation: 'page_image',
           source,
           status: usage.status,

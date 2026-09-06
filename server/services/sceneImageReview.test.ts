@@ -3,7 +3,6 @@ import test from 'node:test';
 
 import type { Character, Page } from '../../shared/types.js';
 
-process.env.GEMINI_API_KEY ??= 'test-key';
 
 const character: Character = {
   name: 'Prâslea',

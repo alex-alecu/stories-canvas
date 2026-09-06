@@ -1,6 +1,6 @@
 import OpenAI, { APIConnectionError, APIError } from 'openai';
 import type { ChatCompletion, ChatCompletionCreateParamsNonStreaming, ChatCompletionMessageParam } from 'openai/resources/chat/completions';
-import { createHash } from 'node:crypto';
+import { getOpenRouterClient, resolveOpenRouterCost } from './openrouterClient.js';
 import { config } from '../config.js';
 import type { AgentContent, AgentModel } from './agentRuntime.js';
 import { getTextModelSettings } from './textGenerationContext.js';
@@ -34,19 +34,6 @@ export interface TextContent {
 export type TextContentInput = string | TextContent[];
 type RouterMessage = ChatCompletion['choices'][number]['message'] & { reasoning_details?: unknown[] };
 type RouterCompletion = ChatCompletion & { usage?: ChatCompletion['usage'] & { cost?: number }; error?: { message?: string } };
-let client: OpenAI | undefined;
-let clientKey: string | undefined;
-
-export function getOpenRouterClient(): OpenAI {
-  const apiKey = process.env.OPENROUTER_API_KEY?.trim() || config.openrouterApiKey;
-  if (!apiKey) throw new Error('Missing required environment variable: OPENROUTER_API_KEY');
-  if (!client || clientKey !== apiKey) {
-    client = new OpenAI({ apiKey, baseURL: 'https://openrouter.ai/api/v1', maxRetries: 0,
-      defaultHeaders: { 'HTTP-Referer': config.appBaseUrl, 'X-OpenRouter-Title': config.appSiteName } });
-    clientKey = apiKey;
-  }
-  return client;
-}
 
 export function toJSONSchema(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(toJSONSchema);
@@ -83,20 +70,8 @@ export function toChatMessages(contents: TextContentInput | AgentContent[]): Cha
   return messages;
 }
 
-function validCost(value: unknown): value is number {
-  return typeof value === 'number' && Number.isFinite(value) && value >= 0 && Number.isSafeInteger(Math.round(value * 1_000_000));
-}
-
 async function usageEvent(response: RouterCompletion, status: TextUsageEvent['status'], api: RouterClient): Promise<TextUsageEvent> {
-  let cost = response.usage?.cost;
-  if (!validCost(cost) && response.id) {
-    try {
-      const result = await api.get<{ data: { total_cost?: number } }>('/generation', {
-        query: { id: response.id }, timeout: 15_000, maxRetries: 2,
-      });
-      cost = result.data.total_cost;
-    } catch { /* Keep an incomplete event for account support. Never infer a zero charge. */ }
-  }
+  const cost = await resolveOpenRouterCost(response.usage?.cost, response.id, api);
   return {
     model: response.model || getTextModelSettings().textModel,
     status,
@@ -105,15 +80,9 @@ async function usageEvent(response: RouterCompletion, status: TextUsageEvent['st
     totalTokens: response.usage?.total_tokens ?? 0,
     usageAvailable: !!response.usage,
     usageDetails: { ...response.usage, responseId: response.id, responseModel: response.model,
-      providerCostUsd: validCost(cost) ? cost : null, costSource: 'openrouter',
+      providerCostUsd: cost, costSource: 'openrouter',
       thinkingLevel: getTextModelSettings().thinkingLevel },
   };
-}
-
-// The response ID keeps accounting idempotent when a database write is retried.
-export function requestUsageId(storyId: string, responseId: string): string {
-  const hex = createHash('sha256').update(`openrouter:${storyId}:${responseId}`).digest('hex');
-  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-5${hex.slice(13, 16)}-a${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
 }
 
 async function request<T>(body: Record<string, unknown>, options: TextGenerationOptions, read: (response: RouterCompletion) => T): Promise<T> {

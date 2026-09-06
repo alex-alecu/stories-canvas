@@ -3,7 +3,6 @@ import test from 'node:test';
 
 import type { Page, Scenario, StoryMeta } from '../../shared/types.js';
 
-process.env.GEMINI_API_KEY ??= 'test-key';
 
 function makePage(overrides: Partial<Page> = {}): Page {
   return {

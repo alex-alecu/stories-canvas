@@ -4,7 +4,6 @@ import test from 'node:test';
 import type { Scenario } from '../../shared/types.js';
 import type { StoryPromptContext } from './storyPrompt.js';
 
-process.env.GEMINI_API_KEY ??= 'test-key';
 
 function makeScenario(text = 'Mara lights the lantern and follows the safe path.'): Scenario {
   return {

@@ -24,54 +24,12 @@ export type StoryUsageOperation =
   | 'page_image'
   | 'page_audio';
 
-export const STORY_MODE_CREDITS: Record<StoryMode, number> = {
-  fast: 1,
-  pro: 2,
-  pro_audio: 3,
-};
-
 export const STORY_PAGE_DEFAULT_MAX_COUNT = 10;
 export const STORY_PAGE_MAX_COUNT = 20;
 export const STORY_PAGE_TARGET_COUNT = STORY_PAGE_DEFAULT_MAX_COUNT;
 
-export const STORY_PAGE_CREDIT_COSTS = {
-  fastImage: 0.1,
-  proImage: 0.2,
-  audio: 0.1,
-} as const;
-
 export function isStoryMode(value: string | null | undefined): value is StoryMode {
   return value === 'fast' || value === 'pro' || value === 'pro_audio';
-}
-
-export function getStoryModeCredits(mode: StoryMode): number {
-  return STORY_MODE_CREDITS[mode];
-}
-
-export function roundCreditAmount(amount: number): number {
-  return Math.round(amount * 10) / 10;
-}
-
-export function getStoryImagePageCreditCost(mode: StoryMode | undefined): number {
-  return mode === 'pro' || mode === 'pro_audio'
-    ? STORY_PAGE_CREDIT_COSTS.proImage
-    : STORY_PAGE_CREDIT_COSTS.fastImage;
-}
-
-export function getStoryAudioPageCreditCost(): number {
-  return STORY_PAGE_CREDIT_COSTS.audio;
-}
-
-export function getStoryImageCreditCost(mode: StoryMode | undefined, pageCount: number): number {
-  return roundCreditAmount(getStoryImagePageCreditCost(mode) * Math.max(0, pageCount));
-}
-
-export function getStoryAudioCreditCost(pageCount: number): number {
-  return roundCreditAmount(getStoryAudioPageCreditCost() * Math.max(0, pageCount));
-}
-
-export function getStoryCreditCost(mode: StoryMode, _pageCount = STORY_PAGE_TARGET_COUNT): number {
-  return STORY_MODE_CREDITS[mode];
 }
 
 function normalizePromptForPageEstimate(value: string | undefined): string {

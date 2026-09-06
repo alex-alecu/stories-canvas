@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { AbortError } from 'p-retry';
 
 import type { Character } from '../../shared/types.js';
 
-process.env.GEMINI_API_KEY ??= 'test-key';
 
 function makeCharacters(): Character[] {
   return [
@@ -25,6 +25,20 @@ function makeCharacters(): Character[] {
     },
   ];
 }
+
+test('character requests receive cancellation and stop after a fatal cost error', async () => {
+  const { generateAllCharacterSheets } = await import('./characterSheet.js');
+  const controller = new AbortController();
+  let calls = 0;
+  await assert.rejects(generateAllCharacterSheets('story-cost-stop', makeCharacters(), undefined, controller.signal, undefined, false, {
+    generateImage: async (_prompt, _references, options) => {
+      calls++;
+      assert.equal(options?.signal, controller.signal);
+      throw new AbortError('Image cost unavailable');
+    },
+  }), /Image cost unavailable/);
+  assert.equal(calls, 1);
+});
 
 test('generateAllCharacterSheets sanitizes outbound prompts without mutating stored character data', async () => {
   const characterSheet = await import('./characterSheet.js');

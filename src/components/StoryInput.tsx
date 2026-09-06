@@ -12,7 +12,6 @@ import {
   DEFAULT_ART_STYLE,
   DEFAULT_VOICE_KEY,
   getAgeGroup,
-  getStoryCreditCost,
   VOICE_OPTIONS,
   type ArtStyleKey,
   type StoryMode,

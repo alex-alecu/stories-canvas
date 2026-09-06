@@ -3,146 +3,17 @@ import { config } from '../config.js';
 import type { ModelPriceCatalogEntry, ModelPricingSnapshot, PriceCatalogStatus } from '../../shared/types.js';
 import { getSupabase } from './supabase.js';
 
-export const OPENROUTER_MODEL_SOURCES = [
-  {
-    model: 'gemini-3.1-pro-preview',
-    roles: ['draft', 'rewrite'],
-    unit: 'input/output tokens',
-    url: 'https://openrouter.ai/api/v1/models/google/gemini-3.1-pro-preview/endpoints',
-  },
-  {
-    model: 'gemini-3.1-flash-lite',
-    roles: ['review', 'page text review', 'source analysis'],
-    unit: 'input/output tokens',
-    url: 'https://openrouter.ai/api/v1/models/google/gemini-3.1-flash-lite-preview/endpoints',
-  },
-  {
-    model: 'gemini-3.1-flash-image-preview',
-    roles: ['fast image'],
-    unit: 'input/image-output tokens',
-    url: 'https://openrouter.ai/api/v1/models/google/gemini-3.1-flash-image-preview/endpoints',
-  },
-  {
-    model: 'gemini-3-pro-image-preview',
-    roles: ['pro image'],
-    unit: 'input/image-output tokens',
-    url: 'https://openrouter.ai/api/v1/models/google/gemini-3-pro-image-preview/endpoints',
-  },
-] as const;
-
-export const OPENAI_TEXT_MODEL_PRICE = {
-  model: 'gpt-5.6-sol',
-  provider: 'openai' as const,
-  roles: [
-    'source analysis',
-    'draft',
-    'validation repair',
-    'review',
-    'review rewrite',
-    'page text review',
-    'page image review',
-  ],
-  unit: 'input/output tokens and web search calls',
-  inputUsdPerToken: '0.000005',
-  cachedInputUsdPerToken: '0.0000005',
-  cacheWriteUsdPerToken: '0.00000625',
-  outputUsdPerToken: '0.00003',
-  imageOutputUsdPerToken: '0',
-  audioUsdPerCharacter: '0',
-  webSearchUsdPerCall: '0.01',
-  sourceUrl: 'https://developers.openai.com/api/docs/pricing',
-  endpointTag: 'openai-standard-tiered-context',
-  fetchedAt: '2026-08-17T00:00:00.000Z',
-} as const;
-
 const PRICE_CATALOG_STALE_AFTER_MS = 24 * 60 * 60 * 1000;
-
-interface OpenRouterEndpoint {
-  provider_name?: unknown;
-  tag?: unknown;
-  pricing?: {
-    prompt?: unknown;
-    completion?: unknown;
-    image_output?: unknown;
-  };
-}
-
-interface OpenRouterResponse {
-  data?: {
-    endpoints?: unknown;
-  };
-}
-
 const cache = new Map<string, ModelPriceCatalogEntry>();
 let cachedStatus: PriceCatalogStatus | null = null;
 
-function decimal(value: unknown, field: string): string {
-  if (typeof value !== 'string' || !/^\d+(?:\.\d+)?$/.test(value)) {
-    throw new Error(`OpenRouter ${field} price is missing or malformed`);
-  }
-  return value;
-}
-
-export function selectGoogleAiStudioEndpoint(payload: unknown): OpenRouterEndpoint {
-  const endpoints = (payload as OpenRouterResponse)?.data?.endpoints;
-  if (!Array.isArray(endpoints)) {
-    throw new Error('OpenRouter response is missing endpoints');
-  }
-
-  const matches = (endpoints as OpenRouterEndpoint[]).filter(endpoint => {
-    const tag = typeof endpoint.tag === 'string' ? endpoint.tag : '';
-    return endpoint.provider_name === 'Google AI Studio'
-      && !tag.split('/').some(part => part === 'flex' || part === 'priority');
-  });
-  if (matches.length !== 1) {
-    throw new Error(`Expected one standard Google AI Studio endpoint, found ${matches.length}`);
-  }
-  return matches[0];
-}
-
-export async function fetchModelPriceCatalog(
-  fetchFn: typeof fetch = fetch,
-  fetchedAt = new Date(),
-): Promise<ModelPriceCatalogEntry[]> {
-  const catalogEntries: ModelPriceCatalogEntry[] = await Promise.all(OPENROUTER_MODEL_SOURCES.map(async source => {
-    const response = await fetchFn(source.url, {
-      headers: { Accept: 'application/json' },
-      signal: AbortSignal.timeout(15_000),
-    });
-    if (!response.ok) {
-      throw new Error(`OpenRouter price request failed for ${source.model}: HTTP ${response.status}`);
-    }
-    const endpoint = selectGoogleAiStudioEndpoint(await response.json());
-    const pricing = endpoint.pricing ?? {};
-    const isImage = source.roles.some(role => role.includes('image'));
-    return {
-      model: source.model,
-      provider: 'gemini' as const,
-      roles: [...source.roles],
-      unit: source.unit,
-      inputUsdPerToken: decimal(pricing.prompt, 'prompt'),
-      cachedInputUsdPerToken: '0',
-      cacheWriteUsdPerToken: '0',
-      outputUsdPerToken: decimal(pricing.completion, 'completion'),
-      imageOutputUsdPerToken: isImage ? decimal(pricing.image_output, 'image_output') : '0',
-      audioUsdPerCharacter: '0',
-      webSearchUsdPerCall: '0',
-      sourceUrl: source.url,
-      endpointTag: String(endpoint.tag),
-      fetchedAt: fetchedAt.toISOString(),
-    } satisfies ModelPriceCatalogEntry;
-  }));
-
-  catalogEntries.push({
-    ...OPENAI_TEXT_MODEL_PRICE,
-    roles: [...OPENAI_TEXT_MODEL_PRICE.roles],
-  });
-
+// Text and image requests use OpenRouter response costs. Only narration needs a configured rate.
+export function buildAudioPriceCatalog(fetchedAt = new Date()): ModelPriceCatalogEntry[] {
   const audioRate = config.elevenLabsPriceUsdPer1kCharacters / 1000;
   if (!Number.isFinite(audioRate) || audioRate < 0) {
     throw new Error('ELEVENLABS_PRICE_USD_PER_1K_CHARACTERS must be non-negative');
   }
-  catalogEntries.push({
+  return [{
     model: config.elevenLabsModel,
     provider: 'elevenlabs',
     roles: ['audio'],
@@ -157,17 +28,13 @@ export async function fetchModelPriceCatalog(
     sourceUrl: 'environment:ELEVENLABS_PRICE_USD_PER_1K_CHARACTERS',
     endpointTag: 'environment',
     fetchedAt: fetchedAt.toISOString(),
-  });
-  return catalogEntries;
+  }];
 }
 
 function rowToEntry(row: Record<string, unknown>): ModelPriceCatalogEntry {
-  const provider = row.provider === 'openai'
-    ? 'openai'
-    : row.provider === 'elevenlabs' ? 'elevenlabs' : 'gemini';
   return {
     model: String(row.model),
-    provider,
+    provider: 'elevenlabs',
     roles: Array.isArray(row.roles) ? row.roles.map(String) : [],
     unit: String(row.unit),
     inputUsdPerToken: String(row.input_usd_per_token),
@@ -210,7 +77,7 @@ export async function loadModelPriceCatalog(): Promise<{
 }> {
   const supabase = getSupabase();
   const [{ data: rows, error: catalogError }, { data: state, error: stateError }] = await Promise.all([
-    supabase.from('model_price_catalog').select('*').order('model'),
+    supabase.from('model_price_catalog').select('*').eq('model', config.elevenLabsModel).eq('provider', 'elevenlabs'),
     supabase.from('price_catalog_refresh_state').select('*').eq('singleton', true).single(),
   ]);
   if (catalogError) throw new Error(`Failed to load model price catalog: ${catalogError.message}`);
@@ -249,7 +116,7 @@ export async function refreshModelPriceCatalog(options: { force?: boolean } = {}
   if (claimed !== true) return false;
 
   try {
-    const entries = await fetchModelPriceCatalog();
+    const entries = buildAudioPriceCatalog();
     const { error: upsertError } = await supabase.from('model_price_catalog').upsert(
       entries.map(entry => ({
         model: entry.model,
@@ -298,10 +165,10 @@ export async function refreshModelPriceCatalog(options: { force?: boolean } = {}
 }
 
 /** Stop before a paid media request when its rate cannot be recorded. */
-export async function requireMediaPricing(model: string, kind: 'image' | 'audio'): Promise<void> {
+export async function requireAudioPricing(model: string): Promise<void> {
   if (!config.useSupabase) return;
   const pricing = await resolveModelPricingSnapshot(model);
-  const rate = Number(kind === 'image' ? pricing?.imageOutputUsdPerToken : pricing?.audioUsdPerCharacter);
+  const rate = Number(pricing?.audioUsdPerCharacter);
   if (!pricing || !Number.isFinite(rate) || rate <= 0) {
     throw new Error('Generation pricing is unavailable. Please try again later.');
   }

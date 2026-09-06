@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-process.env.GEMINI_API_KEY ??= 'test-key';
 
 const { computeAverageCreditValueMinor, computeStoryProfitUsdMicros } = await import('./adminStorage.js');
 const { parseAdminPagination } = await import('../routes/admin.js');

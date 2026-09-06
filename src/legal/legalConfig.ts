@@ -266,7 +266,7 @@ const roDocuments: Record<LegalRouteKey, LegalDocument> = {
       heading: '4. Furnizori și destinatari',
       body: [
         'Pentru funcționarea website-ului folosim furnizori tehnici, precum servicii de autentificare, bază de date și stocare, procesare plăți, generare AI text/imagine/audio, găzduire, monitorizare, suport și marketing. Furnizorii primesc doar datele necesare rolului lor.',
-        'În configurația actuală a produsului pot fi folosite categorii precum Supabase pentru autentificare, bază de date și stocare, Stripe pentru plăți, OpenRouter și furnizorul modelului selectat pentru text, Google pentru imagini, ElevenLabs pentru narațiune audio dacă alegeți această funcție, și Google/Meta/TikTok pentru marketing numai după consimțământ.',
+        'În configurația actuală a produsului pot fi folosite categorii precum Supabase pentru autentificare, bază de date și stocare, Stripe pentru plăți, OpenRouter și furnizorul modelului selectat pentru text și imagini, ElevenLabs pentru narațiune audio dacă alegeți această funcție, și Google/Meta/TikTok pentru marketing numai după consimțământ.',
         'Datele pot fi transferate în afara Spațiului Economic European dacă furnizorii noștri operează global. În aceste cazuri folosim mecanismele contractuale și măsurile de protecție disponibile conform GDPR.',
       ],
     },
@@ -518,7 +518,7 @@ const enDocuments: Record<LegalRouteKey, LegalDocument> = {
       heading: '4. Providers and recipients',
       body: [
         'We use technical providers for authentication, database and storage, payment processing, AI text/image/audio generation, hosting, monitoring, support, and marketing. Providers receive only the data needed for their role.',
-        'The current product setup may use Supabase for authentication, database, and storage; Stripe for payments; OpenRouter and the selected model provider for text generation; Google for image generation; ElevenLabs for audio narration if selected; and Google/Meta/TikTok for marketing only after consent.',
+        'The current product setup may use Supabase for authentication, database, and storage; Stripe for payments; OpenRouter and the selected model provider for text and image generation; ElevenLabs for audio narration if selected; and Google/Meta/TikTok for marketing only after consent.',
         'Data may be transferred outside the European Economic Area if our providers operate globally. In those cases we use available contractual mechanisms and safeguards under GDPR.',
       ],
     },

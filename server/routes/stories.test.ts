@@ -14,7 +14,6 @@ import {
   type StoryReaction,
 } from '../../shared/types.js';
 
-process.env.GEMINI_API_KEY ??= 'test-key';
 
 function makeScenario(pages: Page[] = []): Scenario {
   return {
@@ -525,8 +524,8 @@ test('POST /api/stories persists generation inputs and usage totals for filesyst
   assert.deepEqual(usageEvents.map(event => event.provider), [
     'openrouter',
     'openrouter',
-    'gemini',
-    'gemini',
+    'openrouter',
+    'openrouter',
     'elevenlabs',
   ]);
   assert.ok(usageEvents.every(event => event.source === 'initial_generation'));

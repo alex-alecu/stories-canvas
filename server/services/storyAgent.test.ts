@@ -4,7 +4,6 @@ import test from 'node:test';
 import type { Scenario } from '../../shared/types.js';
 import type { AgentModel } from './agentRuntime.js';
 
-process.env.GEMINI_API_KEY ??= 'test-key';
 
 test('independent reviews and main story work have the same default model', async () => {
   const { getStoryAgentModelName } = await import('./storyAgentRunner.js');

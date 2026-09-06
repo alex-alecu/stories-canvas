@@ -3,7 +3,6 @@ import test from 'node:test';
 import type { TextGenerationOptions, TextUsageEvent } from './openrouter.js';
 import { parseTextModelSettings, TEXT_MODELS, textModelPriceLevel } from '../../shared/textModels.js';
 
-process.env.GEMINI_API_KEY ??= 'test-key';
 const { generateJSON, createOpenRouterAgentModel, toChatMessages } = await import('./openrouter.js');
 const { withTextModelSettings } = await import('./textGenerationContext.js');
 const { recordStoryUsage } = await import('./storyUsage.js');
