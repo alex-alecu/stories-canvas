@@ -79,7 +79,7 @@ function OfferEditor({
       </div>
       <button
         type="button"
-        disabled={!dirty || isSaving || !Number.isFinite(Number(price)) || Number(price) < 0}
+        disabled={!dirty || isSaving || !Number.isFinite(Number(price)) || Number(price) <= 0}
         onClick={() => onSave({
           slug: offer.slug,
           name: name.trim(),

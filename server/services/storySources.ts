@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { config } from '../config.js';
 import { getSupabase } from './supabase.js';
-import type { TextGenerationOptions } from './openai.js';
+import type { TextGenerationOptions } from './openrouter.js';
 import { loadPromptMarkdown } from './promptFiles.js';
 import type {
   CanonicalBeatSheet,

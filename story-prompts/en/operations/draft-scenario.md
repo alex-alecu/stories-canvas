@@ -9,7 +9,7 @@ Use only as many pages as the story needs, up to {{page_count}} pages. Preserve 
 Make the inciting problem happen early, include at least one failed attempt, and reserve the last page for the emotional resolution.
 For faithful retellings, the failed attempt, climax, and resolution must come from the source beat sheet, not from a newly invented shortcut.
 Return no more than {{page_count}} pages, numbered sequentially from 1.
-Output only the final JSON.
+Check the full story before submission. Read the page text in order without the image prompts. A child must understand who acts, what changes, and why. Keep dialogue brief. Avoid a repeated explanation of the lesson at the end.
 
 User story request:
 {{user_prompt}}

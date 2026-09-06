@@ -1,3 +1,4 @@
+import { requireAudioPricing } from './modelPriceCatalog.js';
 import { ElevenLabsClient } from '@elevenlabs/elevenlabs-js';
 import pRetry, { AbortError } from 'p-retry';
 import { config } from '../config.js';
@@ -89,11 +90,12 @@ export async function generatePageAudio(
   voiceKey: VoiceKey,
   onUsage?: AudioUsageCallback,
 ): Promise<Buffer> {
+  await requireAudioPricing(config.elevenLabsModel);
   const elevenlabs = getClient();
   const settings = getVoiceSettings(voiceKey);
   const billedCharacters = text.length;
 
-  return pRetry(
+  const buffer = await pRetry(
     async () => {
       try {
         const audioStream = await elevenlabs.textToSpeech.convert(settings.voiceId, {
@@ -111,16 +113,6 @@ export async function generatePageAudio(
           maxRetries: 0,
         });
         const buffer = await streamToBuffer(audioStream, 60_000);
-        await onUsage?.({
-          model: config.elevenLabsModel,
-          status: 'succeeded',
-          billedCharacters,
-          usageAvailable: true,
-          usageDetails: {
-            voiceKey,
-            voiceId: settings.voiceId,
-          },
-        });
         return buffer;
       } catch (error) {
         await onUsage?.({
@@ -156,6 +148,17 @@ export async function generatePageAudio(
       },
     },
   );
+  await onUsage?.({
+    model: config.elevenLabsModel,
+    status: 'succeeded',
+    billedCharacters,
+    usageAvailable: true,
+    usageDetails: {
+      voiceKey,
+      voiceId: settings.voiceId,
+    },
+  });
+  return buffer;
 }
 
 export async function savePageAudio(storyId: string, filename: string, audioBuffer: Buffer, userId?: string): Promise<string> {

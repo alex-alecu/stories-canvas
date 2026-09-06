@@ -4,7 +4,7 @@ import {
   generateJSONFromContents,
   type TextContent,
   type TextGenerationOptions,
-} from './openai.js';
+} from './openrouter.js';
 
 export const SCENE_IMAGE_REVIEW_ISSUE_CODES = [
   'missing_character',

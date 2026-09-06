@@ -23,7 +23,7 @@ import {
 } from '../utils/storyMedia.js';
 import { generateCoverImageVariantSources, STORY_IMAGES_BUCKET } from './coverImageVariants.js';
 import { parseArtStyle } from './storyStyle.js';
-import { normalizeStoryUsageTotals } from './storyUsage.js';
+import { normalizeStoryUsageTotals, sumOpenRouterCosts, type StoryRequestCost } from './storyUsage.js';
 
 const BUCKET = STORY_IMAGES_BUCKET;
 const TRANSIENT_HTTP_STATUSES = new Set([500, 502, 503, 504]);
@@ -637,6 +637,32 @@ export async function setStoryReaction(
       ? reactionRow.latest_dislike_feedback
       : null,
   };
+}
+
+export async function getStoryOpenRouterCosts(storyId: string, client = getSupabase()) {
+  const events: StoryRequestCost[] = [];
+  const pageSize = 1000;
+  for (let offset = 0; ; offset += pageSize) {
+    const { data, error } = await client
+      .from('story_usage_events')
+      .select('provider, operation, cost_usd_micros, pricing_status')
+      .eq('story_id', storyId)
+      .eq('provider', 'openrouter')
+      .order('created_at')
+      .order('id')
+      .range(offset, offset + pageSize - 1);
+    if (error) throw new Error(`Failed to read story costs: ${error.message}`);
+    for (const row of data ?? []) {
+      events.push({
+        provider: row.provider,
+        operation: row.operation,
+        costUsdMicros: Number(row.cost_usd_micros),
+        pricingStatus: row.pricing_status,
+      });
+    }
+    if (!data || data.length < pageSize) break;
+  }
+  return sumOpenRouterCosts(events);
 }
 
 export async function appendStoryUsageEvent(

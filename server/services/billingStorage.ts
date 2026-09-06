@@ -135,11 +135,11 @@ function rowToPurchase(row: BillingPurchaseRow): BillingPurchase {
 
 function normalizeCreditAmount(value: unknown): number {
   if (typeof value === 'number' && Number.isFinite(value)) {
-    return Math.round(value * 10) / 10;
+    return Math.round(value * 1_000_000) / 1_000_000;
   }
   if (typeof value === 'string') {
     const parsed = Number.parseFloat(value);
-    return Number.isFinite(parsed) ? Math.round(parsed * 10) / 10 : 0;
+    return Number.isFinite(parsed) ? Math.round(parsed * 1_000_000) / 1_000_000 : 0;
   }
   return 0;
 }
@@ -256,7 +256,7 @@ export async function createPendingStoryPackPurchase(params: {
   const supabase = getSupabase();
   const { error } = await supabase
     .from('billing_purchases')
-    .insert({
+    .upsert({
       user_id: params.userId,
       offer_slug: params.offerSlug,
       stripe_checkout_session_id: params.stripeCheckoutSessionId,
@@ -307,7 +307,7 @@ async function markStoryPackPurchaseTerminal(params: {
 
   const { error: insertError } = await supabase
     .from('billing_purchases')
-    .insert(insertPayload, {
+    .upsert(insertPayload, {
       onConflict: 'stripe_checkout_session_id',
       ignoreDuplicates: true,
     });
@@ -601,6 +601,7 @@ export async function updateStoryPackOffer(
       name: updates.name,
       description: updates.description,
       price_minor: updates.priceMinor,
+      credits: updates.priceMinor / 100,
       is_active: updates.isActive,
       updated_at: new Date().toISOString(),
     })

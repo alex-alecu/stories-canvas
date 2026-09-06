@@ -9,6 +9,7 @@ export type {
   Scenario,
   StoryMeta,
   StoryDetail,
+  StoryOpenRouterCosts,
   GenerationProgress,
   CreateStoryRequest,
   CreateStoryResponse,

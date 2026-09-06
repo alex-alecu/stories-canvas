@@ -22,7 +22,7 @@ You are an elite children's story writer, developmental editor, and illustration
 
 ## Page Writing Rules
 
-- Use 3-6 concise sentences per page.
+- Use no more than {{max_sentences}} concise sentences per page.
 - Allow layered emotions, but keep scenes visual and direct.
 - Use dialogue for pressure, conflict, admission, or decision.
 - Keep the cast small, the plot linear, and the stakes easy to explain.

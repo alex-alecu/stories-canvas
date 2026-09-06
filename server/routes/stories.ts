@@ -1,3 +1,6 @@
+import { AbortError } from 'p-retry';
+import { MINIMUM_STORY_BALANCE_USD, parseTextModelSettings, DEFAULT_TEXT_MODEL } from '../../shared/textModels.js';
+import { getTextModelSettings, withTextModelSettings } from '../services/textGenerationContext.js';
 import { Router, type Request, type Response } from 'express';
 import crypto from 'crypto';
 import { config } from '../config.js';
@@ -46,15 +49,10 @@ import {
   DEFAULT_ART_STYLE,
   STORY_REACTION_FEEDBACK_MAX_CHARS,
   estimateInitialStoryPageCount,
-  getStoryAudioCreditCost,
-  getStoryCreditCost,
-  getStoryImageCreditCost,
-  getStoryImagePageCreditCost,
   getVoiceName,
   isStoryMode,
   isStoryReaction,
   normalizeVoiceKey,
-  roundCreditAmount,
 } from '../../shared/types.js';
 import { MEDIA_CACHE_CONTROL, getPageAudioFilename, getPageImageFilename, pageHasAudio } from '../utils/storyMedia.js';
 import {
@@ -102,6 +100,9 @@ export const storyStyleOps = {
 };
 
 export const storageOps = {
+  getStoryOpenRouterCosts: async (storyId: string) => (
+    config.useSupabase ? sbStorage.getStoryOpenRouterCosts(storyId) : fsStorage.getStoryOpenRouterCosts(storyId)
+  ),
   getActiveGenerations: sbStorage.getActiveGenerations,
   getStory: async (storyId: string) => (
     config.useSupabase ? sbStorage.getStory(storyId) : fsStorage.getStory(storyId)
@@ -228,6 +229,13 @@ async function claimUserGenerationSlot(
   }
 
   try {
+    const minimum = action === 'story_create' ? MINIMUM_STORY_BALANCE_USD : 0.000001;
+    const balance = await billingOps.getUserCreditBalance(userId);
+    if (balance.availableCredits < minimum) {
+      notifyStoryBlock({ blockType: 'insufficient_credits', action, userId, userEmail, storyId, requiredCredits: minimum, availableCredits: balance.availableCredits, message: 'Add funds to continue.' });
+      res.status(402).json({ error: action === 'story_create' ? 'You need at least $10 to start a new story.' : 'Add funds to continue.', requiredCredits: minimum, availableCredits: balance.availableCredits });
+      return false;
+    }
     await generationSlotOps.claimGenerationSlot(userId, storyId, action);
     return true;
   } catch (error) {
@@ -574,6 +582,7 @@ function getDisplayProgressMessage(story: StoryMeta): string {
 }
 
 function resolveRequestedStoryMode(input: CreateStoryRequest): StoryMode {
+  if (typeof input.audioEnabled === 'boolean') return input.audioEnabled ? 'pro_audio' : 'fast';
   if (isStoryMode(input.storyMode)) {
     return input.storyMode;
   }
@@ -602,7 +611,7 @@ async function maybeRefundCreditsForStory(
   story: StoryMeta | null,
   note: string,
 ): Promise<void> {
-  if (!config.useSupabase || !story || storyHasCompletedIllustrations(story)) {
+  if (!config.useSupabase || !story || story.generationInputs?.billingCurrency === 'USD' || storyHasCompletedIllustrations(story)) {
     return;
   }
 
@@ -764,7 +773,7 @@ function buildGenerationInputsSnapshot(
   proModel: boolean,
   pageCount?: number,
 ): StoryGenerationInputs {
-  return buildStoryGenerationInputs({
+  return { ...buildStoryGenerationInputs({
     prompt,
     language,
     age,
@@ -772,12 +781,12 @@ function buildGenerationInputsSnapshot(
     storyMode,
     voice,
     proModel,
-    scenarioModel: config.scenarioModel,
+    scenarioModel: getTextModelSettings().textModel,
     imageModel: config.imageModel,
     imageModelPro: config.imageModelPro,
     audioModel: config.elevenLabsModel,
     pageCount,
-  });
+  }), ...getTextModelSettings(), billingCurrency: 'USD' };
 }
 
 function applyScenarioGroundingInputs(
@@ -809,8 +818,14 @@ function createUsageRecorder(storyId: string, userId: string | undefined, source
   async function safeRecord(operationLabel: string, record: () => Promise<void>): Promise<void> {
     try {
       await record();
+      if (config.useSupabase && userId) {
+        const balance = await billingOps.getUserCreditBalance(userId);
+        if (balance.availableCredits <= 0) throw new Error('Your balance is used. Add funds to continue.');
+      }
     } catch (error) {
       console.error(`[usage:${storyId}] Failed to persist ${operationLabel} usage event:`, error);
+      getTrackedGeneration(storyId)?.abort(error);
+      throw new AbortError(error instanceof Error ? error : new Error(String(error)));
     }
   }
 
@@ -826,7 +841,7 @@ function createUsageRecorder(storyId: string, userId: string | undefined, source
     }) => {
       await safeRecord(operation, async () => {
         await recordStoryUsage(usageStorage, storyId, userId, {
-          provider: 'openai',
+          provider: 'openrouter',
           operation,
           source,
           status: usage.status,
@@ -851,7 +866,7 @@ function createUsageRecorder(storyId: string, userId: string | undefined, source
     }) => {
       await safeRecord('character_sheet', async () => {
         await recordStoryUsage(usageStorage, storyId, userId, {
-          provider: 'gemini',
+          provider: 'openrouter',
           operation: 'character_sheet',
           source,
           status: usage.status,
@@ -878,7 +893,7 @@ function createUsageRecorder(storyId: string, userId: string | undefined, source
     }) => {
       await safeRecord(`page_image:${pageNumber}`, async () => {
         await recordStoryUsage(usageStorage, storyId, userId, {
-          provider: 'gemini',
+          provider: 'openrouter',
           operation: 'page_image',
           source,
           status: usage.status,
@@ -985,6 +1000,25 @@ async function sendProgressUpdate(storyId: string, data: Partial<GenerationProgr
 
 router.use(limitStoryReadByIp);
 
+router.use(async (req, res, next) => {
+  if (!['POST', 'PATCH'].includes(req.method)) return next();
+  try {
+    if (req.path === '/') {
+      const settings = parseTextModelSettings(req.body?.textModel, req.body?.thinkingLevel);
+      return withTextModelSettings(settings, next);
+    }
+    if (!/\/(regenerate-assets|retry|generate-audio|regenerate-image|script-audio)\/?$/i.test(req.path)) return next();
+    const id = req.path.split('/')[1];
+    if (!/^[0-9a-f-]{36}$/i.test(id ?? '')) return next();
+    const story = await getStory(id);
+    const inputs = story?.generationInputs;
+    const settings = parseTextModelSettings(inputs?.textModel ?? DEFAULT_TEXT_MODEL, inputs?.thinkingLevel, true);
+    return withTextModelSettings(settings, next);
+  } catch (error) {
+    res.status(400).json({ error: error instanceof Error ? error.message : 'Invalid model settings.' });
+  }
+});
+
 // GET /api/stories/public - List public stories (no auth required)
 router.get('/public', async (req: Request, res: Response) => {
   try {
@@ -1088,11 +1122,11 @@ router.post('/', optionalAuth, async (req: Request, res: Response) => {
     const storyStyle = storyStyleOps.resolveArtStyle(typeof style === 'string' ? style : undefined);
     const storyMode = resolveRequestedStoryMode(request);
     const estimatedPageCount = estimateInitialStoryPageCount(trimmedPrompt);
-    const creditCost = getStoryCreditCost(storyMode);
+    const creditCost = 0;
     const storyVoice = storyMode === 'pro_audio'
       ? normalizeVoiceKey(typeof voice === 'string' ? voice : undefined)
       : undefined;
-    const useProModel = storyModeUsesProModel(storyMode);
+    const useProModel = request.audioEnabled !== undefined ? false : storyModeUsesProModel(storyMode);
     const storyId = crypto.randomUUID();
     const userId = req.authUser?.id;
     const generationInputs = buildGenerationInputsSnapshot(
@@ -1107,7 +1141,7 @@ router.post('/', optionalAuth, async (req: Request, res: Response) => {
     );
 
     if (storyMode === 'pro_audio' && !storyVoice) {
-      res.status(400).json({ error: 'A narrator voice is required for Pro + Audio stories' });
+      res.status(400).json({ error: 'Select a narrator voice.' });
       return;
     }
 
@@ -1147,29 +1181,7 @@ router.post('/', optionalAuth, async (req: Request, res: Response) => {
           return;
         }
 
-        const charge = await billingOps.consumeCredits(req.authUser!.id, creditCost, {
-          reason: 'story_create',
-          storyId,
-          note: storyMode,
-        });
 
-        try {
-          await sbStorage.updateStoryCreditCharge(storyId, charge.ledger_id);
-        } catch (creditChargeError) {
-          try {
-            await billingOps.grantCredits(req.authUser!.id, creditCost, {
-              reason: 'story_refund',
-              storyId,
-              note: 'Automatic refund after credit charge persistence failed.',
-            });
-          } catch (refundError) {
-            console.error(`Failed to compensate credits after charge persistence error for ${storyId}:`, refundError);
-          }
-
-          await releaseUserGenerationSlot(storyId);
-          await removeStory(storyId, userId).catch(() => {});
-          throw creditChargeError;
-        }
       } catch (error) {
         if (error instanceof InsufficientCreditsError) {
           const balance = await billingOps.getUserCreditBalance(req.authUser!.id).catch(() => ({ availableCredits: 0 }));
@@ -1235,7 +1247,7 @@ async function runGenerationPipeline(
   age?: number,
   style?: ArtStyleKey,
   storyMode: StoryMode = 'fast',
-  creditCost = getStoryCreditCost(storyMode),
+  creditCost = 0,
   voice?: VoiceKey,
   pro = storyModeUsesProModel(storyMode),
 ): Promise<void> {
@@ -1649,10 +1661,7 @@ router.post('/:id/regenerate-assets', optionalAuth, async (req: Request, res: Re
     }
 
     const pageCount = story.scenario.pages.length;
-    const regenerationCost = roundCreditAmount(
-      getStoryImageCreditCost(getSafeStoryMode(story), pageCount)
-        + (story.voice ? getStoryAudioCreditCost(pageCount) : 0),
-    );
+    const regenerationCost = 0;
     let availableCredits = 0;
     let generationSlotClaimed = false;
     if (config.useSupabase) {
@@ -1662,12 +1671,7 @@ router.post('/:id/regenerate-assets', optionalAuth, async (req: Request, res: Re
           return;
         }
 
-        const charge = await billingOps.consumeCredits(req.authUser!.id, regenerationCost, {
-          reason: 'story_regenerate_assets',
-          storyId,
-          note: `pages:${pageCount}`,
-        });
-        availableCredits = charge.available_credits;
+        availableCredits = (await billingOps.getUserCreditBalance(req.authUser!.id)).availableCredits;
       } catch (error) {
         if (error instanceof InsufficientCreditsError) {
           const balance = await billingOps.getUserCreditBalance(req.authUser!.id).catch(() => ({ availableCredits: 0 }));
@@ -2339,7 +2343,7 @@ router.post('/:id/generate-audio', optionalAuth, async (req: Request, res: Respo
       return;
     }
 
-    const creditCost = getStoryAudioCreditCost(pagesNeedingAudio.length);
+    const creditCost = 0;
     const controller = startTrackedGeneration(storyId);
     let availableCredits = 0;
     let chargedCredits = 0;
@@ -2353,12 +2357,7 @@ router.post('/:id/generate-audio', optionalAuth, async (req: Request, res: Respo
           return;
         }
 
-        const charge = await billingOps.consumeCredits(req.authUser.id, creditCost, {
-          reason: 'story_add_audio',
-          storyId,
-          note: requestedVoice,
-        });
-        availableCredits = charge.available_credits;
+        availableCredits = (await billingOps.getUserCreditBalance(req.authUser!.id)).availableCredits;
         chargedCredits = creditCost;
       } catch (error) {
         if (error instanceof InsufficientCreditsError) {
@@ -2661,16 +2660,11 @@ router.post('/:id/pages/:pageNumber/regenerate-image', optionalAuth, async (req:
       return;
     }
 
-    const chargedCredits = roundCreditAmount(getStoryImagePageCreditCost(imageMode));
+    const chargedCredits = 0;
     let availableCredits = 0;
     if (config.useSupabase) {
       try {
-        const charge = await billingOps.consumeCredits(req.authUser!.id, chargedCredits, {
-          reason: 'story_regenerate_image',
-          storyId,
-          note: `page:${pageNumber}`,
-        });
-        availableCredits = charge.available_credits;
+        availableCredits = (await billingOps.getUserCreditBalance(req.authUser!.id)).availableCredits;
       } catch (error) {
         if (error instanceof InsufficientCreditsError) {
           const balance = await billingOps.getUserCreditBalance(req.authUser!.id).catch(() => ({ availableCredits: 0 }));
@@ -2990,16 +2984,11 @@ router.patch('/:id/pages/:pageNumber/script-audio', optionalAuth, async (req: Re
       return;
     }
 
-    const chargedCredits = getStoryAudioCreditCost(1);
+    const chargedCredits = 0;
     let availableCredits = 0;
     if (config.useSupabase) {
       try {
-        const charge = await billingOps.consumeCredits(req.authUser!.id, chargedCredits, {
-          reason: 'story_regenerate_audio',
-          storyId,
-          note: `page:${pageNumber}`,
-        });
-        availableCredits = charge.available_credits;
+        availableCredits = (await billingOps.getUserCreditBalance(req.authUser!.id)).availableCredits;
       } catch (error) {
         if (error instanceof InsufficientCreditsError) {
           const balance = await billingOps.getUserCreditBalance(req.authUser!.id).catch(() => ({ availableCredits: 0 }));
@@ -3333,6 +3322,15 @@ router.get('/:id', optionalAuth, limitAuthenticatedStoryRead, async (req: Reques
     }
 
     const responseStory = applyPublicStoryPreviewGate(story, req.authUser?.id);
+
+    if (req.authUser && story.userId === req.authUser.id) {
+      try {
+        responseStory.openRouterCosts = await storageOps.getStoryOpenRouterCosts(story.id);
+      } catch (error) {
+        console.error('Failed to get story costs:', error);
+        responseStory.openRouterCosts = null;
+      }
+    }
 
     responseStory.myReaction = req.authUser
       ? await storageOps.getStoryReaction(story.id, req.authUser.id)

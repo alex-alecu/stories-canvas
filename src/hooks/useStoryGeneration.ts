@@ -74,6 +74,7 @@ export function useStoryGeneration(storyId: string | null) {
 
         // Invalidate queries when generation completes, fails, or is cancelled
         if (isTerminalStatus(merged.status)) {
+          queryClient.invalidateQueries({ queryKey: ['billing'] });
           queryClient.invalidateQueries({ queryKey: ['stories'] });
           queryClient.invalidateQueries({ queryKey: ['story', storyId] });
           clearReconnectTimeout();

@@ -2,6 +2,7 @@ node_modules/
 dist/
 dist-server/
 /data/
+/artifacts/text-smoke/
 .env
 *.local
 supabase/.temp

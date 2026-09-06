@@ -1,4 +1,5 @@
-import { generateImage, isImagePolicyBlockedError, isImageSafetyBlockedError } from './gemini.js';
+import { generateImage, isImagePolicyBlockedError, isImageSafetyBlockedError } from './openrouterImages.js';
+import { AbortError } from 'p-retry';
 import { buildCharacterAliasMap, prepareCharacterSheetImagePrompt } from './imagePromptPreparation.js';
 import { saveImage } from '../utils/storage.js';
 import { uploadImage } from './supabaseStorage.js';
@@ -11,6 +12,7 @@ export function getCharacterSheetFilename(name: string): string {
 }
 
 interface CharacterSheetDeps {
+  signal?: AbortSignal;
   aliasMap?: ReadonlyMap<string, string>;
   generateImage?: typeof generateImage;
   saveImage?: typeof saveImage;
@@ -36,6 +38,7 @@ export async function generateCharacterSheet(
   deps: CharacterSheetDeps = {},
   onUsage?: CharacterSheetUsageCallback,
 ): Promise<{ name: string; filename: string; base64: string }> {
+  deps.signal?.throwIfAborted();
   const aliasMap = deps.aliasMap ?? buildCharacterAliasMap([character]);
   const prompt = prepareCharacterSheetImagePrompt(character, aliasMap, styleDescription);
   const runGenerateImage = deps.generateImage ?? generateImage;
@@ -43,7 +46,8 @@ export async function generateCharacterSheet(
   const persistSupabaseImage = deps.uploadImage ?? uploadImage;
 
   console.log(`[character-sheet:${storyId}] Generating character sheet for ${character.name}...`);
-  const base64 = await runGenerateImage(prompt, [], { pro, onUsage });
+  const base64 = await runGenerateImage(prompt, [], { pro, onUsage, signal: deps.signal });
+  deps.signal?.throwIfAborted();
   const filename = getCharacterSheetFilename(character.name);
 
   if (config.useSupabase) {
@@ -84,10 +88,13 @@ export async function generateAllCharacterSheets(
     try {
       const result = await generateCharacterSheet(storyId, character, userId, styleDescription, pro, {
         ...deps,
+        signal: signal ?? deps.signal,
         aliasMap,
       }, usage => onUsage?.(character, usage));
       characterSheets.set(result.name, result.base64);
     } catch (error) {
+      signal?.throwIfAborted();
+      if (error instanceof AbortError) throw error;
       if (isImageSafetyBlockedError(error) || isImagePolicyBlockedError(error)) {
         console.error(
           `[character-sheet:${storyId}] Failed to generate character sheet for ${character.name}: ${error.message}`,

@@ -1,6 +1,6 @@
 import pRetry, { AbortError } from 'p-retry';
 import fs from 'fs/promises';
-import { generateImage, isImagePolicyBlockedError, isImageSafetyBlockedError } from './gemini.js';
+import { generateImage, isImagePolicyBlockedError, isImageSafetyBlockedError } from './openrouterImages.js';
 import { buildCharacterAliasMap, prepareSceneImagePrompt } from './imagePromptPreparation.js';
 import { saveImage, updatePageStatus as fsUpdatePageStatus, getImagePath } from '../utils/storage.js';
 import { uploadImage, updatePageStatus as sbUpdatePageStatus, downloadImage } from './supabaseStorage.js';
@@ -10,7 +10,7 @@ import { imageGenerationLimiter } from '../utils/rateLimiter.js';
 import { getPageImageFilename } from '../utils/storyMedia.js';
 import type { Page, Character, GenerationProgress } from '../../shared/types.js';
 import { reviewSceneImage, type SceneImageReviewResult } from './sceneImageReview.js';
-import type { TextUsageEvent } from './openai.js';
+import type { TextUsageEvent } from './openrouter.js';
 
 async function saveSceneImage(storyId: string, filename: string, base64: string, userId?: string): Promise<void> {
   if (config.useSupabase) {
@@ -57,6 +57,7 @@ function promptContainsExactName(prompt: string, name: string): boolean {
 }
 
 interface SceneGenerationDeps {
+  signal?: AbortSignal;
   generateImage?: typeof generateImage;
   reviewImage?: typeof reviewSceneImage;
   maxQualityAttempts?: number;
@@ -174,6 +175,7 @@ export async function generateSceneImage(
   onReviewUsage?: SceneReviewUsageCallback,
   targetAge = 6,
 ): Promise<string | null> {
+  deps.signal?.throwIfAborted();
   const pageFilename = getPageImageFilename(page.pageNumber);
   const runGenerateImage = deps.generateImage ?? generateImage;
   const runReviewImage = deps.reviewImage ?? reviewSceneImage;
@@ -230,6 +232,7 @@ export async function generateSceneImage(
   try {
     let correction = '';
     for (let qualityAttempt = 1; qualityAttempt <= maxQualityAttempts; qualityAttempt++) {
+      deps.signal?.throwIfAborted();
       const request = buildRequest(qualityAttempt === 1, correction);
       lastPrompt = request.prompt;
       lastIncludedCharNames = request.includedCharNames;
@@ -238,11 +241,13 @@ export async function generateSceneImage(
       const base64 = await pRetry(
         async (attemptNumber) => {
           try {
+            if (deps.signal?.aborted) throw new AbortError('Generation cancelled');
             return await runGenerateImage(
               attemptNumber > 1 ? softenPrompt(request.prompt) : request.prompt,
               request.referenceImages,
               {
                 pro,
+                signal: deps.signal,
                 onUsage: usage => onUsage?.(page, usage),
               },
             );
@@ -265,6 +270,7 @@ export async function generateSceneImage(
           }
         },
         {
+          signal: deps.signal,
           retries: 3,
           minTimeout: 5000,
           maxTimeout: 30000,
@@ -285,8 +291,9 @@ export async function generateSceneImage(
         base64,
         characterSheets,
         targetAge,
-        { onUsage: usage => onReviewUsage?.(page, usage) },
+        { onUsage: usage => onReviewUsage?.(page, usage), signal: deps.signal },
       );
+      deps.signal?.throwIfAborted();
       if (review.pass) {
         await persistSceneImage(storyId, pageFilename, base64, userId);
         await setPageStatus(storyId, page.pageNumber, 'completed');
@@ -308,6 +315,7 @@ export async function generateSceneImage(
     }
     throw new Error(`Page ${page.pageNumber} ended without a visual quality result`);
   } catch (error) {
+    deps.signal?.throwIfAborted();
     const failureMessage = buildProviderFailureMessage(page.pageNumber, error);
     if (isImageSafetyBlockedError(error)) {
       logger.warn(
@@ -366,7 +374,7 @@ export async function generateAllSceneImages(
     const result = await imageGenerationLimiter(() =>
       generateSceneImage(
         storyId, page, characters, characterSheets, styleDescription,
-        onProgress, userId, previousSceneBase64, pro, {}, onUsage, undefined,
+        onProgress, userId, previousSceneBase64, pro, { signal }, onUsage, undefined,
         onReviewUsage, targetAge,
       ),
     );
@@ -402,11 +410,13 @@ export async function retryFailedSceneImages(
   // Reconstruct character sheets from storage
   const characterSheets = new Map<string, string>();
   for (const character of characters) {
+    signal?.throwIfAborted();
     try {
       const filename = getCharacterSheetFilename(character.name);
       const base64 = await downloadImageForRetry(storyId, filename, userId);
       characterSheets.set(character.name, base64);
     } catch {
+      signal?.throwIfAborted();
       try {
         console.warn(`[scene:${storyId}] Could not download character sheet for ${character.name}. Regenerating it before retrying scenes...`);
         const regenerated = await generateCharacterSheet(
@@ -415,11 +425,13 @@ export async function retryFailedSceneImages(
           userId,
           styleDescription,
           pro,
-          {},
+          { signal },
           usage => onCharacterSheetUsage?.(character, usage),
         );
         characterSheets.set(character.name, regenerated.base64);
       } catch (error) {
+        signal?.throwIfAborted();
+        if (error instanceof AbortError) throw error;
         // Character sheet may not exist if it failed during initial generation and regeneration still fails
         if (isImageSafetyBlockedError(error) || isImagePolicyBlockedError(error)) {
           console.warn(
@@ -468,7 +480,7 @@ export async function retryFailedSceneImages(
     const result = await imageGenerationLimiter(() =>
       generateSceneImage(
         storyId, page, characters, characterSheets, styleDescription,
-        onProgress, userId, previousSceneBase64, pro, {}, onUsage, currentSceneBase64,
+        onProgress, userId, previousSceneBase64, pro, { signal }, onUsage, currentSceneBase64,
         onReviewUsage, targetAge,
       ),
     );

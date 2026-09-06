@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { NextFunction, Request, Response } from 'express';
 
-process.env.GEMINI_API_KEY ??= 'test-key';
 
 function runOptionalAuth(
   optionalAuth: (req: Request, res: Response, next: NextFunction) => Promise<void>,

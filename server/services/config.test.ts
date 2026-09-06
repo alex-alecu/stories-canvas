@@ -1,20 +1,29 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-process.env.GEMINI_API_KEY ??= 'test-key';
 
 const {
   config,
   resolveDefaultAppLanguage,
   resolveNonNegativeNumberEnv,
   resolveStoryPackPricingConfig,
+  resolveImageModelId,
 } = await import('../config.js');
 
-test('all text roles use the fixed OpenAI model', () => {
-  assert.equal(config.scenarioModel, 'gpt-5.6-sol');
-  assert.equal(config.reviewModel, 'gpt-5.6-sol');
-  assert.equal(config.sourceAnalysisModel, 'gpt-5.6-sol');
-  assert.equal(config.pageTextReviewModel, 'gpt-5.6-sol');
+test('text roles have a default OpenRouter model', () => {
+  assert.equal(config.scenarioModel, 'google/gemini-3.8-flash');
+  assert.equal(config.reviewModel, 'google/gemini-3.8-flash');
+  assert.equal(config.sourceAnalysisModel, 'google/gemini-3.8-flash');
+  assert.equal(config.pageTextReviewModel, 'google/gemini-3.8-flash');
+});
+
+test('image models use OpenRouter IDs and no direct Google credential', () => {
+  assert.equal(config.imageModel, 'google/gemini-3.1-flash-image-preview');
+  assert.equal(config.imageModelPro, 'google/gemini-3-pro-image-preview');
+  assert.equal('geminiApiKey' in config, false);
+  assert.equal(resolveImageModelId('gemini-3.1-flash-image-preview', ''), 'google/gemini-3.1-flash-image-preview');
+  assert.equal(resolveImageModelId('gemini-3-pro-image-preview', ''), 'google/gemini-3-pro-image-preview');
+  assert.equal(resolveImageModelId('openai/gpt-image-2', ''), 'openai/gpt-image-2');
 });
 
 test('resolveDefaultAppLanguage only accepts site-localized deployment languages', () => {

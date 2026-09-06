@@ -1,8 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { TextGenerationOptions } from './openai.js';
+import type { TextGenerationOptions } from './openrouter.js';
 
-process.env.GEMINI_API_KEY ??= 'test-key';
 
 async function loadReviewPageText() {
   return (await import('./pageTextReview.js')).reviewPageText;
@@ -18,7 +17,7 @@ test('reviewPageText allows safe page text', async () => {
       purpose: 'page_text',
     },
     async <T>(_prompt: string, _system: string, _schema: Record<string, unknown>, options?: TextGenerationOptions): Promise<T> => {
-      assert.equal(options?.model, 'gpt-5.6-sol');
+      assert.equal(options?.model, 'google/gemini-3.8-flash');
       assert.equal(options?.temperature, 0);
       assert.equal(options?.reasoningEffort, 'none');
       return { allowed: true, reasonCode: '', explanation: '' } as T;

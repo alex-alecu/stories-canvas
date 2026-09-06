@@ -3,7 +3,6 @@ import test from 'node:test';
 
 import type { StoryMeta } from '../../shared/types.js';
 
-process.env.GEMINI_API_KEY ??= 'test-key';
 
 function makeStory(overrides: Partial<StoryMeta> = {}): StoryMeta {
   return {
