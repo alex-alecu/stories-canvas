@@ -32,7 +32,8 @@ for (const entry of cases) {
     requests++;
     await appendFile(path.join(outputDir, `${entry.name}-usage.jsonl`), JSON.stringify(usage) + '\n');
     const cost = usage.usageDetails.providerCostUsd;
-    if (typeof cost !== 'number') throw new Error('A live request has no confirmed cost.');
+    if (typeof cost !== 'number') throw new Error(typeof usage.usageDetails.error === 'string'
+      ? usage.usageDetails.error : 'A live request has no confirmed cost.');
     costUsdMicros += Math.round(cost * 1_000_000);
     if (costUsdMicros >= 2_000_000) {
       controller.abort(new Error('Live story test reached its $2 request-cost limit.'));

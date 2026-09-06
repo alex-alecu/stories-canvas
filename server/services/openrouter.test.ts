@@ -6,7 +6,29 @@ import { parseTextModelSettings, TEXT_MODELS, textModelPriceLevel } from '../../
 const { generateJSON } = await import('./openrouter.js');
 const { withTextModelSettings } = await import('./textGenerationContext.js');
 const { recordStoryUsage } = await import('./storyUsage.js');
+const { getOpenRouterClient } = await import('./openrouterClient.js');
+const { config } = await import('../config.js');
 const schema = { type: 'OBJECT', properties: { ok: { type: 'BOOLEAN' } }, required: ['ok'] };
+
+test('translated site names produce valid HTTP headers through the real client', async () => {
+  const previousKey = process.env.OPENROUTER_API_KEY;
+  const previousTitle = config.appSiteName;
+  process.env.OPENROUTER_API_KEY = 'local-header-test';
+  config.appSiteName = 'Povești Magice 🦊';
+  try {
+    let sent = false;
+    await getOpenRouterClient().withOptions({ fetch: async (_url, init) => {
+      assert.equal(new Headers(init?.headers).get('X-OpenRouter-Title'), 'Povesti Magice');
+      sent = true;
+      return new Response('{}', { headers: { 'Content-Type': 'application/json' } });
+    } }).get('/key');
+    assert.equal(sent, true);
+  } finally {
+    config.appSiteName = previousTitle;
+    if (previousKey === undefined) delete process.env.OPENROUTER_API_KEY;
+    else process.env.OPENROUTER_API_KEY = previousKey;
+  }
+});
 
 function fixture(overrides = {}) {
   const requests: Array<Record<string, any>> = [];

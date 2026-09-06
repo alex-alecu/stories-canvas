@@ -9,8 +9,11 @@ export function getOpenRouterClient(): OpenAI {
   const apiKey = process.env.OPENROUTER_API_KEY?.trim() || config.openrouterApiKey;
   if (!apiKey) throw new Error('Missing required environment variable: OPENROUTER_API_KEY');
   if (!client || clientKey !== apiKey) {
+    // HTTP headers cannot contain the Unicode characters used in translated site names.
+    const title = config.appSiteName.normalize('NFKD').replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^\x20-\x7e]/g, '').trim() || 'Stories Canvas';
     client = new OpenAI({ apiKey, baseURL: 'https://openrouter.ai/api/v1', maxRetries: 0,
-      defaultHeaders: { 'HTTP-Referer': config.appBaseUrl, 'X-OpenRouter-Title': config.appSiteName } });
+      defaultHeaders: { 'HTTP-Referer': config.appBaseUrl, 'X-OpenRouter-Title': title } });
     clientKey = apiKey;
   }
   return client;
