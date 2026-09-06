@@ -1,3 +1,4 @@
+import { getWalletCopy } from '../i18n/walletCopy';
 import { useState, useEffect, useCallback, useMemo, useRef, type FormEvent } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import type { GenerationProgress, Page, Scenario, StoryMode, StoryReaction, StoryStatus } from '../types';
@@ -103,7 +104,7 @@ export default function StoryToolsModal({
   canManageStory = false,
   canUseOnlineActions = true,
 }: StoryToolsModalProps) {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const { user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -162,7 +163,7 @@ export default function StoryToolsModal({
   const pageTextInvalid = !pageTextTrimmed || pageTextTrimmed.length > pageTextMaxChars;
 
   const isCreditShort = useCallback((cost: number) => (
-    !!user && !!billingOverview && availableCredits < cost
+    !!user && !!billingOverview && availableCredits <= 0
   ), [availableCredits, billingOverview, user]);
 
   const goToBilling = useCallback(() => {
@@ -565,7 +566,7 @@ export default function StoryToolsModal({
           } disabled:cursor-not-allowed disabled:opacity-50`}
           aria-pressed={imageMode === mode}
         >
-          {mode === 'fast' ? t.storyModeFast : t.storyModePro}
+          {mode === 'fast' ? 'Gemini Flash Image' : 'Gemini Pro Image'}
         </button>
       ))}
     </div>
@@ -748,7 +749,7 @@ export default function StoryToolsModal({
           <div className="flex items-start justify-between gap-3">
             <div>
               <h3 className="text-sm font-semibold text-white">{t.addNarration}</h3>
-              <p className="mt-1 text-sm text-white/55">{t.creditsRequiredLabel}: {formatCredits(addNarrationCost, t)}</p>
+              <p className="mt-1 text-sm text-white/55">{getWalletCopy(language).actualCost}</p>
             </div>
             {isCreditShort(addNarrationCost) && (
               <span className="rounded-full bg-amber-500/15 px-2 py-1 text-xs text-amber-200">{t.notEnoughCredits}</span>
@@ -876,7 +877,7 @@ export default function StoryToolsModal({
         />
       </div>
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-white/[0.04] px-3 py-2 text-sm text-white/60">
-        <span>{t.costLabel}: <span className="font-semibold text-white">{formatCredits(imageCost, t)}</span></span>
+        <span>{t.costLabel}: <span className="font-semibold text-white">{getWalletCopy(language).actualCost}</span></span>
         {renderImageModeToggle(isBusy)}
       </div>
       {imageError && <p className="rounded-lg bg-red-500/15 px-3 py-2 text-sm text-red-300">{imageError}</p>}
@@ -925,7 +926,7 @@ export default function StoryToolsModal({
         />
       </div>
       <div className="rounded-lg bg-white/[0.04] px-3 py-2 text-sm text-white/60">
-        {t.costLabel}: <span className="font-semibold text-white">{formatCredits(pageAudioCost, t)}</span>
+        {t.costLabel}: <span className="font-semibold text-white">{getWalletCopy(language).actualCost}</span>
       </div>
       {!storyVoice && (
         <p className="rounded-lg bg-amber-500/15 px-3 py-2 text-sm text-amber-200">{t.addNarrationFirst}</p>

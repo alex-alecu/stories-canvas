@@ -6,7 +6,7 @@ import type {
 import {
   type AgentTool,
 } from './agentRuntime.js';
-import { generateJSON } from './openai.js';
+import { generateJSON } from './openrouter.js';
 import {
   buildDraftScenarioPrompt,
   buildStoryAgentSystemInstruction,

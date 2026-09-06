@@ -81,6 +81,7 @@ async function createStoriesHarness(dataDir: string, configOverrides: Record<str
     authCacheTtlMs: 60_000,
     ...configOverrides,
   });
+  storiesModule.billingOps.getUserCreditBalance = async () => ({ availableCredits: 25 });
   authMiddleware.clearAuthResultCacheForTests();
   requestLimits.resetRequestLimitersForTests();
   Object.assign(storiesModule.generationSlotOps, {
@@ -196,7 +197,7 @@ test('POST /api/stories stores canonical narrator keys unchanged', async (t) => 
 
   assert.equal(savedStory.voice, 'corina');
   assert.equal(savedStory.storyMode, 'pro_audio');
-  assert.equal(savedStory.creditCost, 3);
+  assert.equal(savedStory.creditCost, 0);
 });
 
 test('POST /api/stories normalizes legacy narrator keys before persistence', async (t) => {
@@ -236,10 +237,10 @@ test('POST /api/stories normalizes legacy narrator keys before persistence', asy
 
   assert.equal(savedStory.voice, 'jora');
   assert.equal(savedStory.storyMode, 'pro_audio');
-  assert.equal(savedStory.creditCost, 3);
+  assert.equal(savedStory.creditCost, 0);
 });
 
-test('POST /api/stories stores fixed mode credit costs', async (t) => {
+test('POST /api/stories stores no fixed story charge', async (t) => {
   const dataDir = mkdtempSync(path.join(os.tmpdir(), 'stories-mode-costs-'));
   const harness = await createStoriesHarness(dataDir);
   t.after(async () => {
@@ -258,9 +259,9 @@ test('POST /api/stories stores fixed mode credit costs', async (t) => {
   }));
 
   const cases = [
-    { storyMode: 'fast', creditCost: 1, voice: undefined },
-    { storyMode: 'pro', creditCost: 2, voice: undefined },
-    { storyMode: 'pro_audio', creditCost: 3, voice: 'bunica' },
+    { storyMode: 'fast', creditCost: 0, voice: undefined },
+    { storyMode: 'pro', creditCost: 0, voice: undefined },
+    { storyMode: 'pro_audio', creditCost: 0, voice: 'bunica' },
   ] as const;
 
   for (const scenarioCase of cases) {
@@ -522,8 +523,8 @@ test('POST /api/stories persists generation inputs and usage totals for filesyst
     'page_audio',
   ]);
   assert.deepEqual(usageEvents.map(event => event.provider), [
-    'openai',
-    'openai',
+    'openrouter',
+    'openrouter',
     'gemini',
     'gemini',
     'elevenlabs',
@@ -588,7 +589,7 @@ test('POST /api/stories sends Slack alert when credits are insufficient', async 
   t.mock.method(harness.storiesModule.billingOps, 'consumeCredits', async () => {
     throw new InsufficientCreditsError();
   });
-  t.mock.method(harness.storiesModule.billingOps, 'getUserCreditBalance', async () => ({ availableCredits: 0 }));
+  t.mock.method(harness.storiesModule.billingOps, 'getUserCreditBalance', async () => ({ availableCredits: 9.99 }));
   t.mock.method(harness.storiesModule.storySlackOps, 'sendStoryBlockAlert', async (params) => {
     slackAlert = params as Record<string, unknown>;
   });
@@ -604,19 +605,19 @@ test('POST /api/stories sends Slack alert when credits are insufficient', async 
 
   assert.equal(response.status, 402);
   const body = await response.json() as { error: string; requiredCredits: number; availableCredits: number };
-  assert.equal(body.error, 'Not enough credits to create this story');
-  assert.equal(body.requiredCredits, 2);
-  assert.equal(body.availableCredits, 0);
+  assert.equal(body.error, 'You need at least $10 to start a new story.');
+  assert.equal(body.requiredCredits, 10);
+  assert.equal(body.availableCredits, 9.99);
   assert.equal(typeof deletedStoryId, 'string');
   await waitFor(async () => slackAlert, value => value !== null);
   assert.equal(slackAlert?.blockType, 'insufficient_credits');
   assert.equal(slackAlert?.action, 'story_create');
   assert.equal(slackAlert?.userEmail, 'create-no-credits@example.test');
-  assert.equal(slackAlert?.requiredCredits, 2);
-  assert.equal(slackAlert?.availableCredits, 0);
+  assert.equal(slackAlert?.requiredCredits, 10);
+  assert.equal(slackAlert?.availableCredits, 9.99);
 });
 
-test('POST /api/stories/:id/generate-audio charges prorated page credits and starts narration', async (t) => {
+test('POST /api/stories/:id/generate-audio starts narration with no fixed charge', async (t) => {
   const dataDir = mkdtempSync(path.join(os.tmpdir(), 'stories-audio-enabled-'));
   const harness = await createStoriesHarness(dataDir, {
     useSupabase: true,
@@ -670,12 +671,12 @@ test('POST /api/stories/:id/generate-audio charges prorated page credits and sta
   assert.deepEqual(body, {
     status: 'generating_audio',
     generatedAudio: 1,
-    chargedCredits: 0.1,
-    availableCredits: 4.9,
+    chargedCredits: 0,
+    availableCredits: 25,
   });
 
   await waitFor(async () => generatedVoice, value => value === 'serban');
-  assert.equal(chargedReason, 'story_add_audio');
+  assert.equal(chargedReason, undefined);
   assert.equal(storedVoice, 'serban');
   assert.equal(generatedVoice, 'serban');
 });
@@ -729,17 +730,17 @@ test('POST /api/stories/:id/generate-audio returns 402 when credits are insuffic
 
   assert.equal(response.status, 402);
   const body = await response.json() as { error: string; requiredCredits: number; availableCredits: number };
-  assert.equal(body.error, 'Not enough credits to add narration');
-  assert.equal(body.requiredCredits, 0.1);
+  assert.equal(body.error, 'Add funds to continue.');
+  assert.equal(body.requiredCredits, 0.000001);
   assert.equal(body.availableCredits, 0);
   assert.equal(storedVoice, false);
-  assert.equal(releasedSlot, true);
+  assert.equal(releasedSlot, false);
   await waitFor(async () => slackAlert, value => value !== null);
   assert.equal(slackAlert?.blockType, 'insufficient_credits');
   assert.equal(slackAlert?.action, 'story_add_audio');
   assert.equal(slackAlert?.userEmail, 'no-credits@example.test');
   assert.equal(slackAlert?.storyId, 'story-audio-insufficient');
-  assert.equal(slackAlert?.requiredCredits, 0.1);
+  assert.equal(slackAlert?.requiredCredits, 0.000001);
   assert.equal(slackAlert?.availableCredits, 0);
 });
 
@@ -857,7 +858,7 @@ test('POST /api/stories/:id/pages/:pageNumber/regenerate-image reviews feedback 
   const body = await response.json() as { status: string; pageNumber: number; chargedCredits: number };
   assert.equal(body.status, 'generating_images');
   assert.equal(body.pageNumber, 1);
-  assert.equal(body.chargedCredits, 0.2);
+  assert.equal(body.chargedCredits, 0);
 
   const updated = await waitFor(
     () => readStoryMeta(dataDir, 'story-page-image'),
@@ -911,7 +912,7 @@ test('PATCH /api/stories/:id/pages/:pageNumber/script-audio reviews text and upd
   const body = await response.json() as { status: string; pageNumber: number; chargedCredits: number };
   assert.equal(body.status, 'generating_audio');
   assert.equal(body.pageNumber, 1);
-  assert.equal(body.chargedCredits, 0.1);
+  assert.equal(body.chargedCredits, 0);
 
   const updated = await waitFor(
     () => readStoryMeta(dataDir, 'story-page-audio'),
@@ -1020,7 +1021,7 @@ test('PATCH /api/stories/:id/pages/:pageNumber/script-audio returns 402 before a
 
   assert.equal(response.status, 402);
   const body = await response.json() as { requiredCredits: number; availableCredits: number };
-  assert.equal(body.requiredCredits, 0.1);
+  assert.equal(body.requiredCredits, 0.000001);
   assert.equal(body.availableCredits, 0);
   assert.equal(generated, false);
   await waitFor(async () => slackAlert, value => value !== null);
@@ -1028,8 +1029,8 @@ test('PATCH /api/stories/:id/pages/:pageNumber/script-audio returns 402 before a
   assert.equal(slackAlert?.action, 'story_regenerate_audio');
   assert.equal(slackAlert?.userEmail, 'page-audio@example.test');
   assert.equal(slackAlert?.storyId, 'story-page-audio-insufficient');
-  assert.equal(slackAlert?.pageNumber, 1);
-  assert.equal(slackAlert?.requiredCredits, 0.1);
+  assert.equal(slackAlert?.pageNumber, undefined);
+  assert.equal(slackAlert?.requiredCredits, 0.000001);
   assert.equal(slackAlert?.availableCredits, 0);
 });
 
@@ -1834,7 +1835,7 @@ test('POST /api/stories/:id/regenerate-assets syncs renderedScenarioRevision to 
   assert.equal(response.status, 200);
   const responseBody = await response.json() as { status: string; chargedCredits: number; availableCredits: number };
   assert.equal(responseBody.status, 'generating_characters');
-  assert.equal(responseBody.chargedCredits, 0.1);
+  assert.equal(responseBody.chargedCredits, 0);
   assert.equal(responseBody.availableCredits, 0);
 
   const savedStory = await waitFor(

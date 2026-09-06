@@ -8,7 +8,7 @@ import {
   type StoryPromptContext,
 } from './storyPrompt.js';
 import { normalizeScenarioWhitespace } from './scenarioValidation.js';
-import type { TextGenerationOptions } from './openai.js';
+import type { TextGenerationOptions } from './openrouter.js';
 import type { StoryUsageStatus } from '../../shared/types.js';
 
 export const SCENARIO_REVIEW_ISSUE_CODES = [

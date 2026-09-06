@@ -7,7 +7,7 @@ import {
   type AgentTool,
   type AgentTurnUpdate,
 } from './agentRuntime.js';
-import { createOpenAIAgentModel } from './openai.js';
+import { createOpenRouterAgentModel } from './openrouter.js';
 import { loadMarkdownFile } from './promptFiles.js';
 
 export const MAIN_STORY_AGENT_MAX_TURNS = 20;
@@ -124,7 +124,7 @@ function createModelFactory<TContext>(
 ): NonNullable<StoryAgentRunnerDependencies['modelFactory']> {
   if (options.dependencies?.modelFactory) return options.dependencies.modelFactory;
   const modelFor = (role: 'main' | 'subagent') => getStoryAgentModelName(role);
-  return role => createOpenAIAgentModel({
+  return role => createOpenRouterAgentModel({
     model: modelFor(role),
     reasoningEffort: role === 'subagent' ? 'medium' : 'high',
     onUsage: role === 'subagent'

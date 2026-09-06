@@ -1,3 +1,4 @@
+import { requireMediaPricing } from './modelPriceCatalog.js';
 import {
   GoogleGenAI,
   HarmBlockThreshold,
@@ -259,6 +260,7 @@ export async function generateImage(
 
   for (let index = 0; index < modelsToTry.length; index++) {
     const model = modelsToTry[index];
+    await requireMediaPricing(model, 'image');
     let response: ImageGenerationResponse;
     try {
       response = await ai.models.generateContent({

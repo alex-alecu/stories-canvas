@@ -1,5 +1,5 @@
 import { config } from '../config.js';
-import * as openai from './openai.js';
+import * as openai from './openrouter.js';
 import { loadPromptMarkdown } from './promptFiles.js';
 
 export const PAGE_TEXT_REVIEW_REASON_CODES = [

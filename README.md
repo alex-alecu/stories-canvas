@@ -4,14 +4,24 @@ Generate illustrated and narrated stories for children with the help of AI.
 
 ## Billing Model
 
-The public gallery stays free and ad-free. Billing only applies when a signed-in user creates a new story.
+The public gallery is free. Accounts hold prepaid funds in US dollars. A new story requires a balance of at least $10.
 
-- `Fast` story: `1` credit
-- `Pro` story: `2` credits
-- `Pro + Audio` story: `3` credits
-- Story packs: `5`, `12`, and `20` credits
+- Users select one of six text models, a thinking level, and optional narration.
+- Each OpenRouter response supplies its actual USD cost. The app stores the response ID, model, thinking level, token usage, and cost.
+- Image and audio costs use the saved model price catalog. Generation stops if the required price is unavailable.
+- Each request creates one cost entry and one wallet debit in the same database transaction. Duplicate event IDs cannot charge twice.
+- Costs use six decimal places. The app has no added generation markup. Provider funding and Stripe payment fees are operating costs.
+- Completed request costs still apply after a later failure or cancellation. Requests already in progress can take a balance below zero. Further generation then stops.
+- Initial funding options are $10, $25, and $50. Funds do not expire. Admins can change funding amounts or grant USD amounts.
+- Existing credits convert at **1 credit = $1**. The old balance is saved in `legacy_credits_converted` with a conversion date. Existing credit column names remain for API compatibility; their values now mean USD.
 
-Credits do not expire. Pack pricing and descriptions are managed from the in-app admin panel, not the Stripe dashboard.
+## Text Provider
+
+Text generation uses [OpenRouter usage accounting](https://openrouter.ai/docs/use-cases/usage-accounting), [structured output](https://openrouter.ai/docs/guides/features/structured-outputs), and [thinking levels](https://openrouter.ai/docs/guides/best-practices/reasoning-tokens). Tool calls, web search, and image input remain supported.
+
+The six models are defined in `shared/textModels.ts`. The default is Gemini 3.8 Flash. The selected model and thinking level apply to all text steps for a story, including reviews and later edits. Models were checked against the live catalog on 2026-09-06.
+
+[Vercel AI Gateway](https://vercel.com/docs/ai-gateway/pricing) was also checked. It has no token markup or platform fee. OpenRouter was selected for its common thinking control, provider routing, and response cost field. The app uses price-based provider routing within the selected model.
 
 ## How Story Generation Works
 
@@ -46,7 +56,7 @@ This layered approach — character sheets for identity, previous scene for styl
 
 ### Step 4 — Record Narration
 
-If the user selected the `Pro + Audio` mode, each page's text is sent to a text-to-speech model one page at a time. The app offers three family-role narrator options backed by the curated Romanian shortlist: Grandpa (Jora Slobod), Dad (Serban Popescu), and Mom (Corina Capuccina). All three use the same narration-oriented speech settings, and the resulting audio clips are saved so the story can be played back like an audiobook.
+If the user selected narration, each page's text is sent to a text-to-speech model one page at a time. The app offers three family-role narrator options backed by the curated Romanian shortlist: Grandpa (Jora Slobod), Dad (Serban Popescu), and Mom (Corina Capuccina). All three use the same narration-oriented speech settings, and the resulting audio clips are saved so the story can be played back like an audiobook.
 
 Narration is only available at story creation time in this version. Users cannot buy or add narration later to an existing story.
 
@@ -56,7 +66,7 @@ Users with the `admin` role can open `/admin` to:
 
 - edit live pack names, descriptions, prices, and active state
 - search users and inspect their purchase and credit history
-- grant free credits with an audit note
+- grant USD funds with an audit note
 - monitor mirrored Stripe webhook events
 
 The first admin accounts are bootstrapped from `ADMIN_BOOTSTRAP_EMAILS`.
@@ -65,7 +75,7 @@ The first admin accounts are bootstrapped from `ADMIN_BOOTSTRAP_EMAILS`.
 
 Copy `.env.example` to `.env` and fill in the values you need:
 
-- `OPENAI_API_KEY` enables all text generation and text review. The fixed text model is `gpt-5.6-sol`. The server can start without this key, but text requests need it.
+- `OPENROUTER_API_KEY` enables all text generation and text review. Keep it on the server. Direct OpenAI credentials are no longer used.
 - `GEMINI_API_KEY` is required for image generation. `IMAGE_MODEL` and `IMAGE_MODEL_PRO` are optional Gemini image model overrides.
 - `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_KEY` enable auth, storage, billing, and admin APIs
 - `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` enable Checkout and webhook fulfillment
@@ -95,12 +105,15 @@ stripe listen \
 ```
 
 4. Copy the printed webhook signing secret into `STRIPE_WEBHOOK_SECRET`.
-5. Buy a pack from `/billing` and confirm the credits appear in the UI and in `/admin`.
+5. Add funds from `/billing` and confirm the dollar balance in the UI and in `/admin`.
 
-## Manual Smoke Checks
+## Deployment and Checks
 
-- Buy each pack and verify it grants `5`, `12`, or `20` credits exactly once.
-- Create `Fast`, `Pro`, and `Pro + Audio` stories and verify the debit is `1`, `2`, and `3` credits.
-- Cancel or fail a story before the first illustration completes and verify the credits are refunded.
-- Confirm completed stories with at least one finished illustration do not refund credits on cancel.
-- Verify `/api/stories/:id/generate-audio` charges 1 credit and adds narration for completed owner stories without audio.
+1. Stop active generation before the cutover. Back up the database.
+2. Apply all migrations, including `20260906075743_openrouter_usd_wallet.sql`.
+3. Set `OPENROUTER_API_KEY` and deploy the application with the migration. Existing Gemini, ElevenLabs, Supabase, and Stripe keys remain in use.
+4. Remove old `STORY_PACK_*` environment defaults. USD funding amounts are now set in the admin screen.
+5. Verify a Stripe sandbox purchase. A completed USD Checkout grants the exact amount in its signed snapshot, once. Old Checkout sessions retain their legacy credit value at the 1:1 conversion rate.
+6. Confirm $9.99 blocks a new story and $10 allows it. Select a different model and thinking level. Check the saved settings, request cost, wallet debit, and updated balance after generation.
+
+The balance history links each cost to its story. Text costs come from the response, with a generation-ID lookup if the inline cost is absent. If no cost is available, an incomplete event is saved and generation stops for account support review.

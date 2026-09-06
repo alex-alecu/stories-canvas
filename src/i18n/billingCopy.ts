@@ -32,12 +32,7 @@ const LEGACY_ENGLISH_OFFER_COPY: Record<StoryPackOffer['slug'], { name: string; 
 };
 
 export function formatCredits(count: number, t: Pick<Translations, 'creditSingular' | 'creditPlural'>): string {
-  const rounded = Math.round(count * 10) / 10;
-  const formatted = new Intl.NumberFormat(undefined, {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 1,
-  }).format(rounded);
-  return `${formatted} ${rounded === 1 ? t.creditSingular : t.creditPlural}`;
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: Math.abs(count) > 0 && Math.abs(count) < 0.01 ? 6 : 2 }).format(count);
 }
 
 function normalizeCurrency(currency: string | undefined): string {
@@ -139,6 +134,8 @@ export function getLedgerReasonLabel(
   switch (reason) {
     case 'pack_purchase':
       return t.billingReasonPackPurchase;
+    case 'story_usage':
+      return t.billingReasonStoryCreate;
     case 'story_create':
       return t.billingReasonStoryCreate;
     case 'story_add_audio':

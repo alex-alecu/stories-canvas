@@ -124,8 +124,8 @@ router.patch('/offers/:slug', requireAdmin, async (req: Request, res: Response) 
       return;
     }
 
-    if (!Number.isInteger(priceMinor) || (priceMinor ?? -1) < 0) {
-      res.status(400).json({ error: 'priceMinor must be a non-negative integer' });
+    if (typeof priceMinor !== 'number' || !Number.isSafeInteger(priceMinor) || priceMinor <= 0) {
+      res.status(400).json({ error: 'priceMinor must be a positive integer' });
       return;
     }
 
@@ -155,12 +155,12 @@ router.post('/users/:userId/credits', requireAdmin, async (req: Request, res: Re
       note?: string;
     };
 
-    if (!Number.isInteger(amount) || (amount ?? 0) <= 0) {
-      res.status(400).json({ error: 'amount must be a positive integer' });
+    if (typeof amount !== 'number' || !Number.isFinite(amount) || amount <= 0 || Math.round(amount * 100) / 100 !== amount) {
+      res.status(400).json({ error: 'Enter a positive USD amount with at most two decimal places.' });
       return;
     }
 
-    const result = await grantCredits(req.params.userId, amount, {
+    const result = await grantCredits(String(req.params.userId), amount, {
       reason: 'admin_grant',
       adminUserId: req.authUser?.id,
       note: typeof note === 'string' && note.trim().length > 0 ? note.trim() : undefined,

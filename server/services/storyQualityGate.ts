@@ -1,7 +1,7 @@
 import type { Scenario, StoryUsageStatus } from '../../shared/types.js';
 import { config } from '../config.js';
-import { generateJSON } from './openai.js';
-import type { TextGenerationOptions } from './openai.js';
+import { generateJSON } from './openrouter.js';
+import type { TextGenerationOptions } from './openrouter.js';
 import type { StoryPromptContext } from './storyPrompt.js';
 import { storyScriptSchema } from './storyScriptSchema.js';
 import {

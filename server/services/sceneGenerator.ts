@@ -10,7 +10,7 @@ import { imageGenerationLimiter } from '../utils/rateLimiter.js';
 import { getPageImageFilename } from '../utils/storyMedia.js';
 import type { Page, Character, GenerationProgress } from '../../shared/types.js';
 import { reviewSceneImage, type SceneImageReviewResult } from './sceneImageReview.js';
-import type { TextUsageEvent } from './openai.js';
+import type { TextUsageEvent } from './openrouter.js';
 
 async function saveSceneImage(storyId: string, filename: string, base64: string, userId?: string): Promise<void> {
   if (config.useSupabase) {

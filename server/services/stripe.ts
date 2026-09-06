@@ -127,6 +127,8 @@ export async function createStoryPackCheckoutSession(params: {
   const metadata = {
     userId: params.userId,
     offerSlug: params.offer.slug,
+    walletCurrency: 'USD',
+    walletAmountUsd: String(params.offer.priceMinor / 100),
     ...buildMarketingMetadata(params.marketing),
   };
 

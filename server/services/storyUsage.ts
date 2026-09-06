@@ -1,3 +1,5 @@
+import { config } from '../config.js';
+import { requestUsageId } from './openrouter.js';
 import crypto from 'crypto';
 import type {
   ArtStyleKey,
@@ -208,9 +210,11 @@ export async function recordStoryUsage(
   const textUsageBillingUnits = usageAvailable
     ? resolveTextUsageBillingUnits(input.usageDetails)
     : { cachedInputTokens: 0, cacheWriteInputTokens: 0, webSearchCalls: 0 };
-  const pricingSnapshot = await pricingResolver(input.model);
+  const reportedCost = input.provider === 'openrouter' ? input.usageDetails?.providerCostUsd : undefined;
+  const hasReportedCost = typeof reportedCost === 'number' && Number.isFinite(reportedCost) && reportedCost >= 0;
+  const pricingSnapshot = input.provider === 'openrouter' ? undefined : await pricingResolver(input.model);
   const calculatedAt = new Date().toISOString();
-  const costUsdMicros = pricingSnapshot
+  const costUsdMicros = hasReportedCost ? Math.round(reportedCost * 1_000_000) : pricingSnapshot
     ? resolveCostMicros(
       input,
       pricingSnapshot,
@@ -222,7 +226,8 @@ export async function recordStoryUsage(
     )
     : 0;
   const event: StoryUsageEvent = {
-    id: crypto.randomUUID(),
+    id: input.provider === 'openrouter' && typeof input.usageDetails?.responseId === 'string'
+      ? requestUsageId(storyId, input.usageDetails.responseId) : crypto.randomUUID(),
     storyId,
     userId,
     provider: input.provider,
@@ -246,7 +251,7 @@ export async function recordStoryUsage(
     pricingSnapshot: pricingSnapshot
       ? { ...pricingSnapshot, roles: [...pricingSnapshot.roles] }
       : {},
-    pricingStatus: usageAvailable && pricingSnapshot ? 'complete' : 'incomplete',
+    pricingStatus: hasReportedCost || (usageAvailable && pricingSnapshot) ? 'complete' : 'incomplete',
     calculatedAt,
     createdAt: new Date().toISOString(),
   };
@@ -256,6 +261,9 @@ export async function recordStoryUsage(
     event,
     buildTotalsDelta(input, inputTokens, outputTokens, totalTokens, costUsdMicros),
   );
+  if (config.useSupabase && input.status === 'succeeded' && event.pricingStatus === 'incomplete') {
+    throw new Error('The request cost is unavailable. Generation stopped.');
+  }
   return event;
 }
 

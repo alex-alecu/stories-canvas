@@ -6,10 +6,10 @@ import type { AgentModel } from './agentRuntime.js';
 
 process.env.GEMINI_API_KEY ??= 'test-key';
 
-test('independent reviews and main story work use GPT-5.6 Sol', async () => {
+test('independent reviews and main story work have the same default model', async () => {
   const { getStoryAgentModelName } = await import('./storyAgentRunner.js');
-  assert.equal(getStoryAgentModelName('main'), 'gpt-5.6-sol');
-  assert.equal(getStoryAgentModelName('subagent'), 'gpt-5.6-sol');
+  assert.equal(getStoryAgentModelName('main'), 'google/gemini-3.8-flash');
+  assert.equal(getStoryAgentModelName('subagent'), 'google/gemini-3.8-flash');
 });
 
 function makeScenario(characterCount = 2, tooManySentences = false): Scenario {

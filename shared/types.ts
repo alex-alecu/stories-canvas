@@ -1,3 +1,4 @@
+import type { ThinkingLevel } from './textModels.js';
 export type PageStatus = 'pending' | 'generating' | 'completed' | 'failed';
 
 export type StoryStatus = 'generating_scenario' | 'reviewing_scenario' | 'generating_characters' | 'generating_images' | 'generating_audio' | 'completed' | 'failed' | 'cancelled';
@@ -8,7 +9,7 @@ export type VoiceKey = 'bunica' | 'jora' | 'serban' | 'corina';
 export type StoryMode = 'fast' | 'pro' | 'pro_audio';
 export type StoryReaction = 'like' | 'dislike';
 export const STORY_REACTION_FEEDBACK_MAX_CHARS = 500;
-export type StoryUsageProvider = 'openai' | 'gemini' | 'elevenlabs';
+export type StoryUsageProvider = 'openrouter' | 'openai' | 'gemini' | 'elevenlabs';
 export type StoryUsageSource = 'initial_generation' | 'retry' | 'regenerate_assets' | 'add_audio' | 'regenerate_page_image' | 'regenerate_page_audio';
 export type StoryUsageStatus = 'succeeded' | 'failed';
 export type StoryUsageOperation =
@@ -233,6 +234,9 @@ export interface PublicStoryPreviewGate {
 }
 
 export interface StoryGenerationInputs {
+  textModel?: string;
+  thinkingLevel?: ThinkingLevel;
+  billingCurrency?: 'USD';
   prompt: string;
   language: string;
   age: number;
@@ -396,6 +400,9 @@ export interface GenerationProgress {
 }
 
 export interface CreateStoryRequest {
+  textModel?: string;
+  thinkingLevel?: ThinkingLevel;
+  audioEnabled?: boolean;
   prompt: string;
   language?: string;
   age?: number;

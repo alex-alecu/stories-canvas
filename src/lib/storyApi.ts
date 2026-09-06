@@ -1,3 +1,4 @@
+import type { TextModelSettings } from '../../shared/textModels';
 import type {
   CreateStoryResponse,
   GenerateAudioResponse,
@@ -85,6 +86,9 @@ export async function createStory(params: {
   age?: number;
   style?: string;
   storyMode?: StoryMode;
+  textModel?: string;
+  thinkingLevel?: TextModelSettings['thinkingLevel'];
+  audioEnabled?: boolean;
   voice?: string;
 }): Promise<CreateStoryResponse> {
   const authHeaders = await getAuthHeaders();
@@ -97,6 +101,9 @@ export async function createStory(params: {
       age: params.age,
       style: params.style,
       storyMode: params.storyMode,
+      textModel: params.textModel,
+      thinkingLevel: params.thinkingLevel,
+      audioEnabled: params.audioEnabled,
       voice: params.voice,
     }),
   });

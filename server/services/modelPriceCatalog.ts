@@ -296,3 +296,13 @@ export async function refreshModelPriceCatalog(options: { force?: boolean } = {}
     throw error;
   }
 }
+
+/** Stop before a paid media request when its rate cannot be recorded. */
+export async function requireMediaPricing(model: string, kind: 'image' | 'audio'): Promise<void> {
+  if (!config.useSupabase) return;
+  const pricing = await resolveModelPricingSnapshot(model);
+  const rate = Number(kind === 'image' ? pricing?.imageOutputUsdPerToken : pricing?.audioUsdPerCharacter);
+  if (!pricing || !Number.isFinite(rate) || rate <= 0) {
+    throw new Error('Generation pricing is unavailable. Please try again later.');
+  }
+}
