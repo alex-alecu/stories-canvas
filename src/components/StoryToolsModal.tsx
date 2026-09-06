@@ -1,7 +1,7 @@
 import { getWalletCopy } from '../i18n/walletCopy';
 import { useState, useEffect, useCallback, useMemo, useRef, type FormEvent } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import type { GenerationProgress, Page, Scenario, StoryMode, StoryReaction, StoryStatus } from '../types';
+import type { GenerationProgress, Page, Scenario, StoryMode, StoryReaction, StoryStatus, StoryOpenRouterCosts } from '../types';
 import {
   DEFAULT_VOICE_KEY,
   STORY_REACTION_FEEDBACK_MAX_CHARS,
@@ -21,7 +21,6 @@ import { useBillingOverview } from '../hooks/useBilling';
 import { useStoryGeneration } from '../hooks/useStoryGeneration';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../i18n/LanguageContext';
-import { formatCredits } from '../i18n/billingCopy';
 import { formatStoryStatusMessage, getVoiceOptionText } from '../i18n/storyStatusCopy';
 import FontSizeControl from './FontSizeControl';
 
@@ -44,6 +43,7 @@ interface StoryToolsModalProps {
   storyStatus: StoryStatus;
   currentPage?: Page;
   storyMode?: StoryMode;
+  openRouterCosts?: StoryOpenRouterCosts | null;
   likeCount?: number;
   dislikeCount?: number;
   myReaction?: StoryReaction | null;
@@ -96,6 +96,7 @@ export default function StoryToolsModal({
   storyStatus,
   currentPage,
   storyMode,
+  openRouterCosts,
   likeCount = 0,
   dislikeCount = 0,
   myReaction = null,
@@ -103,6 +104,10 @@ export default function StoryToolsModal({
   canUseOnlineActions = true,
 }: StoryToolsModalProps) {
   const { t, language } = useLanguage();
+  const walletCopy = getWalletCopy(language);
+  const costFormatter = new Intl.NumberFormat(language, {
+    style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 6,
+  });
   const { user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -596,6 +601,31 @@ export default function StoryToolsModal({
       <section className="rounded-lg border border-white/10 bg-white/[0.04] p-4">
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/35">{t.storyToolsSectionStory}</p>
         <h3 className="mt-2 text-lg font-bold leading-snug text-white">{scenario.title}</h3>
+        {canManageStory && openRouterCosts !== undefined && (
+          <div className="mt-4 border-t border-white/10 pt-4">
+            <h4 className="text-sm font-semibold text-white">{walletCopy.openRouterCosts}</h4>
+            {openRouterCosts ? (
+              <>
+                <dl className="mt-3 space-y-2 text-sm tabular-nums">
+                  {[
+                    [walletCopy.textCost, openRouterCosts.textCostUsdMicros],
+                    [walletCopy.imageCost, openRouterCosts.imageCostUsdMicros],
+                  ].map(([label, cost]) => (
+                    <div key={label} className="flex items-center justify-between gap-4 text-white/65">
+                      <dt>{label}</dt>
+                      <dd className="text-white">{costFormatter.format(Number(cost) / 1_000_000)}</dd>
+                    </div>
+                  ))}
+                  <div className="flex items-center justify-between gap-4 border-t border-white/10 pt-2 font-semibold text-white">
+                    <dt>{walletCopy.totalCost}</dt>
+                    <dd>{costFormatter.format((openRouterCosts.textCostUsdMicros + openRouterCosts.imageCostUsdMicros) / 1_000_000)}</dd>
+                  </div>
+                </dl>
+                <p className="mt-2 text-xs leading-relaxed text-white/45">{openRouterCosts.unpricedRequests > 0 ? walletCopy.incompleteCosts : walletCopy.costsIncludeUpdates}</p>
+              </>
+            ) : <p className="mt-2 text-sm text-white/55">{walletCopy.costsUnavailable}</p>}
+          </div>
+        )}
         <div className="mt-4 flex flex-wrap items-center gap-2">
           {dislikeFeedbackOpen ? (
             <form onSubmit={handleDislikeFeedbackSubmit} className="flex w-full flex-col gap-2 sm:flex-row sm:items-center">

@@ -6,6 +6,7 @@ import type {
   StoryGenerationInputs,
   StoryMeta,
   StoryMode,
+  StoryOpenRouterCosts,
   StoryUsageEvent,
   StoryUsageOperation,
   StoryUsageProvider,
@@ -117,6 +118,25 @@ export function normalizeStoryUsageTotals(usageTotals?: Partial<StoryUsageTotals
     imageCostUsdMicros: usageTotals?.imageCostUsdMicros ?? 0,
     audioCostUsdMicros: usageTotals?.audioCostUsdMicros ?? 0,
   };
+}
+
+export type StoryRequestCost = Pick<StoryUsageEvent, 'provider' | 'operation' | 'costUsdMicros' | 'pricingStatus'>;
+
+export function sumOpenRouterCosts(events: StoryRequestCost[]): StoryOpenRouterCosts {
+  const costs: StoryOpenRouterCosts = { textCostUsdMicros: 0, imageCostUsdMicros: 0, unpricedRequests: 0 };
+  for (const event of events) {
+    if (event.provider !== 'openrouter' || event.operation === 'page_audio') continue;
+    if (event.pricingStatus !== 'complete') {
+      costs.unpricedRequests += 1;
+      continue;
+    }
+    if (event.operation === 'character_sheet' || event.operation === 'page_image') {
+      costs.imageCostUsdMicros += event.costUsdMicros;
+    } else {
+      costs.textCostUsdMicros += event.costUsdMicros;
+    }
+  }
+  return costs;
 }
 
 export function buildStoryGenerationInputs(params: {

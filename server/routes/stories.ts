@@ -100,6 +100,9 @@ export const storyStyleOps = {
 };
 
 export const storageOps = {
+  getStoryOpenRouterCosts: async (storyId: string) => (
+    config.useSupabase ? sbStorage.getStoryOpenRouterCosts(storyId) : fsStorage.getStoryOpenRouterCosts(storyId)
+  ),
   getActiveGenerations: sbStorage.getActiveGenerations,
   getStory: async (storyId: string) => (
     config.useSupabase ? sbStorage.getStory(storyId) : fsStorage.getStory(storyId)
@@ -3319,6 +3322,15 @@ router.get('/:id', optionalAuth, limitAuthenticatedStoryRead, async (req: Reques
     }
 
     const responseStory = applyPublicStoryPreviewGate(story, req.authUser?.id);
+
+    if (req.authUser && story.userId === req.authUser.id) {
+      try {
+        responseStory.openRouterCosts = await storageOps.getStoryOpenRouterCosts(story.id);
+      } catch (error) {
+        console.error('Failed to get story costs:', error);
+        responseStory.openRouterCosts = null;
+      }
+    }
 
     responseStory.myReaction = req.authUser
       ? await storageOps.getStoryReaction(story.id, req.authUser.id)

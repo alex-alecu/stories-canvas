@@ -24,7 +24,7 @@ export default function StoryPage() {
       document.documentElement.classList.remove('story-view');
     };
   }, []);
-  const { data: story, isLoading, error } = useStory(id);
+  const { data: story, isLoading, error, refetch } = useStory(id);
   const shouldWarmMediaCache = import.meta.env.PROD
     && isOnline
     && story?.status === 'completed'
@@ -38,10 +38,14 @@ export default function StoryPage() {
   const recordStoryView = useRecordStoryView();
   const navigate = useNavigate();
   const { t } = useLanguage();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const lastWarmupKeyRef = useRef<string | null>(null);
   const lastAutoDownloadKeyRef = useRef<string | null>(null);
   const storyReturnTo = `${location.pathname}${location.search}${location.hash}`;
+
+  useEffect(() => {
+    if (id && isOnline && !authLoading) void refetch();
+  }, [id, user?.id, authLoading, isOnline, refetch]);
 
   const warmupUrls = useMemo(() => {
     if (story?.status !== 'completed' || story.assetsStale || story.publicPreviewGate || !story.scenario) return [];
@@ -219,6 +223,7 @@ export default function StoryPage() {
         dislikeCount={story.dislikeCount ?? 0}
         myReaction={story.myReaction ?? null}
         storyMode={story.storyMode}
+        openRouterCosts={story.openRouterCosts}
         canManageStory={isOnline && !!user && !!story.userId && story.userId === user.id}
         canUseOnlineActions={isOnline}
         publicPreviewGate={publicPreviewGate}

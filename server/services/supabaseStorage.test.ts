@@ -1,7 +1,38 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { createClient } from '@supabase/supabase-js';
 
 import type { Page, Scenario, StoryMeta } from '../../shared/types.js';
+
+test('story costs query selects OpenRouter requests for one story across all result pages', async () => {
+  const { getStoryOpenRouterCosts } = await import('./supabaseStorage.js');
+  const offsets: number[] = [];
+  const client = createClient('https://costs.example.test', 'test-key', {
+    auth: { persistSession: false, autoRefreshToken: false },
+    global: { fetch: async (input) => {
+      const url = new URL(String(input));
+      assert.equal(url.pathname, '/rest/v1/story_usage_events');
+      assert.equal(url.searchParams.get('story_id'), 'eq.story-costs');
+      assert.equal(url.searchParams.get('provider'), 'eq.openrouter');
+      assert.equal(url.searchParams.get('status'), null);
+      assert.equal(url.searchParams.get('order'), 'created_at.asc,id.asc');
+      const offset = Number(url.searchParams.get('offset'));
+      offsets.push(offset);
+      const rows = offset === 0
+        ? Array.from({ length: 1000 }, () => ({ provider: 'openrouter', operation: 'scenario_draft', cost_usd_micros: 1, pricing_status: 'complete' }))
+        : [
+          { provider: 'openrouter', operation: 'page_image', cost_usd_micros: 200_000, pricing_status: 'complete' },
+          { provider: 'openrouter', operation: 'page_audio', cost_usd_micros: 900_000, pricing_status: 'complete' },
+        ];
+      return new Response(JSON.stringify(rows), { headers: { 'Content-Type': 'application/json' } });
+    } },
+  });
+
+  assert.deepEqual(await getStoryOpenRouterCosts('story-costs', client), {
+    textCostUsdMicros: 1000, imageCostUsdMicros: 200_000, unpricedRequests: 0,
+  });
+  assert.deepEqual(offsets, [0, 1000]);
+});
 
 
 function makePage(overrides: Partial<Page> = {}): Page {

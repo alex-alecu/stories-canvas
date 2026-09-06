@@ -1518,12 +1518,17 @@ test('GET /api/stories/:id returns only a three-page public preview for anonymou
       text: `Page ${index + 1}`,
     }))),
   }));
+  const costsRead = t.mock.method(harness.storiesModule.storageOps, 'getStoryOpenRouterCosts', async () => {
+    throw new Error('Public readers must not read owner costs');
+  });
 
   const response = await fetch(`${harness.baseUrl}/api/stories/story-public-preview`);
 
   assert.equal(response.status, 200);
   assert.equal(response.headers.get('cache-control'), 'public, s-maxage=60, stale-while-revalidate=120');
   const story = await response.json() as StoryMeta;
+  assert.equal(story.openRouterCosts, undefined);
+  assert.equal(costsRead.mock.callCount(), 0);
   assert.deepEqual(story.scenario?.pages.map(page => page.pageNumber), [1, 2, 3]);
   assert.deepEqual(story.publicPreviewGate, {
     pageLimit: 3,
@@ -1554,14 +1559,57 @@ test('GET /api/stories/:id returns the full public story for signed-in readers',
     }))),
   }));
   t.mock.method(harness.storiesModule.storageOps, 'getStoryReaction', async () => null);
+  const costsRead = t.mock.method(harness.storiesModule.storageOps, 'getStoryOpenRouterCosts', async () => {
+    throw new Error('Other readers must not read owner costs');
+  });
 
   const response = await fetch(`${harness.baseUrl}/api/stories/story-public-full`);
 
   assert.equal(response.status, 200);
   assert.equal(response.headers.get('cache-control')?.includes('public') ?? false, false);
   const story = await response.json() as StoryMeta;
+  assert.equal(story.openRouterCosts, undefined);
+  assert.equal(costsRead.mock.callCount(), 0);
   assert.deepEqual(story.scenario?.pages.map(page => page.pageNumber), [1, 2, 3, 4, 5, 6]);
   assert.equal(story.publicPreviewGate, undefined);
+});
+
+test('GET /api/stories/:id gives the owner recorded OpenRouter text and image costs only', async (t) => {
+  const dataDir = mkdtempSync(path.join(os.tmpdir(), 'stories-cost-detail-'));
+  const harness = await createStoriesHarness(dataDir, { __testAuthUser: { id: 'story-owner' } });
+  t.after(async () => {
+    await harness.close();
+    await fs.rm(dataDir, { recursive: true, force: true });
+  });
+  const story = makeStoryMeta({ id: 'story-costs', userId: 'story-owner', status: 'completed' });
+  await writeStoryMeta(dataDir, story);
+  await fs.writeFile(path.join(dataDir, story.id, 'usage-events.json'), JSON.stringify([
+    { provider: 'openrouter', operation: 'scenario_draft', costUsdMicros: 100_001, pricingStatus: 'complete', status: 'succeeded' },
+    { provider: 'openrouter', operation: 'scenario_review', costUsdMicros: 20_002, pricingStatus: 'complete', status: 'failed' },
+    { provider: 'openrouter', operation: 'page_text_review', costUsdMicros: 3, pricingStatus: 'complete', source: 'regenerate_page_audio' },
+    { provider: 'openrouter', operation: 'character_sheet', costUsdMicros: 300_004, pricingStatus: 'complete' },
+    { provider: 'openrouter', operation: 'page_image', costUsdMicros: 400_005, pricingStatus: 'complete', source: 'regenerate_page_image' },
+    { provider: 'openrouter', operation: 'page_image', costUsdMicros: 0, pricingStatus: 'incomplete' },
+    { provider: 'openrouter', operation: 'page_image', costUsdMicros: 99_999, pricingStatus: 'estimated' },
+    { provider: 'openrouter', operation: 'page_audio', costUsdMicros: 800_000, pricingStatus: 'complete' },
+    { provider: 'gemini', operation: 'page_image', costUsdMicros: 900_000, pricingStatus: 'complete' },
+    { provider: 'openai', operation: 'scenario_draft', costUsdMicros: 700_000, pricingStatus: 'complete' },
+    { provider: 'elevenlabs', operation: 'page_audio', costUsdMicros: 600_000, pricingStatus: 'complete' },
+  ]));
+
+  const response = await fetch(`${harness.baseUrl}/api/stories/${story.id}`);
+  assert.equal(response.status, 200);
+  const detail = await response.json() as StoryMeta;
+  assert.deepEqual(detail.openRouterCosts, {
+    textCostUsdMicros: 120_006,
+    imageCostUsdMicros: 700_009,
+    unpricedRequests: 2,
+  });
+
+  await fs.writeFile(path.join(dataDir, story.id, 'usage-events.json'), 'invalid JSON');
+  const unavailableResponse = await fetch(`${harness.baseUrl}/api/stories/${story.id}`);
+  assert.equal(unavailableResponse.status, 200);
+  assert.equal((await unavailableResponse.json() as StoryMeta).openRouterCosts, null);
 });
 
 test('GET /api/stories/mine includes view counts in summaries', async (t) => {

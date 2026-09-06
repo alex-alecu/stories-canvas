@@ -228,6 +228,12 @@ export interface StoryUsageTotals {
   audioCostUsdMicros: number;
 }
 
+export interface StoryOpenRouterCosts {
+  textCostUsdMicros: number;
+  imageCostUsdMicros: number;
+  unpricedRequests: number;
+}
+
 export interface StoryUsageEvent {
   id: string;
   storyId: string;
@@ -307,6 +313,7 @@ export interface StoryMeta {
   creditRefundedAt?: string;
   generationInputs?: StoryGenerationInputs;
   usageTotals?: StoryUsageTotals;
+  openRouterCosts?: StoryOpenRouterCosts | null;
   viewCount?: number;
   likeCount?: number;
   dislikeCount?: number;

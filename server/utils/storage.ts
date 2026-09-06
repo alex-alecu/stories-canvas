@@ -13,7 +13,7 @@ import {
   type StoryUsageTotals,
   type VoiceKey,
 } from '../../shared/types.js';
-import { EMPTY_STORY_USAGE_TOTALS, normalizeStoryUsageTotals } from '../services/storyUsage.js';
+import { EMPTY_STORY_USAGE_TOTALS, normalizeStoryUsageTotals, sumOpenRouterCosts } from '../services/storyUsage.js';
 
 const writeLocks = new Map<string, Promise<void>>();
 const storyDirOverrides = new Map<string, string>();
@@ -116,14 +116,19 @@ async function readUsageEvents(storyId: string): Promise<StoryUsageEvent[]> {
   try {
     const raw = await fs.readFile(getUsageEventsPath(storyId), 'utf-8');
     return JSON.parse(raw) as StoryUsageEvent[];
-  } catch {
-    return [];
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return [];
+    throw error;
   }
 }
 
 async function writeUsageEvents(storyId: string, events: StoryUsageEvent[]): Promise<void> {
   const dir = await getStoryDir(storyId);
   await fs.writeFile(path.join(dir, 'usage-events.json'), JSON.stringify(events, null, 2));
+}
+
+export async function getStoryOpenRouterCosts(storyId: string) {
+  return sumOpenRouterCosts(await readUsageEvents(storyId));
 }
 
 function mergeUsageTotals(
