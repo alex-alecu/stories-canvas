@@ -6,6 +6,7 @@ import type { StoryPromptContext } from './storyPrompt.js';
 import { storyScriptSchema } from './storyScriptSchema.js';
 import {
   formatScenarioValidationIssues,
+  getScenarioTextRules,
   MAX_RETELLING_SCENARIO_CHARACTERS,
   normalizeScenarioWhitespace,
   validateScenario,
@@ -113,8 +114,8 @@ const qualityReviewSchema = {
       items: {
         type: 'OBJECT',
         properties: {
-          code: { type: 'STRING' },
-          severity: { type: 'STRING' },
+          code: { type: 'STRING', enum: STORY_QUALITY_ISSUE_CODES },
+          severity: { type: 'STRING', enum: ['minor', 'major'] },
           summary: { type: 'STRING' },
           pageNumbers: { type: 'ARRAY', items: { type: 'INTEGER' } },
         },
@@ -149,6 +150,7 @@ const QUALITY_REWRITE_SYSTEM_INSTRUCTION = [
   'Do not write sentence fragments or compressed notes. Make the actor, action, reason, and result clear.',
   'Keep the current page count unless a supplied issue requires a change. Never exceed the maximum page count. Number pages sequentially from 1.',
   'Preserve correct scenes, the user\'s required details, and exact final wording. Do not replace the plot to fix a local issue.',
+  'Follow the supplied pageTextLimits, including spaces and punctuation in maxChars. Include the characters array on every page.',
   'Keep source identity, core event order, magical mechanics, and ending when compact source rules are supplied.',
   'For each page, make text, imagePrompt, and characters agree. Include every visible named character in the characters list.',
   'Return JSON only.',
@@ -176,6 +178,16 @@ function normalizeReview(raw: RawStoryQualityReview, pageCount: number): StoryQu
   const rawScores = raw.scores && typeof raw.scores === 'object'
     ? raw.scores as Record<string, unknown>
     : {};
+  const scoreKeys = Object.keys(qualityReviewSchema.properties.scores.properties);
+  if (typeof raw.summary !== 'string' || !raw.summary.trim() || !Array.isArray(raw.issues) ||
+      scoreKeys.some(key => !Number.isInteger(rawScores[key]) || Number(rawScores[key]) < 1 || Number(rawScores[key]) > 5) ||
+      raw.issues.some(issue => !issue || typeof issue !== 'object' ||
+        typeof issue.summary !== 'string' || !issue.summary.trim() ||
+        !(STORY_QUALITY_ISSUE_CODES as readonly unknown[]).includes(issue.code) ||
+        !['minor', 'major'].includes(issue.severity) || !Array.isArray(issue.pageNumbers) ||
+        issue.pageNumbers.some((page: unknown) => !Number.isInteger(page) || Number(page) < 1 || Number(page) > pageCount))) {
+    throw new Error('The story review did not match its required format. Generation stopped before rewriting.');
+  }
   const scores: StoryQualityScores = {
     languageFluency: clampScore(rawScores.languageFluency),
     childClarity: clampScore(rawScores.childClarity),
@@ -242,6 +254,7 @@ function qualityReviewPrompt(context: StoryPromptContext, scenario: Scenario): s
     language: context.language,
     targetAge: context.targetAge,
     maximumPageCount: context.pageCount,
+    pageTextLimits: getScenarioTextRules(context.targetAge),
     originalRequest: context.userPrompt,
     compactSourceRules: compactSourceRules(context),
     script: scenario,
@@ -258,6 +271,7 @@ function rewritePrompt(
     language: context.language,
     targetAge: context.targetAge,
     maximumPageCount: context.pageCount,
+    pageTextLimits: getScenarioTextRules(context.targetAge),
     originalRequest: context.userPrompt,
     compactSourceRules: compactSourceRules(context),
     qualityReview: review,

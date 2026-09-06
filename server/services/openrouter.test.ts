@@ -14,7 +14,7 @@ test('translated site names produce valid HTTP headers through the real client',
   const previousKey = process.env.OPENROUTER_API_KEY;
   const previousTitle = config.appSiteName;
   process.env.OPENROUTER_API_KEY = 'local-header-test';
-  config.appSiteName = 'Povești Magice 🦊';
+  Object.assign(config, { appSiteName: 'Povești Magice 🦊' });
   try {
     let sent = false;
     await getOpenRouterClient().withOptions({ fetch: async (_url, init) => {
@@ -24,7 +24,7 @@ test('translated site names produce valid HTTP headers through the real client',
     } }).get('/key');
     assert.equal(sent, true);
   } finally {
-    config.appSiteName = previousTitle;
+    Object.assign(config, { appSiteName: previousTitle });
     if (previousKey === undefined) delete process.env.OPENROUTER_API_KEY;
     else process.env.OPENROUTER_API_KEY = previousKey;
   }
@@ -55,6 +55,8 @@ test('model settings stay separate across concurrent stories; cost comes from th
   assert.deepEqual(api.requests.map(item => item.model), ['openai/gpt-6-astra', 'anthropic/claude-fable-5.1']);
   assert.deepEqual(api.requests[0].reasoning, { effort: 'high' });
   assert.equal(api.requests[0].response_format.json_schema.schema.type, 'object');
+  assert.match(api.requests[0].messages[0].content, /exact field names and types/);
+  assert.match(api.requests[0].messages[0].content, /"required":\["ok"\]/);
   assert.equal(usage[0].usageDetails.providerCostUsd, 0.012345);
   assert.equal(api.lookups, 0);
   assert.ok(TEXT_MODELS.length <= 10);
@@ -84,6 +86,15 @@ test('an accounting failure never repeats a paid completion', async () => {
   await assert.rejects(generateJSON('Story', 'Write it.', schema, { client: api.client, onUsage: () => { writes++; throw new Error('Database unavailable'); } }), /Database unavailable/);
   assert.equal(api.requests.length, 1);
   assert.equal(writes, 1);
+});
+
+test('a single Markdown wrapper does not discard valid paid JSON', async () => {
+  const api = fixture({ choices: [{ finish_reason: 'stop', message: { content: '```json\n{"ok":true}\n```' } }] });
+  const usage: TextUsageEvent[] = [];
+  assert.deepEqual(await generateJSON('Story', 'Write it.', schema, { client: api.client,
+    onUsage: event => { usage.push(event); } }), { ok: true });
+  assert.equal(api.requests.length, 1);
+  assert.equal(usage[0].usageDetails.providerCostUsd, 0.012345);
 });
 
 

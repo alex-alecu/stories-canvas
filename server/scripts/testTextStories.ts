@@ -1,8 +1,18 @@
 import { existsSync } from 'node:fs';
 import { mkdir, writeFile, appendFile } from 'node:fs/promises';
 import path from 'node:path';
+import { parseArgs } from 'node:util';
 import { parseTextModelSettings } from '../../shared/textModels.js';
 import type { TextUsageEvent } from '../services/openrouter.js';
+
+const { values } = parseArgs({ options: {
+  case: { type: 'string' }, budget: { type: 'string', default: '2' }, minutes: { type: 'string', default: '12' },
+} });
+const budgetUsd = Number(values.budget);
+const minutes = Number(values.minutes);
+if (!Number.isFinite(budgetUsd) || budgetUsd <= 0 || !Number.isFinite(minutes) || minutes <= 0) {
+  throw new Error('The test budget and time limit must be positive numbers.');
+}
 
 if (!process.env.OPENROUTER_API_KEY && existsSync('.env')) process.loadEnvFile('.env');
 if (!process.env.OPENROUTER_API_KEY?.trim()) throw new Error('OPENROUTER_API_KEY is required for live text tests.');
@@ -20,14 +30,31 @@ const cases = [
     prompt: 'Ollie the otter loses a borrowed red cup beside a stream. His first plan fails. He tells the truth, asks his friend Pip for help, and repairs his mistake. Use a clear chain of causes. No magic.' },
   { name: 'romanian-retelling', model: 'anthropic/claude-fable-5.1', language: 'ro', age: 7,
     prompt: 'Creează povestea lui Greuceanu cât mai aproape de original. Păstrează cauza plecării, personajele, ordinea evenimentelor și finalul. Adaptează pericolul pentru un copil de 7 ani.' },
+  { name: 'romanian-cooperation', model: 'anthropic/claude-fable-5.1', language: 'ro', age: 7,
+    prompt: 'Iris și Luca construiesc o căsuță pentru păsări în grădină. Primul lor plan nu merge. Iris recunoaște o greșeală, îi cere ajutorul lui Luca, iar cei doi repară căsuța împreună. Fără magie. Arată clar cauza și rezultatul fiecărei alegeri.' },
 ];
 const summary: Record<string, unknown>[] = [];
-for (const entry of cases) {
+const selectedCases = cases.filter(entry => !values.case || entry.name === values.case);
+if (!selectedCases.length) throw new Error('Unknown story test case.');
+const originalFetch = globalThis.fetch;
+for (const entry of selectedCases) {
   let costUsdMicros = 0;
   let requests = 0;
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(new Error('Live story test exceeded 12 minutes.')), 12 * 60_000);
+  const timer = setTimeout(() => controller.abort(new Error(`Live story test exceeded ${minutes} minutes.`)), minutes * 60_000);
   const started = Date.now();
+  let calls = 0;
+  // Save only text request/response bodies. Never save authorization headers.
+  globalThis.fetch = async (url, init) => {
+    if (!String(url).endsWith('/chat/completions')) return originalFetch(url, init);
+    const call = ++calls;
+    if (typeof init?.body === 'string') {
+      await writeFile(path.join(outputDir, `${entry.name}-${call}-request.json`), init.body);
+    }
+    const response = await originalFetch(url, init);
+    await writeFile(path.join(outputDir, `${entry.name}-${call}-response.json`), await response.clone().text());
+    return response;
+  };
   const record = async (usage: TextUsageEvent | Omit<TextUsageEvent, 'usageAvailable'>) => {
     requests++;
     await appendFile(path.join(outputDir, `${entry.name}-usage.jsonl`), JSON.stringify(usage) + '\n');
@@ -35,8 +62,8 @@ for (const entry of cases) {
     if (typeof cost !== 'number') throw new Error(typeof usage.usageDetails.error === 'string'
       ? usage.usageDetails.error : 'A live request has no confirmed cost.');
     costUsdMicros += Math.round(cost * 1_000_000);
-    if (costUsdMicros >= 2_000_000) {
-      controller.abort(new Error('Live story test reached its $2 request-cost limit.'));
+    if (costUsdMicros >= budgetUsd * 1_000_000) {
+      controller.abort(new Error(`Live story test reached its $${budgetUsd} request-cost limit.`));
       controller.signal.throwIfAborted();
     }
   };
@@ -55,7 +82,7 @@ for (const entry of cases) {
     summary.push({ name: entry.name, model: entry.model, status: 'failed', requests, costUsd: costUsdMicros / 1_000_000,
       error: error instanceof Error ? error.message : String(error) });
     process.exitCode = 1;
-  } finally { clearTimeout(timer); }
+  } finally { clearTimeout(timer); globalThis.fetch = originalFetch; }
   await writeFile(path.join(outputDir, 'summary.json'), JSON.stringify(summary, null, 2));
   console.log(JSON.stringify(summary.at(-1)));
 }

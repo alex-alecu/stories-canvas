@@ -8,7 +8,7 @@ import {
 } from '../../shared/types.js';
 import type { Scenario } from '../../shared/types.js';
 import { config } from '../config.js';
-import type { ScenarioValidationIssue } from './scenarioValidation.js';
+import { getScenarioTextRules, type ScenarioValidationIssue } from './scenarioValidation.js';
 import { loadPromptMarkdown, renderPromptTemplate } from './promptFiles.js';
 
 export const SUPPORTED_STORY_LANGUAGES = [
@@ -77,6 +77,7 @@ const SHARED_APPEARANCE_INSTRUCTION_TEMPLATE = loadPromptMarkdown('en/shared/app
 const SHARED_EVERYDAY_EMOTIONS_INSTRUCTION_TEMPLATE = loadPromptMarkdown('en/shared/everyday-emotions.md');
 const SHARED_LANGUAGE_INSTRUCTION_TEMPLATE = loadPromptMarkdown('en/shared/language.md');
 const SHARED_RETELLING_INSTRUCTION_TEMPLATE = loadPromptMarkdown('en/shared/retelling.md');
+const SHARED_PAGE_OUTPUT_INSTRUCTION_TEMPLATE = loadPromptMarkdown('en/shared/page-output.md');
 const STORY_SYSTEM_INSTRUCTION_TEMPLATE = loadPromptMarkdown('en/system/story-system.md');
 const STORY_REVIEW_SYSTEM_INSTRUCTION_TEMPLATE = loadPromptMarkdown('en/system/story-review-system.md');
 const STORY_AGENT_SYSTEM_INSTRUCTION_TEMPLATE = loadPromptMarkdown('en/system/story-agent-system.md');
@@ -174,6 +175,7 @@ function buildScenarioInstruction(context: StoryPromptContext): string {
   return renderPromptTemplate(SCENARIO_PROMPT_TEMPLATES[resolveScenarioPromptAgeGroup(context.targetAge)], {
     target_age: context.targetAge,
     page_count: context.pageCount,
+    max_sentences: getScenarioTextRules(context.targetAge).maxSentences,
   });
 }
 
@@ -231,12 +233,16 @@ function buildSharedRetellingInstruction(context: StoryPromptContext): string | 
 }
 
 function buildStoryCommonInstruction(context: StoryPromptContext): string {
+  const textRules = getScenarioTextRules(context.targetAge);
   return [
     buildScenarioInstruction(context),
     buildSharedAppearanceInstruction(context),
     buildSharedEverydayEmotionsInstruction(),
     buildSharedLanguageInstruction(context),
     buildSharedRetellingInstruction(context),
+    renderPromptTemplate(SHARED_PAGE_OUTPUT_INSTRUCTION_TEMPLATE, {
+      max_chars: textRules.maxChars, max_sentences: textRules.maxSentences,
+    }),
   ].filter((section): section is string => Boolean(section)).join('\n\n');
 }
 

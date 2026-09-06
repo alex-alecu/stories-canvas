@@ -41,7 +41,9 @@ The writer receives the idea, language, age, and art style. It returns a title, 
 
 The model is limited to a maximum of 3 characters and 20 pages.
 
-To test only text with real provider calls, set `OPENROUTER_API_KEY` in the shell or `.env`, then run `npm run test:text:live`. The command tests three briefs with Gemini Flash, GPT-6 Astra, and Claude Fable. It saves scripts, per-request usage, costs, and a summary under `artifacts/text-smoke/`. It does not call image or audio generation, update user balances, or send alerts. Each case stops after 12 minutes or after recorded costs reach $2. A request already in progress can exceed that cost limit.
+To test only text with real provider calls, set `OPENROUTER_API_KEY` in the shell or `.env`, then run `npm run test:text:live`. The command tests four briefs with Gemini Flash, GPT-6 Astra, and Claude Fable. It saves scripts, per-request usage, costs, and a summary under `artifacts/text-smoke/`. It does not call image or audio generation, update user balances, or send alerts. Each case stops after 12 minutes or after recorded costs reach $2. A request already in progress can exceed that cost limit.
+
+To repeat one case, use `npm run test:text:live -- --case=romanian-retelling --budget=6 --minutes=20`. These options change only the local test limits. The command also saves text request and response bodies for validation checks. It never saves authorization headers.
 
 ### Step 2 — Draw Character Reference Sheets
 

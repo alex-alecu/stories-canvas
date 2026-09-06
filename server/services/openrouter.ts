@@ -130,14 +130,16 @@ async function request<T>(body: Record<string, unknown>, options: TextGeneration
 
 export function generateJSONFromContents<T>(contents: TextContentInput, systemInstruction: string,
   schema: Record<string, unknown>, options: TextGenerationOptions = {}): Promise<T> {
+  const jsonSchema = toJSONSchema(schema);
   return request({
-    messages: [{ role: 'system', content: systemInstruction }, ...toChatMessages(contents)],
-    response_format: { type: 'json_schema', json_schema: { name: 'structured_response', strict: true, schema: toJSONSchema(schema) } },
+    messages: [{ role: 'system', content: `${systemInstruction}\nReturn only JSON with the exact field names and types in this schema. Do not rename or omit fields. Do not use Markdown code fences.\n${JSON.stringify(jsonSchema)}` }, ...toChatMessages(contents)],
+    response_format: { type: 'json_schema', json_schema: { name: 'structured_response', strict: true, schema: jsonSchema } },
     ...(options.tools?.some(tool => tool.type === 'web_search') ? { plugins: [{ id: 'web', max_results: 5 }] } : {}),
   }, options, response => {
     const content = response.choices[0].message.content;
     if (!content) throw new Error('The model returned no text');
-    return JSON.parse(content) as T;
+    const json = content.trim().replace(/^```(?:json)?\s*([\s\S]*?)\s*```$/i, '$1');
+    return JSON.parse(json) as T;
   });
 }
 
