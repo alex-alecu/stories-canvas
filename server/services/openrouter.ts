@@ -4,7 +4,7 @@ import { createHash } from 'node:crypto';
 import { config } from '../config.js';
 import type { AgentContent, AgentModel } from './agentRuntime.js';
 import { getTextModelSettings } from './textGenerationContext.js';
-import type { ThinkingLevel } from '../../shared/textModels.js';
+import { TEXT_MODELS, type ThinkingLevel } from '../../shared/textModels.js';
 
 export type TextReasoningEffort = ThinkingLevel | 'none' | 'minimal' | 'xhigh';
 type RouterClient = Pick<OpenAI, 'chat' | 'get'>;
@@ -168,28 +168,32 @@ async function request<T>(body: Record<string, unknown>, options: TextGeneration
 }
 
 export function createOpenRouterAgentModel(options: TextGenerationOptions = {}): AgentModel {
-  return async input => request({
-    messages: [{ role: 'system', content: input.systemInstruction }, ...toChatMessages(input.contents)],
-    tools: input.tools.filter(tool => !input.forceToolNames || input.forceToolNames.includes(tool.name))
-      .map(tool => ({ type: 'function', function: { name: tool.name, description: tool.description,
-        parameters: toJSONSchema(tool.parameters), strict: true } })),
-    tool_choice: input.forceToolNames ? 'required' : 'auto',
-  }, { ...options, signal: input.signal }, response => {
-    const message = response.choices[0].message as RouterMessage;
-    const functionCalls = (message.tool_calls ?? []).map(call => {
-      if (call.type !== 'function') throw new Error('Unsupported tool call');
-      const args: unknown = JSON.parse(call.function.arguments);
-      if (!args || typeof args !== 'object' || Array.isArray(args)) throw new Error('Tool arguments must be an object');
-      if (!input.tools.some(tool => tool.name === call.function.name)
-        || (input.forceToolNames && !input.forceToolNames.includes(call.function.name))) throw new Error('Unexpected tool call');
-      return { id: call.id, name: call.function.name, args: args as Record<string, unknown> };
+  return async input => {
+    const supportsToolChoice = TEXT_MODELS.find(model => model.id === getTextModelSettings().textModel)?.supportsToolChoice !== false;
+    return request({
+      messages: [{ role: 'system', content: input.systemInstruction + (!supportsToolChoice && input.forceToolNames
+        ? '\nCall one of the provided tools now. Do not return plain text.' : '') }, ...toChatMessages(input.contents)],
+      tools: input.tools.filter(tool => !input.forceToolNames || input.forceToolNames.includes(tool.name))
+        .map(tool => ({ type: 'function', function: { name: tool.name, description: tool.description,
+          parameters: toJSONSchema(tool.parameters), strict: true } })),
+      ...(supportsToolChoice ? { tool_choice: input.forceToolNames ? 'required' : 'auto' } : {}),
+    }, { ...options, signal: input.signal }, response => {
+      const message = response.choices[0].message as RouterMessage;
+      const functionCalls = (message.tool_calls ?? []).map(call => {
+        if (call.type !== 'function') throw new Error('Unsupported tool call');
+        const args: unknown = JSON.parse(call.function.arguments);
+        if (!args || typeof args !== 'object' || Array.isArray(args)) throw new Error('Tool arguments must be an object');
+        if (!input.tools.some(tool => tool.name === call.function.name)
+          || (input.forceToolNames && !input.forceToolNames.includes(call.function.name))) throw new Error('Unexpected tool call');
+        return { id: call.id, name: call.function.name, args: args as Record<string, unknown> };
+      });
+      if (!functionCalls.length && (!message.content || input.forceToolNames)) throw new Error('The model returned no required tool output');
+      // Keep tool IDs and reasoning details unchanged across agent turns.
+      const stored = { role: 'assistant', content: message.content, tool_calls: message.tool_calls,
+        ...(message.reasoning_details ? { reasoning_details: message.reasoning_details } : {}) };
+      return { content: { role: 'model', parts: [{ routerMessage: stored }] }, functionCalls };
     });
-    if (!functionCalls.length && (!message.content || input.forceToolNames)) throw new Error('The model returned no required tool output');
-    // Keep tool IDs and reasoning details unchanged across agent turns.
-    const stored = { role: 'assistant', content: message.content, tool_calls: message.tool_calls,
-      ...(message.reasoning_details ? { reasoning_details: message.reasoning_details } : {}) };
-    return { content: { role: 'model', parts: [{ routerMessage: stored }] }, functionCalls };
-  });
+  };
 }
 
 export function generateJSONFromContents<T>(contents: TextContentInput, systemInstruction: string,

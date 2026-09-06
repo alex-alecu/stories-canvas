@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { TextGenerationOptions, TextUsageEvent } from './openrouter.js';
-import { parseTextModelSettings, TEXT_MODELS } from '../../shared/textModels.js';
+import { parseTextModelSettings, TEXT_MODELS, textModelPriceLevel } from '../../shared/textModels.js';
 
 process.env.GEMINI_API_KEY ??= 'test-key';
 const { generateJSON, createOpenRouterAgentModel, toChatMessages } = await import('./openrouter.js');
@@ -28,10 +28,10 @@ function fixture(overrides = {}) {
 test('model settings stay separate across concurrent stories; cost comes from the provider', async () => {
   const api = fixture();
   const usage: TextUsageEvent[] = [];
-  await Promise.all(['openai/gpt-5.6-sol', 'anthropic/claude-sonnet-5'].map(textModel =>
+  await Promise.all(['openai/gpt-6-astra', 'anthropic/claude-fable-5.1'].map(textModel =>
     withTextModelSettings(parseTextModelSettings(textModel, 'high'), () => generateJSON('Story', 'Write it.', schema,
       { client: api.client, onUsage: event => { usage.push(event); } }))));
-  assert.deepEqual(api.requests.map(item => item.model), ['openai/gpt-5.6-sol', 'anthropic/claude-sonnet-5']);
+  assert.deepEqual(api.requests.map(item => item.model), ['openai/gpt-6-astra', 'anthropic/claude-fable-5.1']);
   assert.deepEqual(api.requests[0].reasoning, { effort: 'high' });
   assert.equal(api.requests[0].response_format.json_schema.schema.type, 'object');
   assert.equal(usage[0].usageDetails.providerCostUsd, 0.012345);
@@ -39,6 +39,9 @@ test('model settings stay separate across concurrent stories; cost comes from th
   assert.ok(TEXT_MODELS.length <= 10);
   assert.throws(() => parseTextModelSettings('unknown/model', 'low'));
   assert.throws(() => parseTextModelSettings(TEXT_MODELS[0].id, 'ultra'));
+  assert.throws(() => parseTextModelSettings('openai/gpt-5.6-sol', 'medium'));
+  assert.equal(parseTextModelSettings('openai/gpt-5.6-sol', 'medium', true).textModel, 'openai/gpt-5.6-sol');
+  assert.equal(parseTextModelSettings('anthropic/claude-sonnet-5', 'high', true).thinkingLevel, 'high');
 });
 
 test('missing inline cost is recovered by generation ID and malformed paid output is recorded', async () => {
@@ -50,6 +53,19 @@ test('missing inline cost is recovered by generation ID and malformed paid outpu
   assert.equal(usage?.usageDetails.providerCostUsd, 0.001234);
   assert.equal(usage?.status, 'failed');
   assert.equal(api.requests.length, 1);
+});
+
+test('Fable tool requests omit unsupported tool_choice and still validate the required tool', async () => {
+  const api = fixture({ choices: [{ finish_reason: 'tool_calls', message: { role: 'assistant', content: null,
+    tool_calls: [{ id: 'call-fable', type: 'function', function: { name: 'save', arguments: '{"ok":true}' } }] } }] });
+  const model = createOpenRouterAgentModel({ client: api.client });
+  await withTextModelSettings(parseTextModelSettings('anthropic/claude-fable-5.1', 'medium'), () => model({
+    systemInstruction: 'Write a story', contents: [], tools: [{ name: 'save', description: 'Save', parameters: schema }], forceToolNames: ['save'],
+  }));
+  assert.equal(api.requests[0].model, 'anthropic/claude-fable-5.1');
+  assert.equal('tool_choice' in api.requests[0], false);
+  assert.match(api.requests[0].messages[0].content, /Call one of the provided tools/);
+  assert.deepEqual(TEXT_MODELS.map(textModelPriceLevel), ['$', '$$$', '$$$', '$$', '$', '$']);
 });
 
 test('an accounting failure never repeats a paid completion', async () => {
@@ -78,7 +94,7 @@ test('request costs use USD micros and a stable event ID, including failed outpu
   const events: any[] = [];
   const storage = { appendStoryUsageEvent: async (_id: string, event: unknown) => { events.push(event); } };
   const input = { provider: 'openrouter' as const, operation: 'scenario_draft' as const, source: 'initial_generation' as const,
-    status: 'failed' as const, model: 'openai/gpt-5.6-sol', inputTokens: 100, outputTokens: 10,
+    status: 'failed' as const, model: 'openai/gpt-6-astra', inputTokens: 100, outputTokens: 10,
     usageDetails: { responseId: 'gen-paid', providerCostUsd: 0.012345 } };
   await recordStoryUsage(storage, 'story-1', 'user-1', input, async () => { throw new Error('Do not estimate a reported cost'); });
   await recordStoryUsage(storage, 'story-1', 'user-1', input);

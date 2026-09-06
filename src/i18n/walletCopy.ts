@@ -11,6 +11,10 @@ export function getWalletCopy(language: string) {
     pay: 'Plătești cât folosești', payDetail: 'Fiecare cerere este scăzută din sold în dolari SUA.',
     keep: 'Fondurile nu expiră', keepDetail: 'Soldul rămas este disponibil pentru următoarea poveste.',
     usage: 'Costul poveștii', modelDefault: 'Recomandat',
+    input: 'Intrare', output: 'Ieșire', perMillion: 'USD / 1 milion de tokenuri',
+    baseRates: 'Tarife de bază OpenRouter', pricesChecked: 'Verificate',
+    aboveInput: 'Peste {tokens} tokenuri de intrare',
+    priceNote: 'Cache-ul, cererile lungi și instrumentele pot schimba costul final.',
   } : {
     model: 'Text model', thinking: 'Thinking level', low: 'Low', medium: 'Medium', high: 'High',
     narration: 'Add narration', minimum: 'You need at least $10 to start a new story.',
@@ -21,6 +25,10 @@ export function getWalletCopy(language: string) {
     pay: 'Pay for use', payDetail: 'Each request cost is taken from your balance in US dollars.',
     keep: 'Funds do not expire', keepDetail: 'Use the remaining balance for your next story.',
     usage: 'Story cost', modelDefault: 'Recommended',
+    input: 'Input', output: 'Output', perMillion: 'USD / 1 million tokens',
+    baseRates: 'OpenRouter base rates', pricesChecked: 'Checked',
+    aboveInput: 'Above {tokens} input tokens',
+    priceNote: 'Caching, long requests, and tools can change the final cost.',
   };
 }
 

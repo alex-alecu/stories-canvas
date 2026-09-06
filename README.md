@@ -21,6 +21,12 @@ Text generation uses [OpenRouter usage accounting](https://openrouter.ai/docs/us
 
 The six models are defined in `shared/textModels.ts`. The default is Gemini 3.8 Flash. The selected model and thinking level apply to all text steps for a story, including reviews and later edits. Models were checked against the live catalog on 2026-09-06.
 
+The model list includes Gemini 3.8 Flash, GPT-6 Astra, Claude Fable 5.1, Claude Opus 5, Qwen 3.8 Max, and Grok 4.6. Each shows a price level and input/output rates per million tokens on hover or keyboard focus. The selected base rates also stay visible on touch screens. The display snapshot comes from the [OpenRouter model catalog](https://openrouter.ai/api/v1/models), checked on 2026-09-06. Refresh it when the model list or provider prices change. Price levels compare one million input plus one million output tokens: `$` is up to $10, `$$` is up to $40, and `$$$` is above $40. Long-context rates appear in the price details. These display rates do not set wallet charges; the provider response cost does.
+
+Fable supports tools but does not list `tool_choice` on its OpenRouter endpoints. Its agent requests omit that parameter. The last turn requests one of the allowed tools in the system instruction, and the response must pass the same required-tool validation.
+
+Saved stories can still use their original GPT-5.6 Sol or Claude Sonnet 5 settings. These models are not available for new stories.
+
 [Vercel AI Gateway](https://vercel.com/docs/ai-gateway/pricing) was also checked. It has no token markup or platform fee. OpenRouter was selected for its common thinking control, provider routing, and response cost field. The app uses price-based provider routing within the selected model.
 
 ## How Story Generation Works

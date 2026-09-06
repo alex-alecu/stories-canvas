@@ -1014,7 +1014,7 @@ router.use(async (req, res, next) => {
     if (!/^[0-9a-f-]{36}$/i.test(id ?? '')) return next();
     const story = await getStory(id);
     const inputs = story?.generationInputs;
-    const settings = parseTextModelSettings(inputs?.textModel ?? DEFAULT_TEXT_MODEL, inputs?.thinkingLevel);
+    const settings = parseTextModelSettings(inputs?.textModel ?? DEFAULT_TEXT_MODEL, inputs?.thinkingLevel, true);
     return withTextModelSettings(settings, next);
   } catch (error) {
     res.status(400).json({ error: error instanceof Error ? error.message : 'Invalid model settings.' });
