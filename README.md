@@ -23,7 +23,7 @@ The six models are defined in `shared/textModels.ts`. The default is Gemini 3.8 
 
 The model list includes Gemini 3.8 Flash, GPT-6 Astra, Claude Fable 5.1, Claude Opus 5, Qwen 3.8 Max, and Grok 4.6. Each shows a price level and input/output rates per million tokens on hover or keyboard focus. The selected base rates also stay visible on touch screens. The display snapshot comes from the [OpenRouter model catalog](https://openrouter.ai/api/v1/models), checked on 2026-09-06. Refresh it when the model list or provider prices change. Price levels compare one million input plus one million output tokens: `$` is up to $10, `$$` is up to $40, and `$$$` is above $40. Long-context rates appear in the price details. These display rates do not set wallet charges; the provider response cost does.
 
-Fable supports tools but does not list `tool_choice` on its OpenRouter endpoints. Its agent requests omit that parameter. The last turn requests one of the allowed tools in the system instruction, and the response must pass the same required-tool validation.
+Fable supports tools but does not list `tool_choice` on its OpenRouter endpoints. Its agent requests omit that parameter. The writer must submit a complete script through the validation tool before the app accepts it.
 
 Saved stories can still use their original GPT-5.6 Sol or Claude Sonnet 5 settings. These models are not available for new stories.
 
@@ -35,9 +35,13 @@ When a user submits a story idea, the app runs through four steps in order: writ
 
 ### Step 1 — Write the Story
 
-A large language model receives the user's idea along with the chosen language, target age, and art style. It returns a structured story: a title, a list of characters (each with a detailed appearance and clothing description), and a sequence of pages. Each page has its narration text and an image description that the model wrote specifically for that scene.
+The official [OpenAI Agents SDK](https://developers.openai.com/api/docs/guides/agents/running-agents) runs the writer through its Chat Completions model with OpenRouter. The SDK handles the run loop, tool calls, and cancellation. The app supplies one submission tool. It checks the full script and returns validation errors for correction. A run stops after at most six model turns. Confirmed HTTP 429 and 5xx failures can receive two retries. Lost connections and failed cost records stop the run. The old custom runtime and delegation protocol have been removed.
+
+The writer receives the idea, language, age, and art style. It returns a title, character definitions, and pages with narration text and image descriptions. A separate quality review always checks the valid script. If necessary, one rewrite and a second review must pass before images can start. The writer cannot skip this review. OpenAI trace export is disabled; request usage stays in the app's own cost records.
 
 The model is limited to a maximum of 3 characters and 20 pages.
+
+To test only text with real provider calls, set `OPENROUTER_API_KEY` in the shell or `.env`, then run `npm run test:text:live`. The command tests three briefs with Gemini Flash, GPT-6 Astra, and Claude Fable. It saves scripts, per-request usage, costs, and a summary under `artifacts/text-smoke/`. It does not call image or audio generation, update user balances, or send alerts. Each case stops after 12 minutes or after recorded costs reach $2. A request already in progress can exceed that cost limit.
 
 ### Step 2 — Draw Character Reference Sheets
 

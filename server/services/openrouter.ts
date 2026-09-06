@@ -2,9 +2,8 @@ import OpenAI, { APIConnectionError, APIError } from 'openai';
 import type { ChatCompletion, ChatCompletionCreateParamsNonStreaming, ChatCompletionMessageParam } from 'openai/resources/chat/completions';
 import { getOpenRouterClient, resolveOpenRouterCost } from './openrouterClient.js';
 import { config } from '../config.js';
-import type { AgentContent, AgentModel } from './agentRuntime.js';
 import { getTextModelSettings } from './textGenerationContext.js';
-import { TEXT_MODELS, type ThinkingLevel } from '../../shared/textModels.js';
+import type { ThinkingLevel } from '../../shared/textModels.js';
 
 export type TextReasoningEffort = ThinkingLevel | 'none' | 'minimal' | 'xhigh';
 type RouterClient = Pick<OpenAI, 'chat' | 'get'>;
@@ -32,8 +31,7 @@ export interface TextContent {
   parts: Array<Record<string, unknown>>;
 }
 export type TextContentInput = string | TextContent[];
-type RouterMessage = ChatCompletion['choices'][number]['message'] & { reasoning_details?: unknown[] };
-type RouterCompletion = ChatCompletion & { usage?: ChatCompletion['usage'] & { cost?: number }; error?: { message?: string } };
+export type RouterCompletion = ChatCompletion & { usage?: ChatCompletion['usage'] & { cost?: number }; error?: { message?: string } };
 
 export function toJSONSchema(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(toJSONSchema);
@@ -46,19 +44,13 @@ export function toJSONSchema(value: unknown): unknown {
   return result;
 }
 
-export function toChatMessages(contents: TextContentInput | AgentContent[]): ChatCompletionMessageParam[] {
+export function toChatMessages(contents: TextContentInput): ChatCompletionMessageParam[] {
   if (typeof contents === 'string') return [{ role: 'user', content: contents }];
   const messages: ChatCompletionMessageParam[] = [];
   for (const content of contents) {
     const parts: Array<Record<string, unknown>> = [];
     for (const part of content.parts) {
-      if (part.routerMessage) {
-        messages.push(part.routerMessage as ChatCompletionMessageParam);
-      } else if (part.functionResponse) {
-        const response = part.functionResponse as { id?: string; response?: unknown };
-        if (!response.id) throw new Error('Tool result is missing its call ID');
-        messages.push({ role: 'tool', tool_call_id: response.id, content: JSON.stringify(response.response ?? {}) });
-      } else if (typeof part.text === 'string') {
+      if (typeof part.text === 'string') {
         parts.push({ type: 'text', text: part.text });
       } else if (part.inlineData) {
         const data = part.inlineData as { mimeType: string; data: string; detail?: string };
@@ -70,7 +62,7 @@ export function toChatMessages(contents: TextContentInput | AgentContent[]): Cha
   return messages;
 }
 
-async function usageEvent(response: RouterCompletion, status: TextUsageEvent['status'], api: RouterClient): Promise<TextUsageEvent> {
+export async function buildTextUsageEvent(response: RouterCompletion, status: TextUsageEvent['status'], api: RouterClient): Promise<TextUsageEvent> {
   const cost = await resolveOpenRouterCost(response.usage?.cost, response.id, api);
   return {
     model: response.model || getTextModelSettings().textModel,
@@ -127,42 +119,13 @@ async function request<T>(body: Record<string, unknown>, options: TextGeneration
       }
       value = read(response);
     } catch (error) { outputError = error; }
-    const usage = await usageEvent(response, outputError ? 'failed' : 'succeeded', api);
+    const usage = await buildTextUsageEvent(response, outputError ? 'failed' : 'succeeded', api);
     await options.onUsage?.(usage);
     if (outputError) throw outputError;
     if (usage.usageDetails.providerCostUsd === null) throw new Error('The request cost is unavailable. Generation stopped.');
     options.signal?.throwIfAborted();
     return value as T;
   }
-}
-
-export function createOpenRouterAgentModel(options: TextGenerationOptions = {}): AgentModel {
-  return async input => {
-    const supportsToolChoice = TEXT_MODELS.find(model => model.id === getTextModelSettings().textModel)?.supportsToolChoice !== false;
-    return request({
-      messages: [{ role: 'system', content: input.systemInstruction + (!supportsToolChoice && input.forceToolNames
-        ? '\nCall one of the provided tools now. Do not return plain text.' : '') }, ...toChatMessages(input.contents)],
-      tools: input.tools.filter(tool => !input.forceToolNames || input.forceToolNames.includes(tool.name))
-        .map(tool => ({ type: 'function', function: { name: tool.name, description: tool.description,
-          parameters: toJSONSchema(tool.parameters), strict: true } })),
-      ...(supportsToolChoice ? { tool_choice: input.forceToolNames ? 'required' : 'auto' } : {}),
-    }, { ...options, signal: input.signal }, response => {
-      const message = response.choices[0].message as RouterMessage;
-      const functionCalls = (message.tool_calls ?? []).map(call => {
-        if (call.type !== 'function') throw new Error('Unsupported tool call');
-        const args: unknown = JSON.parse(call.function.arguments);
-        if (!args || typeof args !== 'object' || Array.isArray(args)) throw new Error('Tool arguments must be an object');
-        if (!input.tools.some(tool => tool.name === call.function.name)
-          || (input.forceToolNames && !input.forceToolNames.includes(call.function.name))) throw new Error('Unexpected tool call');
-        return { id: call.id, name: call.function.name, args: args as Record<string, unknown> };
-      });
-      if (!functionCalls.length && (!message.content || input.forceToolNames)) throw new Error('The model returned no required tool output');
-      // Keep tool IDs and reasoning details unchanged across agent turns.
-      const stored = { role: 'assistant', content: message.content, tool_calls: message.tool_calls,
-        ...(message.reasoning_details ? { reasoning_details: message.reasoning_details } : {}) };
-      return { content: { role: 'model', parts: [{ routerMessage: stored }] }, functionCalls };
-    });
-  };
 }
 
 export function generateJSONFromContents<T>(contents: TextContentInput, systemInstruction: string,

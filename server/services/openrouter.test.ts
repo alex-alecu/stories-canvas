@@ -3,7 +3,7 @@ import test from 'node:test';
 import type { TextGenerationOptions, TextUsageEvent } from './openrouter.js';
 import { parseTextModelSettings, TEXT_MODELS, textModelPriceLevel } from '../../shared/textModels.js';
 
-const { generateJSON, createOpenRouterAgentModel, toChatMessages } = await import('./openrouter.js');
+const { generateJSON } = await import('./openrouter.js');
 const { withTextModelSettings } = await import('./textGenerationContext.js');
 const { recordStoryUsage } = await import('./storyUsage.js');
 const schema = { type: 'OBJECT', properties: { ok: { type: 'BOOLEAN' } }, required: ['ok'] };
@@ -36,6 +36,7 @@ test('model settings stay separate across concurrent stories; cost comes from th
   assert.equal(usage[0].usageDetails.providerCostUsd, 0.012345);
   assert.equal(api.lookups, 0);
   assert.ok(TEXT_MODELS.length <= 10);
+  assert.deepEqual(TEXT_MODELS.map(textModelPriceLevel), ['$', '$$$', '$$$', '$$', '$', '$']);
   assert.throws(() => parseTextModelSettings('unknown/model', 'low'));
   assert.throws(() => parseTextModelSettings(TEXT_MODELS[0].id, 'ultra'));
   assert.throws(() => parseTextModelSettings('openai/gpt-5.6-sol', 'medium'));
@@ -54,18 +55,6 @@ test('missing inline cost is recovered by generation ID and malformed paid outpu
   assert.equal(api.requests.length, 1);
 });
 
-test('Fable tool requests omit unsupported tool_choice and still validate the required tool', async () => {
-  const api = fixture({ choices: [{ finish_reason: 'tool_calls', message: { role: 'assistant', content: null,
-    tool_calls: [{ id: 'call-fable', type: 'function', function: { name: 'save', arguments: '{"ok":true}' } }] } }] });
-  const model = createOpenRouterAgentModel({ client: api.client });
-  await withTextModelSettings(parseTextModelSettings('anthropic/claude-fable-5.1', 'medium'), () => model({
-    systemInstruction: 'Write a story', contents: [], tools: [{ name: 'save', description: 'Save', parameters: schema }], forceToolNames: ['save'],
-  }));
-  assert.equal(api.requests[0].model, 'anthropic/claude-fable-5.1');
-  assert.equal('tool_choice' in api.requests[0], false);
-  assert.match(api.requests[0].messages[0].content, /Call one of the provided tools/);
-  assert.deepEqual(TEXT_MODELS.map(textModelPriceLevel), ['$', '$$$', '$$$', '$$', '$', '$']);
-});
 
 test('an accounting failure never repeats a paid completion', async () => {
   const api = fixture();
@@ -75,19 +64,6 @@ test('an accounting failure never repeats a paid completion', async () => {
   assert.equal(writes, 1);
 });
 
-test('tool calls preserve their IDs, image inputs, and reasoning details for the next turn', async () => {
-  const message = { role: 'assistant', content: null, tool_calls: [{ id: 'call-1', type: 'function', function: { name: 'save', arguments: '{"ok":true}' } }],
-    reasoning_details: [{ type: 'reasoning.encrypted', data: 'opaque' }] };
-  const api = fixture({ choices: [{ finish_reason: 'tool_calls', message }] });
-  const model = createOpenRouterAgentModel({ client: api.client });
-  const output = await model({ systemInstruction: 'Write a story', contents: [{ role: 'user', parts: [{ text: 'Inspect this' }, { inlineData: { data: 'abc', mimeType: 'image/png' } }] }],
-    tools: [{ name: 'save', description: 'Save', parameters: schema }], forceToolNames: ['save'] });
-  const history = toChatMessages([output.content, { role: 'user', parts: [{ functionResponse: { id: 'call-1', response: { saved: true } } }] }]);
-  assert.deepEqual(history[0], message);
-  assert.deepEqual(history[1], { role: 'tool', tool_call_id: 'call-1', content: '{"saved":true}' });
-  assert.equal(api.requests[0].messages[1].content[1].image_url.url, 'data:image/png;base64,abc');
-  assert.equal(output.functionCalls[0].id, 'call-1');
-});
 
 test('request costs use USD micros and a stable event ID, including failed output', async () => {
   const events: any[] = [];

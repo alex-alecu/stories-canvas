@@ -91,10 +91,9 @@ test('story prompt assembly keeps age scenario, appearance, and language rules t
   assert.match(systemInstruction, /keep the exact spelling from characters\[\]\.name whenever you mention a character/i);
   assert.match(systemInstruction, /keep appearance, clothing, characterSheetPrompt, and imagePrompt visually originalized/i);
   assert.doesNotMatch(agentInstruction, /sub-?agent|spawn_subagent/i);
-  assert.match(agentInstruction, /fresh, independent review/i);
-  assert.match(agentInstruction, /original request, target age, language/i);
-  assert.match(agentInstruction, /exact required final wording/i);
-  assert.match(agentInstruction, /Apply the review yourself/);
+  assert.match(agentInstruction, /application runs an independent quality review/i);
+  assert.match(agentInstruction, /submit_story_script/);
+  assert.match(agentInstruction, /exact final wording/i);
   assert.match(draftPrompt, /Target age: 6/);
   assert.match(draftPrompt, /Return no more than 10 pages, numbered sequentially from 1/);
   assert.match(draftPrompt, /Classic hand-drawn storybook illustration/);
