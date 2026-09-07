@@ -49,7 +49,8 @@ export interface TextModelSettings {
 }
 
 export function parseTextModelSettings(model: unknown, level: unknown, allowStoredModel = false): TextModelSettings {
-  const storedOption = allowStoredModel && (model === 'openai/gpt-5.6-sol' || model === 'anthropic/claude-sonnet-5')
+  const storedOption = allowStoredModel && (model === 'openai/gpt-5.6-sol' || model === 'anthropic/claude-sonnet-5'
+    || model === 'google/gemini-3.1-pro-preview')
     ? { id: model, thinkingLevels: ['low', 'medium', 'high'] as readonly ThinkingLevel[] } : undefined;
   const option = TEXT_MODELS.find(item => item.id === (model ?? DEFAULT_TEXT_MODEL)) ?? storedOption;
   if (!option) throw new Error('Select a model from the model list.');

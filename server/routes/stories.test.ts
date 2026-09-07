@@ -889,6 +889,8 @@ test('page edits use saved text models from current and older story snapshots', 
     return { allowed: false, reasonCode: 'unsafe_content', explanation: 'Test stops before image generation.' };
   });
   const cases = [
+    { stored: { scenarioModel: 'gemini-3.1-pro-preview' }, expected: { textModel: 'google/gemini-3.1-pro-preview', thinkingLevel: 'medium' } },
+    { stored: { scenarioModel: 'google/gemini-3.1-pro-preview', thinkingLevel: 'high' as const }, expected: { textModel: 'google/gemini-3.1-pro-preview', thinkingLevel: 'high' } },
     { stored: { scenarioModel: 'gpt-5.6-sol' }, expected: { textModel: 'openai/gpt-5.6-sol', thinkingLevel: 'medium' } },
     { stored: { scenarioModel: 'openai/gpt-5.6-sol', thinkingLevel: 'high' as const }, expected: { textModel: 'openai/gpt-5.6-sol', thinkingLevel: 'high' } },
     { stored: { scenarioModel: 'anthropic/claude-sonnet-5' }, expected: { textModel: 'anthropic/claude-sonnet-5', thinkingLevel: 'medium' } },

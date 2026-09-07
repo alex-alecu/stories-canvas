@@ -65,6 +65,8 @@ test('model settings stay separate across concurrent stories; cost comes from th
   assert.throws(() => parseTextModelSettings('unknown/model', 'low'));
   assert.throws(() => parseTextModelSettings(TEXT_MODELS[0].id, 'ultra'));
   assert.throws(() => parseTextModelSettings('openai/gpt-5.6-sol', 'medium'));
+  assert.throws(() => parseTextModelSettings('google/gemini-3.1-pro-preview', 'medium'));
+  assert.equal(parseTextModelSettings('google/gemini-3.1-pro-preview', 'medium', true).textModel, 'google/gemini-3.1-pro-preview');
   assert.equal(parseTextModelSettings('openai/gpt-5.6-sol', 'medium', true).textModel, 'openai/gpt-5.6-sol');
   assert.equal(parseTextModelSettings('anthropic/claude-sonnet-5', 'high', true).thinkingLevel, 'high');
 });

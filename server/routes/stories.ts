@@ -1026,7 +1026,8 @@ router.use(async (req, res, next) => {
     if (!/^[0-9a-f-]{36}$/i.test(id ?? '')) return next();
     const story = await getStory(id);
     const inputs = story?.generationInputs;
-    const legacyModel = inputs?.scenarioModel === 'gpt-5.6-sol' ? 'openai/gpt-5.6-sol' : inputs?.scenarioModel;
+    const legacyModel = inputs?.scenarioModel === 'gpt-5.6-sol' ? 'openai/gpt-5.6-sol'
+      : inputs?.scenarioModel === 'gemini-3.1-pro-preview' ? 'google/gemini-3.1-pro-preview' : inputs?.scenarioModel;
     const settings = parseTextModelSettings(inputs?.textModel ?? legacyModel ?? DEFAULT_TEXT_MODEL, inputs?.thinkingLevel, true);
     return withTextModelSettings(settings, next);
   } catch (error) {
