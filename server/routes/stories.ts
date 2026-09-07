@@ -814,6 +814,19 @@ function applyScenarioGroundingInputs(
   };
 }
 
+class GenerationAccountingError extends Error {
+  name = 'GenerationAccountingError';
+}
+
+function getGenerationFailure(error: unknown, signal: AbortSignal) {
+  const reason: unknown = signal.reason;
+  const accountingFailure = reason instanceof GenerationAccountingError;
+  return {
+    error: accountingFailure ? reason : error,
+    isCancelled: signal.aborted && !accountingFailure,
+  };
+}
+
 function createUsageRecorder(storyId: string, userId: string | undefined, source: StoryUsageSource) {
   async function safeRecord(operationLabel: string, record: () => Promise<void>): Promise<void> {
     try {
@@ -824,8 +837,9 @@ function createUsageRecorder(storyId: string, userId: string | undefined, source
       }
     } catch (error) {
       console.error(`[usage:${storyId}] Failed to persist ${operationLabel} usage event:`, error);
-      getTrackedGeneration(storyId)?.abort(error);
-      throw new AbortError(error instanceof Error ? error : new Error(String(error)));
+      const failure = new GenerationAccountingError(error instanceof Error ? error.message : String(error), { cause: error });
+      getTrackedGeneration(storyId)?.abort(failure);
+      throw new AbortError(failure);
     }
   }
 
@@ -1557,8 +1571,8 @@ async function runGenerationPipeline(
       audioFailed,
       audioError,
     });
-  } catch (error) {
-    const isCancelled = signal.aborted;
+  } catch (caught) {
+    const { error, isCancelled } = getGenerationFailure(caught, signal);
     const status = isCancelled ? 'cancelled' : 'failed';
     console.error(`Pipeline ${status} for ${storyId}:`, isCancelled ? 'cancelled by user' : error);
 
@@ -1941,8 +1955,8 @@ async function runRegenerateAssetsPipeline(
       audioFailed,
       audioError,
     });
-  } catch (error) {
-    const isCancelled = signal.aborted;
+  } catch (caught) {
+    const { error, isCancelled } = getGenerationFailure(caught, signal);
     const status = isCancelled ? 'completed' : 'failed';
     console.error(`Asset regeneration pipeline ${isCancelled ? 'cancelled' : 'failed'} for ${storyId}:`, isCancelled ? 'cancelled by user' : error);
 
@@ -2237,8 +2251,8 @@ async function runRetryPipeline(
         ? 'Retry completed successfully!'
         : retryCompletionMessage,
     });
-  } catch (error) {
-    const isCancelled = signal.aborted;
+  } catch (caught) {
+    const { error, isCancelled } = getGenerationFailure(caught, signal);
     const status = isCancelled ? 'cancelled' : 'failed';
     console.error(`Retry pipeline ${status} for ${storyId}:`, error);
 
@@ -2528,8 +2542,8 @@ async function runAudioGenerationPipeline(
       audioFailed,
       audioError,
     });
-  } catch (error) {
-    const isCancelled = signal.aborted;
+  } catch (caught) {
+    const { error, isCancelled } = getGenerationFailure(caught, signal);
     const status = isCancelled ? 'completed' : 'failed';
     console.error(`Audio generation pipeline ${isCancelled ? 'cancelled' : 'failed'} for ${storyId}:`, error);
 
@@ -2826,8 +2840,8 @@ async function runRegeneratePageImagePipeline(
       pageNumber,
       pageStatus: 'completed',
     });
-  } catch (error) {
-    const isCancelled = signal.aborted;
+  } catch (caught) {
+    const { error, isCancelled } = getGenerationFailure(caught, signal);
     if (!isCancelled && !providerBlockNotified) {
       notifyStoryBlock({
         blockType: 'pipeline_failure',
@@ -3093,8 +3107,8 @@ async function runRegeneratePageAudioPipeline(
       pageNumber,
       pageStatus: 'completed',
     });
-  } catch (error) {
-    const isCancelled = signal.aborted;
+  } catch (caught) {
+    const { error, isCancelled } = getGenerationFailure(caught, signal);
     if (!isCancelled) {
       notifyStoryBlock({
         blockType: 'pipeline_failure',

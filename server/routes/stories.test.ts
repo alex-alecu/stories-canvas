@@ -5,6 +5,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
+import type { StoryBlockAlertParams } from '../services/slackAlerts.js';
 
 import {
   STORY_REACTION_FEEDBACK_MAX_CHARS,
@@ -531,6 +532,78 @@ test('POST /api/stories persists generation inputs and usage totals for filesyst
   assert.ok(usageEvents.every(event => event.source === 'initial_generation'));
   assert.ok(usageEvents.every(event => event.status === 'succeeded'));
   assert.ok(usageEvents.every(event => event.pricingStatus === 'incomplete'));
+});
+
+test('an accounting write failure reports a failed story and sends a failure alert', async (t) => {
+  const dataDir = mkdtempSync(path.join(os.tmpdir(), 'stories-accounting-failure-'));
+  const harness = await createStoriesHarness(dataDir);
+  let release!: () => void;
+  const proceed = new Promise<void>(resolve => { release = resolve; });
+  t.after(async () => {
+    release();
+    await harness.close();
+    await fs.rm(dataDir, { recursive: true, force: true });
+  });
+  const alerts: StoryBlockAlertParams[] = [];
+  t.mock.method(harness.storiesModule.storySlackOps, 'sendStoryBlockAlert', async (params: StoryBlockAlertParams) => { alerts.push(params); });
+  t.mock.method(harness.storiesModule.scenarioOps, 'generateScenarioWithMetadata', async (
+    ...args: Parameters<typeof harness.storiesModule.scenarioOps.generateScenarioWithMetadata>
+  ) => {
+    await proceed;
+    const [storyId] = await fs.readdir(dataDir);
+    await fs.writeFile(path.join(dataDir, storyId, 'usage-events.json'), 'invalid JSON');
+    await args[5]?.onDraftUsage?.({ model: 'openai/gpt-6-astra', status: 'succeeded',
+      inputTokens: 10, outputTokens: 20, totalTokens: 30,
+      usageDetails: { responseId: 'gen-accounting-test', providerCostUsd: 0.02 } });
+    throw new Error('Generation must stop after the accounting failure');
+  });
+  const response = await fetch(`${harness.baseUrl}/api/stories`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ prompt: 'Tell a story about a rabbit.', storyMode: 'fast' }),
+  });
+  assert.equal(response.status, 201);
+  const { id } = await response.json() as { id: string };
+  const stream = await fetch(`${harness.baseUrl}/api/stories/${id}/status`);
+  release();
+  const events = (await stream.text()).split('\n').filter(line => line.startsWith('data: '))
+    .map(line => JSON.parse(line.slice(6)));
+  assert.equal((await readStoryMeta(dataDir, id)).status, 'failed');
+  assert.equal(events.at(-1).status, 'failed');
+  assert.match(events.at(-1).message, /JSON/);
+  assert.equal(alerts.length, 1);
+  assert.equal(alerts[0].blockType, 'pipeline_failure');
+  assert.equal(alerts[0].action, 'story_create');
+  assert.equal(alerts[0].storyId, id);
+});
+
+test('user cancellation sends no pipeline failure alert', async (t) => {
+  const dataDir = mkdtempSync(path.join(os.tmpdir(), 'stories-user-cancel-'));
+  const harness = await createStoriesHarness(dataDir);
+  t.after(async () => {
+    await harness.close();
+    await fs.rm(dataDir, { recursive: true, force: true });
+  });
+  const alerts: unknown[] = [];
+  t.mock.method(harness.storiesModule.storySlackOps, 'sendStoryBlockAlert', async (params: StoryBlockAlertParams) => { alerts.push(params); });
+  t.mock.method(harness.storiesModule.scenarioOps, 'generateScenarioWithMetadata', async (
+    ...args: Parameters<typeof harness.storiesModule.scenarioOps.generateScenarioWithMetadata>
+  ) => new Promise((_resolve, reject) => {
+    args[6]!.throwIfAborted();
+    args[6]!.addEventListener('abort', () => reject(args[6]!.reason), { once: true });
+  }));
+  const response = await fetch(`${harness.baseUrl}/api/stories`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ prompt: 'Tell a story about a rabbit.', storyMode: 'fast' }),
+  });
+  assert.equal(response.status, 201);
+  const { id } = await response.json() as { id: string };
+  const stream = await fetch(`${harness.baseUrl}/api/stories/${id}/status`);
+  const cancelled = await fetch(`${harness.baseUrl}/api/stories/${id}/cancel`, { method: 'POST' });
+  assert.equal(cancelled.status, 200);
+  const events = (await stream.text()).split('\n').filter(line => line.startsWith('data: '))
+    .map(line => JSON.parse(line.slice(6)));
+  assert.equal(events.at(-1).status, 'cancelled');
+  assert.deepEqual(alerts, []);
 });
 
 test('POST /api/stories rejects Pro + Audio when narration is unavailable', async (t) => {
