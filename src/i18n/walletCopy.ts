@@ -3,6 +3,7 @@ import type { Translations } from './types';
 export function getWalletCopy(language: string) {
   return language === 'ro' ? {
     model: 'Model de text', thinking: 'Nivel de gândire', low: 'Redus', medium: 'Mediu', high: 'Ridicat',
+    notRecorded: 'Neînregistrat',
     narration: 'Adaugă narațiune', minimum: 'Ai nevoie de cel puțin 10 USD pentru o poveste nouă.',
     actualCost: 'Plătești costul generării: text, imagini și narațiune.',
     moreThinking: 'Un nivel mai ridicat poate crește timpul și costul.',
@@ -21,6 +22,7 @@ export function getWalletCopy(language: string) {
     priceNote: 'Cache-ul, cererile lungi și instrumentele pot schimba costul final.',
   } : {
     model: 'Text model', thinking: 'Thinking level', low: 'Low', medium: 'Medium', high: 'High',
+    notRecorded: 'Not recorded',
     narration: 'Add narration', minimum: 'You need at least $10 to start a new story.',
     actualCost: 'You pay the generation cost for text, images, and narration.',
     moreThinking: 'More thinking can increase the time and cost.',
