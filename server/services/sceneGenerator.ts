@@ -1,6 +1,6 @@
 import pRetry, { AbortError } from 'p-retry';
 import fs from 'fs/promises';
-import { generateImage, isImagePolicyBlockedError, isImageSafetyBlockedError } from './openrouterImages.js';
+import { generateImage, ImageCostUnavailableError, isImagePolicyBlockedError, isImageSafetyBlockedError } from './openrouterImages.js';
 import { buildCharacterAliasMap, prepareSceneImagePrompt } from './imagePromptPreparation.js';
 import { saveImage, updatePageStatus as fsUpdatePageStatus, getImagePath } from '../utils/storage.js';
 import { uploadImage, updatePageStatus as sbUpdatePageStatus, downloadImage } from './supabaseStorage.js';
@@ -345,6 +345,7 @@ export async function generateSceneImage(
     }
     await setPageStatus(storyId, page.pageNumber, 'failed');
     onProgress?.({ message: failureMessage, pageNumber: page.pageNumber, pageStatus: 'failed' });
+    if (error instanceof ImageCostUnavailableError) throw error;
     return null;
   }
 }

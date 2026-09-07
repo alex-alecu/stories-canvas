@@ -36,6 +36,9 @@ export class ImageSafetyBlockedError extends Error {
 export class ImagePolicyBlockedError extends Error {
   constructor(readonly model: string, message: string) { super(message); this.name = 'ImagePolicyBlockedError'; }
 }
+export class ImageCostUnavailableError extends Error {
+  name = 'ImageCostUnavailableError';
+}
 export function isImageSafetyBlockedError(error: unknown): error is ImageSafetyBlockedError { return error instanceof ImageSafetyBlockedError; }
 export function isImagePolicyBlockedError(error: unknown): error is ImagePolicyBlockedError { return error instanceof ImagePolicyBlockedError; }
 
@@ -80,7 +83,9 @@ export async function generateImage(
     }
     // A lost connection does not confirm the provider's result or cost. Do not buy a second image.
     if (!providerFailure) {
-      throw new AbortError(error instanceof Error ? error : new Error(String(error)));
+      throw new AbortError(new ImageCostUnavailableError(
+        error instanceof Error ? error.message : String(error), { cause: error },
+      ));
     }
     throw error;
   }
@@ -102,7 +107,7 @@ export async function generateImage(
     usageDetails: { ...response.usage, responseId, responseModel: response.model || model,
       providerCostUsd: cost, costSource: 'openrouter', referenceImageCount: referenceImages.length,
       ...(outputError ? { error: outputError.message } : {}) } });
-  if (cost === null) throw new AbortError('The image request cost is unavailable. Generation stopped.');
+  if (cost === null) throw new AbortError(new ImageCostUnavailableError('The image request cost is unavailable. Generation stopped.'));
   if (outputError) throw new AbortError(outputError);
   return image!;
 }
