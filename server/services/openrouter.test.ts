@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import OpenAI, { APIConnectionError } from 'openai';
 import type { TextGenerationOptions, TextUsageEvent } from './openrouter.js';
 import { parseTextModelSettings, TEXT_MODELS, textModelPriceLevel } from '../../shared/textModels.js';
 
@@ -86,6 +87,36 @@ test('an accounting failure never repeats a paid completion', async () => {
   await assert.rejects(generateJSON('Story', 'Write it.', schema, { client: api.client, onUsage: () => { writes++; throw new Error('Database unavailable'); } }), /Database unavailable/);
   assert.equal(api.requests.length, 1);
   assert.equal(writes, 1);
+});
+
+test('a lost connection stops text generation with one unknown cost', async () => {
+  let requests = 0;
+  const usage: TextUsageEvent[] = [];
+  const client = new OpenAI({ apiKey: 'local-test', fetch: async () => {
+    requests++;
+    if (requests === 1) throw new TypeError('Connection lost');
+    return Response.json({ id: 'gen-repeated', model: 'google/gemini-3.8-flash',
+      choices: [{ finish_reason: 'stop', message: { content: '{"ok":true}' } }],
+      usage: { cost: 0.02 } });
+  } });
+  await assert.rejects(generateJSON('Story', 'Write it.', schema, {
+    client, maxRetries: 2, onUsage: event => { usage.push(event); },
+  }), APIConnectionError);
+  assert.equal(requests, 1);
+  assert.deepEqual(usage.map(event => event.usageDetails.providerCostUsd), [null]);
+});
+
+test('a confirmed rate limit permits another text request', async () => {
+  let requests = 0;
+  const client = new OpenAI({ apiKey: 'local-test', fetch: async () => {
+    requests++;
+    if (requests === 1) return Response.json({ error: { message: 'Rate limit' } }, { status: 429 });
+    return Response.json({ id: 'gen-retry', model: 'google/gemini-3.8-flash',
+      choices: [{ finish_reason: 'stop', message: { content: '{"ok":true}' } }],
+      usage: { cost: 0.02 } });
+  } });
+  assert.deepEqual(await generateJSON('Story', 'Write it.', schema, { client, maxRetries: 2 }), { ok: true });
+  assert.equal(requests, 2);
 });
 
 test('a single Markdown wrapper does not discard valid paid JSON', async () => {

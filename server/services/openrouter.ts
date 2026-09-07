@@ -1,4 +1,4 @@
-import OpenAI, { APIConnectionError, APIError } from 'openai';
+import OpenAI, { APIError } from 'openai';
 import type { ChatCompletion, ChatCompletionCreateParamsNonStreaming, ChatCompletionMessageParam } from 'openai/resources/chat/completions';
 import { getOpenRouterClient, resolveOpenRouterCost } from './openrouterClient.js';
 import { config } from '../config.js';
@@ -93,13 +93,13 @@ async function request<T>(body: Record<string, unknown>, options: TextGeneration
         timeout: 5 * 60 * 1000, maxRetries: 0, signal: options.signal,
       }) as RouterCompletion;
     } catch (error) {
-      // Retry transport and rate errors only. Never repeat a paid response after an accounting error.
+      // Retry only confirmed HTTP failures. A lost connection leaves the cost unknown.
       await options.onUsage?.({ model: settings.textModel, status: 'failed', inputTokens: 0, outputTokens: 0,
         totalTokens: 0, usageAvailable: false, usageDetails: { costSource: 'openrouter', providerCostUsd: null,
           error: error instanceof Error ? error.message : 'Request failed' } });
       options.signal?.throwIfAborted();
-      const retry = error instanceof APIConnectionError || (error instanceof APIError &&
-        (error.status === 429 || (error.status ?? 0) >= 500));
+      const retry = error instanceof APIError && error.status !== undefined &&
+        (error.status === 429 || (error.status >= 500 && error.status < 600));
       if (!retry || attempt >= attempts) throw error;
       await new Promise<void>((resolve, reject) => {
         const done = () => { options.signal?.removeEventListener('abort', abort); resolve(); };
