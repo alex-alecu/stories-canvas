@@ -1,3 +1,4 @@
+import { fromMicrodollars, toMicrodollars } from '../utils/money.js';
 import { getSupabase } from './supabase.js';
 import type { StoryPackPricingConfig } from '../config.js';
 import type {
@@ -13,20 +14,20 @@ interface StoryPackOfferRow {
   slug: StoryPackOffer['slug'];
   name: string;
   description: string;
-  credits: number | string;
+  amount_usd_micros: number | string;
   price_minor: number;
   currency: string;
   is_active: boolean;
 }
 
 interface CreditBalanceRow {
-  available_credits: number | string;
+  balance_usd_micros: number | string;
 }
 
 interface CreditLedgerRow {
   id: string;
-  delta: number | string;
-  balance_after: number | string;
+  amount_usd_micros: number | string;
+  balance_after_usd_micros: number | string;
   reason: string;
   note: string | null;
   story_id: string | null;
@@ -41,7 +42,7 @@ interface BillingPurchaseRow {
   stripe_checkout_session_id: string;
   amount_minor: number;
   currency: string;
-  credits_granted: number | string;
+  credited_usd_micros: number | string;
   status: BillingPurchase['status'];
   created_at: string;
   updated_at: string;
@@ -65,6 +66,8 @@ interface FulfillStoryPackPurchaseRow {
   already_fulfilled: boolean;
   available_credits: number | null;
 }
+
+type StoredWalletResult<T> = Omit<T, 'available_credits'> & { balance_usd_micros: number | string | null };
 
 export class InsufficientCreditsError extends Error {
   constructor() {
@@ -97,7 +100,7 @@ function rowToOffer(row: StoryPackOfferRow): StoryPackOffer {
     slug: row.slug,
     name: row.name,
     description: row.description,
-    credits: normalizeCreditAmount(row.credits),
+    credits: fromMicrodollars(row.amount_usd_micros),
     priceMinor: row.price_minor,
     currency: row.currency,
     isActive: row.is_active,
@@ -107,8 +110,8 @@ function rowToOffer(row: StoryPackOfferRow): StoryPackOffer {
 function rowToLedgerEntry(row: CreditLedgerRow): CreditLedgerEntry {
   return {
     id: row.id,
-    delta: normalizeCreditAmount(row.delta),
-    balanceAfter: normalizeCreditAmount(row.balance_after),
+    delta: fromMicrodollars(row.amount_usd_micros),
+    balanceAfter: fromMicrodollars(row.balance_after_usd_micros),
     reason: row.reason,
     note: row.note ?? undefined,
     storyId: row.story_id ?? undefined,
@@ -125,7 +128,7 @@ function rowToPurchase(row: BillingPurchaseRow): BillingPurchase {
     stripeCheckoutSessionId: row.stripe_checkout_session_id,
     amountMinor: row.amount_minor,
     currency: row.currency,
-    creditsGranted: normalizeCreditAmount(row.credits_granted),
+    creditsGranted: fromMicrodollars(row.credited_usd_micros),
     status: row.status,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -133,22 +136,12 @@ function rowToPurchase(row: BillingPurchaseRow): BillingPurchase {
   };
 }
 
-function normalizeCreditAmount(value: unknown): number {
-  if (typeof value === 'number' && Number.isFinite(value)) {
-    return Math.round(value * 10) / 10;
-  }
-  if (typeof value === 'string') {
-    const parsed = Number.parseFloat(value);
-    return Number.isFinite(parsed) ? Math.round(parsed * 10) / 10 : 0;
-  }
-  return 0;
-}
 
 export async function listStoryPackOffers(options: { includeInactive?: boolean } = {}): Promise<StoryPackOffer[]> {
   const supabase = getSupabase();
   let query = supabase
     .from('story_pack_offers')
-    .select('slug, name, description, credits, price_minor, currency, is_active')
+    .select('slug, name, description, amount_usd_micros, price_minor, currency, is_active')
     .order('display_order', { ascending: true });
 
   if (!options.includeInactive) {
@@ -170,7 +163,7 @@ export async function getStoryPackOffer(
   const supabase = getSupabase();
   let query = supabase
     .from('story_pack_offers')
-    .select('slug, name, description, credits, price_minor, currency, is_active')
+    .select('slug, name, description, amount_usd_micros, price_minor, currency, is_active')
     .eq('slug', slug);
 
   if (!options.includeInactive) {
@@ -193,7 +186,7 @@ export async function getUserCreditBalance(userId: string): Promise<CreditBalanc
   const supabase = getSupabase();
   const { data, error } = await supabase
     .from('user_credit_balances')
-    .select('available_credits')
+    .select('balance_usd_micros')
     .eq('user_id', userId)
     .maybeSingle();
 
@@ -202,7 +195,7 @@ export async function getUserCreditBalance(userId: string): Promise<CreditBalanc
   }
 
   return {
-    availableCredits: normalizeCreditAmount(data?.available_credits),
+    availableCredits: fromMicrodollars(data?.balance_usd_micros ?? 0),
   };
 }
 
@@ -210,7 +203,7 @@ export async function listCreditLedger(userId: string, limit = 25): Promise<Cred
   const supabase = getSupabase();
   const { data, error } = await supabase
     .from('credit_ledger')
-    .select('id, delta, balance_after, reason, note, story_id, purchase_id, admin_user_id, created_at')
+    .select('id, amount_usd_micros, balance_after_usd_micros, reason, note, story_id, purchase_id, admin_user_id, created_at')
     .eq('user_id', userId)
     .order('created_at', { ascending: false })
     .limit(limit);
@@ -226,7 +219,7 @@ export async function listBillingPurchases(userId: string, limit?: number): Prom
   const supabase = getSupabase();
   let query = supabase
     .from('billing_purchases')
-    .select('id, offer_slug, stripe_checkout_session_id, amount_minor, currency, credits_granted, status, created_at, updated_at, fulfilled_at')
+    .select('id, offer_slug, stripe_checkout_session_id, amount_minor, currency, credited_usd_micros, status, created_at, updated_at, fulfilled_at')
     .eq('user_id', userId)
     .order('created_at', { ascending: false });
 
@@ -256,7 +249,7 @@ export async function createPendingStoryPackPurchase(params: {
   const supabase = getSupabase();
   const { error } = await supabase
     .from('billing_purchases')
-    .insert({
+    .upsert({
       user_id: params.userId,
       offer_slug: params.offerSlug,
       stripe_checkout_session_id: params.stripeCheckoutSessionId,
@@ -264,7 +257,7 @@ export async function createPendingStoryPackPurchase(params: {
       stripe_customer_id: params.stripeCustomerId ?? null,
       amount_minor: params.amountMinor,
       currency: params.currency,
-      credits_granted: 0,
+      credited_usd_micros: 0,
       status: 'pending',
       metadata: params.metadata ?? {},
       updated_at: new Date().toISOString(),
@@ -299,7 +292,7 @@ async function markStoryPackPurchaseTerminal(params: {
     stripe_customer_id: params.stripeCustomerId ?? null,
     amount_minor: params.amountMinor,
     currency: params.currency,
-    credits_granted: 0,
+    credited_usd_micros: 0,
     status: params.status,
     metadata: params.metadata ?? {},
     updated_at: now,
@@ -307,7 +300,7 @@ async function markStoryPackPurchaseTerminal(params: {
 
   const { error: insertError } = await supabase
     .from('billing_purchases')
-    .insert(insertPayload, {
+    .upsert(insertPayload, {
       onConflict: 'stripe_checkout_session_id',
       ignoreDuplicates: true,
     });
@@ -325,7 +318,7 @@ async function markStoryPackPurchaseTerminal(params: {
       stripe_customer_id: params.stripeCustomerId ?? null,
       amount_minor: params.amountMinor,
       currency: params.currency,
-      credits_granted: 0,
+      credited_usd_micros: 0,
       status: params.status,
       metadata: params.metadata ?? {},
       updated_at: now,
@@ -385,7 +378,7 @@ export async function grantCredits(
   const supabase = getSupabase();
   const { data, error } = await supabase.rpc('grant_credits', {
     p_user_id: userId,
-    p_amount: amount,
+    p_amount_usd_micros: toMicrodollars(amount),
     p_reason: params.reason,
     p_story_id: params.storyId ?? null,
     p_purchase_id: params.purchaseId ?? null,
@@ -397,12 +390,12 @@ export async function grantCredits(
     throw new Error(`Failed to grant credits: ${error.message}`);
   }
 
-  const [row] = (data ?? []) as CreditRpcRow[];
+  const [row] = (data ?? []) as StoredWalletResult<CreditRpcRow>[];
   if (!row) {
     throw new Error('Credit grant did not return a result');
   }
 
-  return { ...row, available_credits: normalizeCreditAmount(row.available_credits) };
+  return { ledger_id: row.ledger_id, available_credits: fromMicrodollars(row.balance_usd_micros) };
 }
 
 export async function consumeCredits(
@@ -417,7 +410,7 @@ export async function consumeCredits(
   const supabase = getSupabase();
   const { data, error } = await supabase.rpc('consume_credits', {
     p_user_id: userId,
-    p_amount: amount,
+    p_amount_usd_micros: toMicrodollars(amount),
     p_reason: params.reason,
     p_story_id: params.storyId ?? null,
     p_note: params.note ?? null,
@@ -431,12 +424,12 @@ export async function consumeCredits(
     throw new Error(`Failed to consume credits: ${error.message}`);
   }
 
-  const [row] = (data ?? []) as CreditRpcRow[];
+  const [row] = (data ?? []) as StoredWalletResult<CreditRpcRow>[];
   if (!row) {
     throw new Error('Credit consumption did not return a result');
   }
 
-  return { ...row, available_credits: normalizeCreditAmount(row.available_credits) };
+  return { ledger_id: row.ledger_id, available_credits: fromMicrodollars(row.balance_usd_micros) };
 }
 
 export async function refundStoryCredits(storyId: string, note?: string): Promise<RefundStoryCreditsRow> {
@@ -450,9 +443,9 @@ export async function refundStoryCredits(storyId: string, note?: string): Promis
     throw new Error(`Failed to refund story credits: ${error.message}`);
   }
 
-  const [row] = (data ?? []) as RefundStoryCreditsRow[];
+  const [row] = (data ?? []) as StoredWalletResult<RefundStoryCreditsRow>[];
   return row
-    ? { ...row, available_credits: row.available_credits === null ? null : normalizeCreditAmount(row.available_credits) }
+    ? { refunded: row.refunded, ledger_id: row.ledger_id, available_credits: row.balance_usd_micros === null ? null : fromMicrodollars(row.balance_usd_micros) }
     : { refunded: false, ledger_id: null, available_credits: null };
 }
 
@@ -574,14 +567,14 @@ export async function fulfillStoryPackPurchase(params: {
     throw new Error(`Failed to fulfill story pack purchase: ${error.message}`);
   }
 
-  const [row] = (data ?? []) as FulfillStoryPackPurchaseRow[];
+  const [row] = (data ?? []) as StoredWalletResult<FulfillStoryPackPurchaseRow>[];
   if (!row) {
     throw new Error('Purchase fulfillment did not return a result');
   }
 
   return {
-    ...row,
-    available_credits: row.available_credits === null ? null : normalizeCreditAmount(row.available_credits),
+    purchase_id: row.purchase_id, ledger_id: row.ledger_id, already_fulfilled: row.already_fulfilled,
+    available_credits: row.balance_usd_micros === null ? null : fromMicrodollars(row.balance_usd_micros),
   };
 }
 
@@ -601,11 +594,12 @@ export async function updateStoryPackOffer(
       name: updates.name,
       description: updates.description,
       price_minor: updates.priceMinor,
+      amount_usd_micros: toMicrodollars(updates.priceMinor / 100),
       is_active: updates.isActive,
       updated_at: new Date().toISOString(),
     })
     .eq('slug', slug)
-    .select('slug, name, description, credits, price_minor, currency, is_active')
+    .select('slug, name, description, amount_usd_micros, price_minor, currency, is_active')
     .single();
 
   if (error) {

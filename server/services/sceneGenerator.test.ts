@@ -3,7 +3,6 @@ import test from 'node:test';
 
 import type { Character, Page } from '../../shared/types.js';
 
-process.env.GEMINI_API_KEY ??= 'test-key';
 
 function makePage(overrides: Partial<Page> = {}): Page {
   return {
@@ -15,6 +14,24 @@ function makePage(overrides: Partial<Page> = {}): Page {
     ...overrides,
   };
 }
+
+test('scene cancellation reaches the image request and stops retries', async () => {
+  const { generateSceneImage } = await import('./sceneGenerator.js');
+  const controller = new AbortController();
+  let attempts = 0;
+  await assert.rejects(generateSceneImage('story-cancel', makePage(), [], new Map(), undefined, undefined, undefined, null, false, {
+    signal: controller.signal,
+    updatePageStatus: async () => {},
+    generateImage: async (_prompt, _references, options) => {
+      attempts++;
+      assert.equal(options?.signal, controller.signal);
+      controller.abort(new Error('Generation cancelled'));
+      throw new Error('Generation cancelled');
+    },
+    retryOptions: { minTimeout: 0, maxTimeout: 0 },
+  }), /Generation cancelled/);
+  assert.equal(attempts, 1);
+});
 
 function createLogger() {
   const entries = {
@@ -37,7 +54,7 @@ function createLogger() {
 
 test('generateSceneImage marks safety-blocked pages as failed without logging an error stack', async () => {
   const sceneGenerator = await import('./sceneGenerator.js');
-  const gemini = await import('./gemini.js');
+  const imageProvider = await import('./openrouterImages.js');
   const { entries, logger } = createLogger();
   const progressMessages: string[] = [];
   const statuses: string[] = [];
@@ -61,7 +78,7 @@ test('generateSceneImage marks safety-blocked pages as failed without logging an
     {
       generateImage: async () => {
         attempts++;
-        throw new gemini.ImageSafetyBlockedError(
+        throw new imageProvider.ImageSafetyBlockedError(
           'gemini-3.1-flash-image-preview',
           'Image generation blocked by safety filters on model gemini-3.1-flash-image-preview',
         );
@@ -146,7 +163,7 @@ test('generateSceneImage keeps non-safety generation failures on the error path'
 
 test('generateSceneImage does not soften-and-retry provider policy blocks', async () => {
   const sceneGenerator = await import('./sceneGenerator.js');
-  const gemini = await import('./gemini.js');
+  const imageProvider = await import('./openrouterImages.js');
   const { entries, logger } = createLogger();
   const progressMessages: string[] = [];
   const statuses: string[] = [];
@@ -169,7 +186,7 @@ test('generateSceneImage does not soften-and-retry provider policy blocks', asyn
     {
       generateImage: async () => {
         attempts++;
-        throw new gemini.ImagePolicyBlockedError(
+        throw new imageProvider.ImagePolicyBlockedError(
           'gemini-3.1-flash-image-preview',
           'Image generation blocked by provider policy on model gemini-3.1-flash-image-preview: candidate 1, finishReason=PROHIBITED_CONTENT, parts=missing',
         );
@@ -364,7 +381,7 @@ test('generateSceneImage keeps four character sheets with scene continuity refer
 
 test('generateSceneImage logs the exact prohibited prompt and provider-policy debug context', async () => {
   const sceneGenerator = await import('./sceneGenerator.js');
-  const gemini = await import('./gemini.js');
+  const imageProvider = await import('./openrouterImages.js');
   const { entries, logger } = createLogger();
   const statuses: string[] = [];
   const page = makePage({
@@ -404,7 +421,7 @@ test('generateSceneImage logs the exact prohibited prompt and provider-policy de
     false,
     {
       generateImage: async () => {
-        throw new gemini.ImagePolicyBlockedError(
+        throw new imageProvider.ImagePolicyBlockedError(
           'gemini-3.1-flash-image-preview',
           'Image generation blocked by provider policy on model gemini-3.1-flash-image-preview: candidate 1, finishReason=PROHIBITED_CONTENT, parts=missing',
         );

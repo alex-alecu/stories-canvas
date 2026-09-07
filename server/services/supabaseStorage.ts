@@ -1,3 +1,4 @@
+import { fromMicrodollars, toMicrodollars } from '../utils/money.js';
 import { getSupabase } from './supabase.js';
 import { config } from '../config.js';
 import {
@@ -23,7 +24,7 @@ import {
 } from '../utils/storyMedia.js';
 import { generateCoverImageVariantSources, STORY_IMAGES_BUCKET } from './coverImageVariants.js';
 import { parseArtStyle } from './storyStyle.js';
-import { normalizeStoryUsageTotals } from './storyUsage.js';
+import { normalizeStoryUsageTotals, sumOpenRouterCosts, type StoryRequestCost } from './storyUsage.js';
 
 const BUCKET = STORY_IMAGES_BUCKET;
 const TRANSIENT_HTTP_STATUSES = new Set([500, 502, 503, 504]);
@@ -291,7 +292,7 @@ export async function createStory(
     voice: voice ?? null,
     art_style: artStyle ?? null,
     story_mode: storyMode ?? null,
-    credit_cost: creditCost,
+    credit_cost_usd_micros: toMicrodollars(creditCost),
     generation_inputs: generationInputs ?? {},
     usage_input_tokens: 0,
     usage_output_tokens: 0,
@@ -374,7 +375,7 @@ export async function updateStoryScenario(
   }
 
   if (options.creditCost !== undefined) {
-    updatePayload.credit_cost = options.creditCost;
+    updatePayload.credit_cost_usd_micros = toMicrodollars(options.creditCost);
   }
 
   if (options.generationInputs !== undefined) {
@@ -433,7 +434,7 @@ interface StoryRow {
   scenario_revision: number | null;
   rendered_scenario_revision: number | null;
   story_mode: StoryMode | null;
-  credit_cost: number | string | null;
+  credit_cost_usd_micros: number | string | null;
   credit_refunded_at: string | null;
   generation_inputs: StoryGenerationInputs | null;
   usage_input_tokens: number | null;
@@ -461,18 +462,6 @@ function normalizeCount(value: unknown): number {
   return 0;
 }
 
-function normalizeCreditAmount(value: unknown): number {
-  if (typeof value === 'number' && Number.isFinite(value)) {
-    return Math.round(value * 10) / 10;
-  }
-
-  if (typeof value === 'string') {
-    const parsed = Number.parseFloat(value);
-    return Number.isFinite(parsed) ? Math.round(parsed * 10) / 10 : 0;
-  }
-
-  return 0;
-}
 
 function normalizeStoryImageSources(value: unknown): StoryImageSources | undefined {
   if (!value || typeof value !== 'object') {
@@ -517,7 +506,7 @@ function rowToStoryMeta(row: StoryRow): StoryMeta {
     renderedScenarioRevision,
     assetsStale: scenarioRevision > renderedScenarioRevision,
     storyMode: row.story_mode ?? undefined,
-    creditCost: row.credit_cost === null ? undefined : normalizeCreditAmount(row.credit_cost),
+    creditCost: row.credit_cost_usd_micros == null ? undefined : fromMicrodollars(row.credit_cost_usd_micros),
     creditRefundedAt: row.credit_refunded_at ?? undefined,
     generationInputs: row.generation_inputs ?? undefined,
     usageTotals: normalizeStoryUsageTotals({
@@ -637,6 +626,32 @@ export async function setStoryReaction(
       ? reactionRow.latest_dislike_feedback
       : null,
   };
+}
+
+export async function getStoryOpenRouterCosts(storyId: string, client = getSupabase()) {
+  const events: StoryRequestCost[] = [];
+  const pageSize = 1000;
+  for (let offset = 0; ; offset += pageSize) {
+    const { data, error } = await client
+      .from('story_usage_events')
+      .select('provider, operation, cost_usd_micros, pricing_status')
+      .eq('story_id', storyId)
+      .eq('provider', 'openrouter')
+      .order('created_at')
+      .order('id')
+      .range(offset, offset + pageSize - 1);
+    if (error) throw new Error(`Failed to read story costs: ${error.message}`);
+    for (const row of data ?? []) {
+      events.push({
+        provider: row.provider,
+        operation: row.operation,
+        costUsdMicros: Number(row.cost_usd_micros),
+        pricingStatus: row.pricing_status,
+      });
+    }
+    if (!data || data.length < pageSize) break;
+  }
+  return sumOpenRouterCosts(events);
 }
 
 export async function appendStoryUsageEvent(

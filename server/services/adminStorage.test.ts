@@ -3,7 +3,6 @@ import test from 'node:test';
 
 import type { StoryMeta } from '../../shared/types.js';
 
-process.env.GEMINI_API_KEY ??= 'test-key';
 
 function makeStory(overrides: Partial<StoryMeta> = {}): StoryMeta {
   return {
@@ -153,4 +152,37 @@ test('getAdminUserDetail includes story cost summaries and aggregate metrics', a
     outputTokens: 65,
     totalTokens: 215,
   });
+});
+
+test('admin reports retain USD balances and request deductions below ten cents', async (t) => {
+  const { config } = await import('../config.js');
+  const { listAdminStories, searchUsersPage } = await import('./adminStorage.js');
+  const previous = { supabaseUrl: config.supabaseUrl, supabaseServiceKey: config.supabaseServiceKey,
+    storyPackPricing: config.storyPackPricing };
+  Object.assign(config, { supabaseUrl: 'https://admin.test', supabaseServiceKey: 'local-test',
+    storyPackPricing: { currency: 'usd' } });
+  t.after(() => { Object.assign(config, previous); });
+  const createdAt = '2026-09-07T00:00:00Z';
+  t.mock.method(globalThis, 'fetch', async (input: string | URL | Request) => {
+    const url = new URL(input instanceof Request ? input.url : String(input));
+    const rows: Record<string, unknown> = {
+      '/auth/v1/admin/users': { users: [{ id: 'user-1', email: 'parent@example.test', created_at: createdAt }] },
+      '/rest/v1/user_credit_balances': [{ user_id: 'user-1', balance_usd_micros: '9990001' }],
+      '/rest/v1/user_roles': [],
+      '/rest/v1/billing_purchases': [{ id: 'purchase-1', user_id: 'user-1', offer_slug: 'pack_5',
+        stripe_checkout_session_id: 'session-1', amount_minor: 1000, currency: 'usd', credited_usd_micros: 10000000,
+        status: 'completed', created_at: createdAt, updated_at: createdAt, fulfilled_at: createdAt }],
+      '/rest/v1/stories': [{ id: 'story-1', user_id: 'user-1', title: 'A rabbit', created_at: createdAt,
+        total_pages: 2, story_mode: 'fast', usage_cost_usd_micros: 60000,
+        usage_text_cost_usd_micros: 0, usage_image_cost_usd_micros: 60000, usage_audio_cost_usd_micros: 0 }],
+      '/rest/v1/credit_ledger': [{ story_id: 'story-1', amount_usd_micros: -30000 }, { story_id: 'story-1', amount_usd_micros: '-30000' }],
+    };
+    assert.ok(url.pathname in rows, `Unexpected request: ${url.pathname}`);
+    return Response.json(rows[url.pathname], { headers: { 'Content-Range': '0-0/1' } });
+  });
+  const users = await searchUsersPage({ query: '', page: 1, pageSize: 25 });
+  const stories = await listAdminStories({ query: '', type: 'all', page: 1, pageSize: 25 });
+  assert.deepEqual({ balance: users.items[0].availableCredits,
+    deducted: stories.items[0].creditsConsumed, profit: stories.items[0].profitUsdMicros },
+  { balance: 9.990001, deducted: 0.06, profit: 0 });
 });

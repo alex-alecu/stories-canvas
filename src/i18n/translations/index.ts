@@ -1,3 +1,4 @@
+import { walletTranslations } from '../walletCopy';
 import type { Language, Translations } from '../types';
 
 import ro from './ro';
@@ -41,6 +42,8 @@ export const translations: Record<Language, Translations> = {
   zh,
   ko,
 };
+
+for (const [language, copy] of Object.entries(translations)) Object.assign(copy, walletTranslations(language));
 
 export const languageList: { code: Language; name: string }[] = [
   { code: 'ro', name: ro.languageName },

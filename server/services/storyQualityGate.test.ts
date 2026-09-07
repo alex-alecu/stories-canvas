@@ -4,7 +4,6 @@ import test from 'node:test';
 import type { Scenario } from '../../shared/types.js';
 import type { StoryPromptContext } from './storyPrompt.js';
 
-process.env.GEMINI_API_KEY ??= 'test-key';
 
 function makeScenario(text = 'Mara lights the lantern and follows the safe path.'): Scenario {
   return {
@@ -72,6 +71,19 @@ test('enforceStoryQuality performs one controlled rewrite and requires a passing
   assert.equal(result.pages[0].text, rewritten.pages[0].text);
   assert.deepEqual(efforts, ['medium', 'high', 'medium']);
   assert.equal(outputs.length, 0);
+});
+
+test('an incomplete review cannot start a paid rewrite with lost findings', async () => {
+  const { enforceStoryQuality } = await import('./storyQualityGate.js');
+  let calls = 0;
+  await assert.rejects(enforceStoryQuality(context, makeScenario(), {
+    generate: (async () => {
+      calls++;
+      return { scores: { naturalLanguageWriting: 4, ageSafety: 3 },
+        issues: [{ code: 'age_safety', severity: 'major', description: 'Soften the danger.', page: 3 }] };
+    }) as never,
+  }), /required format.*before rewriting/);
+  assert.equal(calls, 1);
 });
 
 test('enforceStoryQuality fails closed when the rewritten script still has a major issue', async () => {

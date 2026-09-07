@@ -3,7 +3,7 @@ import { Swiper, SwiperSlide } from 'swiper/react';
 import { Navigation, Keyboard } from 'swiper/modules';
 import type { Swiper as SwiperType } from 'swiper';
 import { Link, useNavigate } from 'react-router-dom';
-import type { Scenario, GenerationProgress, StoryReaction, StoryMode, StoryStatus } from '../types';
+import type { Scenario, GenerationProgress, StoryReaction, StoryMode, StoryStatus, StoryOpenRouterCosts } from '../types';
 import { useLanguage } from '../i18n/LanguageContext';
 import { useFontSize, type FontSize } from '../contexts/FontSizeContext';
 import { readStoredBoolean, readStoredNumber, writeStorageItem } from '../lib/browserStorage';
@@ -48,6 +48,7 @@ interface StoryViewerProps {
   dislikeCount?: number;
   myReaction?: StoryReaction | null;
   storyMode?: StoryMode;
+  openRouterCosts?: StoryOpenRouterCosts | null;
   canManageStory?: boolean;
   canUseOnlineActions?: boolean;
   publicPreviewGate?: {
@@ -106,6 +107,7 @@ export default function StoryViewer({
   dislikeCount = 0,
   myReaction = null,
   storyMode,
+  openRouterCosts,
   canManageStory = false,
   canUseOnlineActions = true,
   publicPreviewGate,
@@ -821,6 +823,7 @@ export default function StoryViewer({
           storyStatus={storyStatus}
           currentPage={currentPage}
           storyMode={storyMode}
+          openRouterCosts={openRouterCosts}
           likeCount={likeCount}
           dislikeCount={dislikeCount}
           myReaction={myReaction}

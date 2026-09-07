@@ -3,7 +3,6 @@ import { createHash } from 'node:crypto';
 import test from 'node:test';
 import type { PurchaseConversionParams } from './marketingConversions.js';
 
-process.env.GEMINI_API_KEY ??= 'test-key';
 
 const { config } = await import('../config.js');
 const {

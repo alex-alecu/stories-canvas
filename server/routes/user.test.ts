@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import express from 'express';
 import test from 'node:test';
 
-process.env.GEMINI_API_KEY ??= 'test-key';
 
 test('GET /api/user/preferences falls back to configured default language without Supabase', async (t) => {
   const { config } = await import('../config.js');

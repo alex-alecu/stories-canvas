@@ -17,6 +17,8 @@
 
 - Every imagePrompt and characterSheetPrompt must be written in English.
 - Every page text must stay aligned with its page's imagePrompt and characters array.
+- Choose one visible moment for each image. Do not combine before-and-after actions, alternative scenes, or several times in one image.
+- Identify the actor, the action, and the important object. Keep object ownership, clothing, colors, and left/right positions consistent with the preceding page.
 - If a page text changes during revision, update that page's imagePrompt and characters list to match.
 - Every imagePrompt must fully restate the visible characters and describe a complete environment, not a blank backdrop.
 - Include camera framing, lighting, and rich environmental detail across the full image, including the bottom third.

@@ -1,3 +1,4 @@
+import { getWalletCopy } from '../i18n/walletCopy';
 import { useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -79,7 +80,7 @@ function getBannerCopy(
 
   if (reason === 'insufficient-credits') {
     return {
-      tone: 'border-primary-200 bg-primary-50 text-primary-700 dark:border-primary-900/40 dark:bg-primary-950/30 dark:text-primary-200',
+      tone: 'border-primary-200 bg-primary-50 text-primary-700 dark:border-primary-900/40 dark:bg-surface-dark-elevated dark:text-gray-100',
       title: t.billingBannerMoreCreditsTitle,
       body: t.billingBannerMoreCreditsBody,
     };
@@ -153,6 +154,7 @@ export default function BillingContent() {
     return null;
   }
 
+  const walletCopy = getWalletCopy(language);
   const banner = getBannerCopy(checkoutState, reason, matchedPurchase, t);
   const historyListClassName = 'mt-4 max-h-96 space-y-3 overflow-y-auto overscroll-contain pr-2';
 
@@ -220,10 +222,6 @@ export default function BillingContent() {
                   className="rounded-2xl border border-gray-100 bg-gray-50 p-5 dark:border-gray-800 dark:bg-surface-dark"
                 >
                   <div className="flex flex-col gap-3 min-w-0">
-                    <div>
-                      <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{offerCopy.name}</p>
-                      <p className="mt-1 text-xs uppercase tracking-[0.18em] text-primary-500">{formatCredits(offer.credits, t)}</p>
-                    </div>
                     <p className="text-2xl font-extrabold leading-none text-gray-900 break-words dark:text-gray-100">
                       {formatLocalizedPrice(offer.priceMinor, language, offer.currency)}
                     </p>
@@ -244,20 +242,14 @@ export default function BillingContent() {
         </div>
 
         <div className="rounded-3xl border border-primary-100 bg-white p-6 shadow-sm dark:border-primary-900/40 dark:bg-surface-dark-elevated">
-          <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100">{t.billingCreationModesTitle}</h3>
-          <div className="mt-4 space-y-3">
-            <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4 dark:border-gray-800 dark:bg-surface-dark">
-              <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t.storyModeFast}</p>
-              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t.storyModeFastSummary}</p>
-            </div>
-            <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4 dark:border-gray-800 dark:bg-surface-dark">
-              <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t.storyModePro}</p>
-              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t.storyModeProSummary}</p>
-            </div>
-            <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4 dark:border-gray-800 dark:bg-surface-dark">
-              <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t.storyModeProAudio}</p>
-              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t.storyModeProAudioSummary}</p>
-            </div>
+          <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100">{walletCopy.howItWorks}</h3>
+          <div className="mt-4 space-y-5">
+            {[[walletCopy.choose, walletCopy.chooseDetail], [walletCopy.pay, walletCopy.payDetail], [walletCopy.keep, walletCopy.keepDetail]].map(([title, detail], index) => (
+              <div key={title} className="flex gap-3">
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary-50 text-sm font-bold text-primary-600 dark:bg-primary-900/30">{index + 1}</span>
+                <div><p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{title}</p><p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{detail}</p></div>
+              </div>
+            ))}
           </div>
 
           <Link
@@ -316,10 +308,11 @@ export default function BillingContent() {
                   <div className="flex items-center justify-between gap-3">
                     <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">{getLedgerReasonLabel(entry.reason, t)}</p>
                     <span className={`text-sm font-semibold ${entry.delta >= 0 ? 'text-green-600 dark:text-green-300' : 'text-red-600 dark:text-red-300'}`}>
-                      {entry.delta >= 0 ? '+' : '-'}{formatCredits(Math.abs(entry.delta), t)}
+                      {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', signDisplay: 'always', minimumFractionDigits: 2, maximumFractionDigits: 6 }).format(entry.delta)}
                     </span>
                   </div>
                   <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t.billingBalanceAfter}: {formatCredits(entry.balanceAfter, t)}</p>
+                  {entry.storyId && <Link to={`/story/${entry.storyId}`} className="mt-1 inline-block text-sm text-primary-600 dark:text-primary-300">{language === 'ro' ? 'Vezi povestea' : 'View story'}</Link>}
                   {entry.note && (
                     <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{entry.note}</p>
                   )}

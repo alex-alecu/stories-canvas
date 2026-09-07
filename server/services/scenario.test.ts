@@ -3,7 +3,6 @@ import test from 'node:test';
 
 import type { Scenario, Page } from '../../shared/types.js';
 
-process.env.GEMINI_API_KEY ??= 'test-key';
 
 function makeValidPages(count = 10): Page[] {
   const basePages: Page[] = [
@@ -92,10 +91,9 @@ test('story prompt assembly keeps age scenario, appearance, and language rules t
   assert.match(systemInstruction, /keep the exact spelling from characters\[\]\.name whenever you mention a character/i);
   assert.match(systemInstruction, /keep appearance, clothing, characterSheetPrompt, and imagePrompt visually originalized/i);
   assert.doesNotMatch(agentInstruction, /sub-?agent|spawn_subagent/i);
-  assert.match(agentInstruction, /fresh, independent review/i);
-  assert.match(agentInstruction, /original request, target age, language/i);
-  assert.match(agentInstruction, /exact required final wording/i);
-  assert.match(agentInstruction, /Apply the review yourself/);
+  assert.match(agentInstruction, /application runs an independent quality review/i);
+  assert.match(agentInstruction, /submit_story_script/);
+  assert.match(agentInstruction, /exact final wording/i);
   assert.match(draftPrompt, /Target age: 6/);
   assert.match(draftPrompt, /Return no more than 10 pages, numbered sequentially from 1/);
   assert.match(draftPrompt, /Classic hand-drawn storybook illustration/);
@@ -275,7 +273,10 @@ test('story prompt assembly uses the 7-plus scenario prompt for older selected a
   assert.match(systemInstruction, /Trigger the inciting problem within the first third of the pages/);
   assert.match(systemInstruction, /one serious failed attempt, reversal, or discovery/i);
   assert.match(systemInstruction, /Use the final page as the aftermath/);
-  assert.match(systemInstruction, /Use 3-6 concise sentences per page/);
+  assert.match(systemInstruction, /Use no more than 5 concise sentences per page/);
+  assert.match(systemInstruction, /at or below 280 characters, including spaces and punctuation, and 5 sentences/);
+  assert.match(systemInstruction, /characters field must be a nonempty array of exact names/);
+  assert.match(storyPrompt.buildStoryAgentSystemInstruction(context), /at or below 280 characters/);
   assert.match(systemInstruction, /the protagonist does not have to be a child unless the prompt asks for it/);
   assert.match(systemInstruction, /If a page text changes during revision, update that page's imagePrompt and characters list to match/);
   assert.match(systemInstruction, /Avoid melodrama, random peril, cartoon cruelty, and magical shortcuts/);
@@ -707,6 +708,22 @@ test('validateScenario rejects age-6 pages that are too long for the overlay bud
   const issues = validateScenario(scenario, 6);
 
   assert.ok(issues.some(issue => issue.code === 'page.text.ageLength'));
+});
+
+test('sentence limits count dialogue without counting closing quotes or speech attribution twice', async () => {
+  const { validateScenario } = await import('./scenarioValidation.js');
+  for (const text of [
+    'Mia looked up. “Where is Pip?” she asked. Pip waved. “Here I am.”',
+    'Mia ridică ochii. „Unde e Pip?” a întrebat ea. Pip îi făcu cu mâna. „Sunt aici.”',
+    'ミアは空を見た。ピップが来た。「こんにちは。」「遊ぼう。」',
+  ]) {
+    const scenario = makeScenario();
+    scenario.pages[0].text = text;
+    assert.equal(validateScenario(scenario, 3).some(issue => issue.code === 'page.text.sentences'), false);
+  }
+  const tooMany = makeScenario();
+  tooMany.pages[0].text = 'Mia looked up. Pip waved. Mia ran. Pip smiled. “We are ready.”';
+  assert.equal(validateScenario(tooMany, 3).some(issue => issue.code === 'page.text.sentences'), true);
 });
 
 test('validateScenario rejects a visible named character missing from the page character list', async () => {

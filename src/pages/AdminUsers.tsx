@@ -205,11 +205,11 @@ export default function AdminUsers() {
             <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4 dark:border-gray-800 dark:bg-surface-dark">
               <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{t.adminGrantFreeCreditsTitle}</h3>
               <div className="mt-3 grid gap-3 md:grid-cols-[120px_1fr_auto]">
-                <input value={grantAmount} onChange={event => setGrantAmount(event.target.value)} inputMode="numeric" aria-label="Credit amount" className="rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-800 dark:border-gray-700 dark:bg-surface-dark-accent dark:text-gray-100" />
+                <input value={grantAmount} onChange={event => setGrantAmount(event.target.value)} inputMode="decimal" aria-label="USD amount" className="rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-800 dark:border-gray-700 dark:bg-surface-dark-accent dark:text-gray-100" />
                 <input value={grantNote} onChange={event => setGrantNote(event.target.value)} placeholder={t.adminLedgerReasonPlaceholder} className="rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-800 dark:border-gray-700 dark:bg-surface-dark-accent dark:text-gray-100" />
                 <button
                   type="button"
-                  disabled={grantCredits.isPending || !Number.isInteger(Number(grantAmount)) || Number(grantAmount) <= 0}
+                  disabled={grantCredits.isPending || !Number.isFinite(Number(grantAmount)) || Math.round(Number(grantAmount) * 100) / 100 !== Number(grantAmount) || Number(grantAmount) <= 0}
                   onClick={async () => {
                     await grantCredits.mutateAsync({ userId: selectedUser.id, amount: Number(grantAmount), note: grantNote.trim() || undefined });
                     setGrantNote('');

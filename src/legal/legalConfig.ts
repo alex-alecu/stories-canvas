@@ -193,7 +193,7 @@ const roDocuments: Record<LegalRouteKey, LegalDocument> = {
     {
       heading: '4. Credite, prețuri și plăți',
       body: [
-        'Serviciul folosește credite pentru generarea poveștilor și pentru acțiuni suplimentare, cum ar fi regenerarea imaginilor sau adăugarea narațiunii audio. Numărul de credite necesare este afișat în aplicație înainte de inițierea acțiunii.',
+        'Serviciul folosește un sold în dolari SUA. O poveste nouă necesită cel puțin 10 USD în cont. Costurile cererilor pentru text, imagini și narațiune sunt scăzute din sold pe parcursul generării. Costul depinde de model și de utilizare. Cererile efectuate rămân taxate dacă o etapă ulterioară eșuează sau anulați generarea.',
         'Prețurile pachetelor de credite sunt afișate înainte de trimiterea utilizatorului către plata online. Plățile sunt procesate prin Stripe. Povești Magice nu stochează datele complete ale cardului. Confirmarea plății, alocarea creditelor și actualizarea istoricului pot depinde de mesajele primite de la procesatorul de plată.',
         'Creditele nu sunt monedă electronică, nu produc dobândă și pot fi folosite doar în cadrul serviciului Povești Magice. Dacă un pachet sau o funcționalitate este indisponibilă temporar, vom depune eforturi rezonabile pentru remediere sau pentru clarificarea situației prin suport.',
       ],
@@ -266,7 +266,7 @@ const roDocuments: Record<LegalRouteKey, LegalDocument> = {
       heading: '4. Furnizori și destinatari',
       body: [
         'Pentru funcționarea website-ului folosim furnizori tehnici, precum servicii de autentificare, bază de date și stocare, procesare plăți, generare AI text/imagine/audio, găzduire, monitorizare, suport și marketing. Furnizorii primesc doar datele necesare rolului lor.',
-        'În configurația actuală a produsului pot fi folosite categorii precum Supabase pentru autentificare, bază de date și stocare, Stripe pentru plăți, furnizori AI pentru generarea textului și imaginilor, ElevenLabs pentru narațiune audio dacă alegeți această funcție, și Google/Meta/TikTok pentru marketing numai după consimțământ.',
+        'În configurația actuală a produsului pot fi folosite categorii precum Supabase pentru autentificare, bază de date și stocare, Stripe pentru plăți, OpenRouter și furnizorul modelului selectat pentru text și imagini, ElevenLabs pentru narațiune audio dacă alegeți această funcție, și Google/Meta/TikTok pentru marketing numai după consimțământ.',
         'Datele pot fi transferate în afara Spațiului Economic European dacă furnizorii noștri operează global. În aceste cazuri folosim mecanismele contractuale și măsurile de protecție disponibile conform GDPR.',
       ],
     },
@@ -445,7 +445,7 @@ const enDocuments: Record<LegalRouteKey, LegalDocument> = {
     {
       heading: '4. Credits, prices, and payments',
       body: [
-        'The service uses credits for story generation and additional actions such as image regeneration or audio narration. The required number of credits is shown in the application before the action starts.',
+        'The service uses a balance in US dollars. A new story requires at least $10 in the account. Text, image, and narration request costs are taken from the balance as generation proceeds. Costs depend on the selected model and use. Completed request costs still apply if a later step fails or you cancel.',
         'Credit pack prices are shown before the user is redirected to online payment. Payments are processed by Stripe. Magic Stories does not store complete card details. Payment confirmation, credit allocation, and history updates may depend on messages received from the payment processor.',
         'Credits are not electronic money, do not accrue interest, and can be used only inside Magic Stories. If a pack or feature is temporarily unavailable, we will make reasonable efforts to fix the issue or clarify it through support.',
       ],
@@ -518,7 +518,7 @@ const enDocuments: Record<LegalRouteKey, LegalDocument> = {
       heading: '4. Providers and recipients',
       body: [
         'We use technical providers for authentication, database and storage, payment processing, AI text/image/audio generation, hosting, monitoring, support, and marketing. Providers receive only the data needed for their role.',
-        'The current product setup may use Supabase for authentication, database, and storage; Stripe for payments; AI providers for text and image generation; ElevenLabs for audio narration if selected; and Google/Meta/TikTok for marketing only after consent.',
+        'The current product setup may use Supabase for authentication, database, and storage; Stripe for payments; OpenRouter and the selected model provider for text and image generation; ElevenLabs for audio narration if selected; and Google/Meta/TikTok for marketing only after consent.',
         'Data may be transferred outside the European Economic Area if our providers operate globally. In those cases we use available contractual mechanisms and safeguards under GDPR.',
       ],
     },

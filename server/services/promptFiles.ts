@@ -3,10 +3,6 @@ import { join } from 'node:path';
 
 const PROMPT_DIR = join(process.cwd(), 'story-prompts');
 
-export function loadMarkdownFile(filename: string): string {
-  return readFileSync(join(process.cwd(), filename), 'utf8').trimEnd();
-}
-
 export function loadPromptMarkdown(filename: string): string {
   return readFileSync(join(PROMPT_DIR, filename), 'utf8').trimEnd();
 }

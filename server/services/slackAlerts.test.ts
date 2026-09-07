@@ -7,7 +7,6 @@ import {
   slackAlertTestExports,
 } from './slackAlerts.js';
 
-process.env.GEMINI_API_KEY ??= 'test-key';
 
 const TEST_SLACK_WEBHOOK_URL = 'https://hooks.slack.com/services/test-workspace/test-app/test-secret';
 

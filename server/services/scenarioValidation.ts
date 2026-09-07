@@ -33,13 +33,15 @@ function normalizeWhitespace(value: string | undefined): string {
 }
 
 function countSentences(text: string): number {
-  const normalized = normalizeWhitespace(text);
+  // Keep a quoted sentence and its lower-case speech attribution together.
+  const normalized = normalizeWhitespace(text)
+    .replace(/[.!?。！？]+(["”’»」』])(\s+(?:[—–-]\s*)?\p{Ll})/gu, '$1$2');
   if (!normalized) return 0;
 
   const segments = normalized
     .split(/[.!?。！？]+/u)
     .map(segment => segment.trim())
-    .filter(Boolean);
+    .filter(segment => /[\p{L}\p{N}]/u.test(segment));
 
   return segments.length > 0 ? segments.length : 1;
 }

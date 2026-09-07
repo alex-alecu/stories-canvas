@@ -1,16 +1,14 @@
+import { DEFAULT_TEXT_MODEL } from '../shared/textModels.js';
 import path from 'path';
 import { createHash } from 'node:crypto';
 
-function requireEnv(key: string): string {
-  const value = process.env[key];
-  if (!value) {
-    throw new Error(`Missing required environment variable: ${key}`);
-  }
-  return value;
-}
-
 function optionalEnv(key: string): string | undefined {
   return process.env[key] || undefined;
+}
+
+export function resolveImageModelId(value: string | undefined, fallback: string): string {
+  const model = value?.trim() || fallback;
+  return model.startsWith('gemini-') ? `google/${model}` : model;
 }
 
 function listEnv(key: string): string[] {
@@ -145,14 +143,13 @@ const defaultLanguage = appLanguageEnv();
 const defaultSiteCopy = defaultLanguage === 'ro' ? DEFAULT_SITE_COPY.ro : DEFAULT_SITE_COPY.en;
 const supabaseUrl = optionalEnv('SUPABASE_URL');
 const supabaseServiceKey = optionalEnv('SUPABASE_SERVICE_KEY');
-const openAITextModel = 'gpt-5.6-sol';
+const defaultTextModel = DEFAULT_TEXT_MODEL;
 
 export const config = {
-  geminiApiKey: requireEnv('GEMINI_API_KEY'),
-  openaiApiKey: optionalEnv('OPENAI_API_KEY'),
-  scenarioModel: openAITextModel,
-  imageModel: process.env.IMAGE_MODEL || 'gemini-3.1-flash-image-preview',
-  imageModelPro: process.env.IMAGE_MODEL_PRO || 'gemini-3-pro-image-preview',
+  openrouterApiKey: optionalEnv('OPENROUTER_API_KEY'),
+  scenarioModel: defaultTextModel,
+  imageModel: resolveImageModelId(process.env.IMAGE_MODEL, 'google/gemini-3.1-flash-image-preview'),
+  imageModelPro: resolveImageModelId(process.env.IMAGE_MODEL_PRO, 'google/gemini-3-pro-image-preview'),
   imageConcurrency: integerEnv('IMAGE_CONCURRENCY', 3),
   port: parseInt(process.env.PORT || process.env.SERVER_PORT || '3001', 10),
   dataDir: process.env.DATA_DIR || path.join(process.cwd(), 'data', 'stories'),
@@ -166,9 +163,9 @@ export const config = {
   sseIpConnectionLimit: integerEnv('SSE_IP_CONNECTION_LIMIT', 10),
   sseStoryIpConnectionLimit: integerEnv('SSE_STORY_IP_CONNECTION_LIMIT', 3),
   authCacheTtlMs: integerEnv('AUTH_CACHE_TTL_MS', 60_000),
-  sourceAnalysisModel: openAITextModel,
-  reviewModel: openAITextModel,
-  pageTextReviewModel: openAITextModel,
+  sourceAnalysisModel: defaultTextModel,
+  reviewModel: defaultTextModel,
+  pageTextReviewModel: defaultTextModel,
   storyPackPricing: resolveStoryPackPricingConfig(),
 
   // Supabase configuration

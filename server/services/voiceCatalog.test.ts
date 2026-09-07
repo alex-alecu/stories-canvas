@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-process.env.GEMINI_API_KEY ??= 'test-key';
 
 test('voice catalog exposes only the curated Romanian shortlist', async () => {
   const { DEFAULT_VOICE_KEY, VOICE_OPTIONS, getVoiceName } = await import('../../shared/types.js');

@@ -333,7 +333,8 @@ billingWebhookRouter.post('/', async (req: Request, res: Response) => {
             offerSlug: purchaseParams.offerSlug,
             amountMinor: purchaseParams.amountMinor,
             currency: purchaseParams.currency,
-            credits: getOfferCredits(purchaseParams.offerSlug),
+            credits: purchaseParams.metadata.walletCurrency === 'USD'
+              ? purchaseParams.amountMinor / 100 : getOfferCredits(purchaseParams.offerSlug),
             availableCredits: fulfillment.available_credits,
             stripeCheckoutSessionId: purchaseParams.stripeCheckoutSessionId,
             stripePaymentIntentId: purchaseParams.stripePaymentIntentId,

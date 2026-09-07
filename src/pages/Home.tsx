@@ -1,3 +1,4 @@
+import type { TextModelSettings } from '../../shared/textModels';
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import StoryInput from '../components/StoryInput';
@@ -131,10 +132,10 @@ export default function Home() {
     return () => observer.disconnect();
   }, [hasSettledUserStories, shouldLoadPublicStories]);
 
-  const handleCreateStory = useCallback(async (prompt: string, age: number, style: ArtStyleKey, storyMode: StoryMode, voice?: VoiceKey) => {
+  const handleCreateStory = useCallback(async (prompt: string, age: number, style: ArtStyleKey, settings: TextModelSettings, audioEnabled: boolean, voice?: VoiceKey) => {
     try {
       requestPermission();
-      const result = await createStory.mutateAsync({ prompt, language, age, style, storyMode, voice });
+      const result = await createStory.mutateAsync({ prompt, language, age, style, ...settings, audioEnabled, voice });
       setGeneratingStoryId(result.id);
     } catch (error) {
       console.error('Failed to create story:', error);

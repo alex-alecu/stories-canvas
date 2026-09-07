@@ -3,7 +3,6 @@ import test from 'node:test';
 
 import type { Scenario, Page } from '../../shared/types.js';
 
-process.env.GEMINI_API_KEY ??= 'test-key';
 
 function makePages(): Page[] {
   return [
