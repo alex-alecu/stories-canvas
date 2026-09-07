@@ -10,7 +10,7 @@ import { imageGenerationLimiter } from '../utils/rateLimiter.js';
 import { getPageImageFilename } from '../utils/storyMedia.js';
 import type { Page, Character, GenerationProgress } from '../../shared/types.js';
 import { reviewSceneImage, type SceneImageReviewResult } from './sceneImageReview.js';
-import type { TextUsageEvent } from './openrouter.js';
+import { TextCostUnavailableError, type TextUsageEvent } from './openrouter.js';
 
 async function saveSceneImage(storyId: string, filename: string, base64: string, userId?: string): Promise<void> {
   if (config.useSupabase) {
@@ -345,7 +345,7 @@ export async function generateSceneImage(
     }
     await setPageStatus(storyId, page.pageNumber, 'failed');
     onProgress?.({ message: failureMessage, pageNumber: page.pageNumber, pageStatus: 'failed' });
-    if (error instanceof ImageCostUnavailableError) throw error;
+    if (error instanceof ImageCostUnavailableError || error instanceof TextCostUnavailableError) throw error;
     return null;
   }
 }

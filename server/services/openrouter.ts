@@ -6,6 +6,9 @@ import { getTextModelSettings } from './textGenerationContext.js';
 import type { ThinkingLevel } from '../../shared/textModels.js';
 
 export type TextReasoningEffort = ThinkingLevel | 'none' | 'minimal' | 'xhigh';
+export class TextCostUnavailableError extends Error {
+  name = 'TextCostUnavailableError';
+}
 type RouterClient = Pick<OpenAI, 'chat' | 'get'>;
 export interface TextUsageEvent {
   model: string;
@@ -98,6 +101,9 @@ async function request<T>(body: Record<string, unknown>, options: TextGeneration
         totalTokens: 0, usageAvailable: false, usageDetails: { costSource: 'openrouter', providerCostUsd: null,
           error: error instanceof Error ? error.message : 'Request failed' } });
       options.signal?.throwIfAborted();
+      if (!(error instanceof APIError) || error.status === undefined) {
+        throw new TextCostUnavailableError('The request cost is unavailable. Generation stopped.', { cause: error });
+      }
       const retry = error instanceof APIError && error.status !== undefined &&
         (error.status === 429 || (error.status >= 500 && error.status < 600));
       if (!retry || attempt >= attempts) throw error;
@@ -121,8 +127,10 @@ async function request<T>(body: Record<string, unknown>, options: TextGeneration
     } catch (error) { outputError = error; }
     const usage = await buildTextUsageEvent(response, outputError ? 'failed' : 'succeeded', api);
     await options.onUsage?.(usage);
+    if (usage.usageDetails.providerCostUsd === null) {
+      throw new TextCostUnavailableError('The request cost is unavailable. Generation stopped.', { cause: outputError });
+    }
     if (outputError) throw outputError;
-    if (usage.usageDetails.providerCostUsd === null) throw new Error('The request cost is unavailable. Generation stopped.');
     options.signal?.throwIfAborted();
     return value as T;
   }

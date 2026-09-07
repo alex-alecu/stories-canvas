@@ -4,7 +4,7 @@ import OpenAI, { APIConnectionError } from 'openai';
 import type { TextGenerationOptions, TextUsageEvent } from './openrouter.js';
 import { parseTextModelSettings, TEXT_MODELS, textModelPriceLevel } from '../../shared/textModels.js';
 
-const { generateJSON } = await import('./openrouter.js');
+const { generateJSON, TextCostUnavailableError } = await import('./openrouter.js');
 const { withTextModelSettings } = await import('./textGenerationContext.js');
 const { recordStoryUsage } = await import('./storyUsage.js');
 const { getOpenRouterClient } = await import('./openrouterClient.js');
@@ -101,7 +101,7 @@ test('a lost connection stops text generation with one unknown cost', async () =
   } });
   await assert.rejects(generateJSON('Story', 'Write it.', schema, {
     client, maxRetries: 2, onUsage: event => { usage.push(event); },
-  }), APIConnectionError);
+  }), (error: unknown) => error instanceof TextCostUnavailableError && error.cause instanceof APIConnectionError);
   assert.equal(requests, 1);
   assert.deepEqual(usage.map(event => event.usageDetails.providerCostUsd), [null]);
 });
