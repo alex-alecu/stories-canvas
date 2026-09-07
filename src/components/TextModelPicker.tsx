@@ -30,7 +30,11 @@ export default function TextModelPicker({ value, onChange, disabled }: {
         <div className="min-w-0 text-sm text-gray-700 dark:text-gray-200">
           <span id={`${pickerId}-label`} className="font-semibold">{copy.model}</span>
           <details ref={menu} className="relative"
-            onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) closeMenu(); }}
+            onBlur={event => {
+              // WebKit can blur the summary before a label activates its radio.
+              // A null target is not an outside focus move; pointerdown handles outside clicks.
+              if (event.relatedTarget && !event.currentTarget.contains(event.relatedTarget)) closeMenu();
+            }}
             onKeyDown={event => {
               if (event.key === 'Escape' || (event.key === 'Enter' && event.target instanceof HTMLInputElement)) {
                 event.preventDefault(); closeMenu(); menu.current?.querySelector('summary')?.focus();
@@ -40,7 +44,6 @@ export default function TextModelPicker({ value, onChange, disabled }: {
               onClick={event => { if (disabled) event.preventDefault(); }}
               className={`${selectClass} flex cursor-pointer list-none items-center gap-2 [&::-webkit-details-marker]:hidden ${disabled ? 'cursor-default opacity-50' : ''}`}>
               <span id={`${pickerId}-value`} className="min-w-0 flex-1 truncate">{model.name}</span>
-              <span className="font-semibold text-primary-700 dark:text-primary-300">{textModelPriceLevel(model)}</span>
               <span aria-hidden="true" className="text-gray-400">⌄</span>
             </summary>
             <fieldset disabled={disabled} aria-labelledby={`${pickerId}-label`}
@@ -54,21 +57,23 @@ export default function TextModelPicker({ value, onChange, disabled }: {
                 <span className="min-w-0 flex-1">
                   <span className="block">{option.name}</span>
                   {option.id === DEFAULT_TEXT_MODEL && <span className="text-xs text-primary-600 dark:text-primary-300">{copy.modelDefault}</span>}
+                  <span id={`${pickerId}-price-${index}`} className="mt-1 block text-xs leading-relaxed text-gray-500 dark:text-gray-400">
+                    <span className="block">{rateText(option.pricing)}</span>
+                    {option.pricing.longContext && <span className="block">
+                      {copy.aboveInput.replace('{tokens}', option.pricing.longContext.aboveInputTokens.toLocaleString(language))}: {rateText(option.pricing.longContext)}
+                    </span>}
+                  </span>
                 </span>
                 <span className="font-semibold text-primary-700 dark:text-primary-300">{textModelPriceLevel(option)}</span>
-                <span id={`${pickerId}-price-${index}`} role="tooltip"
-                  className="pointer-events-none absolute inset-x-0 top-full z-40 hidden rounded-lg bg-gray-900 p-3 text-xs leading-relaxed text-white shadow-lg group-hover:block group-focus-within:block dark:bg-gray-100 dark:text-gray-900">
-                  <span className="block font-bold">{rateText(option.pricing)}</span>
-                  <span className="block">{copy.perMillion}</span>
-                  {option.pricing.longContext && <span className="mt-1 block">
-                    {copy.aboveInput.replace('{tokens}', option.pricing.longContext.aboveInputTokens.toLocaleString(language))}: {rateText(option.pricing.longContext)}
-                  </span>}
-                  <span className="mt-1 block opacity-80">{copy.priceNote}</span>
-                </span>
               </label>)}
+              <div className="border-t border-gray-100 px-3 py-2 text-xs text-gray-500 dark:border-white/10 dark:text-gray-400">
+                <p>{copy.perMillion}</p>
+                <p className="mt-1">{copy.moreThinking}</p>
+                <p className="mt-1">{copy.priceNote}</p>
+                <p className="mt-1">{copy.baseRates} · {copy.pricesChecked} {TEXT_MODEL_PRICES_CHECKED_AT}</p>
+              </div>
             </fieldset>
           </details>
-          <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">{rateText(model.pricing)}<br />{copy.perMillion}</p>
         </div>
         {model.thinkingLevels.length > 0 && <label className="min-w-0 text-sm font-semibold text-gray-700 dark:text-gray-200">
           {copy.thinking}
@@ -78,10 +83,6 @@ export default function TextModelPicker({ value, onChange, disabled }: {
           </select>
         </label>}
       </div>
-      <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">{copy.moreThinking}</p>
-      <p className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">
-        {copy.baseRates} · {copy.pricesChecked} {TEXT_MODEL_PRICES_CHECKED_AT}
-      </p>
     </div>
   );
 }

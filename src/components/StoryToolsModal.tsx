@@ -1,7 +1,8 @@
 import { getWalletCopy } from '../i18n/walletCopy';
+import { TEXT_MODELS } from '../../shared/textModels';
 import { useState, useEffect, useCallback, useMemo, useRef, type FormEvent } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import type { GenerationProgress, Page, Scenario, StoryMode, StoryReaction, StoryStatus, StoryOpenRouterCosts } from '../types';
+import type { GenerationProgress, Page, Scenario, StoryMode, StoryReaction, StoryStatus, StoryOpenRouterCosts, StoryGenerationInputs } from '../types';
 import {
   DEFAULT_VOICE_KEY,
   STORY_REACTION_FEEDBACK_MAX_CHARS,
@@ -43,6 +44,7 @@ interface StoryToolsModalProps {
   storyStatus: StoryStatus;
   currentPage?: Page;
   storyMode?: StoryMode;
+  generationInputs?: StoryGenerationInputs;
   openRouterCosts?: StoryOpenRouterCosts | null;
   likeCount?: number;
   dislikeCount?: number;
@@ -96,6 +98,7 @@ export default function StoryToolsModal({
   storyStatus,
   currentPage,
   storyMode,
+  generationInputs,
   openRouterCosts,
   likeCount = 0,
   dislikeCount = 0,
@@ -105,6 +108,9 @@ export default function StoryToolsModal({
 }: StoryToolsModalProps) {
   const { t, language } = useLanguage();
   const walletCopy = getWalletCopy(language);
+  const savedModel = generationInputs?.textModel || generationInputs?.scenarioModel;
+  const modelName = TEXT_MODELS.find(model => model.id === savedModel)?.name || savedModel || walletCopy.notRecorded;
+  const thinkingLevel = generationInputs?.thinkingLevel;
   const costFormatter = new Intl.NumberFormat(language, {
     style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 6,
   });
@@ -601,6 +607,16 @@ export default function StoryToolsModal({
       <section className="rounded-lg border border-white/10 bg-white/[0.04] p-4">
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/35">{t.storyToolsSectionStory}</p>
         <h3 className="mt-2 text-lg font-bold leading-snug text-white">{scenario.title}</h3>
+        <dl className="mt-4 space-y-2 text-sm">
+          <div className="flex items-start justify-between gap-4 text-white/65">
+            <dt>{walletCopy.model}</dt>
+            <dd className="min-w-0 break-words text-right text-white">{modelName}</dd>
+          </div>
+          <div className="flex items-start justify-between gap-4 text-white/65">
+            <dt>{walletCopy.thinking}</dt>
+            <dd className="text-right text-white">{thinkingLevel ? walletCopy[thinkingLevel] : walletCopy.notRecorded}</dd>
+          </div>
+        </dl>
         {canManageStory && openRouterCosts !== undefined && (
           <div className="mt-4 border-t border-white/10 pt-4">
             <h4 className="text-sm font-semibold text-white">{walletCopy.openRouterCosts}</h4>

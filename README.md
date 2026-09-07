@@ -23,7 +23,9 @@ Text generation uses [OpenRouter usage accounting](https://openrouter.ai/docs/us
 
 The six models are defined in `shared/textModels.ts`. The default is Gemini 3.8 Flash. The selected model and thinking level apply to all text steps for a story, including reviews and later edits. Models were checked against the live catalog on 2026-09-06.
 
-The model list includes Gemini 3.8 Flash, GPT-6 Astra, Claude Fable 5.1, Claude Opus 5, Qwen 3.8 Max, and Grok 4.6. Each shows a price level and input/output rates per million tokens on hover or keyboard focus. The selected base rates also stay visible on touch screens. The display snapshot comes from the [OpenRouter model catalog](https://openrouter.ai/api/v1/models), checked on 2026-09-06. Refresh it when the model list or provider prices change. Price levels compare one million input plus one million output tokens: `$` is up to $10, `$$` is up to $40, and `$$$` is above $40. Long-context rates appear in the price details. These display rates do not set wallet charges; the provider response cost does.
+The model list includes Gemini 3.8 Flash, GPT-6 Astra, Claude Fable 5.1, Claude Opus 5, Qwen 3.8 Max, and Grok 4.6. Price levels and input/output rates appear only inside the open model dropdown, including on touch screens. The display snapshot comes from the [OpenRouter model catalog](https://openrouter.ai/api/v1/models), checked on 2026-09-06. Refresh it when the model list or provider prices change. Price levels compare one million input plus one million output tokens: `$` is up to $10, `$$` is up to $40, and `$$$` is above $40. Long-context rates appear in the price details. These display rates do not set wallet charges; the provider response cost does.
+
+Story Tools shows the story's saved text model and thinking level. Older stories use their saved scenario model when available. Missing settings show as "Not recorded".
 
 Fable supports tools but does not list `tool_choice` on its OpenRouter endpoints. Its agent requests omit that parameter. The writer must submit a complete script through the validation tool before the app accepts it.
 
