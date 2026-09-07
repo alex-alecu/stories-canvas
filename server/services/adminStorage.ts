@@ -57,11 +57,11 @@ function getDisplayName(user: AuthUserLike): string | undefined {
 
 function normalizeCreditAmount(value: unknown): number {
   if (typeof value === 'number' && Number.isFinite(value)) {
-    return Math.round(value * 10) / 10;
+    return Math.round(value * 1_000_000) / 1_000_000;
   }
   if (typeof value === 'string') {
     const parsed = Number.parseFloat(value);
-    return Number.isFinite(parsed) ? Math.round(parsed * 10) / 10 : 0;
+    return Number.isFinite(parsed) ? Math.round(parsed * 1_000_000) / 1_000_000 : 0;
   }
   return 0;
 }
