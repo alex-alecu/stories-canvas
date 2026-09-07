@@ -30,7 +30,11 @@ export default function TextModelPicker({ value, onChange, disabled }: {
         <div className="min-w-0 text-sm text-gray-700 dark:text-gray-200">
           <span id={`${pickerId}-label`} className="font-semibold">{copy.model}</span>
           <details ref={menu} className="relative"
-            onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) closeMenu(); }}
+            onBlur={event => {
+              // WebKit can blur the summary before a label activates its radio.
+              // A null target is not an outside focus move; pointerdown handles outside clicks.
+              if (event.relatedTarget && !event.currentTarget.contains(event.relatedTarget)) closeMenu();
+            }}
             onKeyDown={event => {
               if (event.key === 'Escape' || (event.key === 'Enter' && event.target instanceof HTMLInputElement)) {
                 event.preventDefault(); closeMenu(); menu.current?.querySelector('summary')?.focus();
