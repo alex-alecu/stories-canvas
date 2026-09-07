@@ -10,10 +10,12 @@ The public gallery is free. Accounts hold prepaid funds in US dollars. A new sto
 - Each OpenRouter response supplies its actual USD cost. The app stores the response ID, model, thinking level, token usage, and cost.
 - Images also use OpenRouter's reported request cost. Only ElevenLabs narration uses the saved price catalog. Generation stops if a required cost is unavailable.
 - Each request creates one cost entry and one wallet debit in the same database transaction. Duplicate event IDs cannot charge twice.
-- Costs use six decimal places. The app has no added generation markup. Provider funding and Stripe payment fees are operating costs.
+- Costs and wallet amounts use integer microdollars: **$1 = 1,000,000 microdollars**. The app has no added generation markup. Provider funding and Stripe payment fees are operating costs.
 - Completed request costs still apply after a later failure or cancellation. Requests already in progress can take a balance below zero. Further generation then stops.
 - Initial funding options are $10, $25, and $50. Funds do not expire. Admins can change funding amounts or grant USD amounts.
-- Existing credits convert at **1 credit = $1**. The old balance is saved in `legacy_credits_converted` with a conversion date. Existing credit column names remain for API compatibility; their values now mean USD.
+- Existing credits convert at **1 credit = $1**. The old balance is saved in `legacy_credits_converted` with a conversion date. Existing credit API field names remain for compatibility; their values mean USD.
+
+The database stores wallet balances, ledger entries, funding amounts, purchase credits, and historical story charges in `BIGINT` fields with `_usd_micros` names. Transaction functions use integer microdollars. The server converts to dollars at the API boundary. The migration converts existing decimal-dollar amounts once. Stripe amounts retain their original currency and minor units. Original provider records, legacy credit counts, and precise per-token rates remain available for audit.
 
 ## Text Provider
 
@@ -122,7 +124,7 @@ stripe listen \
 ## Deployment and Checks
 
 1. Stop active generation before the cutover. Back up the database.
-2. Apply all migrations, including `20260906075743_openrouter_usd_wallet.sql` and `20260906100130_openrouter_image_usage.sql`.
+2. Apply all migrations, including `20260906075743_openrouter_usd_wallet.sql`, `20260906100130_openrouter_image_usage.sql`, and `20260907150817_wallet_microdollars.sql`.
 3. Set `OPENROUTER_API_KEY` and deploy the application with the migrations. Remove the old Gemini key. Existing ElevenLabs, Supabase, and Stripe keys remain in use.
 4. Remove old `STORY_PACK_*` environment defaults. USD funding amounts are now set in the admin screen.
 5. Verify a Stripe sandbox purchase. A completed USD Checkout grants the exact amount in its signed snapshot, once. Old Checkout sessions retain their legacy credit value at the 1:1 conversion rate.

@@ -167,15 +167,15 @@ test('admin reports retain USD balances and request deductions below ten cents',
     const url = new URL(input instanceof Request ? input.url : String(input));
     const rows: Record<string, unknown> = {
       '/auth/v1/admin/users': { users: [{ id: 'user-1', email: 'parent@example.test', created_at: createdAt }] },
-      '/rest/v1/user_credit_balances': [{ user_id: 'user-1', available_credits: '9.990001' }],
+      '/rest/v1/user_credit_balances': [{ user_id: 'user-1', balance_usd_micros: '9990001' }],
       '/rest/v1/user_roles': [],
       '/rest/v1/billing_purchases': [{ id: 'purchase-1', user_id: 'user-1', offer_slug: 'pack_5',
-        stripe_checkout_session_id: 'session-1', amount_minor: 1000, currency: 'usd', credits_granted: 10,
+        stripe_checkout_session_id: 'session-1', amount_minor: 1000, currency: 'usd', credited_usd_micros: 10000000,
         status: 'completed', created_at: createdAt, updated_at: createdAt, fulfilled_at: createdAt }],
       '/rest/v1/stories': [{ id: 'story-1', user_id: 'user-1', title: 'A rabbit', created_at: createdAt,
         total_pages: 2, story_mode: 'fast', usage_cost_usd_micros: 60000,
         usage_text_cost_usd_micros: 0, usage_image_cost_usd_micros: 60000, usage_audio_cost_usd_micros: 0 }],
-      '/rest/v1/credit_ledger': [{ story_id: 'story-1', delta: -0.03 }, { story_id: 'story-1', delta: '-0.03' }],
+      '/rest/v1/credit_ledger': [{ story_id: 'story-1', amount_usd_micros: -30000 }, { story_id: 'story-1', amount_usd_micros: '-30000' }],
     };
     assert.ok(url.pathname in rows, `Unexpected request: ${url.pathname}`);
     return Response.json(rows[url.pathname], { headers: { 'Content-Range': '0-0/1' } });

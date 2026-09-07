@@ -1,3 +1,4 @@
+import { fromMicrodollars, readMicrodollars, toMicrodollars } from '../utils/money.js';
 import type {
   AdminOverview,
   AdminStorySummary,
@@ -55,16 +56,6 @@ function getDisplayName(user: AuthUserLike): string | undefined {
     || undefined;
 }
 
-function normalizeCreditAmount(value: unknown): number {
-  if (typeof value === 'number' && Number.isFinite(value)) {
-    return Math.round(value * 1_000_000) / 1_000_000;
-  }
-  if (typeof value === 'string') {
-    const parsed = Number.parseFloat(value);
-    return Number.isFinite(parsed) ? Math.round(parsed * 1_000_000) / 1_000_000 : 0;
-  }
-  return 0;
-}
 
 async function listAllAuthUsers(): Promise<AuthUserLike[]> {
   const supabase = getSupabase();
@@ -111,9 +102,9 @@ export function computeAverageCreditValueMinor(
     && purchase.currency.toLowerCase() === deploymentCurrency.toLowerCase()
     && purchase.creditsGranted > 0
   ));
-  const credits = completed.reduce((sum, purchase) => sum + purchase.creditsGranted, 0);
+  const credits = completed.reduce((sum, purchase) => readMicrodollars(sum + toMicrodollars(purchase.creditsGranted)), 0);
   if (credits <= 0) return null;
-  return completed.reduce((sum, purchase) => sum + purchase.amountMinor, 0) / credits;
+  return completed.reduce((sum, purchase) => sum + purchase.amountMinor, 0) / fromMicrodollars(credits);
 }
 
 export function computeStoryProfitUsdMicros(params: {
@@ -139,7 +130,7 @@ async function getPurchasesByUser(userIds: string[]): Promise<Map<string, Billin
   if (userIds.length === 0) return result;
   const { data, error } = await getSupabase()
     .from('billing_purchases')
-    .select('id, user_id, offer_slug, stripe_checkout_session_id, amount_minor, currency, credits_granted, status, created_at, updated_at, fulfilled_at')
+    .select('id, user_id, offer_slug, stripe_checkout_session_id, amount_minor, currency, credited_usd_micros, status, created_at, updated_at, fulfilled_at')
     .in('user_id', userIds)
     .eq('status', 'completed');
   if (error) throw new Error(`Failed to load completed purchases: ${error.message}`);
@@ -150,7 +141,7 @@ async function getPurchasesByUser(userIds: string[]): Promise<Map<string, Billin
       stripeCheckoutSessionId: row.stripe_checkout_session_id,
       amountMinor: row.amount_minor,
       currency: row.currency,
-      creditsGranted: normalizeCreditAmount(row.credits_granted),
+      creditsGranted: fromMicrodollars(row.credited_usd_micros),
       status: row.status,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
@@ -182,7 +173,7 @@ export async function searchUsersPage(params: {
   const [{ data: balances, error: balancesError }, { data: roles, error: rolesError }, purchasesByUser, deploymentCurrency] = await Promise.all([
     supabase
       .from('user_credit_balances')
-      .select('user_id, available_credits')
+      .select('user_id, balance_usd_micros')
       .in('user_id', userIds),
     supabase
       .from('user_roles')
@@ -201,7 +192,7 @@ export async function searchUsersPage(params: {
     throw new Error(`Failed to load user roles: ${rolesError.message}`);
   }
 
-  const balanceMap = new Map((balances ?? []).map((row) => [row.user_id, normalizeCreditAmount(row.available_credits)]));
+  const balanceMap = new Map((balances ?? []).map((row) => [row.user_id, fromMicrodollars(row.balance_usd_micros)]));
   const adminSet = new Set((roles ?? []).map(row => row.user_id));
 
   return {
@@ -257,19 +248,19 @@ export async function listAdminStories(params: {
   const [{ data: ledgerRows, error: ledgerError }, purchasesByUser, deploymentCurrency] = await Promise.all([
     storyIds.length === 0
       ? Promise.resolve({ data: [], error: null })
-      : supabase.from('credit_ledger').select('story_id, delta').in('story_id', storyIds).lt('delta', 0),
+      : supabase.from('credit_ledger').select('story_id, amount_usd_micros').in('story_id', storyIds).lt('amount_usd_micros', 0),
     getPurchasesByUser(userIds),
     getDeploymentCurrency(),
   ]);
   if (ledgerError) throw new Error(`Failed to load story credit consumption: ${ledgerError.message}`);
-  const creditsByStory = new Map<string, number>();
+  const microsByStory = new Map<string, number>();
   for (const row of ledgerRows ?? []) {
-    creditsByStory.set(row.story_id, (creditsByStory.get(row.story_id) ?? 0) + Math.abs(normalizeCreditAmount(row.delta)));
+    microsByStory.set(row.story_id, readMicrodollars((microsByStory.get(row.story_id) ?? 0) + Math.abs(readMicrodollars(row.amount_usd_micros))));
   }
 
   return {
     items: (stories ?? []).map(row => {
-      const creditsConsumed = creditsByStory.get(row.id) ?? 0;
+      const creditsConsumed = fromMicrodollars(microsByStory.get(row.id) ?? 0);
       const averageCreditValueMinor = computeAverageCreditValueMinor(purchasesByUser.get(row.user_id) ?? [], deploymentCurrency);
       const totalCostUsdMicros = Number(row.usage_cost_usd_micros ?? 0);
       return {
