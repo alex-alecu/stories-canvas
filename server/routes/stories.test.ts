@@ -802,6 +802,40 @@ test('POST /api/stories/:id/generate-audio returns 429 before charging when gene
   assert.equal(slackAlert?.retryAfterSeconds, 60);
 });
 
+test('page edits use saved text models from current and older story snapshots', async (t) => {
+  const { getTextModelSettings } = await import('../services/textGenerationContext.js');
+  const dataDir = mkdtempSync(path.join(os.tmpdir(), 'stories-saved-model-'));
+  const harness = await createStoriesHarness(dataDir);
+  t.after(async () => {
+    await harness.close();
+    await fs.rm(dataDir, { recursive: true, force: true });
+  });
+  let settings: ReturnType<typeof getTextModelSettings> | undefined;
+  t.mock.method(harness.storiesModule.pageTextReviewOps, 'reviewPageText', async () => {
+    settings = getTextModelSettings();
+    return { allowed: false, reasonCode: 'unsafe_content', explanation: 'Test stops before image generation.' };
+  });
+  const cases = [
+    { stored: { scenarioModel: 'gpt-5.6-sol' }, expected: { textModel: 'openai/gpt-5.6-sol', thinkingLevel: 'medium' } },
+    { stored: { scenarioModel: 'openai/gpt-5.6-sol', thinkingLevel: 'high' as const }, expected: { textModel: 'openai/gpt-5.6-sol', thinkingLevel: 'high' } },
+    { stored: { scenarioModel: 'anthropic/claude-sonnet-5' }, expected: { textModel: 'anthropic/claude-sonnet-5', thinkingLevel: 'medium' } },
+    { stored: { scenarioModel: 'gpt-5.6-sol', textModel: 'openai/gpt-6-astra', thinkingLevel: 'low' as const }, expected: { textModel: 'openai/gpt-6-astra', thinkingLevel: 'low' } },
+  ];
+  for (const [index, entry] of cases.entries()) {
+    const id = `00000000-0000-4000-8000-00000000000${index + 1}`;
+    await writeStoryMeta(dataDir, makeStoryMeta({ id, status: 'completed', generationInputs: {
+      prompt: 'A bedtime story.', language: 'en', age: 3, artStyle: 'watercolor', storyMode: 'fast',
+      audioEnabled: false, proModel: false, imageModel: 'gemini-3.1-flash-image-preview',
+      imageModelPro: 'gemini-3-pro-image-preview', pricingVersion: '2026-04-15', ...entry.stored,
+    } }));
+    const response = await fetch(`${harness.baseUrl}/api/stories/${id}/pages/1/regenerate-image`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ feedback: 'Add a tree.' }),
+    });
+    assert.equal(response.status, 400);
+    assert.deepEqual(settings, entry.expected);
+  }
+});
+
 test('POST /api/stories/:id/pages/:pageNumber/regenerate-image reviews feedback and increments image revision', async (t) => {
   const dataDir = mkdtempSync(path.join(os.tmpdir(), 'stories-page-image-regenerate-'));
   const harness = await createStoriesHarness(dataDir);
