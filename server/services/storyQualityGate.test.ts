@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import type { Scenario } from '../../shared/types.js';
 import type { StoryPromptContext } from './storyPrompt.js';
+import type { TextGenerationOptions } from './openrouter.js';
 
 
 function makeScenario(text = 'Mara lights the lantern and follows the safe path.'): Scenario {
@@ -97,4 +98,115 @@ test('enforceStoryQuality fails closed when the rewritten script still has a maj
     (error: unknown) => error instanceof StoryQualityError
       && /failed the final quality gate/i.test(error.message),
   );
+});
+
+function rewriteMissingVisibleCharacter(): Scenario {
+  const scenario = makeScenario();
+  scenario.characters.push({
+    ...scenario.characters[0],
+    name: 'Împăratul văduv',
+    role: 'father',
+    characterSheetPrompt: 'Reference sheet for Împăratul văduv.',
+  });
+  scenario.pages = Array.from({ length: 12 }, (_, index) => ({
+    ...scenario.pages[0], pageNumber: index + 1, characters: ['Mara'],
+  }));
+  scenario.pages[0].characters.push('Împăratul văduv');
+  scenario.pages[0].imagePrompt = 'Mara and Împăratul văduv stand together.';
+  scenario.pages[11].imagePrompt = 'Mara shows the lantern to Împăratul văduv.';
+  return scenario;
+}
+
+const longContext = { ...context, pageCount: 20 };
+
+test('a quality rewrite can correct a missing page character before its final review', async () => {
+  const { enforceStoryQuality } = await import('./storyQualityGate.js');
+  const invalid = rewriteMissingVisibleCharacter();
+  const corrected = structuredClone(invalid);
+  corrected.pages[11].characters.push('Împăratul văduv');
+  const outputs: unknown[] = [review(3, true), invalid, corrected, review(4)];
+  const prompts: Record<string, any>[] = [];
+  const requestOptions: TextGenerationOptions[] = [];
+  const onRewriteUsage = async () => {};
+  const signal = new AbortController().signal;
+
+  const result = await enforceStoryQuality(longContext, makeScenario(), {
+    onRewriteUsage, signal,
+    generate: (async (prompt: string, _system: string, _schema: unknown, options: TextGenerationOptions) => {
+      prompts.push(JSON.parse(prompt));
+      requestOptions.push(options);
+      return outputs.shift();
+    }) as never,
+  });
+
+  assert.deepEqual(result.pages[11].characters, ['Mara', 'Împăratul văduv']);
+  assert.equal(prompts.length, 4);
+  assert.deepEqual(prompts[2].validationIssues, [{
+    code: 'page.characters.missingVisible', path: 'pages[11].characters',
+    message: 'imagePrompt names visible character "Împăratul văduv", so the page characters list must include it',
+  }]);
+  assert.deepEqual(prompts[2].currentScript.pages[11].characters, ['Mara']);
+  assert.equal(prompts[2].originalRequest, context.userPrompt);
+  assert.deepEqual(prompts[2].qualityReview, prompts[1].qualityReview);
+  assert.equal(requestOptions[2].onUsage, onRewriteUsage);
+  assert.equal(requestOptions[2].signal, signal);
+  assert.deepEqual(prompts[3].script.pages[11].characters, ['Mara', 'Împăratul văduv']);
+});
+
+test('an invalid repair stops before quality review and reports its remaining errors', async () => {
+  const { enforceStoryQuality } = await import('./storyQualityGate.js');
+  const invalid = rewriteMissingVisibleCharacter();
+  const badRepair = structuredClone(invalid);
+  badRepair.pages[11].characters.push('Împăratul văduv');
+  badRepair.pages[11].text = 'A'.repeat(201);
+  const outputs: unknown[] = [review(3, true), invalid, badRepair];
+  let calls = 0;
+  await assert.rejects(enforceStoryQuality(longContext, makeScenario(), {
+    generate: (async () => { calls++; return outputs.shift(); }) as never,
+  }), /Quality rewrite failed validation: pages\[11\]\.text: page text is too long/);
+  assert.equal(calls, 3);
+});
+
+test('a repaired rewrite still must pass the final quality review', async () => {
+  const { enforceStoryQuality, StoryQualityError } = await import('./storyQualityGate.js');
+  const invalid = rewriteMissingVisibleCharacter();
+  const corrected = structuredClone(invalid);
+  corrected.pages[11].characters.push('Împăratul văduv');
+  const outputs: unknown[] = [review(3, true), invalid, corrected, review(3, true)];
+  let calls = 0;
+  await assert.rejects(enforceStoryQuality(longContext, makeScenario(), {
+    generate: (async () => { calls++; return outputs.shift(); }) as never,
+  }), StoryQualityError);
+  assert.equal(calls, 4);
+});
+
+test('cancellation after an invalid rewrite prevents a repair request', async () => {
+  const { enforceStoryQuality } = await import('./storyQualityGate.js');
+  const controller = new AbortController();
+  const cancelled = new Error('Cancelled by the user');
+  let calls = 0;
+  await assert.rejects(enforceStoryQuality(longContext, makeScenario(), {
+    signal: controller.signal,
+    generate: (async () => {
+      if (++calls === 1) return review(3, true);
+      controller.abort(cancelled);
+      return rewriteMissingVisibleCharacter();
+    }) as never,
+  }), error => error === cancelled);
+  assert.equal(calls, 2);
+});
+
+test('a failed repair request stops without another model call', async () => {
+  const { enforceStoryQuality } = await import('./storyQualityGate.js');
+  const { TextCostUnavailableError } = await import('./openrouter.js');
+  const costError = new TextCostUnavailableError('The request cost is unavailable.');
+  let calls = 0;
+  await assert.rejects(enforceStoryQuality(longContext, makeScenario(), {
+    generate: (async () => {
+      if (++calls === 1) return review(3, true);
+      if (calls === 2) return rewriteMissingVisibleCharacter();
+      throw costError;
+    }) as never,
+  }), error => error === costError);
+  assert.equal(calls, 3);
 });

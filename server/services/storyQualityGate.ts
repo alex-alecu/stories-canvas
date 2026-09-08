@@ -10,10 +10,12 @@ import {
   MAX_RETELLING_SCENARIO_CHARACTERS,
   normalizeScenarioWhitespace,
   validateScenario,
+  type ScenarioValidationIssue,
 } from './scenarioValidation.js';
 
 export const STORY_QUALITY_MIN_SCORE = 4;
 export const STORY_QUALITY_REWRITE_LIMIT = 1;
+const STORY_QUALITY_VALIDATION_REPAIR_LIMIT = 1;
 
 export const STORY_QUALITY_ISSUE_CODES = [
   'language_fluency',
@@ -146,6 +148,7 @@ const QUALITY_REWRITE_SYSTEM_INSTRUCTION = [
   'You are a senior children\'s story writer and native-language editor.',
   'Return one complete corrected story script as JSON.',
   'Fix every supplied quality issue.',
+  'When validationIssues are supplied, correct each error in currentScript. Preserve the previous quality fixes and other correct pages.',
   'Use simple, natural, read-aloud language for the target age. Keep one clear action chain per page.',
   'Do not write sentence fragments or compressed notes. Make the actor, action, reason, and result clear.',
   'Keep the current page count unless a supplied issue requires a change. Never exceed the maximum page count. Number pages sequentially from 1.',
@@ -265,9 +268,12 @@ function rewritePrompt(
   context: StoryPromptContext,
   scenario: Scenario,
   review: StoryQualityReview,
+  validationIssues: ScenarioValidationIssue[] = [],
 ): string {
   return JSON.stringify({
-    task: 'Rewrite the complete script so it passes the final quality gate',
+    task: validationIssues.length
+      ? 'Correct the validation errors in the rewritten script'
+      : 'Rewrite the complete script so it passes the final quality gate',
     language: context.language,
     targetAge: context.targetAge,
     maximumPageCount: context.pageCount,
@@ -275,6 +281,7 @@ function rewritePrompt(
     originalRequest: context.userPrompt,
     compactSourceRules: compactSourceRules(context),
     qualityReview: review,
+    validationIssues: validationIssues.length ? validationIssues : undefined,
     currentScript: scenario,
   });
 }
@@ -301,19 +308,43 @@ async function reviewStory(
   return normalizeReview(raw, scenario.pages.length);
 }
 
-function validateRewrite(context: StoryPromptContext, value: Scenario): Scenario {
-  const scenario = normalizeScenarioWhitespace(value);
-  const issues = validateScenario(scenario, context.targetAge, {
-    pageCount: context.pageCount,
-    maxCharacters: context.retellingSource ? MAX_RETELLING_SCENARIO_CHARACTERS : undefined,
-  });
-  if (issues.length > 0) {
-    throw new Error(`Quality rewrite failed validation: ${formatScenarioValidationIssues(issues)}`);
+async function generateValidatedRewrite(
+  context: StoryPromptContext,
+  inputScenario: Scenario,
+  review: StoryQualityReview,
+  generate: typeof generateJSON,
+  options: StoryQualityGateOptions,
+): Promise<Scenario> {
+  let scenario = inputScenario;
+  let issues: ScenarioValidationIssue[] = [];
+  for (let attempt = 0; attempt <= STORY_QUALITY_VALIDATION_REPAIR_LIMIT; attempt++) {
+    options.signal?.throwIfAborted();
+    const rewritten = await generate<Scenario>(
+      rewritePrompt(context, scenario, review, issues),
+      QUALITY_REWRITE_SYSTEM_INSTRUCTION,
+      storyScriptSchema as unknown as Record<string, unknown>,
+      {
+        model: config.scenarioModel,
+        reasoningEffort: 'high',
+        maxRetries: 2,
+        signal: options.signal,
+        onUsage: options.onRewriteUsage,
+      },
+    );
+    options.signal?.throwIfAborted();
+    scenario = normalizeScenarioWhitespace(rewritten);
+    issues = validateScenario(scenario, context.targetAge, {
+      pageCount: context.pageCount,
+      maxCharacters: context.retellingSource ? MAX_RETELLING_SCENARIO_CHARACTERS : undefined,
+    });
+    if (issues.length === 0) {
+      return {
+        ...scenario,
+        pages: scenario.pages.map(page => ({ ...page, status: 'pending' as const })),
+      };
+    }
   }
-  return {
-    ...scenario,
-    pages: scenario.pages.map(page => ({ ...page, status: 'pending' as const })),
-  };
+  throw new Error(`Quality rewrite failed validation: ${formatScenarioValidationIssues(issues)}`);
 }
 
 export async function enforceStoryQuality(
@@ -333,20 +364,7 @@ export async function enforceStoryQuality(
   if (review.pass) return scenario;
 
   for (let rewriteNumber = 1; rewriteNumber <= STORY_QUALITY_REWRITE_LIMIT; rewriteNumber++) {
-    options.signal?.throwIfAborted();
-    const rewritten = await generate<Scenario>(
-      rewritePrompt(context, scenario, review),
-      QUALITY_REWRITE_SYSTEM_INSTRUCTION,
-      storyScriptSchema as unknown as Record<string, unknown>,
-      {
-        model: config.scenarioModel,
-        reasoningEffort: 'high',
-        maxRetries: 2,
-        signal: options.signal,
-        onUsage: options.onRewriteUsage,
-      },
-    );
-    scenario = validateRewrite(context, rewritten);
+    scenario = await generateValidatedRewrite(context, scenario, review, generate, options);
     review = await reviewStory(
       context,
       scenario,
