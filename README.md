@@ -49,6 +49,12 @@ To test only text with real provider calls, set `OPENROUTER_API_KEY` in the shel
 
 To repeat one case, use `npm run test:text:live -- --case=romanian-retelling --budget=6 --minutes=20`. These options change only the local test limits. The command also saves text request and response bodies for validation checks. It never saves authorization headers.
 
+To test the reported "Sarea în bucate" request, use `npm run test:text:live -- --case=romanian-sarea-in-bucate --budget=10 --minutes=40`. This case uses Romanian, age 5, GPT-6 Astra, and high thinking. It is excluded from the default four-case run. It uses the current text pipeline and provider configuration, with production storage, balance updates, images, audio, and alerts disabled.
+
+Text requests allow up to 15 minutes for response headers. User cancellation still stops the active request. A timeout with an unknown cost does not trigger an automatic retry. The live test saves response bodies in the background so logging does not extend the connection timeout over the full response body.
+
+If generation fails before a script is saved, the story owner can select **Retry** on the story page. The retry starts with the saved request, language, age, style, model, thinking level, and audio settings. It keeps the story ID and records new usage as retry costs. Access, balance, and active-generation limits still apply. Deploying a fix does not automatically retry failed stories.
+
 ### Step 2 — Draw Character Reference Sheets
 
 Before any scene is drawn, the app generates a **character reference sheet** for each character. This is a single image that shows the character from multiple angles (front, side, and back) along with a close-up of their face and a color palette.

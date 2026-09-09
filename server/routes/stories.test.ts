@@ -1272,6 +1272,108 @@ test('POST /api/stories/:id/generate-audio rejects active generations before cha
   assert.equal(charged, false);
 });
 
+test('POST /api/stories/:id/retry restarts a failed script with saved settings and records retry costs', async (t) => {
+  const dataDir = mkdtempSync(path.join(os.tmpdir(), 'stories-retry-script-'));
+  const harness = await createStoriesHarness(dataDir);
+  const storyId = '2bbc27dd-9c62-4a37-a995-8e66ab6c4e66';
+  const { getTextModelSettings } = await import('../services/textGenerationContext.js');
+  let releaseDraft!: () => void;
+  const draftReady = new Promise<void>(resolve => { releaseDraft = resolve; });
+  t.after(async () => {
+    releaseDraft();
+    await harness.close();
+    await fs.rm(dataDir, { recursive: true, force: true });
+  });
+  await writeStoryMeta(dataDir, makeStoryMeta({
+    id: storyId, status: 'failed', scenario: undefined,
+    prompt: 'Old display prompt', language: 'en', storyMode: 'fast',
+    generationInputs: {
+      prompt: 'Creează povestea Sarea în bucate.', language: 'ro', age: 5, artStyle: 'storybook',
+      storyMode: 'fast', audioEnabled: false, proModel: false,
+      textModel: 'openai/gpt-6-astra', scenarioModel: 'openai/gpt-6-astra', thinkingLevel: 'high',
+      imageModel: 'google/gemini-3.1-flash-image-preview', imageModelPro: 'google/gemini-3-pro-image-preview',
+      pricingVersion: 'catalog-v2',
+    },
+  }));
+  let draftCalls = 0;
+  t.mock.method(harness.storiesModule.scenarioOps, 'generateScenarioWithMetadata', async (
+    prompt, language, age, style, _progress, usage,
+  ) => {
+    draftCalls++;
+    assert.equal(prompt, 'Creează povestea Sarea în bucate.');
+    assert.equal(language, 'ro');
+    assert.equal(age, 5);
+    assert.equal(style, 'storybook');
+    assert.deepEqual(getTextModelSettings(), { textModel: 'openai/gpt-6-astra', thinkingLevel: 'high' });
+    await draftReady;
+    await usage?.onDraftUsage?.({ model: 'openai/gpt-6-astra', status: 'succeeded',
+      inputTokens: 100, outputTokens: 50, totalTokens: 150,
+      usageDetails: { providerCostUsd: 0.02, thinkingLevel: 'high' }, usageAvailable: true });
+    return makeGeneratedScenarioResult(makeScenario([makePage()]));
+  });
+  t.mock.method(harness.storiesModule.illustrationOps, 'generateAllCharacterSheets', async () => []);
+  t.mock.method(harness.storiesModule.illustrationOps, 'generateAllSceneImages', async () => {});
+  t.mock.method(harness.storiesModule.audioOps, 'generateAllPageAudio', async () => {
+    assert.fail('A script retry must keep audio disabled.');
+  });
+
+  const response = await fetch(`${harness.baseUrl}/api/stories/${storyId}/retry`, { method: 'POST' });
+  assert.equal(response.status, 200);
+  assert.equal((await response.json()).status, 'generating_scenario');
+  assert.equal((await readStoryMeta(dataDir, storyId)).status, 'generating_scenario');
+  await waitFor(async () => draftCalls, count => count === 1);
+  const duplicate = await fetch(`${harness.baseUrl}/api/stories/${storyId}/retry`, { method: 'POST' });
+  assert.equal(duplicate.status, 409);
+  releaseDraft();
+  const saved = await waitFor(() => readStoryMeta(dataDir, storyId), story => story.status === 'completed');
+  assert.equal(saved.status, 'completed');
+  assert.equal(saved.scenario?.title, 'Test Story');
+  assert.equal(saved.generationInputs?.age, 5);
+  assert.equal(saved.generationInputs?.textModel, 'openai/gpt-6-astra');
+  assert.equal(saved.generationInputs?.thinkingLevel, 'high');
+  assert.equal(saved.generationInputs?.audioEnabled, false);
+  assert.equal(saved.voice, undefined);
+  assert.equal(draftCalls, 1);
+  const events = await readUsageEvents(dataDir, storyId);
+  assert.equal(events.length, 1);
+  assert.equal(events[0].source, 'retry');
+  assert.equal(events[0].operation, 'scenario_draft');
+  assert.equal(events[0].costUsdMicros, 20_000);
+});
+
+test('POST /api/stories/:id/retry keeps access and balance checks for failed scripts', async (t) => {
+  for (const entry of [
+    { name: 'signed out', userId: undefined, balance: 25, expected: 401 },
+    { name: 'another owner', userId: 'another-user', balance: 25, expected: 403 },
+    { name: 'empty balance', userId: 'owner', balance: 0, expected: 402 },
+    { name: 'missing prompt', userId: 'owner', balance: 25, expected: 400, prompt: '' },
+  ]) {
+    await t.test(entry.name, async (t) => {
+      const dataDir = mkdtempSync(path.join(os.tmpdir(), 'stories-retry-script-guard-'));
+      const harness = await createStoriesHarness(dataDir, {
+        useSupabase: true, __testAuthUser: entry.userId ? { id: entry.userId } : undefined,
+      });
+      t.after(async () => {
+        await harness.close();
+        await fs.rm(dataDir, { recursive: true, force: true });
+      });
+      t.mock.method(harness.storiesModule.storageOps, 'getStory', async () => makeStoryMeta({
+        id: 'story-script-guard', status: 'failed', scenario: undefined,
+        userId: 'owner', prompt: entry.prompt ?? 'A story about a fox.',
+      }));
+      t.mock.method(harness.storiesModule.billingOps, 'getUserCreditBalance', async () => ({ availableCredits: entry.balance }));
+      let changed = false;
+      t.mock.method(harness.storiesModule.storageOps, 'updateStoryStatus', async () => { changed = true; });
+      t.mock.method(harness.storiesModule.scenarioOps, 'generateScenarioWithMetadata', async () => {
+        assert.fail('A rejected retry must not call the writer.');
+      });
+      const response = await fetch(`${harness.baseUrl}/api/stories/story-script-guard/retry`, { method: 'POST' });
+      assert.equal(response.status, entry.expected);
+      assert.equal(changed, false);
+    });
+  }
+});
+
 test('POST /api/stories/:id/retry resolves stored legacy voice keys for missing audio', async (t) => {
   const dataDir = mkdtempSync(path.join(os.tmpdir(), 'stories-retry-legacy-'));
   const harness = await createStoriesHarness(dataDir);

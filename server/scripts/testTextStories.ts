@@ -24,6 +24,8 @@ const outputDir = path.resolve('artifacts/text-smoke', new Date().toISOString().
 await mkdir(outputDir, { recursive: true });
 
 const cases = [
+  { name: 'romanian-sarea-in-bucate', model: 'openai/gpt-6-astra', thinkingLevel: 'high', explicitOnly: true, language: 'ro', age: 5,
+    prompt: 'Creează povestea Sarea în bucate, urmează originalul exact. Adaptează fidel basmul din domeniul public al lui Petre Ispirescu: fata cea mică își iubește tatăl ca sarea în bucate, este izgonită, apoi dovedește la ospăț cât valorează iubirea ei.' },
   { name: 'romanian-bedtime', model: 'google/gemini-3.8-flash', language: 'ro', age: 4,
     prompt: 'Mara se teme de întuneric. Bunica o ascultă și o ajută să aleagă o lumină de veghe. Mara poate încă să simtă teamă. Ultima propoziție trebuie să fie exact: Sunt în siguranță și pot cere ajutor.' },
   { name: 'english-cause-and-effect', model: 'openai/gpt-6-astra', language: 'en', age: 6,
@@ -34,7 +36,7 @@ const cases = [
     prompt: 'Iris și Luca construiesc o căsuță pentru păsări în grădină. Primul lor plan nu merge. Iris recunoaște o greșeală, îi cere ajutorul lui Luca, iar cei doi repară căsuța împreună. Fără magie. Arată clar cauza și rezultatul fiecărei alegeri.' },
 ];
 const summary: Record<string, unknown>[] = [];
-const selectedCases = cases.filter(entry => !values.case || entry.name === values.case);
+const selectedCases = cases.filter(entry => values.case ? entry.name === values.case : !entry.explicitOnly);
 if (!selectedCases.length) throw new Error('Unknown story test case.');
 const originalFetch = globalThis.fetch;
 for (const entry of selectedCases) {
@@ -44,6 +46,7 @@ for (const entry of selectedCases) {
   const timer = setTimeout(() => controller.abort(new Error(`Live story test exceeded ${minutes} minutes.`)), minutes * 60_000);
   const started = Date.now();
   let calls = 0;
+  const captures: Promise<void>[] = [];
   // Save only text request/response bodies. Never save authorization headers.
   globalThis.fetch = async (url, init) => {
     if (!String(url).endsWith('/chat/completions')) return originalFetch(url, init);
@@ -52,7 +55,12 @@ for (const entry of selectedCases) {
       await writeFile(path.join(outputDir, `${entry.name}-${call}-request.json`), init.body);
     }
     const response = await originalFetch(url, init);
-    await writeFile(path.join(outputDir, `${entry.name}-${call}-response.json`), await response.clone().text());
+    // Return headers immediately, as normal fetch does. Waiting for the full body
+    // here incorrectly makes the SDK's connection timeout cover text generation.
+    const capture = response.clone().text()
+      .then(body => writeFile(path.join(outputDir, `${entry.name}-${call}-response.json`), body))
+      .catch(error => { console.error(`Could not save text response ${call}:`, error.message); process.exitCode = 1; });
+    captures.push(capture);
     return response;
   };
   const record = async (usage: TextUsageEvent | Omit<TextUsageEvent, 'usageAvailable'>) => {
@@ -69,20 +77,20 @@ for (const entry of selectedCases) {
   };
   console.log(`Running ${entry.name} with ${entry.model}`);
   try {
-    const result = await withTextModelSettings(parseTextModelSettings(entry.model, 'medium'), () => generateStoryScriptWithAgents(
+    const result = await withTextModelSettings(parseTextModelSettings(entry.model, entry.thinkingLevel ?? 'medium'), () => generateStoryScriptWithAgents(
       entry.prompt, entry.language, entry.age, 'storybook',
       update => console.log(`${entry.name}: ${update.message}`),
       { onSourceAnalysisUsage: record, onDraftUsage: record, onReviewUsage: record, onRewriteUsage: record },
       {}, controller.signal,
     ));
     await writeFile(path.join(outputDir, `${entry.name}.json`), JSON.stringify(result, null, 2));
-    summary.push({ name: entry.name, model: entry.model, status: 'passed', pages: result.scenario.pages.length,
+    summary.push({ name: entry.name, model: entry.model, thinkingLevel: entry.thinkingLevel ?? 'medium', status: 'passed', pages: result.scenario.pages.length,
       requests, costUsd: costUsdMicros / 1_000_000, seconds: Math.round((Date.now() - started) / 1000) });
   } catch (error) {
-    summary.push({ name: entry.name, model: entry.model, status: 'failed', requests, costUsd: costUsdMicros / 1_000_000,
+    summary.push({ name: entry.name, model: entry.model, thinkingLevel: entry.thinkingLevel ?? 'medium', status: 'failed', requests, costUsd: costUsdMicros / 1_000_000,
       error: error instanceof Error ? error.message : String(error) });
     process.exitCode = 1;
-  } finally { clearTimeout(timer); globalThis.fetch = originalFetch; }
+  } finally { clearTimeout(timer); globalThis.fetch = originalFetch; await Promise.all(captures); }
   await writeFile(path.join(outputDir, 'summary.json'), JSON.stringify(summary, null, 2));
   console.log(JSON.stringify(summary.at(-1)));
 }

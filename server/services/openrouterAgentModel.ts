@@ -1,7 +1,7 @@
 import { OpenAIChatCompletionsModel, type Model } from '@openai/agents';
 import type OpenAI from 'openai';
 import { APIError } from 'openai';
-import { getOpenRouterClient } from './openrouterClient.js';
+import { getOpenRouterClient, TEXT_REQUEST_TIMEOUT_MS } from './openrouterClient.js';
 import { getTextModelSettings } from './textGenerationContext.js';
 import { TEXT_MODELS } from '../../shared/textModels.js';
 import { buildTextUsageEvent, type RouterCompletion, type TextUsageEvent } from './openrouter.js';
@@ -23,7 +23,7 @@ export function createOpenRouterAgentModel(options: StoryAgentModelOptions = {})
   let previousInput: unknown;
   const client = (options.client ?? getOpenRouterClient()).withOptions({
     maxRetries: 0,
-    timeout: 5 * 60 * 1000,
+    timeout: TEXT_REQUEST_TIMEOUT_MS,
     fetch: async (url, init) => {
       if (typeof init?.body === 'string' && String(url).endsWith('/chat/completions')) {
         const body = JSON.parse(init.body);

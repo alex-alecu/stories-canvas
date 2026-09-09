@@ -1266,11 +1266,12 @@ async function runGenerationPipeline(
   creditCost = 0,
   voice?: VoiceKey,
   pro = storyModeUsesProModel(storyMode),
+  usageSource: StoryUsageSource = 'initial_generation',
+  controller = startTrackedGeneration(storyId),
 ): Promise<void> {
-  const controller = startTrackedGeneration(storyId);
   const { signal } = controller;
   const initialScenarioRevision = 1;
-  const usageRecorder = createUsageRecorder(storyId, userId, 'initial_generation');
+  const usageRecorder = createUsageRecorder(storyId, userId, usageSource);
 
   try {
     // Phase 1: Generate scenario
@@ -1580,7 +1581,7 @@ async function runGenerationPipeline(
     if (!isCancelled) {
       notifyStoryBlock({
         blockType: 'pipeline_failure',
-        action: 'story_create',
+        action: usageSource === 'retry' ? 'story_retry' : 'story_create',
         message: 'Story generation pipeline failed',
         userId,
         storyId,
@@ -1999,7 +2000,7 @@ async function runRegenerateAssetsPipeline(
   }
 }
 
-// POST /api/stories/:id/retry - Retry failed image/audio generation
+// POST /api/stories/:id/retry - Restart a failed script or retry missing assets
 router.post('/:id/retry', optionalAuth, async (req: Request, res: Response) => {
   try {
     const storyId = req.params.id as string;
@@ -2026,20 +2027,57 @@ router.post('/:id/retry', optionalAuth, async (req: Request, res: Response) => {
     // Stories can get stuck at generating_images/generating_audio if the pipeline
     // crashed or the server restarted. The activeGenerations check below prevents
     // concurrent retries for genuinely in-progress generations.
-    const retryableStatuses: StoryStatus[] = ['completed', 'failed', 'generating_images', 'generating_audio'];
-    if (!retryableStatuses.includes(story.status)) {
-      res.status(400).json({ error: 'Story must be completed or failed to retry' });
-      return;
-    }
-
     // Prevent concurrent retries
     if (isGenerationActive(storyId)) {
       res.status(409).json({ error: 'A retry is already in progress' });
       return;
     }
 
+    const retryableStatuses: StoryStatus[] = ['completed', 'failed', 'generating_images', 'generating_audio'];
+    if (!retryableStatuses.includes(story.status)) {
+      res.status(400).json({ error: 'Story must be completed or failed to retry' });
+      return;
+    }
+
     if (!story.scenario) {
-      res.status(400).json({ error: 'Story has no scenario data' });
+      if (story.status !== 'failed') {
+        res.status(400).json({ error: 'Story has no scenario data' });
+        return;
+      }
+      const inputs = story.generationInputs;
+      const prompt = (inputs?.prompt ?? story.prompt).trim();
+      if (!prompt || prompt.length > config.maxPromptLength) {
+        res.status(400).json({ error: 'The saved story prompt is missing or invalid.' });
+        return;
+      }
+      const mode = inputs?.storyMode ?? story.storyMode ?? 'fast';
+      const voice = mode === 'pro_audio' ? normalizeVoiceKey(inputs?.voice ?? story.voice) : undefined;
+      if (mode === 'pro_audio' && !voice) {
+        res.status(400).json({ error: 'Select a narrator voice.' });
+        return;
+      }
+      if (mode === 'pro_audio' && !audioOps.isElevenLabsConfigured()) {
+        res.status(503).json({ error: 'Audio generation service is not configured' });
+        return;
+      }
+      const claimed = await claimUserGenerationSlot(req.authUser?.id, storyId, 'story_retry', res, req.authUser?.email);
+      if (!claimed) return;
+      // Reserve this story before saving its status or responding to the browser.
+      const controller = startTrackedGeneration(storyId);
+      try {
+        await updateStoryStatus(storyId, 'generating_scenario');
+      } catch (error) {
+        finishTrackedGeneration(storyId);
+        await releaseUserGenerationSlot(storyId);
+        throw error;
+      }
+      const generation = runGenerationPipeline(
+        storyId, prompt, story.userId, inputs?.language ?? story.language ?? config.defaultLanguage,
+        inputs?.age ?? DEFAULT_AGE, inputs?.artStyle ?? story.artStyle ?? DEFAULT_ART_STYLE,
+        mode, 0, voice, inputs?.proModel ?? storyModeUsesProModel(mode), 'retry', controller,
+      );
+      res.json({ status: 'generating_scenario', retriedImages: 0, retriedAudio: 0 } as RetryStoryResponse);
+      generation.catch(error => console.error(`Script retry pipeline failed for ${storyId}:`, error));
       return;
     }
 
