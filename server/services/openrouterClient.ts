@@ -5,6 +5,9 @@ import { config } from '../config.js';
 let client: OpenAI | undefined;
 let clientKey: string | undefined;
 
+// A full story with high thinking can take more than five minutes.
+export const TEXT_REQUEST_TIMEOUT_MS = 15 * 60 * 1000;
+
 export function getOpenRouterClient(): OpenAI {
   const apiKey = process.env.OPENROUTER_API_KEY?.trim() || config.openrouterApiKey;
   if (!apiKey) throw new Error('Missing required environment variable: OPENROUTER_API_KEY');

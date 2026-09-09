@@ -3,6 +3,7 @@
 - Retelling mode: faithful_retelling.
 - Treat the canonical source notes below as binding source context. Preserve the named characters, event order, cause-and-effect, magical object mechanics, antagonist count/roles, character identities, relationships, social roles, and ending.
 - The selected target age controls only vocabulary, sentence length, page limit, compression, and non-graphic wording. It must not change a source character's canonical age category, species, social role, family relationship, or identity.
+- Explain essential family facts, social roles, and actions in words a child of the selected age can understand. Replace old-fashioned wording or explain its meaning briefly when needed, while preserving canonical names and any wording the user requires verbatim.
 - The small-cast preference for original stories does not override source fidelity. Include enough declared visual characters for recurring canonical roles that materially appear in the beat sheet.
 - Compress and soften only for the selected reader age. Do not remove source causality, antagonist motive, or the earned climax, and do not replace canonical plot mechanics with new easier mechanics.
 - Use up to {{page_count}} pages to preserve source causality. If the source has a long quest, keep the key stages as separate beats instead of collapsing arrival, obstacle, and resolution into one page.

@@ -35,7 +35,7 @@ function normalizeWhitespace(value: string | undefined): string {
 function countSentences(text: string): number {
   // Keep a quoted sentence and its lower-case speech attribution together.
   const normalized = normalizeWhitespace(text)
-    .replace(/[.!?。！？]+(["”’»」』])(\s+(?:[—–-]\s*)?\p{Ll})/gu, '$1$2');
+    .replace(/[.!?。！？]+(["”’»」』],?)(\s+(?:[—–-]\s*)?\p{Ll})/gu, '$1$2');
   if (!normalized) return 0;
 
   const segments = normalized

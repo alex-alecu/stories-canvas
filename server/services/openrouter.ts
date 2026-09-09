@@ -1,6 +1,6 @@
 import OpenAI, { APIError } from 'openai';
 import type { ChatCompletion, ChatCompletionCreateParamsNonStreaming, ChatCompletionMessageParam } from 'openai/resources/chat/completions';
-import { getOpenRouterClient, resolveOpenRouterCost } from './openrouterClient.js';
+import { getOpenRouterClient, resolveOpenRouterCost, TEXT_REQUEST_TIMEOUT_MS } from './openrouterClient.js';
 import { config } from '../config.js';
 import { getTextModelSettings } from './textGenerationContext.js';
 import type { ThinkingLevel } from '../../shared/textModels.js';
@@ -93,7 +93,7 @@ async function request<T>(body: Record<string, unknown>, options: TextGeneration
         ...(settings.thinkingLevel ? { reasoning: { effort: settings.thinkingLevel } } : {}),
         provider: { require_parameters: true, sort: 'price' },
       } as unknown as ChatCompletionCreateParamsNonStreaming, {
-        timeout: 5 * 60 * 1000, maxRetries: 0, signal: options.signal,
+        timeout: TEXT_REQUEST_TIMEOUT_MS, maxRetries: 0, signal: options.signal,
       }) as RouterCompletion;
     } catch (error) {
       // Retry only confirmed HTTP failures. A lost connection leaves the cost unknown.

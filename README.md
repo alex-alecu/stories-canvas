@@ -41,13 +41,19 @@ When a user submits a story idea, the app runs through four steps in order: writ
 
 The official [OpenAI Agents SDK](https://developers.openai.com/api/docs/guides/agents/running-agents) runs the writer through its Chat Completions model with OpenRouter. The SDK handles the run loop, tool calls, and cancellation. The app supplies one submission tool. It checks the full script and returns validation errors for correction. A run stops after at most six model turns. Confirmed HTTP 429 and 5xx failures can receive two retries. Lost connections and failed cost records stop the run. The old custom runtime and delegation protocol have been removed.
 
-The writer receives the idea, language, age, and art style. It returns a title, character definitions, and pages with narration text and image descriptions. A separate quality review always checks the valid script. If necessary, one rewrite and a second review must pass before images can start. If that rewrite has validation errors, the writer receives the exact errors and can make one repair attempt. The repair must pass validation and the final quality review. Repair requests use the same cost records and cancellation signal as the rewrite. The writer cannot skip this review. OpenAI trace export is disabled; request usage stays in the app's own cost records.
+The writer receives the idea, language, age, and art style. It returns a title, character definitions, and pages with narration text and image descriptions. A separate quality review always checks the valid script. The editor can make up to two rewrites, each followed by a new review, to correct issues found after an earlier edit. If a rewrite has validation errors, the writer receives the exact errors and can make one repair attempt for that rewrite. The repair must pass validation and the final quality review. This quality stage uses at most seven generation calls before HTTP retries. Repair requests use the same cost records and cancellation signal as the rewrite. Generation stops if the final review still fails after two rewrites. The writer cannot skip this review. OpenAI trace export is disabled; request usage stays in the app's own cost records.
 
 The model is limited to a maximum of 3 characters and 20 pages.
 
 To test only text with real provider calls, set `OPENROUTER_API_KEY` in the shell or `.env`, then run `npm run test:text:live`. The command tests four briefs with Gemini Flash, GPT-6 Astra, and Claude Fable. It saves scripts, per-request usage, costs, and a summary under `artifacts/text-smoke/`. It does not call image or audio generation, update user balances, or send alerts. Each case stops after 12 minutes or after recorded costs reach $2. A request already in progress can exceed that cost limit.
 
 To repeat one case, use `npm run test:text:live -- --case=romanian-retelling --budget=6 --minutes=20`. These options change only the local test limits. The command also saves text request and response bodies for validation checks. It never saves authorization headers.
+
+To test the reported "Sarea în bucate" request, use `npm run test:text:live -- --case=romanian-sarea-in-bucate --budget=10 --minutes=40`. This case uses Romanian, age 5, GPT-6 Astra, and high thinking. It is excluded from the default four-case run. It uses the current text pipeline and provider configuration, with production storage, balance updates, images, audio, and alerts disabled.
+
+Text requests allow up to 15 minutes for response headers. User cancellation still stops the active request. A timeout with an unknown cost does not trigger an automatic retry. The live test saves response bodies in the background so logging does not extend the connection timeout over the full response body.
+
+If generation fails before a script is saved, the story owner can select **Retry** on the story page. The retry starts with the saved request, language, age, style, model, thinking level, and audio settings. It keeps the story ID and records new usage as retry costs. Access, balance, and active-generation limits still apply. Deploying a fix does not automatically retry failed stories.
 
 ### Step 2 — Draw Character Reference Sheets
 

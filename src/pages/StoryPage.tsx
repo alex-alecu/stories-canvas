@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
-import { useStory, useCancelStory, useStoryAssets, useRegenerateStoryAssets, useRecordStoryView } from '../hooks/useStories';
+import { useStory, useCancelStory, useStoryAssets, useRegenerateStoryAssets, useRecordStoryView, useRetryStory } from '../hooks/useStories';
 import { useStoryGeneration } from '../hooks/useStoryGeneration';
 import StoryViewer from '../components/StoryViewer';
 import GenerationProgress from '../components/GenerationProgress';
@@ -34,6 +34,7 @@ export default function StoryPage() {
   const isGenerating = story?.status !== 'completed' && story?.status !== 'failed' && story?.status !== 'cancelled';
   const { progress } = useStoryGeneration(isGenerating ? id ?? null : null);
   const cancelStory = useCancelStory();
+  const retryStory = useRetryStory();
   const regenerateAssets = useRegenerateStoryAssets();
   const recordStoryView = useRecordStoryView();
   const navigate = useNavigate();
@@ -118,6 +119,10 @@ export default function StoryPage() {
       console.error('Failed to regenerate story assets:', error);
     }
   }, [id, regenerateAssets]);
+
+  const handleRetryStory = useCallback(() => {
+    if (id) retryStory.mutate(id);
+  }, [id, retryStory]);
 
   const publicPreviewGate = useMemo(() => {
     if (!story?.publicPreviewGate) return undefined;
@@ -235,7 +240,25 @@ export default function StoryPage() {
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
       <div className="bg-white dark:bg-surface-dark-elevated rounded-2xl shadow-lg dark:shadow-primary-900/30 p-8 max-w-md w-full text-center">
-        <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-100 mb-2">{t.storyDataUnavailable}</h1>
+        <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-100 mb-2">
+          {story.status === 'failed' ? t.generationFailed : t.storyDataUnavailable}
+        </h1>
+        {story.status === 'failed' && isOnline && !!user && story.userId === user.id && (
+          <>
+            {retryStory.isError && (
+              <p role="alert" className="text-sm text-red-500 dark:text-red-400 mt-4">
+                {retryStory.error?.message || t.retryFailed}
+              </p>
+            )}
+            <button
+              onClick={handleRetryStory}
+              disabled={retryStory.isPending}
+              className="block mx-auto bg-primary-500 hover:bg-primary-600 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-3 px-6 rounded-xl transition-colors mt-4"
+            >
+              {retryStory.isPending ? t.retrying : t.retry}
+            </button>
+          </>
+        )}
         <Link
           to="/"
           className="inline-block bg-primary-500 hover:bg-primary-600 text-white font-bold py-3 px-6 rounded-xl transition-colors mt-4"

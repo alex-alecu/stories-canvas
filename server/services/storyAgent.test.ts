@@ -143,3 +143,34 @@ test('cancellation reaches the active SDK request', async () => {
   await assert.rejects(pending, /abort|cancel/i);
   assert.equal(calls, 1);
 });
+
+test('the story writer can finish after eight minutes and still records one paid response', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  let started!: () => void;
+  const ready = new Promise<void>(resolve => { started = resolve; });
+  const usage: TextUsageEvent[] = [];
+  let calls = 0;
+  const model = createOpenRouterAgentModel({
+    client: new OpenAI({ apiKey: 'local-test', baseURL: 'https://openrouter.test/api/v1' }),
+    onUsage: event => { usage.push(event); },
+    fetch: async (_url, init) => new Promise<Response>((resolve, reject) => {
+      calls++;
+      init?.signal?.addEventListener('abort', () => reject(new Error('Request aborted')), { once: true });
+      setTimeout(() => resolve(Response.json({ id: 'gen-slow', model: 'openai/gpt-6-astra',
+        choices: [{ finish_reason: 'tool_calls', message: { role: 'assistant', content: null,
+          tool_calls: [{ id: 'call-slow', type: 'function', function: {
+            name: 'submit_story_script', arguments: JSON.stringify({ script: makeScenario() }),
+          } }] } }], usage: { prompt_tokens: 100, completion_tokens: 50, total_tokens: 150, cost: 0.02 },
+      })), 8 * 60_000);
+      started();
+    }),
+  });
+  const pending = generateStoryScriptWithAgents('A child finds a lantern.', 'en', 4, 'storybook', undefined, undefined, {
+    runner: { model }, resolveSource: async () => undefined, enforceQuality: async (_context, scenario) => scenario,
+  });
+  await ready;
+  t.mock.timers.tick(8 * 60_000);
+  assert.equal((await pending).scenario.title, 'The Little Lantern');
+  assert.equal(calls, 1);
+  assert.equal(usage[0].usageDetails.providerCostUsd, 0.02);
+});

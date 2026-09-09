@@ -108,6 +108,46 @@ test('a lost connection stops text generation with one unknown cost', async () =
   assert.deepEqual(usage.map(event => event.usageDetails.providerCostUsd), [null]);
 });
 
+test('a text review can finish after eight minutes without a second paid request', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  let started!: () => void;
+  const ready = new Promise<void>(resolve => { started = resolve; });
+  let calls = 0;
+  const client = new OpenAI({ apiKey: 'local-test', fetch: async (_url, init) => new Promise<Response>((resolve, reject) => {
+    calls++;
+    init?.signal?.addEventListener('abort', () => reject(new Error('Request aborted')), { once: true });
+    setTimeout(() => resolve(Response.json({ id: 'gen-slow', model: 'openai/gpt-6-astra',
+      choices: [{ finish_reason: 'stop', message: { content: '{"ok":true}' } }], usage: { cost: 0.02 } })), 8 * 60_000);
+    started();
+  }) });
+  const usage: TextUsageEvent[] = [];
+  const pending = generateJSON('Story', 'Review it.', schema, { client, onUsage: event => { usage.push(event); } });
+  await ready;
+  t.mock.timers.tick(8 * 60_000);
+  assert.deepEqual(await pending, { ok: true });
+  assert.equal(calls, 1);
+  assert.equal(usage[0].usageDetails.providerCostUsd, 0.02);
+});
+
+test('a text request with no response still times out and is not repeated', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  let started!: () => void;
+  const ready = new Promise<void>(resolve => { started = resolve; });
+  let calls = 0;
+  const usage: TextUsageEvent[] = [];
+  const client = new OpenAI({ apiKey: 'local-test', fetch: async (_url, init) => new Promise<Response>((_resolve, reject) => {
+    calls++;
+    init?.signal?.addEventListener('abort', () => reject(new Error('Request aborted')), { once: true });
+    started();
+  }) });
+  const pending = generateJSON('Story', 'Review it.', schema, { client, onUsage: event => { usage.push(event); } });
+  await ready;
+  t.mock.timers.tick(16 * 60_000);
+  await assert.rejects(pending, TextCostUnavailableError);
+  assert.equal(calls, 1);
+  assert.deepEqual(usage.map(event => event.usageDetails.providerCostUsd), [null]);
+});
+
 test('a confirmed rate limit permits another text request', async () => {
   let requests = 0;
   const client = new OpenAI({ apiKey: 'local-test', fetch: async () => {

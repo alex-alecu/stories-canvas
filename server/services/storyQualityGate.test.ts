@@ -87,17 +87,47 @@ test('an incomplete review cannot start a paid rewrite with lost findings', asyn
   assert.equal(calls, 1);
 });
 
-test('enforceStoryQuality fails closed when the rewritten script still has a major issue', async () => {
+test('a later review finding can be corrected using the latest script and review', async () => {
+  const { enforceStoryQuality } = await import('./storyQualityGate.js');
+  const firstEdit = makeScenario('Mara raises the lantern. Its light shows the safe path.');
+  const lastEdit = makeScenario('Mara holds the lantern above the path. Its light shows where to step.');
+  const laterReview = {
+    ...review(4),
+    summary: 'The image description needs one correction.',
+    scores: { ...review(4).scores, pageVisualAlignment: 3 },
+    issues: [{ code: 'image_prompt_alignment', severity: 'major',
+      summary: 'The lantern is below the path that it must illuminate.', pageNumbers: [1] }],
+  };
+  const outputs: unknown[] = [review(3, true), firstEdit, laterReview, lastEdit, review(4)];
+  const prompts: Record<string, any>[] = [];
+  const result = await enforceStoryQuality(context, makeScenario('Mara path light then go.'), {
+    generate: (async (prompt: string) => {
+      prompts.push(JSON.parse(prompt));
+      return outputs.shift();
+    }) as never,
+  });
+
+  assert.equal(result.pages[0].text, lastEdit.pages[0].text);
+  assert.equal(prompts.length, 5);
+  assert.equal(prompts[3].currentScript.pages[0].text, firstEdit.pages[0].text);
+  assert.deepEqual(prompts[3].qualityReview.issues, laterReview.issues);
+  assert.equal(prompts[4].script.pages[0].text, lastEdit.pages[0].text);
+});
+
+test('enforceStoryQuality stops after two rewrites if a major issue remains', async () => {
   const { enforceStoryQuality, StoryQualityError } = await import('./storyQualityGate.js');
-  const outputs: unknown[] = [review(2, true), makeScenario('Still unclear.'), review(3, true)];
+  const outputs: unknown[] = [review(2, true), makeScenario('Still unclear.'), review(3, true),
+    makeScenario('Still unclear after the second edit.'), review(3, true)];
+  let calls = 0;
 
   await assert.rejects(
     enforceStoryQuality(context, makeScenario('Unclear.'), {
-      generate: (async () => outputs.shift()) as never,
+      generate: (async () => { calls++; return outputs.shift(); }) as never,
     }),
     (error: unknown) => error instanceof StoryQualityError
       && /failed the final quality gate/i.test(error.message),
   );
+  assert.equal(calls, 5);
 });
 
 function rewriteMissingVisibleCharacter(): Scenario {
@@ -172,12 +202,45 @@ test('a repaired rewrite still must pass the final quality review', async () => 
   const invalid = rewriteMissingVisibleCharacter();
   const corrected = structuredClone(invalid);
   corrected.pages[11].characters.push('Împăratul văduv');
-  const outputs: unknown[] = [review(3, true), invalid, corrected, review(3, true)];
+  const outputs: unknown[] = [review(3, true), invalid, corrected, review(3, true),
+    corrected, review(3, true)];
   let calls = 0;
   await assert.rejects(enforceStoryQuality(longContext, makeScenario(), {
     generate: (async () => { calls++; return outputs.shift(); }) as never,
   }), StoryQualityError);
-  assert.equal(calls, 4);
+  assert.equal(calls, 6);
+});
+
+test('cancellation after a later review prevents a second rewrite', async () => {
+  const { enforceStoryQuality } = await import('./storyQualityGate.js');
+  const controller = new AbortController();
+  const cancelled = new Error('Cancelled by the user');
+  let calls = 0;
+  await assert.rejects(enforceStoryQuality(context, makeScenario(), {
+    signal: controller.signal,
+    generate: (async () => {
+      calls++;
+      if (calls === 2) return makeScenario();
+      if (calls === 3) controller.abort(cancelled);
+      return review(3, true);
+    }) as never,
+  }), error => error === cancelled);
+  assert.equal(calls, 3);
+});
+
+test('unknown review cost prevents a second rewrite', async () => {
+  const { enforceStoryQuality } = await import('./storyQualityGate.js');
+  const { TextCostUnavailableError } = await import('./openrouter.js');
+  const costError = new TextCostUnavailableError('The request cost is unavailable.');
+  let calls = 0;
+  await assert.rejects(enforceStoryQuality(context, makeScenario(), {
+    generate: (async () => {
+      if (++calls === 1) return review(3, true);
+      if (calls === 2) return makeScenario();
+      throw costError;
+    }) as never,
+  }), error => error === costError);
+  assert.equal(calls, 3);
 });
 
 test('cancellation after an invalid rewrite prevents a repair request', async () => {

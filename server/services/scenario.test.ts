@@ -726,6 +726,21 @@ test('sentence limits count dialogue without counting closing quotes or speech a
   assert.equal(validateScenario(tooMany, 3).some(issue => issue.code === 'page.text.sentences'), true);
 });
 
+test('Romanian dialogue with a comma after the closing quote stays within the sentence limit', async () => {
+  const { validateScenario } = await import('./scenarioValidation.js');
+  for (const text of [
+    'Un împărat văduv își creștea cu drag cele trei fete, iar ele îi alinau dorul de mama lor. „Cum mă iubești?”, o întrebă pe cea mare. „Ca mierea!”, îl linguși ea. Tatăl o binecuvântă, mulțumit.',
+    '„Iartă-mă, nu ți-am prețuit înțelepciunea!”, spuse tatăl. Fata îi sărută mâna: „Iartă-mă și tu dacă te-am supărat.” Nunta continuă, iar socrul se mândrea cu nora lui. Și eu am fost la ospăț!',
+  ]) {
+    const scenario = makeScenario({ targetAge: 5 });
+    scenario.pages[0].text = text;
+    assert.deepEqual(validateScenario(scenario, 5), []);
+  }
+  const tooMany = makeScenario({ targetAge: 5 });
+  tooMany.pages[0].text = '„Gata!”, spuse Mia. Pip veni. Mia râse. Pip sări. Apoi plecară.';
+  assert.equal(validateScenario(tooMany, 5).some(issue => issue.code === 'page.text.sentences'), true);
+});
+
 test('validateScenario rejects a visible named character missing from the page character list', async () => {
   const { validateScenario } = await import('./scenarioValidation.js');
   const scenario = makeScenario({
