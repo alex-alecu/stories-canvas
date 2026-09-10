@@ -28,13 +28,16 @@ const recordedWorkloads = [
   { model: 'google/gemini-3.8-flash', reasoningTokens: 19_718, storyTokens: 13_196 },
 ];
 
-function providerFixture(adapter: Adapter, workload: typeof recordedWorkloads[number], forceLimit = false) {
+function providerFixture(adapter: Adapter, workload: typeof recordedWorkloads[number] & { maxCompletionTokens?: number }, forceLimit = false) {
   const requests: Array<Record<string, any>> = [];
   const usage: TextUsageEvent[] = [];
   const fetchResponse: typeof fetch = async (_url, init) => {
     const body = JSON.parse(String(init?.body));
     requests.push(body);
     const budget = Number(body.max_tokens ?? body.max_completion_tokens);
+    if (workload.maxCompletionTokens && budget > workload.maxCompletionTokens) {
+      return Response.json({ error: { message: 'Requested output exceeds the model limit', code: 400 } }, { status: 400 });
+    }
     const requiredTokens = workload.reasoningTokens + workload.storyTokens;
     const truncated = forceLimit || !Number.isFinite(budget) || budget < requiredTokens;
     const completionTokens = truncated ? budget : requiredTokens;
@@ -55,7 +58,7 @@ function providerFixture(adapter: Adapter, workload: typeof recordedWorkloads[nu
   };
   const client = new OpenAI({ apiKey: 'local-test', baseURL: 'https://openrouter.test/api/v1', fetch: fetchResponse });
   const record = (event: TextUsageEvent) => { usage.push(event); };
-  const run = () => withTextModelSettings(parseTextModelSettings(workload.model, 'high'), async () => {
+  const run = () => withTextModelSettings(parseTextModelSettings(workload.model, 'high', true), async () => {
     if (adapter === 'json') {
       return generateJSON<Scenario>('Rewrite the complete story.', 'Keep every page complete.',
         storyScriptSchema as unknown as Record<string, unknown>, { client, maxRetries: 3, onUsage: record });
@@ -74,6 +77,31 @@ function providerFixture(adapter: Adapter, workload: typeof recordedWorkloads[nu
 }
 
 for (const adapter of ['json', 'agent'] as const) {
+  test(`${adapter} completes larger responses within each selected model's output capacity`, async () => {
+    const models = [
+      { model: 'google/gemini-3.8-flash', maxCompletionTokens: 65_536, requestedTokens: 65_536 },
+      { model: 'openai/gpt-6-astra', maxCompletionTokens: 128_000, requestedTokens: 128_000 },
+      { model: 'anthropic/claude-fable-5.1', maxCompletionTokens: 128_000, requestedTokens: 128_000 },
+      { model: 'anthropic/claude-opus-5', maxCompletionTokens: 128_000, requestedTokens: 128_000 },
+      { model: 'qwen/qwen3.8-max-0902', maxCompletionTokens: 131_072, requestedTokens: 128_000 },
+      { model: 'x-ai/grok-4.6', maxCompletionTokens: 450_000, requestedTokens: 128_000 },
+      { model: 'google/gemini-3.1-pro-preview', maxCompletionTokens: 65_536, requestedTokens: 65_536 },
+      { model: 'openai/gpt-5.6-sol', maxCompletionTokens: 128_000, requestedTokens: 128_000 },
+      { model: 'anthropic/claude-sonnet-5', maxCompletionTokens: 128_000, requestedTokens: 128_000 },
+    ];
+    for (const entry of models) {
+      const api = providerFixture(adapter, { ...entry,
+        reasoningTokens: entry.requestedTokens - 14_000, storyTokens: 13_196 });
+      assert.deepEqual(await api.run(), scenario);
+      assert.equal(api.requests.length, 1);
+      assert.equal(api.requests[0].max_tokens ?? api.requests[0].max_completion_tokens, entry.requestedTokens);
+      assert.equal(api.requests[0].model, entry.model);
+      assert.deepEqual(api.requests[0].reasoning, { effort: 'high' });
+      assert.equal(api.usage.length, 1);
+      assert.equal(api.usage[0].status, 'succeeded');
+    }
+  });
+
   test(`${adapter} completes a full story with room for the recorded reasoning workload`, async () => {
     for (const workload of recordedWorkloads) {
       const api = providerFixture(adapter, workload);

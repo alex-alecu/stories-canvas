@@ -4,7 +4,7 @@ import { createOpenRouterAgentModel } from './openrouterAgentModel.js';
 import { toJSONSchema, type TextUsageEvent } from './openrouter.js';
 import { storyScriptToolParameters } from './storyScriptSchema.js';
 
-export const MAIN_STORY_AGENT_MAX_TURNS = 6;
+export const MAIN_STORY_AGENT_MAX_TURNS = 10;
 type StoryTextUsage = Omit<TextUsageEvent, 'usageAvailable'> & { usageAvailable?: boolean };
 
 export interface StoryAgentUsageCallbacks {

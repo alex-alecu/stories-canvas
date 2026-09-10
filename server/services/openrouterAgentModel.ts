@@ -1,9 +1,9 @@
 import { OpenAIChatCompletionsModel, type Model } from '@openai/agents';
 import type OpenAI from 'openai';
 import { APIError } from 'openai';
-import { getOpenRouterClient, TEXT_MAX_COMPLETION_TOKENS, TEXT_REQUEST_TIMEOUT_MS } from './openrouterClient.js';
+import { getOpenRouterClient, TEXT_REQUEST_TIMEOUT_MS } from './openrouterClient.js';
 import { getTextModelSettings } from './textGenerationContext.js';
-import { TEXT_MODELS } from '../../shared/textModels.js';
+import { getTextCompletionTokenLimit, TEXT_MODELS } from '../../shared/textModels.js';
 import { buildTextUsageEvent, getTextResponseError, TextCostUnavailableError, type RouterCompletion, type TextUsageEvent } from './openrouter.js';
 
 export interface StoryAgentModelOptions {
@@ -52,7 +52,7 @@ export function createOpenRouterAgentModel(options: StoryAgentModelOptions = {})
           modelSettings: {
             ...request.modelSettings,
             reasoning: undefined,
-            maxTokens: TEXT_MAX_COMPLETION_TOKENS,
+            maxTokens: getTextCompletionTokenLimit(settings.textModel),
             providerData: {
               ...request.modelSettings.providerData,
               ...(settings.thinkingLevel ? { reasoning: { effort: settings.thinkingLevel } } : {}),

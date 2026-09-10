@@ -1,9 +1,9 @@
 import OpenAI, { APIError } from 'openai';
 import type { ChatCompletion, ChatCompletionCreateParamsNonStreaming, ChatCompletionMessageParam } from 'openai/resources/chat/completions';
-import { getOpenRouterClient, resolveOpenRouterCost, TEXT_MAX_COMPLETION_TOKENS, TEXT_REQUEST_TIMEOUT_MS } from './openrouterClient.js';
+import { getOpenRouterClient, resolveOpenRouterCost, TEXT_REQUEST_TIMEOUT_MS } from './openrouterClient.js';
 import { config } from '../config.js';
 import { getTextModelSettings } from './textGenerationContext.js';
-import type { ThinkingLevel } from '../../shared/textModels.js';
+import { getTextCompletionTokenLimit, type ThinkingLevel } from '../../shared/textModels.js';
 
 export type TextReasoningEffort = ThinkingLevel | 'none' | 'minimal' | 'xhigh';
 export class TextCostUnavailableError extends Error {
@@ -122,7 +122,7 @@ async function request<T>(body: Record<string, unknown>, options: TextGeneration
     let response: RouterCompletion;
     try {
       response = await api.chat.completions.create({
-        ...body, model: settings.textModel, stream: false, max_tokens: TEXT_MAX_COMPLETION_TOKENS,
+        ...body, model: settings.textModel, stream: false, max_tokens: getTextCompletionTokenLimit(settings.textModel),
         ...(settings.thinkingLevel ? { reasoning: { effort: settings.thinkingLevel } } : {}),
         provider: { require_parameters: true, sort: 'price' },
       } as unknown as ChatCompletionCreateParamsNonStreaming, {
