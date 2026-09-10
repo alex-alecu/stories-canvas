@@ -82,6 +82,25 @@ test('missing inline cost is recovered by generation ID and malformed paid outpu
   assert.equal(api.requests.length, 1);
 });
 
+test('a content block keeps its finish reason and stops after one recorded request', async () => {
+  for (const choice of [
+    { finish_reason: 'content_filter', native_finish_reason: 'PROHIBITED_CONTENT', message: { content: null } },
+    { finish_reason: 'stop', message: { content: null, refusal: 'Provider refusal' } },
+  ]) {
+    const api = fixture({ choices: [choice], usage: { cost: 0 } });
+    const usage: TextUsageEvent[] = [];
+    await assert.rejects(generateJSON('Story', 'Write it.', schema, {
+      client: api.client, maxRetries: 3, onUsage: event => { usage.push(event); },
+    }), (error: Error) => error.name === 'TextContentBlockedError' && /revise the request/.test(error.message));
+    assert.equal(api.requests.length, 1);
+    assert.equal(usage.length, 1);
+    assert.equal(usage[0].status, 'failed');
+    assert.equal(usage[0].usageDetails.finishReason, choice.finish_reason);
+    assert.equal(usage[0].usageDetails.nativeFinishReason, choice.native_finish_reason ?? null);
+    assert.equal(usage[0].usageDetails.providerCostUsd, 0);
+  }
+});
+
 
 test('an accounting failure never repeats a paid completion', async () => {
   const api = fixture();

@@ -99,7 +99,7 @@ function CancelConfirmDialog({ onConfirm, onDismiss, isCancelling }: { onConfirm
 }
 
 export default function GenerationProgress({ progress, onCancel, isCancelling = false }: GenerationProgressProps) {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
 
   const allPhases = [
@@ -122,7 +122,7 @@ export default function GenerationProgress({ progress, onCancel, isCancelling = 
   const progressPercent = progress?.totalPages
     ? Math.round((progress.completedPages / progress.totalPages) * 100)
     : 0;
-  const visibleMessage = formatStoryStatusMessage(progress?.message, t);
+  const visibleMessage = formatStoryStatusMessage(progress?.message, t, language);
 
   const isTerminal = progress?.status === 'completed' || progress?.status === 'failed' || progress?.status === 'cancelled';
   const isCancelled = progress?.status === 'cancelled';

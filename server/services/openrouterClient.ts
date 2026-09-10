@@ -7,6 +7,8 @@ let clientKey: string | undefined;
 
 // A full story with high thinking can take more than five minutes.
 export const TEXT_REQUEST_TIMEOUT_MS = 15 * 60 * 1000;
+// Reasoning and visible story output consume the same completion budget.
+export const TEXT_MAX_COMPLETION_TOKENS = 64_000;
 
 export function getOpenRouterClient(): OpenAI {
   const apiKey = process.env.OPENROUTER_API_KEY?.trim() || config.openrouterApiKey;

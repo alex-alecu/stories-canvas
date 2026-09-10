@@ -174,3 +174,25 @@ test('the story writer can finish after eight minutes and still records one paid
   assert.equal(calls, 1);
   assert.equal(usage[0].usageDetails.providerCostUsd, 0.02);
 });
+test('the story agent records a provider content block and does not repeat it', async () => {
+  let requests = 0;
+  const usage: TextUsageEvent[] = [];
+  const fetchResponse: typeof fetch = async () => {
+    requests++;
+    return Response.json({ id: 'gen-blocked', model: 'google/gemini-3.8-flash',
+      choices: [{ index: 0, finish_reason: 'content_filter', native_finish_reason: 'PROHIBITED_CONTENT',
+        message: { role: 'assistant', content: null } }],
+      usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0, cost: 0 } });
+  };
+  const client = new OpenAI({ apiKey: 'local-test', fetch: fetchResponse });
+  const model = createOpenRouterAgentModel({ client, fetch: fetchResponse, onUsage: event => { usage.push(event); } });
+  await assert.rejects(generateStoryScriptWithAgents('A child finds a lantern.', 'en', 4, 'storybook', undefined, undefined, {
+    runner: { model }, resolveSource: async () => undefined,
+    enforceQuality: async () => { throw new Error('A blocked draft cannot be reviewed.'); },
+  }), (error: Error) => error.name === 'TextContentBlockedError');
+  assert.equal(requests, 1);
+  assert.equal(usage.length, 1);
+  assert.equal(usage[0].status, 'failed');
+  assert.equal(usage[0].usageDetails.finishReason, 'content_filter');
+  assert.equal(usage[0].usageDetails.nativeFinishReason, 'PROHIBITED_CONTENT');
+});

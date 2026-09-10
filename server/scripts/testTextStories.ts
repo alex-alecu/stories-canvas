@@ -24,6 +24,8 @@ const outputDir = path.resolve('artifacts/text-smoke', new Date().toISOString().
 await mkdir(outputDir, { recursive: true });
 
 const cases = [
+  { name: 'romanian-capra-cu-trei-iezi', model: 'google/gemini-3.8-flash', thinkingLevel: 'high', explicitOnly: true, language: 'ro', age: 5,
+    prompt: 'Creează povestea Capra cu trei iezi, urmează originalul exact. O capră cu trei iezi îi învață pe micuți să nu deschidă ușa străinilor. Lupul cel viclean reușește să îi păcălească, dar mama capră face totul pentru a-și salva copiii dintr-o situație periculoasă.' },
   { name: 'romanian-sarea-in-bucate', model: 'openai/gpt-6-astra', thinkingLevel: 'high', explicitOnly: true, language: 'ro', age: 5,
     prompt: 'Creează povestea Sarea în bucate, urmează originalul exact. Adaptează fidel basmul din domeniul public al lui Petre Ispirescu: fata cea mică își iubește tatăl ca sarea în bucate, este izgonită, apoi dovedește la ospăț cât valorează iubirea ei.' },
   { name: 'romanian-bedtime', model: 'google/gemini-3.8-flash', language: 'ro', age: 4,

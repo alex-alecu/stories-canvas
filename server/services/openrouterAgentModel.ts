@@ -1,10 +1,10 @@
 import { OpenAIChatCompletionsModel, type Model } from '@openai/agents';
 import type OpenAI from 'openai';
 import { APIError } from 'openai';
-import { getOpenRouterClient, TEXT_REQUEST_TIMEOUT_MS } from './openrouterClient.js';
+import { getOpenRouterClient, TEXT_MAX_COMPLETION_TOKENS, TEXT_REQUEST_TIMEOUT_MS } from './openrouterClient.js';
 import { getTextModelSettings } from './textGenerationContext.js';
 import { TEXT_MODELS } from '../../shared/textModels.js';
-import { buildTextUsageEvent, type RouterCompletion, type TextUsageEvent } from './openrouter.js';
+import { buildTextUsageEvent, getTextResponseError, TextCostUnavailableError, type RouterCompletion, type TextUsageEvent } from './openrouter.js';
 
 export interface StoryAgentModelOptions {
   onUsage?: (usage: TextUsageEvent) => void | Promise<void>;
@@ -52,7 +52,7 @@ export function createOpenRouterAgentModel(options: StoryAgentModelOptions = {})
           modelSettings: {
             ...request.modelSettings,
             reasoning: undefined,
-            maxTokens: 24_000,
+            maxTokens: TEXT_MAX_COMPLETION_TOKENS,
             providerData: {
               ...request.modelSettings.providerData,
               ...(settings.thinkingLevel ? { reasoning: { effort: settings.thinkingLevel } } : {}),
@@ -76,12 +76,11 @@ export function createOpenRouterAgentModel(options: StoryAgentModelOptions = {})
       }
       const raw = response.providerData as RouterCompletion;
       const choice = raw.choices?.[0];
-      const failed = !!raw.error || !choice || !['stop', 'tool_calls'].includes(choice.finish_reason) ||
-        !!choice.message.refusal || choice.message.tool_calls?.length !== 1;
-      const usage = await buildTextUsageEvent(raw, failed ? 'failed' : 'succeeded', client);
+      const responseError = getTextResponseError(raw, true);
+      const usage = await buildTextUsageEvent(raw, responseError ? 'failed' : 'succeeded', client);
       await options.onUsage?.(usage);
-      if (failed) throw new Error('The model did not complete its response.');
-      if (usage.usageDetails.providerCostUsd === null) throw new Error('The request cost is unavailable. Generation stopped.');
+      if (usage.usageDetails.providerCostUsd === null) throw new TextCostUnavailableError('The request cost is unavailable. Generation stopped.', { cause: responseError });
+      if (responseError) throw responseError;
       const message = choice.message as typeof choice.message & { reasoning_details?: unknown[] };
       if (message.reasoning_details) {
         for (const call of message.tool_calls ?? []) reasoningByCall.set(call.id, message.reasoning_details);
