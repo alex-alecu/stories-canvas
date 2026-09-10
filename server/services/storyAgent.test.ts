@@ -120,7 +120,32 @@ test('invalid scripts stop at the SDK turn limit', async () => {
   await assert.rejects(generateStoryScriptWithAgents('A child finds a lantern.', 'en', 4, 'storybook', undefined, undefined, {
     runner: { model: api.model }, resolveSource: async () => undefined,
   }), /Max turns|maximum.*turn|turn.*exceeded/i);
-  assert.equal(api.requests.length, 6);
+  assert.equal(api.requests.length, 10);
+  assert.equal(api.usage.length, 10);
+});
+
+test('the tenth submission can pass validation and reach quality review with all usage recorded', async () => {
+  const invalid = makeScenario();
+  invalid.pages[2].text = 'One. Two. Three. Four. Five.';
+  const api = fixture([...Array.from({ length: 9 }, () => invalid), makeScenario()]);
+  let reviews = 0;
+  const result = await generateStoryScriptWithAgents('A child finds a lantern.', 'en', 4, 'storybook', undefined, undefined, {
+    runner: { model: api.model }, resolveSource: async () => undefined,
+    enforceQuality: async (_context, scenario) => {
+      reviews++;
+      assert.equal(scenario.pages[2].text, 'Mara lifts the lantern. She can see the path.');
+      return scenario;
+    },
+  });
+  assert.equal(result.scenario.pages.length, 6);
+  assert.equal(reviews, 1);
+  assert.equal(api.requests.length, 10);
+  const corrections = api.requests[9].messages.filter((message: any) => message.role === 'tool');
+  assert.equal(corrections.length, 9);
+  assert.ok(corrections.every((message: any) => /too many sentences/.test(message.content)));
+  assert.deepEqual(api.usage.map(event => event.usageDetails.responseId),
+    Array.from({ length: 10 }, (_, index) => `gen-${index + 1}`));
+  assert.ok(api.usage.every(event => event.status === 'succeeded' && event.usageDetails.providerCostUsd === 0.012345));
 });
 
 test('cancellation reaches the active SDK request', async () => {
