@@ -64,6 +64,7 @@ import {
 import { buildStoryGenerationInputs, recordStoryUsage, type StoryUsageStorage } from '../services/storyUsage.js';
 import { getScenarioTextRules, OVERLAY_SAFE_MAX_CHARS } from '../services/scenarioValidation.js';
 import { sendStoryBlockAlert, type StoryBlockAlertParams } from '../services/slackAlerts.js';
+import { TextContentBlockedError, TextOutputLimitError } from '../services/openrouter.js';
 
 const router = Router();
 const SSE_CLOSE_DELAY_MS = 2_000;
@@ -990,9 +991,13 @@ function scheduleStoryConnectionCleanup(storyId: string): void {
 
 // ---------- Persist progress to DB alongside SSE ----------
 
-async function sendProgressUpdate(storyId: string, data: Partial<GenerationProgress>): Promise<void> {
-  // Always send via SSE for real-time
-  sendSSE(storyId, data);
+async function sendProgressUpdate(
+  storyId: string,
+  data: Partial<GenerationProgress>,
+  options: { persistBeforeSend?: boolean } = {},
+): Promise<void> {
+  // Keep active progress immediate; final errors must be saved before clients refetch.
+  if (!options.persistBeforeSend) sendSSE(storyId, data);
 
   // Also persist to Supabase so progress survives refresh
   if (config.useSupabase) {
@@ -1008,6 +1013,7 @@ async function sendProgressUpdate(storyId: string, data: Partial<GenerationProgr
       console.error(`Failed to persist progress for ${storyId}:`, error);
     }
   }
+  if (options.persistBeforeSend) sendSSE(storyId, data);
 }
 
 // ---------- Routes ----------
@@ -1599,15 +1605,17 @@ async function runGenerationPipeline(
       await updateStoryStatus(storyId, status);
     } catch {}
 
-    sendSSE(storyId, {
+    await sendProgressUpdate(storyId, {
       storyId,
       status,
       currentPhase: isCancelled ? 'Cancelled' : 'Failed',
       completedPages: 0,
       totalPages: 0,
       failedPages: [],
-      message: isCancelled ? 'Generation cancelled' : (error instanceof Error ? error.message : 'Generation failed'),
-    });
+      message: isCancelled ? 'Generation cancelled'
+        : error instanceof TextContentBlockedError || error instanceof TextOutputLimitError
+          ? error.message : 'Generation failed',
+    }, { persistBeforeSend: true });
   } finally {
     finishTrackedGeneration(storyId);
     await releaseUserGenerationSlot(storyId);

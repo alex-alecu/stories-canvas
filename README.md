@@ -53,6 +53,10 @@ To test the reported "Sarea în bucate" request, use `npm run test:text:live -- 
 
 Text requests allow up to 15 minutes for response headers. User cancellation still stops the active request. A timeout with an unknown cost does not trigger an automatic retry. The live test saves response bodies in the background so logging does not extend the connection timeout over the full response body.
 
+To test the reported "Capra cu trei iezi" request, use `npm run test:text:live -- --case=romanian-capra-cu-trei-iezi --budget=2 --minutes=15`. This case uses Romanian, age 5, Gemini 3.8 Flash, and high thinking. It is excluded from the default run and uses the same text-only test safeguards.
+
+Text requests allow up to 64,000 completion tokens, shared between reasoning and visible output. A content block or response length limit stops the request without an automatic retry. The story owner can see the saved error after a page reload.
+
 If generation fails before a script is saved, the story owner can select **Retry** on the story page. The retry starts with the saved request, language, age, style, model, thinking level, and audio settings. It keeps the story ID and records new usage as retry costs. Access, balance, and active-generation limits still apply. Deploying a fix does not automatically retry failed stories.
 
 ### Step 2 — Draw Character Reference Sheets

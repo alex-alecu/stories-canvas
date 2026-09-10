@@ -1,6 +1,6 @@
 import OpenAI, { APIError } from 'openai';
 import type { ChatCompletion, ChatCompletionCreateParamsNonStreaming, ChatCompletionMessageParam } from 'openai/resources/chat/completions';
-import { getOpenRouterClient, resolveOpenRouterCost, TEXT_REQUEST_TIMEOUT_MS } from './openrouterClient.js';
+import { getOpenRouterClient, resolveOpenRouterCost, TEXT_MAX_COMPLETION_TOKENS, TEXT_REQUEST_TIMEOUT_MS } from './openrouterClient.js';
 import { config } from '../config.js';
 import { getTextModelSettings } from './textGenerationContext.js';
 import type { ThinkingLevel } from '../../shared/textModels.js';
@@ -8,6 +8,18 @@ import type { ThinkingLevel } from '../../shared/textModels.js';
 export type TextReasoningEffort = ThinkingLevel | 'none' | 'minimal' | 'xhigh';
 export class TextCostUnavailableError extends Error {
   name = 'TextCostUnavailableError';
+}
+export class TextContentBlockedError extends Error {
+  name = 'TextContentBlockedError';
+  constructor() {
+    super('The selected model blocked this story under its content rules. Please revise the request.');
+  }
+}
+export class TextOutputLimitError extends Error {
+  name = 'TextOutputLimitError';
+  constructor() {
+    super('The model reached its response length limit. Please try a shorter story.');
+  }
 }
 type RouterClient = Pick<OpenAI, 'chat' | 'get'>;
 export interface TextUsageEvent {
@@ -34,7 +46,25 @@ export interface TextContent {
   parts: Array<Record<string, unknown>>;
 }
 export type TextContentInput = string | TextContent[];
-export type RouterCompletion = ChatCompletion & { usage?: ChatCompletion['usage'] & { cost?: number }; error?: { message?: string } };
+export type RouterCompletion = ChatCompletion & {
+  choices: Array<ChatCompletion['choices'][number] & { native_finish_reason?: string | null }>;
+  usage?: ChatCompletion['usage'] & { cost?: number };
+  error?: { message?: string };
+};
+
+export function getTextResponseError(response: RouterCompletion, requireSingleToolCall = false): Error | undefined {
+  const choice = response.choices?.[0];
+  if (choice?.finish_reason === 'content_filter' || choice?.message.refusal) {
+    return new TextContentBlockedError();
+  }
+  if (response.error) return new Error(response.error.message || 'OpenRouter request failed');
+  if (choice?.finish_reason === 'length') return new TextOutputLimitError();
+  if (!choice || !['stop', 'tool_calls'].includes(choice.finish_reason) ||
+      (requireSingleToolCall && choice.message.tool_calls?.length !== 1)) {
+    return new Error('The model did not complete its response.');
+  }
+  return undefined;
+}
 
 export function toJSONSchema(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(toJSONSchema);
@@ -75,6 +105,9 @@ export async function buildTextUsageEvent(response: RouterCompletion, status: Te
     totalTokens: response.usage?.total_tokens ?? 0,
     usageAvailable: !!response.usage,
     usageDetails: { ...response.usage, responseId: response.id, responseModel: response.model,
+      finishReason: response.choices?.[0]?.finish_reason ?? null,
+      nativeFinishReason: response.choices?.[0]?.native_finish_reason ?? null,
+      refused: !!response.choices?.[0]?.message.refusal,
       providerCostUsd: cost, costSource: 'openrouter',
       thinkingLevel: getTextModelSettings().thinkingLevel },
   };
@@ -89,7 +122,7 @@ async function request<T>(body: Record<string, unknown>, options: TextGeneration
     let response: RouterCompletion;
     try {
       response = await api.chat.completions.create({
-        ...body, model: settings.textModel, stream: false, max_tokens: 24_000,
+        ...body, model: settings.textModel, stream: false, max_tokens: TEXT_MAX_COMPLETION_TOKENS,
         ...(settings.thinkingLevel ? { reasoning: { effort: settings.thinkingLevel } } : {}),
         provider: { require_parameters: true, sort: 'price' },
       } as unknown as ChatCompletionCreateParamsNonStreaming, {
@@ -118,11 +151,8 @@ async function request<T>(body: Record<string, unknown>, options: TextGeneration
     let value: T | undefined;
     let outputError: unknown;
     try {
-      if (response.error) throw new Error(response.error.message || 'OpenRouter request failed');
-      const choice = response.choices?.[0];
-      if (!choice || !['stop', 'tool_calls'].includes(choice.finish_reason) || choice.message.refusal) {
-        throw new Error('The model did not complete its response.');
-      }
+      const responseError = getTextResponseError(response);
+      if (responseError) throw responseError;
       value = read(response);
     } catch (error) { outputError = error; }
     const usage = await buildTextUsageEvent(response, outputError ? 'failed' : 'succeeded', api);

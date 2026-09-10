@@ -108,6 +108,7 @@ async function createStoriesHarness(dataDir: string, configOverrides: Record<str
   }
 
   return {
+    server,
     storiesModule,
     close: async () => {
       await new Promise<void>((resolve, reject) => {
@@ -569,7 +570,7 @@ test('an accounting write failure reports a failed story and sends a failure ale
     .map(line => JSON.parse(line.slice(6)));
   assert.equal((await readStoryMeta(dataDir, id)).status, 'failed');
   assert.equal(events.at(-1).status, 'failed');
-  assert.match(events.at(-1).message, /JSON/);
+  assert.equal(events.at(-1).message, 'Generation failed');
   assert.equal(alerts.length, 1);
   assert.equal(alerts[0].blockType, 'pipeline_failure');
   assert.equal(alerts[0].action, 'story_create');
@@ -604,6 +605,148 @@ test('user cancellation sends no pipeline failure alert', async (t) => {
     .map(line => JSON.parse(line.slice(6)));
   assert.equal(events.at(-1).status, 'cancelled');
   assert.deepEqual(alerts, []);
+});
+
+test('a failed script saves a safe failure message for reload and keeps failed status if progress storage fails', async (t) => {
+  const { TextContentBlockedError, TextOutputLimitError } = await import('../services/openrouter.js');
+  for (const entry of [
+    { name: 'provider block is saved before its final event', error: new TextContentBlockedError(), failProgressStorage: false, delayFailureProgress: true,
+      message: 'The selected model blocked this story under its content rules. Please revise the request.' },
+    { name: 'response length limit survives reload', error: new TextOutputLimitError(), failProgressStorage: false,
+      message: 'The model reached its response length limit. Please try a shorter story.' },
+    { name: 'provider details stay private', error: new Error('Provider debug details: secret-test-value'), failProgressStorage: false,
+      message: 'Generation failed' },
+    { name: 'progress storage unavailable', error: new TextContentBlockedError(), failProgressStorage: true,
+      message: 'The selected model blocked this story under its content rules. Please revise the request.' },
+  ]) {
+    await t.test(entry.name, async (t) => {
+      const dataDir = mkdtempSync(path.join(os.tmpdir(), 'stories-failure-message-'));
+      const harness = await createStoriesHarness(dataDir, { useSupabase: true, __testAuthUser: { id: 'owner' } });
+      const storyId = path.basename(dataDir);
+      const { isGenerationActive } = await import('../services/generationRegistry.js');
+      let release!: () => void;
+      const proceed = new Promise<void>(resolve => { release = resolve; });
+      let startScenario!: () => void;
+      const scenarioStarted = new Promise<void>(resolve => { startScenario = resolve; });
+      let releaseFailureSave!: () => void;
+      const failureSaveAllowed = new Promise<void>(resolve => { releaseFailureSave = resolve; });
+      let startFailureSave!: () => void;
+      const failureSaveStarted = new Promise<void>(resolve => { startFailureSave = resolve; });
+      let failureMessageSaved = false;
+      const terminalWritesAfterSave: boolean[] = [];
+      harness.server.on('request', (req, res) => {
+        if (!entry.delayFailureProgress || !req.url?.endsWith(`/${storyId}/status`)) return;
+        const write = res.write.bind(res);
+        t.mock.method(res, 'write', (...args: Parameters<typeof res.write>) => {
+          const chunk = String(args[0]);
+          if (chunk.startsWith('data: ') && JSON.parse(chunk.slice(6)).status === 'failed') {
+            terminalWritesAfterSave.push(failureMessageSaved);
+          }
+          return write(...args);
+        });
+      });
+      t.after(async () => {
+        release();
+        releaseFailureSave();
+        await harness.close();
+        await fs.rm(dataDir, { recursive: true, force: true });
+      });
+      await writeStoryMeta(dataDir, makeStoryMeta({
+        id: storyId, userId: 'owner', status: 'failed', scenario: undefined,
+        currentPhase: 'Reviewing story...', progressMessage: 'The story is ready for review.',
+        generationInputs: {
+          prompt: 'Tell a story about a fox.', language: 'en', age: 5, artStyle: 'storybook',
+          storyMode: 'fast', audioEnabled: false, proModel: false,
+          textModel: 'google/gemini-3.1-pro-preview', scenarioModel: 'google/gemini-3.1-pro-preview',
+          imageModel: 'google/gemini-3.1-flash-image-preview', imageModelPro: 'google/gemini-3-pro-image-preview',
+          pricingVersion: 'catalog-v2', billingCurrency: 'USD',
+        },
+      }));
+      t.mock.method(harness.storiesModule.storageOps, 'getStory', async () => readStoryMeta(dataDir, storyId));
+      t.mock.method(harness.storiesModule.storageOps, 'updateStoryStatus', async (_id: string, status: StoryMeta['status']) => {
+        await writeStoryMeta(dataDir, { ...await readStoryMeta(dataDir, storyId), status });
+      });
+      t.mock.method(harness.storiesModule.storageOps, 'updateStoryProgress', async (_id: string, progress: import('../services/supabaseStorage.js').StoryProgressUpdate) => {
+        if (entry.failProgressStorage) throw new Error('Progress storage unavailable');
+        if (entry.delayFailureProgress && progress.status === 'failed') {
+          startFailureSave();
+          await failureSaveAllowed;
+        }
+        await writeStoryMeta(dataDir, {
+          ...await readStoryMeta(dataDir, storyId), status: progress.status!,
+          currentPhase: progress.current_phase, progressMessage: progress.progress_message,
+        });
+        if (progress.status === 'failed') failureMessageSaved = true;
+      });
+      t.mock.method(harness.storiesModule.storageOps, 'getStoryOpenRouterCosts', async () => ({
+        textCostUsdMicros: 0, imageCostUsdMicros: 0, unpricedRequests: 0,
+      }));
+      t.mock.method(harness.storiesModule.storageOps, 'getStoryReaction', async () => null);
+      t.mock.method(harness.storiesModule.storySlackOps, 'sendStoryBlockAlert', async () => {});
+      t.mock.method(harness.storiesModule.scenarioOps, 'generateScenarioWithMetadata', async () => {
+        startScenario();
+        await proceed;
+        throw entry.error;
+      });
+      let mediaCalls = 0;
+      t.mock.method(harness.storiesModule.illustrationOps, 'generateAllCharacterSheets', async () => { mediaCalls++; return []; });
+      t.mock.method(harness.storiesModule.illustrationOps, 'generateAllSceneImages', async () => { mediaCalls++; });
+      t.mock.method(harness.storiesModule.audioOps, 'generateAllPageAudio', async () => {
+        mediaCalls++;
+        return { completedCount: 0, failedCount: 0, skippedCount: 0 };
+      });
+
+      const response = await fetch(`${harness.baseUrl}/api/stories/${storyId}/retry`, { method: 'POST', headers: { Connection: 'close' } });
+      assert.equal(response.status, 200);
+      await scenarioStarted;
+      const stream = await fetch(`${harness.baseUrl}/api/stories/${storyId}/status`, { headers: { Connection: 'close' } });
+      assert.equal(stream.status, 200);
+      release();
+      if (entry.delayFailureProgress) {
+        await failureSaveStarted;
+        assert.deepEqual(terminalWritesAfterSave, []);
+        releaseFailureSave();
+      }
+      const events = (await stream.text()).split('\n').filter(line => line.startsWith('data: '))
+        .map(line => JSON.parse(line.slice(6)));
+      assert.equal(events.at(-1).status, 'failed');
+      assert.equal(events.at(-1).message, entry.message);
+      if (entry.delayFailureProgress) assert.deepEqual(terminalWritesAfterSave, [true]);
+      await waitFor(async () => isGenerationActive(storyId), active => !active);
+      const reloadedResponse = await fetch(`${harness.baseUrl}/api/stories/${storyId}`, { headers: { Connection: 'close' } });
+      assert.equal(reloadedResponse.status, 200);
+      const reloaded = await reloadedResponse.json() as StoryMeta;
+      assert.equal(reloaded.status, 'failed');
+      assert.equal(reloaded.scenario, undefined);
+      if (!entry.failProgressStorage) {
+        assert.equal(reloaded.currentPhase, 'Failed');
+        assert.equal(reloaded.progressMessage, entry.message);
+      }
+      assert.doesNotMatch(JSON.stringify(reloaded), /secret-test-value/);
+      assert.equal(mediaCalls, 0);
+    });
+  }
+});
+
+test('failure text is localized for its owner and hides previous phases from failed stories', async () => {
+  const { formatStoryFailureMessage } = await import('../../src/i18n/storyStatusCopy.js');
+  const en = { retryingFailedIllustrations: '', generatingImageForPage: '', blockedIllustrationsDescription: '', generationFailed: 'Generation failed' };
+  const ro = { ...en, generationFailed: 'Generarea a eșuat' };
+  const story = makeStoryMeta({
+    status: 'failed', userId: 'owner', currentPhase: 'Failed',
+    progressMessage: 'The selected model blocked this story under its content rules. Please revise the request.',
+  });
+  assert.equal(formatStoryFailureMessage(story, 'owner', en, 'en'), story.progressMessage);
+  assert.equal(formatStoryFailureMessage(story, 'owner', ro, 'ro'),
+    'Modelul selectat a blocat această poveste conform regulilor sale de conținut. Te rugăm să modifici cererea.');
+  assert.equal(formatStoryFailureMessage({ ...story,
+    progressMessage: 'The model reached its response length limit. Please try a shorter story.' }, 'owner', ro, 'ro'),
+    'Modelul a atins limita de lungime a răspunsului. Te rugăm să încerci o poveste mai scurtă.');
+  assert.equal(formatStoryFailureMessage(story, 'visitor', en, 'en'), undefined);
+  assert.equal(formatStoryFailureMessage(story, undefined, en, 'en'), undefined);
+  assert.equal(formatStoryFailureMessage({ ...story, currentPhase: 'Reviewing story...',
+    progressMessage: 'The story is ready for review.' }, 'owner', en, 'en'), undefined);
+  assert.equal(formatStoryFailureMessage({ ...story, status: 'generating_scenario' }, 'owner', en, 'en'), undefined);
 });
 
 test('POST /api/stories rejects Pro + Audio when narration is unavailable', async (t) => {

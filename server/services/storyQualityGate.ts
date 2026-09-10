@@ -128,6 +128,12 @@ const qualityReviewSchema = {
   required: ['summary', 'scores', 'issues'],
 } as const;
 
+const STORY_SAFETY_INSTRUCTION = [
+  'Preserve a non-graphic, age-appropriate adaptation in all text and image descriptions.',
+  'Do not demand graphic source details for fidelity.',
+  'Use the allowed softening in the compact source rules while preserving core outcomes, roles, and causality.',
+].join(' ');
+
 const QUALITY_REVIEW_SYSTEM_INSTRUCTION = [
   'You are the final senior editor for a children\'s illustrated story.',
   'Review only the supplied script. Be strict and concrete.',
@@ -138,6 +144,7 @@ const QUALITY_REVIEW_SYSTEM_INSTRUCTION = [
   'A grammatically valid sentence can still fail if a child cannot understand who acts, why an event happens, or how one sentence follows the next.',
   'Flag compressed summaries, fragments, unnatural wording, unexplained pronouns, sudden object transfers, missing actors, repeated setup, and several major events forced into one short page.',
   'For a faithful retelling, do not demand every source detail on the page. Require the core identity, cause, event order, and ending supplied in the compact source rules.',
+  STORY_SAFETY_INSTRUCTION,
   'The page count is a maximum. A shorter complete story can pass. Do not require filler or a new plot.',
   'Preserve exact names, facts, and final wording required by the original request.',
   'Score each area from 1 to 5. A score of 4 means clear, correct, and suitable for the target age. A score of 5 means excellent.',
@@ -158,6 +165,7 @@ const QUALITY_REWRITE_SYSTEM_INSTRUCTION = [
   'Preserve correct scenes, the user\'s required details, and exact final wording. Do not replace the plot to fix a local issue.',
   'Follow the supplied pageTextLimits, including spaces and punctuation in maxChars. Include the characters array on every page.',
   'Keep source identity, core event order, magical mechanics, and ending when compact source rules are supplied.',
+  STORY_SAFETY_INSTRUCTION,
   'For each page, make text, imagePrompt, and characters agree. Include every visible named character in the characters list.',
   'Return JSON only.',
 ].join('\n');
@@ -250,6 +258,7 @@ function compactSourceRules(context: StoryPromptContext): Record<string, unknown
     eventOrderMilestones: compactMilestones(source.canonicalBeatSheet.eventOrder),
     canonicalEnding: source.canonicalBeatSheet.canonicalEnding ?? [],
     forbiddenSubstitutions: source.canonicalBeatSheet.forbiddenSubstitutions,
+    softenableBeats: source.canonicalBeatSheet.softenableBeats,
     fidelityWarnings: source.canonicalBeatSheet.fidelityWarnings,
   };
 }

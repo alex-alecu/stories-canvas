@@ -5,6 +5,7 @@ import { useStoryGeneration } from '../hooks/useStoryGeneration';
 import StoryViewer from '../components/StoryViewer';
 import GenerationProgress from '../components/GenerationProgress';
 import { useLanguage } from '../i18n/LanguageContext';
+import { formatStoryFailureMessage } from '../i18n/storyStatusCopy';
 import { useAuth } from '../contexts/AuthContext';
 import { warmMediaCache } from '../lib/serviceWorker';
 import { downloadStoryForOffline } from '../lib/offlineStories';
@@ -38,7 +39,7 @@ export default function StoryPage() {
   const regenerateAssets = useRegenerateStoryAssets();
   const recordStoryView = useRecordStoryView();
   const navigate = useNavigate();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const { user, loading: authLoading } = useAuth();
   const lastWarmupKeyRef = useRef<string | null>(null);
   const lastAutoDownloadKeyRef = useRef<string | null>(null);
@@ -237,12 +238,18 @@ export default function StoryPage() {
     );
   }
 
+  const failureMessage = formatStoryFailureMessage(story, user?.id, t, language);
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
       <div className="bg-white dark:bg-surface-dark-elevated rounded-2xl shadow-lg dark:shadow-primary-900/30 p-8 max-w-md w-full text-center">
         <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-100 mb-2">
           {story.status === 'failed' ? t.generationFailed : t.storyDataUnavailable}
         </h1>
+        {failureMessage && (
+          <p role="alert" className="text-sm text-gray-500 dark:text-gray-400 mt-4">
+            {failureMessage}
+          </p>
+        )}
         {story.status === 'failed' && isOnline && !!user && story.userId === user.id && (
           <>
             {retryStory.isError && (

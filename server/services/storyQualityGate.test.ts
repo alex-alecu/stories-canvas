@@ -149,6 +149,74 @@ function rewriteMissingVisibleCharacter(): Scenario {
 
 const longContext = { ...context, pageCount: 20 };
 
+test('allowed source softening reaches every quality review and correction step', async () => {
+  const { enforceStoryQuality } = await import('./storyQualityGate.js');
+  const softenableBeats = [
+    'Omit graphic injuries and violent aftermath.',
+    'Present the wolf demise as a non-graphic consequence of the trap.',
+  ];
+  const retellingContext: StoryPromptContext = {
+    ...longContext,
+    targetAge: 5,
+    userPrompt: 'Retell The Goat and Her Three Kids faithfully for a five-year-old.',
+    retellingSource: {
+      title: 'The Goat and Her Three Kids',
+      author: 'Ion Creangă',
+      provider: 'wikisource',
+      sourceUrl: 'https://ro.wikisource.org/wiki/Capra_cu_trei_iezi',
+      licenseNote: 'Public-domain source.',
+      canonicalBeatSheet: {
+        requiredCharacters: ['Mother Goat', 'Little Goat', 'Wolf'],
+        requiredLocations: ['The goat home'],
+        magicalObjects: [],
+        identityConstraints: ['The wolf is the antagonist.'],
+        eventOrder: ['The youngest goat stays hidden.', 'The mother returns.', 'The trap ends the threat.'],
+        canonicalEnding: ['The mother and youngest goat survive; the wolf dies in the trap.'],
+        forbiddenSubstitutions: ['Do not add a new rescuer.'],
+        softenableBeats,
+        fidelityWarnings: ['Keep the cause and result of the trap.'],
+      },
+    },
+  };
+  const scenario = makeScenario('The little goat stays hidden until his mother comes home.');
+  scenario.targetAge = 5;
+  scenario.characters = ['Mother Goat', 'Little Goat', 'Wolf'].map(name => ({
+    ...scenario.characters[0], name, characterSheetPrompt: `Reference sheet for ${name}.`,
+  }));
+  scenario.pages = scenario.characters.map((character, index) => ({
+    ...scenario.pages[0], pageNumber: index + 1,
+    imagePrompt: `${character.name} beside the goat home.`, characters: [character.name],
+  }));
+  const invalidRewrite = structuredClone(scenario);
+  invalidRewrite.pages[0].imagePrompt = 'Mother Goat and Little Goat beside their home.';
+  const corrected = structuredClone(invalidRewrite);
+  corrected.pages[0].characters.push('Little Goat');
+  const outputs: unknown[] = [review(3, true), invalidRewrite, corrected, review(4)];
+  const requests: Array<{ prompt: Record<string, any>; system: string }> = [];
+
+  await enforceStoryQuality(retellingContext, scenario, {
+    generate: (async (prompt: string, system: string) => {
+      requests.push({ prompt: JSON.parse(prompt), system });
+      return outputs.shift();
+    }) as never,
+  });
+
+  assert.deepEqual(requests.map(request => request.prompt.task), [
+    'Final paid-story quality review',
+    'Rewrite the complete script so it passes the final quality gate',
+    'Correct the validation errors in the rewritten script',
+    'Final paid-story quality review',
+  ]);
+  for (const { prompt, system } of requests) {
+    assert.deepEqual(prompt.compactSourceRules.softenableBeats, softenableBeats);
+    assert.deepEqual(prompt.compactSourceRules.canonicalEnding,
+      ['The mother and youngest goat survive; the wolf dies in the trap.']);
+    assert.match(system, /non-graphic, age-appropriate adaptation/i);
+    assert.match(system, /text and image descriptions/i);
+    assert.match(system, /do not demand graphic source details/i);
+  }
+});
+
 test('a quality rewrite can correct a missing page character before its final review', async () => {
   const { enforceStoryQuality } = await import('./storyQualityGate.js');
   const invalid = rewriteMissingVisibleCharacter();
