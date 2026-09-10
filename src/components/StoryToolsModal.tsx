@@ -112,7 +112,7 @@ export default function StoryToolsModal({
   const modelName = TEXT_MODELS.find(model => model.id === savedModel)?.name || savedModel || walletCopy.notRecorded;
   const thinkingLevel = generationInputs?.thinkingLevel;
   const costFormatter = new Intl.NumberFormat(language, {
-    style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 6,
+    style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2,
   });
   const { user } = useAuth();
   const navigate = useNavigate();
