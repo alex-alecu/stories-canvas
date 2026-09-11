@@ -32,6 +32,8 @@ import { clientSiteConfig } from '../lib/siteConfig';
 
 const PAGE_FEEDBACK_MAX_CHARS = 800;
 const PAGE_TEXT_OVERLAY_MAX_CHARS = 320;
+// Display estimate only. Billing and stored usage keep their provider costs.
+const ELEVENLABS_ESTIMATE_USD_PER_1K_CHARACTERS = 0.10;
 
 type ToolsView = 'settings' | 'image' | 'audio';
 type OperationResult = 'success' | 'failed' | null;
@@ -175,6 +177,12 @@ export default function StoryToolsModal({
   const audioModelAvailable = isAudioModelAvailable(audioModel, speechLanguage);
   const audioVoices = getAudioVoices(audioModel, speechLanguage);
   const hasNarrationConfig = !!voice || !!generationInputs?.audioEnabled;
+  const hasElevenLabsEstimate = hasNarrationConfig && storedAudioModel === DEFAULT_AUDIO_MODEL;
+  const elevenLabsEstimateUsdMicros = hasElevenLabsEstimate
+    ? Math.round(scenario.pages.reduce((sum, page) => sum + page.text.length, 0)
+      * ELEVENLABS_ESTIMATE_USD_PER_1K_CHARACTERS * 1_000)
+    : 0;
+  const displayedAudioCostUsdMicros = (openRouterCosts?.audioCostUsdMicros ?? 0) + elevenLabsEstimateUsdMicros;
   const availableCredits = billingOverview?.balance.availableCredits ?? 0;
   const pageTextMaxChars = getPageTextMaxChars(scenario.targetAge);
   const characterSheets = assets?.characterSheets ?? [];
@@ -686,7 +694,7 @@ export default function StoryToolsModal({
                   {[
                     [walletCopy.textCost, openRouterCosts.textCostUsdMicros],
                     [walletCopy.imageCost, openRouterCosts.imageCostUsdMicros],
-                    [walletCopy.audioCost, openRouterCosts.audioCostUsdMicros ?? 0],
+                    [hasElevenLabsEstimate ? walletCopy.estimatedAudioCost : walletCopy.audioCost, displayedAudioCostUsdMicros],
                   ].map(([label, cost]) => (
                     <div key={label} className="flex items-center justify-between gap-4 text-white/65">
                       <dt>{label}</dt>
@@ -694,13 +702,26 @@ export default function StoryToolsModal({
                     </div>
                   ))}
                   <div className="flex items-center justify-between gap-4 border-t border-white/10 pt-2 font-semibold text-white">
-                    <dt>{walletCopy.totalCost}</dt>
-                    <dd>{costFormatter.format((openRouterCosts.textCostUsdMicros + openRouterCosts.imageCostUsdMicros + (openRouterCosts.audioCostUsdMicros ?? 0)) / 1_000_000)}</dd>
+                    <dt>{hasElevenLabsEstimate ? walletCopy.estimatedTotalCost : walletCopy.totalCost}</dt>
+                    <dd>{costFormatter.format((openRouterCosts.textCostUsdMicros + openRouterCosts.imageCostUsdMicros + displayedAudioCostUsdMicros) / 1_000_000)}</dd>
                   </div>
                 </dl>
-                <p className="mt-2 text-xs leading-relaxed text-white/45">{openRouterCosts.unpricedRequests > 0 ? walletCopy.incompleteCosts : walletCopy.costsIncludeUpdates}</p>
+                <p className="mt-2 text-xs leading-relaxed text-white/45">{openRouterCosts.unpricedRequests > 0
+                  ? hasElevenLabsEstimate ? walletCopy.incompleteCostsWithElevenLabsEstimate : walletCopy.incompleteCosts
+                  : walletCopy.costsIncludeUpdates}</p>
               </>
-            ) : <p className="mt-2 text-sm text-white/55">{walletCopy.costsUnavailable}</p>}
+            ) : (
+              <>
+                <p className="mt-2 text-sm text-white/55">{walletCopy.costsUnavailable}</p>
+                {hasElevenLabsEstimate && (
+                  <p className="mt-2 flex justify-between gap-4 text-sm text-white/65">
+                    <span>{walletCopy.estimatedAudioCost}</span>
+                    <span>{costFormatter.format(elevenLabsEstimateUsdMicros / 1_000_000)}</span>
+                  </p>
+                )}
+              </>
+            )}
+            {hasElevenLabsEstimate && <p className="mt-2 text-xs leading-relaxed text-white/45">{walletCopy.elevenLabsEstimateNote}</p>}
           </div>
         )}
         <div className="mt-4 flex flex-wrap items-center gap-2">
