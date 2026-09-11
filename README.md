@@ -76,7 +76,11 @@ The text prompt that accompanies these reference images re-describes each charac
 
 Before any image request is sent to a provider, the app also sanitizes the outbound prompt: branded animation-style references are originalized and exact character names are replaced with neutral aliases. This keeps the stored story content unchanged while reducing provider policy blocks.
 
-Images use the [OpenRouter Image API](https://openrouter.ai/docs/guides/overview/multimodal/image-generation). The default models are `google/gemini-3.1-flash-image-preview` and `google/gemini-3-pro-image-preview`. Requests retain character and scene references, use the 4:3 format at 1K resolution, and save PNG files. The app uses the selected image model without an automatic upgrade from Flash to Pro. Cancellation reaches active image requests and stops further retries.
+Images use the [OpenRouter Image API](https://openrouter.ai/docs/guides/overview/multimodal/image-generation). Select an image model when you create a story or change a page image. The app saves the selected model for later requests. The default is Gemini 3.1 Flash Image.
+
+The list contains Fast and Pro options from Google, OpenAI, ByteDance Seed, and Black Forest Labs. The model IDs and request limits were checked against the [OpenRouter image catalog](https://openrouter.ai/api/v1/images/models) on 2026-09-11. FLUX.2 Klein 4B provides an open-weight option.
+
+Requests use the 4:3 format and save PNG files. Google and Seedream Pro use 1K resolution. Seedream Lite uses 2K. OpenAI and FLUX use their default resolution. Character references have priority over scene references when the model limits the number of input images. Cancellation stops active requests and further retries.
 
 This layered approach — character sheets for identity, previous scene for style and environment — is what keeps the story visually consistent from the first page to the last.
 
@@ -102,7 +106,7 @@ The first admin accounts are bootstrapped from `ADMIN_BOOTSTRAP_EMAILS`.
 Copy `.env.example` to `.env` and fill in the values you need:
 
 - `OPENROUTER_API_KEY` enables text, image generation, and reviews. Keep it on the server. Direct OpenAI and Gemini keys are no longer used.
-- `IMAGE_MODEL` and `IMAGE_MODEL_PRO` are optional OpenRouter image model IDs. Existing bare `gemini-*` IDs are converted to `google/gemini-*` IDs.
+- Image models are selected in the app. `IMAGE_MODEL` and `IMAGE_MODEL_PRO` are no longer used. Saved Gemini model IDs remain supported for existing stories.
 - `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_KEY` enable auth, storage, billing, and admin APIs
 - `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` enable Checkout and webhook fulfillment
 - `APP_BASE_URL` should match the browser origin used for local or deployed checkout redirects

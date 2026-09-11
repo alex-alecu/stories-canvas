@@ -10,8 +10,6 @@ const app = createApp();
 app.listen(config.port, () => {
   console.log(`Stories Canvas server running on http://localhost:${config.port}`);
   console.log(`  OpenRouter default text model: ${config.scenarioModel}`);
-  console.log(`  Image model: ${config.imageModel}`);
-  console.log(`  Image model (pro): ${config.imageModelPro}`);
   console.log(`  Image concurrency: ${config.imageConcurrency}`);
 
   // Recover stories stuck in generating states from a previous crash/restart

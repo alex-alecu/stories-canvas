@@ -4,6 +4,8 @@ import OpenAI from 'openai';
 import pRetry from 'p-retry';
 import sharp from 'sharp';
 import { generateImage, ImagePolicyBlockedError, type ImageUsageEvent } from './openrouterImages.js';
+import { parseImageModel } from '../../shared/imageModels.js';
+import { withImageModel } from './imageGenerationContext.js';
 import { recordStoryUsage } from './storyUsage.js';
 
 const png = (await sharp({ create: { width: 4, height: 3, channels: 3, background: '#9333ea' } }).png().toBuffer()).toString('base64');
@@ -23,16 +25,16 @@ function fixture(payload: unknown = paidResponse, status = 200, lookupCost: numb
   return { client, requests };
 }
 
-test('image requests preserve references and dimensions; actual cost is an image debit', async () => {
+test('image requests use the selected model fields; actual cost is an image debit', async () => {
   const api = fixture();
   let usage: ImageUsageEvent | undefined;
-  const result = await generateImage('A fox in a forest', [{ data: png, mimeType: 'image/png' }], {
+  const result = await withImageModel(parseImageModel('bytedance-seed/seedream-5-0-lite'), () => generateImage('A fox in a forest', [{ data: png, mimeType: 'image/png' }], {
     client: api.client, onUsage: event => { usage = event; },
-  });
+  }));
   assert.equal((await sharp(Buffer.from(result, 'base64')).metadata()).format, 'png');
   assert.equal(api.requests[0].path, 'https://openrouter.test/api/v1/images');
   assert.deepEqual(api.requests[0].body, {
-    model: 'google/gemini-3.1-flash-image-preview', prompt: 'A fox in a forest', n: 1, aspect_ratio: '4:3', resolution: '1K', output_format: 'png',
+    model: 'bytedance-seed/seedream-5-0-lite', prompt: 'A fox in a forest', n: 1, aspect_ratio: '4:3', resolution: '2K', output_format: 'png',
     input_references: [{ type: 'image_url', image_url: { url: `data:image/png;base64,${png}` } }], provider: { sort: 'price' },
   });
   assert.equal(usage?.usageDetails.responseId, 'gen-image-1');
@@ -48,13 +50,31 @@ test('image requests preserve references and dimensions; actual cost is an image
   assert.equal(totals[0].textCostUsdMicros, 0);
 });
 
-test('Pro uses its OpenRouter model; a missing inline cost uses the generation ID', async () => {
+test('OpenAI image requests omit resolution; a missing inline cost uses the generation ID', async () => {
   const api = fixture({ data: paidResponse.data });
   let cost: unknown;
-  await generateImage('A castle', [], { pro: true, client: api.client, onUsage: event => { cost = event.usageDetails.providerCostUsd; } });
-  assert.equal(api.requests[0].body.model, 'google/gemini-3-pro-image-preview');
+  await withImageModel(parseImageModel('openai/gpt-image-2.5-sunburst'), () => generateImage('A castle', [], {
+    client: api.client, onUsage: event => { cost = event.usageDetails.providerCostUsd; },
+  }));
+  assert.deepEqual(api.requests[0].body, {
+    model: 'openai/gpt-image-2.5-sunburst', prompt: 'A castle', n: 1, aspect_ratio: '4:3', output_format: 'png',
+    input_references: [], provider: { sort: 'price' },
+  });
   assert.match(api.requests[1].path, /generation\?id=gen-image-1/);
   assert.equal(cost, 0.025);
+});
+
+test('image requests reject references above the selected model limit', async () => {
+  const api = fixture();
+  await assert.rejects(
+    withImageModel(parseImageModel('black-forest-labs/flux.2-klein-4b'), () => generateImage(
+      'Four heroes and their previous scene',
+      Array.from({ length: 5 }, () => ({ data: png, mimeType: 'image/png' })),
+      { client: api.client },
+    )),
+    /supports at most 4 reference images/,
+  );
+  assert.equal(api.requests.length, 0);
 });
 
 test('missing costs and accounting failures stop without repeating a paid request', async () => {

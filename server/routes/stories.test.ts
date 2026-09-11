@@ -297,6 +297,8 @@ test('POST /api/stories persists generation inputs and usage totals for filesyst
     await fs.rm(dataDir, { recursive: true, force: true });
   });
 
+  const { getImageModel } = await import('../services/imageGenerationContext.js');
+  let generatedImageModel = '';
   const scenario = makeScenario([
     makePage({
       status: 'pending',
@@ -399,6 +401,7 @@ test('POST /api/stories persists generation inputs and usage totals for filesyst
       usageDetails: Record<string, unknown>;
     }) => void | Promise<void>,
   ) => {
+    generatedImageModel = getImageModel().id;
     await onUsage?.({}, {
       model: 'gemini-3.1-flash-image-preview',
       status: 'succeeded',
@@ -484,6 +487,7 @@ test('POST /api/stories persists generation inputs and usage totals for filesyst
       age: 5,
       style: 'watercolor',
       language: 'ro',
+      imageModel: 'bytedance-seed/seedream-5-0-pro',
     }),
   });
 
@@ -502,6 +506,9 @@ test('POST /api/stories persists generation inputs and usage totals for filesyst
   assert.equal(savedStory.generationInputs?.voice, 'corina');
   assert.equal(savedStory.generationInputs?.audioEnabled, true);
   assert.equal(savedStory.generationInputs?.proModel, true);
+  assert.equal(savedStory.generationInputs?.imageModel, 'bytedance-seed/seedream-5-0-pro');
+  assert.equal(savedStory.generationInputs?.imageModelPro, undefined);
+  assert.equal(generatedImageModel, 'bytedance-seed/seedream-5-0-pro');
   assert.equal(savedStory.generationInputs?.retellingMode, 'faithful_retelling');
   assert.equal(savedStory.generationInputs?.sourceTitle, 'Greuceanu');
   assert.equal(savedStory.generationInputs?.sourceProvider, 'wikisource');
@@ -533,6 +540,24 @@ test('POST /api/stories persists generation inputs and usage totals for filesyst
   assert.ok(usageEvents.every(event => event.source === 'initial_generation'));
   assert.ok(usageEvents.every(event => event.status === 'succeeded'));
   assert.ok(usageEvents.every(event => event.pricingStatus === 'incomplete'));
+});
+
+test('POST /api/stories rejects an image model outside the model list', async (t) => {
+  const dataDir = mkdtempSync(path.join(os.tmpdir(), 'stories-invalid-image-model-'));
+  const harness = await createStoriesHarness(dataDir);
+  t.after(async () => {
+    await harness.close();
+    await fs.rm(dataDir, { recursive: true, force: true });
+  });
+
+  const response = await fetch(`${harness.baseUrl}/api/stories`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ prompt: 'Tell a story about a rabbit.', imageModel: 'unknown/image-model' }),
+  });
+
+  assert.equal(response.status, 400);
+  assert.deepEqual(await response.json(), { error: 'Select an image model from the model list.' });
 });
 
 test('an accounting write failure reports a failed story and sends a failure alert', async (t) => {
@@ -1057,22 +1082,30 @@ test('page edits use saved text models from current and older story snapshots', 
 test('POST /api/stories/:id/pages/:pageNumber/regenerate-image reviews feedback and increments image revision', async (t) => {
   const dataDir = mkdtempSync(path.join(os.tmpdir(), 'stories-page-image-regenerate-'));
   const harness = await createStoriesHarness(dataDir);
+  const storyId = '00000000-0000-4000-8000-000000000099';
+  const { getImageModel } = await import('../services/imageGenerationContext.js');
   t.after(async () => {
     await harness.close();
     await fs.rm(dataDir, { recursive: true, force: true });
   });
 
   await writeStoryMeta(dataDir, {
-    id: 'story-page-image',
+    id: storyId,
     prompt: 'A story with one page.',
     status: 'completed',
     createdAt: '2026-03-29T00:00:00.000Z',
     storyMode: 'fast',
+    generationInputs: {
+      prompt: 'A story with one page.', language: 'en', age: 3, artStyle: 'watercolor', storyMode: 'fast',
+      audioEnabled: false, proModel: false, scenarioModel: 'google/gemini-3.8-flash',
+      imageModel: 'google/gemini-3.1-flash-image', pricingVersion: '2026-04-15',
+    },
     scenario: makeScenario([makePage({ imageRevision: 0 })]),
   });
 
   let reviewedText = '';
   let generatedPrompt = '';
+  let generatedImageModel = '';
   t.mock.method(harness.storiesModule.pageTextReviewOps, 'reviewPageText', async (input: { text: string }) => {
     reviewedText = input.text;
     return { allowed: true };
@@ -1091,6 +1124,7 @@ test('POST /api/stories/:id/pages/:pageNumber/regenerate-image reviews feedback 
     _onCharacterSheetUsage?: unknown,
     options?: { includeCurrentSceneReference?: boolean },
   ) => {
+    generatedImageModel = getImageModel().id;
     generatedPrompt = pages[0].imagePrompt;
     assert.deepEqual(pageNumbers, [1]);
     assert.equal(pro, true);
@@ -1099,10 +1133,10 @@ test('POST /api/stories/:id/pages/:pageNumber/regenerate-image reviews feedback 
     return 1;
   });
 
-  const response = await fetch(`${harness.baseUrl}/api/stories/story-page-image/pages/1/regenerate-image`, {
+  const response = await fetch(`${harness.baseUrl}/api/stories/${storyId}/pages/1/regenerate-image/`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ feedback: 'Make the moon brighter.', mode: 'pro' }),
+    body: JSON.stringify({ feedback: 'Make the moon brighter.', imageModel: 'black-forest-labs/flux.2-pro' }),
   });
 
   assert.equal(response.status, 200);
@@ -1112,12 +1146,84 @@ test('POST /api/stories/:id/pages/:pageNumber/regenerate-image reviews feedback 
   assert.equal(body.chargedCredits, 0);
 
   const updated = await waitFor(
-    () => readStoryMeta(dataDir, 'story-page-image'),
+    () => readStoryMeta(dataDir, storyId),
     story => story.scenario?.pages[0]?.imageRevision === 1,
   );
   assert.equal(reviewedText, 'Make the moon brighter.');
   assert.match(generatedPrompt, /User feedback for this regeneration: Make the moon brighter\./);
+  assert.equal(generatedImageModel, 'black-forest-labs/flux.2-pro');
+  assert.equal(updated.generationInputs?.imageModel, 'black-forest-labs/flux.2-pro');
+  assert.equal(updated.generationInputs?.proModel, true);
   assert.equal(updated.scenario?.pages[0].status, 'completed');
+});
+
+test('failed page image regeneration preserves the selected model for retry', async (t) => {
+  const dataDir = mkdtempSync(path.join(os.tmpdir(), 'stories-page-image-model-retry-'));
+  const harness = await createStoriesHarness(dataDir);
+  const storyId = '00000000-0000-4000-8000-000000000100';
+  const { getImageModel } = await import('../services/imageGenerationContext.js');
+  t.after(async () => {
+    await harness.close();
+    await fs.rm(dataDir, { recursive: true, force: true });
+  });
+
+  await writeStoryMeta(dataDir, {
+    id: storyId,
+    prompt: 'A story with one page.',
+    status: 'completed',
+    createdAt: '2026-03-29T00:00:00.000Z',
+    storyMode: 'fast',
+    generationInputs: {
+      prompt: 'A story with one page.', language: 'en', age: 3, artStyle: 'watercolor', storyMode: 'fast',
+      audioEnabled: false, proModel: false, scenarioModel: 'google/gemini-3.8-flash',
+      imageModel: 'google/gemini-3.1-flash-image', pricingVersion: '2026-04-15',
+    },
+    scenario: makeScenario([makePage({ imageRevision: 0 })]),
+  });
+
+  let attempts = 0;
+  let retryModel = '';
+  t.mock.method(harness.storiesModule.pageTextReviewOps, 'reviewPageText', async () => ({ allowed: true }));
+  t.mock.method(harness.storiesModule.illustrationOps, 'retryFailedSceneImages', async (
+    _storyId: string,
+    _pages: Page[],
+    _characters: unknown,
+    _pageNumbers: number[],
+    _style: unknown,
+    onProgress?: (progress: { pageNumber?: number; pageStatus?: string; message?: string }) => void,
+  ) => {
+    const model = getImageModel().id;
+    if (attempts++ === 0) {
+      onProgress?.({ pageNumber: 1, pageStatus: 'failed', message: 'provider failed' });
+      return 0;
+    }
+    retryModel = model;
+    return 0;
+  });
+
+  const response = await fetch(`${harness.baseUrl}/api/stories/${storyId}/pages/1/regenerate-image`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ feedback: 'Make the moon brighter.', imageModel: 'black-forest-labs/flux.2-pro' }),
+  });
+
+  assert.equal(response.status, 200);
+  const failed = await waitFor(
+    () => readStoryMeta(dataDir, storyId),
+    story => story.generationInputs?.imageModel === 'black-forest-labs/flux.2-pro',
+  );
+  assert.equal(failed.generationInputs?.proModel, true);
+
+  const retryResponse = await fetch(`${harness.baseUrl}/api/stories/${storyId}/pages/1/regenerate-image`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ feedback: 'Try the same change again.' }),
+  });
+  assert.equal(retryResponse.status, 200);
+  assert.equal(
+    await waitFor(async () => retryModel, model => model === 'black-forest-labs/flux.2-pro'),
+    'black-forest-labs/flux.2-pro',
+  );
 });
 
 test('PATCH /api/stories/:id/pages/:pageNumber/script-audio reviews text and updates the same-voice narration', async (t) => {

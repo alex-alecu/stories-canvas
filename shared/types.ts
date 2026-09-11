@@ -205,7 +205,7 @@ export interface StoryGenerationInputs {
   proModel: boolean;
   scenarioModel: string;
   imageModel: string;
-  imageModelPro: string;
+  imageModelPro?: string;
   audioModel?: string;
   pricingVersion: string;
   pageCount?: number;
@@ -367,6 +367,7 @@ export interface GenerationProgress {
 export interface CreateStoryRequest {
   textModel?: string;
   thinkingLevel?: ThinkingLevel;
+  imageModel?: string;
   audioEnabled?: boolean;
   prompt: string;
   language?: string;

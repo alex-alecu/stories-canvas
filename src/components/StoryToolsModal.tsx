@@ -1,5 +1,7 @@
 import { getWalletCopy } from '../i18n/walletCopy';
 import { TEXT_MODELS } from '../../shared/textModels';
+import { DEFAULT_IMAGE_MODEL, DEFAULT_IMAGE_MODEL_PRO, IMAGE_MODELS, getSelectableImageModelId, getStoredImageModel } from '../../shared/imageModels';
+import ImageModelPicker from './ImageModelPicker';
 import { useState, useEffect, useCallback, useMemo, useRef, type FormEvent } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import type { GenerationProgress, Page, Scenario, StoryMode, StoryReaction, StoryStatus, StoryOpenRouterCosts, StoryGenerationInputs } from '../types';
@@ -30,7 +32,6 @@ const PAGE_TEXT_OVERLAY_MAX_CHARS = 320;
 
 type ToolsView = 'settings' | 'image' | 'audio';
 type OperationResult = 'success' | 'failed' | null;
-type PageImageMode = Extract<StoryMode, 'fast' | 'pro'>;
 
 interface StoryToolsModalProps {
   isOpen: boolean;
@@ -82,10 +83,6 @@ function formatTemplate(template: string, values: Record<string, number | string
   return template.replace(/\{(\w+)\}/g, (_, key: string) => String(values[key] ?? `{${key}}`));
 }
 
-function getDefaultPageImageMode(storyMode?: StoryMode): PageImageMode {
-  return storyMode === 'pro' || storyMode === 'pro_audio' ? 'pro' : 'fast';
-}
-
 export default function StoryToolsModal({
   isOpen,
   onClose,
@@ -110,6 +107,12 @@ export default function StoryToolsModal({
   const walletCopy = getWalletCopy(language);
   const savedModel = generationInputs?.textModel || generationInputs?.scenarioModel;
   const modelName = TEXT_MODELS.find(model => model.id === savedModel)?.name || savedModel || walletCopy.notRecorded;
+  const savedImageModel = getStoredImageModel(
+    generationInputs,
+    generationInputs?.proModel === undefined ? storyMode !== 'fast' : undefined,
+  );
+  const imageModelName = IMAGE_MODELS.find(model => model.id === savedImageModel.id)?.name || savedImageModel.name;
+  const imageCopy = language === 'ro' ? { label: 'Model imagine' } : { label: 'Image model' };
   const thinkingLevel = generationInputs?.thinkingLevel;
   const costFormatter = new Intl.NumberFormat(language, {
     style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2,
@@ -134,7 +137,9 @@ export default function StoryToolsModal({
   const [dislikeFeedback, setDislikeFeedback] = useState('');
   const [dislikeFeedbackError, setDislikeFeedbackError] = useState<string | null>(null);
   const [selectedVoice, setSelectedVoice] = useState<VoiceKey>(DEFAULT_VOICE_KEY);
-  const [imageMode, setImageMode] = useState<PageImageMode>(() => getDefaultPageImageMode(storyMode));
+  const [imageModel, setImageModel] = useState(() => generationInputs
+    ? getSelectableImageModelId(savedImageModel.id)
+    : storyMode === 'fast' ? DEFAULT_IMAGE_MODEL : DEFAULT_IMAGE_MODEL_PRO);
   const [imageFeedback, setImageFeedback] = useState('');
   const [pageText, setPageText] = useState(currentPage?.text ?? '');
   const [operationStarting, setOperationStarting] = useState(false);
@@ -205,8 +210,13 @@ export default function StoryToolsModal({
   }, [currentPage?.pageNumber, currentPage?.text]);
 
   useEffect(() => {
-    setImageMode(getDefaultPageImageMode(storyMode));
-  }, [storyId, storyMode]);
+    setImageModel(generationInputs
+      ? getSelectableImageModelId(getStoredImageModel(
+        generationInputs,
+        generationInputs.proModel === undefined ? storyMode !== 'fast' : undefined,
+      ).id)
+      : storyMode === 'fast' ? DEFAULT_IMAGE_MODEL : DEFAULT_IMAGE_MODEL_PRO);
+  }, [generationInputs, storyId, storyMode]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -448,7 +458,7 @@ export default function StoryToolsModal({
         id: storyId,
         pageNumber: currentPage.pageNumber,
         feedback: imageFeedbackTrimmed,
-        mode: imageMode,
+        imageModel,
       });
     } catch (error) {
       setImageTriggered(false);
@@ -462,7 +472,7 @@ export default function StoryToolsModal({
     currentPage,
     goToBilling,
     imageFeedbackTrimmed,
-    imageMode,
+    imageModel,
     needsFunds,
     regenerateImage,
     startOperationGracePeriod,
@@ -548,31 +558,6 @@ export default function StoryToolsModal({
     );
   };
 
-  const renderImageModeToggle = (disabled = false) => (
-    <div
-      className="inline-flex h-8 overflow-hidden rounded-lg border border-white/10 bg-black/25 p-0.5"
-      role="group"
-      aria-label={t.imageQualityMode}
-    >
-      {(['fast', 'pro'] as const).map(mode => (
-        <button
-          key={mode}
-          type="button"
-          onClick={() => setImageMode(mode)}
-          disabled={disabled}
-          className={`min-w-14 rounded-md px-2.5 text-xs font-semibold transition-colors ${
-            imageMode === mode
-              ? 'bg-primary-500 text-white'
-              : 'text-white/60 hover:bg-white/10 hover:text-white'
-          } disabled:cursor-not-allowed disabled:opacity-50`}
-          aria-pressed={imageMode === mode}
-        >
-          {mode === 'fast' ? 'Gemini Flash Image' : 'Gemini Pro Image'}
-        </button>
-      ))}
-    </div>
-  );
-
   const renderActionRow = ({
     title,
     description,
@@ -615,6 +600,10 @@ export default function StoryToolsModal({
           <div className="flex items-start justify-between gap-4 text-white/65">
             <dt>{walletCopy.thinking}</dt>
             <dd className="text-right text-white">{thinkingLevel ? walletCopy[thinkingLevel] : walletCopy.notRecorded}</dd>
+          </div>
+          <div className="flex items-start justify-between gap-4 text-white/65">
+            <dt>{imageCopy.label}</dt>
+            <dd className="min-w-0 break-words text-right text-white">{imageModelName}</dd>
           </div>
         </dl>
         {canManageStory && openRouterCosts !== undefined && (
@@ -914,7 +903,9 @@ export default function StoryToolsModal({
       </div>
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-white/[0.04] px-3 py-2 text-sm text-white/60">
         <span>{t.costLabel}: <span className="font-semibold text-white">{getWalletCopy(language).actualCost}</span></span>
-        {renderImageModeToggle(isBusy)}
+        <div className="min-w-[240px] flex-1">
+          <ImageModelPicker value={imageModel} onChange={setImageModel} disabled={isBusy} language={language} dark />
+        </div>
       </div>
       {imageError && <p className="rounded-lg bg-red-500/15 px-3 py-2 text-sm text-red-300">{imageError}</p>}
       {isRegeneratingImage && renderProgress(t.regeneratingPageImage)}

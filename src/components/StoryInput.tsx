@@ -1,4 +1,6 @@
 import TextModelPicker from './TextModelPicker';
+import ImageModelPicker from './ImageModelPicker';
+import { DEFAULT_IMAGE_MODEL } from '../../shared/imageModels';
 import { MINIMUM_STORY_BALANCE_USD, parseTextModelSettings, type TextModelSettings } from '../../shared/textModels';
 import { getWalletCopy } from '../i18n/walletCopy';
 import { useState, useEffect, type FormEvent } from 'react';
@@ -34,7 +36,7 @@ const styleTranslationMap: Record<SelectableArtStyleKey, keyof ReturnType<typeof
 };
 
 interface StoryInputProps {
-  onSubmit: (prompt: string, age: number, style: ArtStyleKey, settings: TextModelSettings, audioEnabled: boolean, voice?: VoiceKey) => void;
+  onSubmit: (prompt: string, age: number, style: ArtStyleKey, settings: TextModelSettings, imageModel: string, audioEnabled: boolean, voice?: VoiceKey) => void;
   isLoading: boolean;
   isOffline?: boolean;
 }
@@ -44,6 +46,7 @@ export default function StoryInput({ onSubmit, isLoading, isOffline = false }: S
   const [age, setAge] = useState<number>(DEFAULT_AGE);
   const [style, setStyle] = useState<ArtStyleKey>(DEFAULT_ART_STYLE);
   const [settings, setSettings] = useState(() => parseTextModelSettings(undefined, undefined));
+  const [imageModel, setImageModel] = useState(DEFAULT_IMAGE_MODEL);
   const [audioEnabled, setAudioEnabled] = useState(false);
   const [voice, setVoice] = useState<VoiceKey | ''>(DEFAULT_VOICE_KEY);
   const maxLength = 500;
@@ -85,7 +88,7 @@ export default function StoryInput({ onSubmit, isLoading, isOffline = false }: S
 
     const trimmed = prompt.trim();
     if (trimmed && !isLoading) {
-      onSubmit(trimmed, age, style, settings, audioEnabled, audioEnabled ? voice || undefined : undefined);
+      onSubmit(trimmed, age, style, settings, imageModel, audioEnabled, audioEnabled ? voice || undefined : undefined);
     }
   };
 
@@ -251,7 +254,8 @@ export default function StoryInput({ onSubmit, isLoading, isOffline = false }: S
                 )}
               </div>
 
-              <TextModelPicker value={settings} onChange={setSettings} disabled={isLoading} />
+              <TextModelPicker value={settings} onChange={next => setSettings(current => ({ ...current, ...next }))} disabled={isLoading} />
+              <ImageModelPicker value={imageModel} onChange={setImageModel} disabled={isLoading} language={language} />
               <label className="flex cursor-pointer items-center gap-3 py-1 text-sm font-medium text-gray-700 dark:text-gray-200">
                 <input type="checkbox" checked={audioEnabled} onChange={event => setAudioEnabled(event.target.checked)} disabled={isLoading} className="h-4 w-4 accent-primary-600" />
                 {copy.narration}

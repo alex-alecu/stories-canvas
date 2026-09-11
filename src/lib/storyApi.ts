@@ -88,6 +88,7 @@ export async function createStory(params: {
   storyMode?: StoryMode;
   textModel?: string;
   thinkingLevel?: TextModelSettings['thinkingLevel'];
+  imageModel?: string;
   audioEnabled?: boolean;
   voice?: string;
 }): Promise<CreateStoryResponse> {
@@ -103,6 +104,7 @@ export async function createStory(params: {
       storyMode: params.storyMode,
       textModel: params.textModel,
       thinkingLevel: params.thinkingLevel,
+      imageModel: params.imageModel,
       audioEnabled: params.audioEnabled,
       voice: params.voice,
     }),
@@ -193,18 +195,18 @@ export async function regeneratePageImage({
   id,
   pageNumber,
   feedback,
-  mode,
+  imageModel,
 }: {
   id: string;
   pageNumber: number;
   feedback: string;
-  mode: 'fast' | 'pro';
+  imageModel: string;
 }): Promise<RegeneratePageImageResponse> {
   const authHeaders = await getAuthHeaders();
   const res = await fetch(`/api/stories/${id}/pages/${pageNumber}/regenerate-image`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...authHeaders },
-    body: JSON.stringify({ feedback, mode }),
+    body: JSON.stringify({ feedback, imageModel }),
   });
   if (!res.ok) {
     throw await readError(res, 'Failed to regenerate page image');

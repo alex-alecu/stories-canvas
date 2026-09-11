@@ -6,11 +6,6 @@ function optionalEnv(key: string): string | undefined {
   return process.env[key] || undefined;
 }
 
-export function resolveImageModelId(value: string | undefined, fallback: string): string {
-  const model = value?.trim() || fallback;
-  return model.startsWith('gemini-') ? `google/${model}` : model;
-}
-
 function listEnv(key: string): string[] {
   const value = process.env[key];
   if (!value) return [];
@@ -148,8 +143,6 @@ const defaultTextModel = DEFAULT_TEXT_MODEL;
 export const config = {
   openrouterApiKey: optionalEnv('OPENROUTER_API_KEY'),
   scenarioModel: defaultTextModel,
-  imageModel: resolveImageModelId(process.env.IMAGE_MODEL, 'google/gemini-3.1-flash-image-preview'),
-  imageModelPro: resolveImageModelId(process.env.IMAGE_MODEL_PRO, 'google/gemini-3-pro-image-preview'),
   imageConcurrency: integerEnv('IMAGE_CONCURRENCY', 3),
   port: parseInt(process.env.PORT || process.env.SERVER_PORT || '3001', 10),
   dataDir: process.env.DATA_DIR || path.join(process.cwd(), 'data', 'stories'),

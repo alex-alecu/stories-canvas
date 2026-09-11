@@ -149,7 +149,7 @@ export function buildStoryGenerationInputs(params: {
   proModel: boolean;
   scenarioModel: string;
   imageModel: string;
-  imageModelPro: string;
+  imageModelPro?: string;
   audioModel?: string;
   pageCount?: number;
 }): StoryGenerationInputs {

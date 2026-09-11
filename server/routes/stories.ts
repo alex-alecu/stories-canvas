@@ -1,6 +1,13 @@
 import { AbortError } from 'p-retry';
 import { MINIMUM_STORY_BALANCE_USD, parseTextModelSettings, DEFAULT_TEXT_MODEL } from '../../shared/textModels.js';
 import { getTextModelSettings, withTextModelSettings } from '../services/textGenerationContext.js';
+import {
+  DEFAULT_IMAGE_MODEL,
+  DEFAULT_IMAGE_MODEL_PRO,
+  getStoredImageModel,
+  parseImageModel,
+} from '../../shared/imageModels.js';
+import { getImageModel, withImageModel } from '../services/imageGenerationContext.js';
 import { Router, type Request, type Response } from 'express';
 import crypto from 'crypto';
 import { config } from '../config.js';
@@ -714,6 +721,30 @@ async function persistScenarioAfterPageMutation(storyId: string, story: StoryMet
   }
 }
 
+function storyWithSelectedImageModel(story: StoryMeta): StoryMeta {
+  const imageModel = getImageModel();
+  const proModel = imageModel.tier === 'pro';
+  const generationInputs = story.generationInputs
+    ? {
+      ...story.generationInputs,
+      imageModel: imageModel.id,
+      imageModelPro: undefined,
+      proModel,
+    }
+    : buildGenerationInputsSnapshot(
+      story.prompt,
+      story.language ?? config.defaultLanguage,
+      story.scenario?.targetAge ?? DEFAULT_AGE,
+      story.artStyle ?? DEFAULT_ART_STYLE,
+      getSafeStoryMode(story),
+      story.voice,
+      proModel,
+      story.scenario?.pages.length,
+    );
+
+  return { ...story, generationInputs };
+}
+
 async function refundRegenerationCharge(userId: string | undefined, storyId: string, amount: number, note: string): Promise<void> {
   if (!config.useSupabase || !userId || amount <= 0) return;
 
@@ -730,12 +761,6 @@ async function refundRegenerationCharge(userId: string | undefined, storyId: str
 
 function getSafeStoryMode(story: Pick<StoryMeta, 'storyMode'>): StoryMode {
   return story.storyMode ?? 'fast';
-}
-
-function getRequestedPageImageMode(value: unknown, story: Pick<StoryMeta, 'storyMode'>): StoryMode {
-  if (value === 'fast') return 'fast';
-  if (value === 'pro') return 'pro';
-  return getSafeStoryMode(story) === 'fast' ? 'fast' : 'pro';
 }
 
 function getPageTextValidationError(text: string, targetAge: number): string | null {
@@ -783,8 +808,7 @@ function buildGenerationInputsSnapshot(
     voice,
     proModel,
     scenarioModel: getTextModelSettings().textModel,
-    imageModel: config.imageModel,
-    imageModelPro: config.imageModelPro,
+    imageModel: getImageModel(proModel).id,
     audioModel: config.elevenLabsModel,
     pageCount,
   }), ...getTextModelSettings(), billingCurrency: 'USD' };
@@ -1025,7 +1049,11 @@ router.use(async (req, res, next) => {
   try {
     if (req.path === '/') {
       const settings = parseTextModelSettings(req.body?.textModel, req.body?.thinkingLevel);
-      return withTextModelSettings(settings, next);
+      const requestedPro = req.body?.audioEnabled !== undefined
+        ? false
+        : storyModeUsesProModel(resolveRequestedStoryMode(req.body as CreateStoryRequest));
+      const imageModel = parseImageModel(req.body?.imageModel ?? (requestedPro ? DEFAULT_IMAGE_MODEL_PRO : DEFAULT_IMAGE_MODEL));
+      return withTextModelSettings(settings, () => withImageModel(imageModel, next));
     }
     if (!/\/(regenerate-assets|retry|generate-audio|regenerate-image|script-audio)\/?$/i.test(req.path)) return next();
     const id = req.path.split('/')[1];
@@ -1035,7 +1063,11 @@ router.use(async (req, res, next) => {
     const legacyModel = inputs?.scenarioModel === 'gpt-5.6-sol' ? 'openai/gpt-5.6-sol'
       : inputs?.scenarioModel === 'gemini-3.1-pro-preview' ? 'google/gemini-3.1-pro-preview' : inputs?.scenarioModel;
     const settings = parseTextModelSettings(inputs?.textModel ?? legacyModel ?? DEFAULT_TEXT_MODEL, inputs?.thinkingLevel, true);
-    return withTextModelSettings(settings, next);
+    const requestedPro = req.body?.mode === 'pro' ? true : req.body?.mode === 'fast' ? false : undefined;
+    const imageModel = /\/regenerate-image\/?$/i.test(req.path) && req.body?.imageModel !== undefined
+      ? parseImageModel(req.body.imageModel)
+      : getStoredImageModel(inputs, requestedPro);
+    return withTextModelSettings(settings, () => withImageModel(imageModel, next));
   } catch (error) {
     res.status(400).json({ error: error instanceof Error ? error.message : 'Invalid model settings.' });
   }
@@ -1148,7 +1180,7 @@ router.post('/', optionalAuth, async (req: Request, res: Response) => {
     const storyVoice = storyMode === 'pro_audio'
       ? normalizeVoiceKey(typeof voice === 'string' ? voice : undefined)
       : undefined;
-    const useProModel = request.audioEnabled !== undefined ? false : storyModeUsesProModel(storyMode);
+    const useProModel = getImageModel().tier === 'pro';
     const storyId = crypto.randomUUID();
     const userId = req.authUser?.id;
     const generationInputs = buildGenerationInputsSnapshot(
@@ -2685,7 +2717,7 @@ router.post('/:id/pages/:pageNumber/regenerate-image', optionalAuth, async (req:
       res.status(400).json({ error: 'Feedback must be 800 characters or less' });
       return;
     }
-    const imageMode = getRequestedPageImageMode(req.body?.mode, story);
+    const imageMode = getImageModel().tier === 'pro' ? 'pro' : 'fast';
 
     generationSlotClaimed = await claimUserGenerationSlot(req.authUser?.id, storyId, 'story_regenerate_image', res, req.authUser?.email);
     if (!generationSlotClaimed) {
@@ -2756,6 +2788,18 @@ router.post('/:id/pages/:pageNumber/regenerate-image', optionalAuth, async (req:
       }
     }
 
+    const storyForGeneration = storyWithSelectedImageModel(story);
+    await updateStoryScenario(storyId, story.scenario, 'completed', story.prompt, {
+      voice: story.voice,
+      artStyle: story.artStyle,
+      language: story.language,
+      scenarioRevision: getScenarioRevision(story),
+      renderedScenarioRevision: getRenderedScenarioRevision(story),
+      storyMode: story.storyMode,
+      creditCost: story.creditCost,
+      generationInputs: storyForGeneration.generationInputs,
+    });
+
     const controller = startTrackedGeneration(storyId);
     res.json({
       status: 'generating_images',
@@ -2764,7 +2808,7 @@ router.post('/:id/pages/:pageNumber/regenerate-image', optionalAuth, async (req:
       availableCredits,
     } as RegeneratePageImageResponse);
 
-    runRegeneratePageImagePipeline(storyId, story, pageNumber, feedback, imageMode, chargedCredits, req.authUser?.id, controller)
+    runRegeneratePageImagePipeline(storyId, storyForGeneration, pageNumber, feedback, imageMode, chargedCredits, req.authUser?.id, controller)
       .catch(error => {
         console.error(`Page image regeneration pipeline failed for ${storyId} page ${pageNumber}:`, error);
       });
