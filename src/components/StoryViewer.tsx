@@ -118,7 +118,7 @@ export default function StoryViewer({
   canUseOnlineActions = true,
   publicPreviewGate,
 }: StoryViewerProps) {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const { fontSize } = useFontSize();
   const { user } = useAuth();
   const loginMarker = user?.last_sign_in_at ? `${user.id}:${user.last_sign_in_at}` : null;
@@ -151,9 +151,9 @@ export default function StoryViewer({
 
   const issueMessage = useMemo(() => {
     if (!hasErrors) return null;
-    if (!isGenerating && storyMessage) return formatStoryStatusMessage(storyMessage, t);
+    if (!isGenerating && storyMessage) return formatStoryStatusMessage(storyMessage, t, language);
     return null;
-  }, [hasErrors, isGenerating, storyMessage, t]);
+  }, [hasErrors, isGenerating, storyMessage, t, language]);
 
   useEffect(() => {
     if (previousStoryIdRef.current !== storyId) {

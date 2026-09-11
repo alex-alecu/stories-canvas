@@ -57,7 +57,7 @@ function review(score: number, major = false) {
   };
 }
 
-test('enforceStoryQuality performs one controlled rewrite and requires a passing final review', async () => {
+test('enforceStoryQuality returns one validated correction without another review', async () => {
   const { enforceStoryQuality } = await import('./storyQualityGate.js');
   const rewritten = makeScenario('Mara raises the lantern. Its warm light shows the safe path.');
   const outputs: unknown[] = [review(3, true), rewritten, review(4)];
@@ -70,8 +70,8 @@ test('enforceStoryQuality performs one controlled rewrite and requires a passing
   });
 
   assert.equal(result.pages[0].text, rewritten.pages[0].text);
-  assert.deepEqual(efforts, ['medium', 'high', 'medium']);
-  assert.equal(outputs.length, 0);
+  assert.deepEqual(efforts, ['medium', 'high']);
+  assert.equal(outputs.length, 1);
 });
 
 test('an incomplete review cannot start a paid rewrite with lost findings', async () => {
@@ -87,47 +87,69 @@ test('an incomplete review cannot start a paid rewrite with lost findings', asyn
   assert.equal(calls, 1);
 });
 
-test('a later review finding can be corrected using the latest script and review', async () => {
+test('one correction receives all review findings and the original script', async () => {
   const { enforceStoryQuality } = await import('./storyQualityGate.js');
-  const firstEdit = makeScenario('Mara raises the lantern. Its light shows the safe path.');
-  const lastEdit = makeScenario('Mara holds the lantern above the path. Its light shows where to step.');
-  const laterReview = {
-    ...review(4),
-    summary: 'The image description needs one correction.',
-    scores: { ...review(4).scores, pageVisualAlignment: 3 },
-    issues: [{ code: 'image_prompt_alignment', severity: 'major',
-      summary: 'The lantern is below the path that it must illuminate.', pageNumbers: [1] }],
+  const original = makeScenario('Mara path light then go.');
+  const corrected = makeScenario('Mara holds the lantern above the path. Its light shows where to step.');
+  const findings = {
+    ...review(3, true),
+    issues: [...review(3, true).issues,
+      { code: 'image_prompt_alignment', severity: 'major',
+        summary: 'The lantern is below the path that it must illuminate.', pageNumbers: [1] },
+      { code: 'pacing', severity: 'minor', summary: 'Shorten the repeated setup.', pageNumbers: [2] }],
   };
-  const outputs: unknown[] = [review(3, true), firstEdit, laterReview, lastEdit, review(4)];
+  const outputs: unknown[] = [findings, corrected];
   const prompts: Record<string, any>[] = [];
-  const result = await enforceStoryQuality(context, makeScenario('Mara path light then go.'), {
+  const result = await enforceStoryQuality(context, original, {
     generate: (async (prompt: string) => {
+      assert.ok(outputs.length > 0, 'No further review or rewrite may start.');
       prompts.push(JSON.parse(prompt));
       return outputs.shift();
     }) as never,
   });
 
-  assert.equal(result.pages[0].text, lastEdit.pages[0].text);
-  assert.equal(prompts.length, 5);
-  assert.equal(prompts[3].currentScript.pages[0].text, firstEdit.pages[0].text);
-  assert.deepEqual(prompts[3].qualityReview.issues, laterReview.issues);
-  assert.equal(prompts[4].script.pages[0].text, lastEdit.pages[0].text);
+  assert.equal(result.pages[0].text, corrected.pages[0].text);
+  assert.equal(prompts.length, 2);
+  assert.equal(prompts[1].task, 'Correct the supplied review findings in the complete script');
+  assert.deepEqual(prompts[1].currentScript, original);
+  assert.deepEqual(prompts[1].qualityReview.issues, findings.issues);
 });
 
-test('enforceStoryQuality stops after two rewrites if a major issue remains', async () => {
-  const { enforceStoryQuality, StoryQualityError } = await import('./storyQualityGate.js');
-  const outputs: unknown[] = [review(2, true), makeScenario('Still unclear.'), review(3, true),
-    makeScenario('Still unclear after the second edit.'), review(3, true)];
+test('a passing review with no findings needs no correction', async () => {
+  const { enforceStoryQuality } = await import('./storyQualityGate.js');
+  const original = makeScenario();
   let calls = 0;
+  const progress: string[] = [];
+  const result = await enforceStoryQuality(context, original, {
+    onProgress: step => progress.push(step),
+    generate: (async () => { calls++; return review(4); }) as never,
+  });
+  assert.deepEqual(result, original);
+  assert.equal(calls, 1);
+  assert.deepEqual(progress, ['review']);
+});
 
-  await assert.rejects(
-    enforceStoryQuality(context, makeScenario('Unclear.'), {
-      generate: (async () => { calls++; return outputs.shift(); }) as never,
-    }),
-    (error: unknown) => error instanceof StoryQualityError
-      && /failed the final quality gate/i.test(error.message),
-  );
-  assert.equal(calls, 5);
+test('minor findings and low scores without findings each get one correction', async () => {
+  const { enforceStoryQuality } = await import('./storyQualityGate.js');
+  const corrected = makeScenario('Mara lifts the lantern. She follows the path.');
+  for (const findings of [
+    { ...review(4), issues: [{ code: 'pacing', severity: 'minor',
+      summary: 'Shorten the repeated setup.', pageNumbers: [2] }] },
+    review(3),
+  ]) {
+    const outputs: unknown[] = [findings, corrected];
+    const progress: string[] = [];
+    const result = await enforceStoryQuality(context, makeScenario(), {
+      onProgress: step => progress.push(step),
+      generate: (async () => {
+        assert.ok(outputs.length > 0, 'No further review or rewrite may start.');
+        return outputs.shift();
+      }) as never,
+    });
+    assert.equal(result.pages[0].text, corrected.pages[0].text);
+    assert.equal(outputs.length, 0);
+    assert.deepEqual(progress, ['review', 'rewrite']);
+  }
 });
 
 function rewriteMissingVisibleCharacter(): Scenario {
@@ -191,7 +213,7 @@ test('allowed source softening reaches every quality review and correction step'
   invalidRewrite.pages[0].imagePrompt = 'Mother Goat and Little Goat beside their home.';
   const corrected = structuredClone(invalidRewrite);
   corrected.pages[0].characters.push('Little Goat');
-  const outputs: unknown[] = [review(3, true), invalidRewrite, corrected, review(4)];
+  const outputs: unknown[] = [review(3, true), invalidRewrite, corrected];
   const requests: Array<{ prompt: Record<string, any>; system: string }> = [];
 
   await enforceStoryQuality(retellingContext, scenario, {
@@ -203,9 +225,8 @@ test('allowed source softening reaches every quality review and correction step'
 
   assert.deepEqual(requests.map(request => request.prompt.task), [
     'Final paid-story quality review',
-    'Rewrite the complete script so it passes the final quality gate',
+    'Correct the supplied review findings in the complete script',
     'Correct the validation errors in the rewritten script',
-    'Final paid-story quality review',
   ]);
   for (const { prompt, system } of requests) {
     assert.deepEqual(prompt.compactSourceRules.softenableBeats, softenableBeats);
@@ -217,20 +238,25 @@ test('allowed source softening reaches every quality review and correction step'
   }
 });
 
-test('a quality rewrite can correct a missing page character before its final review', async () => {
+test('a correction repairs a missing page character and returns without another review', async () => {
   const { enforceStoryQuality } = await import('./storyQualityGate.js');
   const invalid = rewriteMissingVisibleCharacter();
   const corrected = structuredClone(invalid);
   corrected.pages[11].characters.push('Împăratul văduv');
-  const outputs: unknown[] = [review(3, true), invalid, corrected, review(4)];
+  const outputs: unknown[] = [review(3, true), invalid, corrected];
   const prompts: Record<string, any>[] = [];
   const requestOptions: TextGenerationOptions[] = [];
+  const progress: string[] = [];
+  const onReviewUsage = async () => {};
   const onRewriteUsage = async () => {};
   const signal = new AbortController().signal;
 
   const result = await enforceStoryQuality(longContext, makeScenario(), {
-    onRewriteUsage, signal,
+    onReviewUsage, onRewriteUsage, signal,
+    onProgress: step => progress.push(step),
     generate: (async (prompt: string, _system: string, _schema: unknown, options: TextGenerationOptions) => {
+      assert.ok(outputs.length > 0, 'No further review or rewrite may start.');
+      assert.equal(progress.length, requestOptions.length + 1, 'Progress must be sent before each request.');
       prompts.push(JSON.parse(prompt));
       requestOptions.push(options);
       return outputs.shift();
@@ -238,7 +264,8 @@ test('a quality rewrite can correct a missing page character before its final re
   });
 
   assert.deepEqual(result.pages[11].characters, ['Mara', 'Împăratul văduv']);
-  assert.equal(prompts.length, 4);
+  assert.equal(prompts.length, 3);
+  assert.deepEqual(progress, ['review', 'rewrite', 'validation_repair']);
   assert.deepEqual(prompts[2].validationIssues, [{
     code: 'page.characters.missingVisible', path: 'pages[11].characters',
     message: 'imagePrompt names visible character "Împăratul văduv", so the page characters list must include it',
@@ -246,12 +273,13 @@ test('a quality rewrite can correct a missing page character before its final re
   assert.deepEqual(prompts[2].currentScript.pages[11].characters, ['Mara']);
   assert.equal(prompts[2].originalRequest, context.userPrompt);
   assert.deepEqual(prompts[2].qualityReview, prompts[1].qualityReview);
+  assert.equal(requestOptions[0].onUsage, onReviewUsage);
+  assert.equal(requestOptions[1].onUsage, onRewriteUsage);
   assert.equal(requestOptions[2].onUsage, onRewriteUsage);
-  assert.equal(requestOptions[2].signal, signal);
-  assert.deepEqual(prompts[3].script.pages[11].characters, ['Mara', 'Împăratul văduv']);
+  assert.ok(requestOptions.every(options => options.signal === signal));
 });
 
-test('an invalid repair stops before quality review and reports its remaining errors', async () => {
+test('an invalid repair stops and reports its remaining validation errors', async () => {
   const { enforceStoryQuality } = await import('./storyQualityGate.js');
   const invalid = rewriteMissingVisibleCharacter();
   const badRepair = structuredClone(invalid);
@@ -265,50 +293,36 @@ test('an invalid repair stops before quality review and reports its remaining er
   assert.equal(calls, 3);
 });
 
-test('a repaired rewrite still must pass the final quality review', async () => {
-  const { enforceStoryQuality, StoryQualityError } = await import('./storyQualityGate.js');
-  const invalid = rewriteMissingVisibleCharacter();
-  const corrected = structuredClone(invalid);
-  corrected.pages[11].characters.push('Împăratul văduv');
-  const outputs: unknown[] = [review(3, true), invalid, corrected, review(3, true),
-    corrected, review(3, true)];
-  let calls = 0;
-  await assert.rejects(enforceStoryQuality(longContext, makeScenario(), {
-    generate: (async () => { calls++; return outputs.shift(); }) as never,
-  }), StoryQualityError);
-  assert.equal(calls, 6);
-});
-
-test('cancellation after a later review prevents a second rewrite', async () => {
+test('cancellation after the review prevents a correction or a successful return', async () => {
   const { enforceStoryQuality } = await import('./storyQualityGate.js');
-  const controller = new AbortController();
   const cancelled = new Error('Cancelled by the user');
-  let calls = 0;
-  await assert.rejects(enforceStoryQuality(context, makeScenario(), {
-    signal: controller.signal,
-    generate: (async () => {
-      calls++;
-      if (calls === 2) return makeScenario();
-      if (calls === 3) controller.abort(cancelled);
-      return review(3, true);
-    }) as never,
-  }), error => error === cancelled);
-  assert.equal(calls, 3);
+  for (const result of [review(3, true), review(4)]) {
+    const controller = new AbortController();
+    let calls = 0;
+    await assert.rejects(enforceStoryQuality(context, makeScenario(), {
+      signal: controller.signal,
+      generate: (async () => {
+        calls++;
+        controller.abort(cancelled);
+        return result;
+      }) as never,
+    }), error => error === cancelled);
+    assert.equal(calls, 1);
+  }
 });
 
-test('unknown review cost prevents a second rewrite', async () => {
+test('unknown review cost stops before a correction', async () => {
   const { enforceStoryQuality } = await import('./storyQualityGate.js');
   const { TextCostUnavailableError } = await import('./openrouter.js');
   const costError = new TextCostUnavailableError('The request cost is unavailable.');
   let calls = 0;
   await assert.rejects(enforceStoryQuality(context, makeScenario(), {
     generate: (async () => {
-      if (++calls === 1) return review(3, true);
-      if (calls === 2) return makeScenario();
+      calls++;
       throw costError;
     }) as never,
   }), error => error === costError);
-  assert.equal(calls, 3);
+  assert.equal(calls, 1);
 });
 
 test('cancellation after an invalid rewrite prevents a repair request', async () => {

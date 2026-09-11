@@ -123,18 +123,29 @@ export async function generateStoryScriptWithAgents(
   });
   signal?.throwIfAborted();
   const enforceQuality = dependencies.enforceQuality ?? enforceStoryQuality;
-  onProgress?.({ status: 'reviewing_scenario', currentPhase: 'Reviewing story script...',
-    message: 'Checking the story before illustration...',
-    activity: activity('story-quality', 'subagent', 'working', 'Story review') });
   const scenario = await enforceQuality(context, agentScenario, {
     onReviewUsage: usageCallbacks?.onReviewUsage,
     onRewriteUsage: usageCallbacks?.onRewriteUsage,
+    onProgress: step => {
+      const reviewing = step === 'review';
+      const repairing = step === 'validation_repair';
+      onProgress?.({
+        status: 'reviewing_scenario',
+        currentPhase: reviewing ? 'Reviewing story script...'
+          : repairing ? 'Correcting story format...' : 'Correcting story script...',
+        message: reviewing ? 'Checking the story before illustration...'
+          : repairing ? 'Correcting the story format...'
+            : 'Correcting the story after review...',
+        activity: activity('story-quality', 'subagent', 'working',
+          reviewing ? 'Story review' : 'Story correction'),
+      });
+    },
     signal,
   });
   signal?.throwIfAborted();
-  onProgress?.({ status: 'reviewing_scenario', currentPhase: 'Story review complete.',
-    message: 'The story passed review.',
-    activity: activity('story-quality', 'subagent', 'completed', 'Story review') });
+  onProgress?.({ status: 'reviewing_scenario', currentPhase: 'Story script ready.',
+    message: 'The story script is ready for illustration.',
+    activity: activity('story-quality', 'subagent', 'completed', 'Story preparation') });
 
   return {
     scenario,

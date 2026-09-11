@@ -14,7 +14,6 @@ import {
 } from './scenarioValidation.js';
 
 export const STORY_QUALITY_MIN_SCORE = 4;
-export const STORY_QUALITY_REWRITE_LIMIT = 2;
 const STORY_QUALITY_VALIDATION_REPAIR_LIMIT = 1;
 
 export const STORY_QUALITY_ISSUE_CODES = [
@@ -75,17 +74,8 @@ export interface StoryQualityGateOptions {
   generate?: typeof generateJSON;
   onReviewUsage?: (usage: UsageEvent) => void | Promise<void>;
   onRewriteUsage?: (usage: UsageEvent) => void | Promise<void>;
+  onProgress?: (step: 'review' | 'rewrite' | 'validation_repair') => void;
   signal?: AbortSignal;
-}
-
-export class StoryQualityError extends Error {
-  readonly review: StoryQualityReview;
-
-  constructor(review: StoryQualityReview) {
-    super(`Story script failed the final quality gate: ${review.summary}`);
-    this.name = 'StoryQualityError';
-    this.review = review;
-  }
 }
 
 const qualityReviewSchema = {
@@ -285,7 +275,7 @@ function rewritePrompt(
   return JSON.stringify({
     task: validationIssues.length
       ? 'Correct the validation errors in the rewritten script'
-      : 'Rewrite the complete script so it passes the final quality gate',
+      : 'Correct the supplied review findings in the complete script',
     language: context.language,
     targetAge: context.targetAge,
     maximumPageCount: context.pageCount,
@@ -331,6 +321,7 @@ async function generateValidatedRewrite(
   let issues: ScenarioValidationIssue[] = [];
   for (let attempt = 0; attempt <= STORY_QUALITY_VALIDATION_REPAIR_LIMIT; attempt++) {
     options.signal?.throwIfAborted();
+    options.onProgress?.(attempt === 0 ? 'rewrite' : 'validation_repair');
     const rewritten = await generate<Scenario>(
       rewritePrompt(context, scenario, review, issues),
       QUALITY_REWRITE_SYSTEM_INSTRUCTION,
@@ -365,27 +356,17 @@ export async function enforceStoryQuality(
   options: StoryQualityGateOptions = {},
 ): Promise<Scenario> {
   const generate = options.generate ?? generateJSON;
-  let scenario = normalizeScenarioWhitespace(inputScenario);
-  let review = await reviewStory(
+  const scenario = normalizeScenarioWhitespace(inputScenario);
+  options.signal?.throwIfAborted();
+  options.onProgress?.('review');
+  const review = await reviewStory(
     context,
     scenario,
     generate,
     options.onReviewUsage,
     options.signal,
   );
-  if (review.pass) return scenario;
-
-  for (let rewriteNumber = 1; rewriteNumber <= STORY_QUALITY_REWRITE_LIMIT; rewriteNumber++) {
-    scenario = await generateValidatedRewrite(context, scenario, review, generate, options);
-    review = await reviewStory(
-      context,
-      scenario,
-      generate,
-      options.onReviewUsage,
-      options.signal,
-    );
-    if (review.pass) return scenario;
-  }
-
-  throw new StoryQualityError(review);
+  options.signal?.throwIfAborted();
+  if (review.pass && review.issues.length === 0) return scenario;
+  return generateValidatedRewrite(context, scenario, review, generate, options);
 }

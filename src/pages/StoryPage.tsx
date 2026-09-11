@@ -242,12 +242,12 @@ export default function StoryPage() {
   const failureMessage = formatStoryFailureMessage(story, user?.id, t, language);
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
-      <div className="bg-white dark:bg-surface-dark-elevated rounded-2xl shadow-lg dark:shadow-primary-900/30 p-8 max-w-md w-full text-center">
+      <div className="bg-white dark:bg-surface-dark-elevated rounded-2xl shadow-lg dark:shadow-primary-900/30 p-8 max-w-xl w-full text-center">
         <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-100 mb-2">
           {story.status === 'failed' ? t.generationFailed : t.storyDataUnavailable}
         </h1>
         {failureMessage && (
-          <p role="alert" className="text-sm text-gray-500 dark:text-gray-400 mt-4">
+          <p role="alert" className="text-sm leading-relaxed text-left whitespace-pre-line text-gray-600 dark:text-gray-300 mt-4">
             {failureMessage}
           </p>
         )}

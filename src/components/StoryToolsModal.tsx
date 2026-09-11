@@ -605,7 +605,7 @@ export default function StoryToolsModal({
         </div>
       ) : null}
       {activeProgress?.message && (
-        <p className="mt-2 text-xs text-white/45">{formatStoryStatusMessage(activeProgress.message, t)}</p>
+        <p className="mt-2 text-xs whitespace-pre-line text-white/45">{formatStoryStatusMessage(activeProgress.message, t, language)}</p>
       )}
     </div>
   );

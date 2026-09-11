@@ -739,6 +739,7 @@ test('a failed script saves a safe failure message for reload and keeps failed s
         .map(line => JSON.parse(line.slice(6)));
       assert.equal(events.at(-1).status, 'failed');
       assert.equal(events.at(-1).message, entry.message);
+      assert.doesNotMatch(JSON.stringify(events), /secret-test-value/);
       if (entry.delayFailureProgress) assert.deepEqual(terminalWritesAfterSave, [true]);
       await waitFor(async () => isGenerationActive(storyId), active => !active);
       const reloadedResponse = await fetch(`${harness.baseUrl}/api/stories/${storyId}`, { headers: { Connection: 'close' } });
