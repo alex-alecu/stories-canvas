@@ -6,7 +6,8 @@ import { Link, useNavigate } from 'react-router-dom';
 import type { Scenario, GenerationProgress, StoryReaction, StoryMode, StoryStatus, StoryOpenRouterCosts, StoryGenerationInputs } from '../types';
 import { useLanguage } from '../i18n/LanguageContext';
 import { useFontSize, type FontSize } from '../contexts/FontSizeContext';
-import { readStoredBoolean, readStoredNumber, writeStorageItem } from '../lib/browserStorage';
+import { useAuth } from '../contexts/AuthContext';
+import { readStorageItem, readStoredBoolean, readStoredNumber, writeStorageItem } from '../lib/browserStorage';
 import { formatStoryStatusMessage } from '../i18n/storyStatusCopy';
 import StoryToolsModal from './StoryToolsModal';
 import 'swiper/css';
@@ -14,6 +15,7 @@ import 'swiper/css/navigation';
 
 const AUTOPLAY_STORAGE_KEY = 'stories-canvas:auto-play';
 const PLAYBACK_RATE_KEY = 'stories-canvas:playback-rate';
+const TOOLS_LOGIN_STORAGE_KEY = 'stories-canvas:story-tools-login';
 const PLAYBACK_RATES = [0.8, 0.9, 1, 1.1] as const;
 const DEFAULT_IMAGE_ZOOM = 1;
 const DESKTOP_ZOOM_QUERY = '(min-width: 768px)';
@@ -118,8 +120,11 @@ export default function StoryViewer({
 }: StoryViewerProps) {
   const { t } = useLanguage();
   const { fontSize } = useFontSize();
+  const { user } = useAuth();
+  const loginMarker = user?.last_sign_in_at ? `${user.id}:${user.last_sign_in_at}` : null;
   const [showTools, setShowTools] = useState(false);
-  const autoOpenedToolsRef = useRef(false);
+  const autoOpenedToolsRef = useRef<string | null>(null);
+  const previousStoryIdRef = useRef(storyId);
   const swiperRef = useRef<SwiperType | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const pinchActiveRef = useRef(false);
@@ -151,7 +156,10 @@ export default function StoryViewer({
   }, [hasErrors, isGenerating, storyMessage, t]);
 
   useEffect(() => {
-    autoOpenedToolsRef.current = false;
+    if (previousStoryIdRef.current !== storyId) {
+      previousStoryIdRef.current = storyId;
+      setShowTools(false);
+    }
     setImageZoom(DEFAULT_IMAGE_ZOOM);
     setImageSizes({});
   }, [storyId]);
@@ -188,11 +196,13 @@ export default function StoryViewer({
   }, []);
 
   useEffect(() => {
-    if (hasErrors && canManageStory && !autoOpenedToolsRef.current) {
-      autoOpenedToolsRef.current = true;
+    if (canManageStory && loginMarker && autoOpenedToolsRef.current !== loginMarker
+      && readStorageItem(TOOLS_LOGIN_STORAGE_KEY) !== loginMarker) {
+      autoOpenedToolsRef.current = loginMarker;
+      writeStorageItem(TOOLS_LOGIN_STORAGE_KEY, loginMarker);
       setShowTools(true);
     }
-  }, [canManageStory, hasErrors]);
+  }, [canManageStory, loginMarker, storyId]);
 
   // Auto-play state (persisted to localStorage)
   const [autoPlay, setAutoPlay] = useState(getStoredAutoPlay);
