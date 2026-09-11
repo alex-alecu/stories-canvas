@@ -196,7 +196,7 @@ export default function GenerationProgress({ progress, onCancel, isCancelling = 
         )}
 
         {visibleMessage && !isAudioFailed && (
-          <p className="text-sm text-gray-500 dark:text-gray-400 italic">{visibleMessage}</p>
+          <p className="text-sm leading-relaxed whitespace-pre-line text-gray-500 dark:text-gray-400">{visibleMessage}</p>
         )}
 
         {(isFailed || isCancelled) && (

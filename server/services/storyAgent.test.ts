@@ -7,6 +7,7 @@ import { withTextModelSettings } from './textGenerationContext.js';
 import { parseTextModelSettings } from '../../shared/textModels.js';
 import type { Scenario } from '../../shared/types.js';
 import type { TextUsageEvent } from './openrouter.js';
+import { enforceStoryQuality } from './storyQualityGate.js';
 
 function makeScenario(): Scenario {
   return { title: 'The Little Lantern', targetAge: 4,
@@ -67,6 +68,39 @@ test('the official SDK repairs invalid submissions, preserves reasoning, and req
   assert.equal(api.usage[0].usageDetails.providerCostUsd, 0.012345);
   assert.deepEqual(api.requests[0].reasoning, { effort: 'medium' });
   assert.equal('parallel_tool_calls' in api.requests[0], false);
+});
+
+test('review findings produce a corrected script and clear progress before illustration', async () => {
+  const draft = makeScenario();
+  const corrected = structuredClone(draft);
+  corrected.pages[0].text = 'Mara lifts the lantern. Its light shows the path.';
+  const api = fixture([draft]);
+  const updates: Array<{ currentPhase: string; message: string }> = [];
+  const outputs: unknown[] = [{
+    summary: 'The first page needs a clear cause.',
+    scores: { languageFluency: 4, childClarity: 3, narrativeCohesion: 4,
+      pacing: 4, pageVisualAlignment: 4, ageSafety: 4 },
+    issues: [{ code: 'cause_and_effect', severity: 'major',
+      summary: 'Explain that the lantern lights the path.', pageNumbers: [1] }],
+  }, corrected];
+  const result = await generateStoryScriptWithAgents('A child finds a lantern.', 'en', 4, 'storybook',
+    update => { if (update.status === 'reviewing_scenario') updates.push(update); }, undefined, {
+      runner: { model: api.model }, resolveSource: async () => undefined,
+      enforceQuality: (context, scenario, options) => enforceStoryQuality(context, scenario, {
+        ...options,
+        generate: (async () => {
+          assert.ok(outputs.length > 0, 'The correction must not start another quality review.');
+          return outputs.shift();
+        }) as never,
+      }),
+    });
+
+  assert.equal(result.scenario.pages[0].text, corrected.pages[0].text);
+  assert.deepEqual(updates.map(update => update.currentPhase), [
+    'Reviewing story script...', 'Correcting story script...', 'Story script ready.',
+  ]);
+  assert.equal(updates.at(-1)?.message, 'The story script is ready for illustration.');
+  assert.equal(outputs.length, 0);
 });
 
 test('Fable uses the selected model without unsupported tool options', async () => {
