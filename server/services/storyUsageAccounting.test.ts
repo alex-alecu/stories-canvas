@@ -3,7 +3,7 @@ import test from 'node:test';
 import type { ModelPricingSnapshot, StoryUsageEvent, StoryUsageTotals } from '../../shared/types.js';
 
 
-const { recordStoryUsage } = await import('./storyUsage.js');
+const { recordStoryUsage, sumOpenRouterCosts } = await import('./storyUsage.js');
 const { computeTextCostUsdMicros } = await import('./storyUsagePricing.js');
 
 function snapshot(overrides: Partial<ModelPricingSnapshot> = {}): ModelPricingSnapshot {
@@ -134,4 +134,35 @@ test('unavailable usage persists a zero-unit incomplete event', async () => {
   assert.equal(event.costUsdMicros, 0);
   assert.equal(event.pricingStatus, 'incomplete');
   assert.equal(captured.length, 1);
+});
+
+test('OpenRouter speech uses its reported audio cost and includes unknown speech costs in the count', async () => {
+  const captured: Array<{ event: StoryUsageEvent; delta: StoryUsageTotals }> = [];
+  const event = await recordStoryUsage(storage(captured), 'story-1', 'user-1', {
+    provider: 'openrouter', operation: 'page_audio', source: 'add_audio', status: 'succeeded',
+    model: 'minimax/speech-2.8-hd', billedCharacters: 100,
+    usageDetails: { providerCostUsd: 0.001234, responseId: 'speech-1' },
+  }, async () => { throw new Error('Do not estimate OpenRouter speech costs'); });
+  assert.equal(event.costUsdMicros, 1234);
+  assert.equal(captured[0].delta.audioCostUsdMicros, 1234);
+  assert.equal(captured[0].delta.textCostUsdMicros, 0);
+  assert.deepEqual(sumOpenRouterCosts([
+    event,
+    { ...event, pricingStatus: 'incomplete' },
+    { ...event, provider: 'elevenlabs' },
+  ]), { textCostUsdMicros: 0, imageCostUsdMicros: 0, audioCostUsdMicros: 1234, unpricedRequests: 1 });
+});
+
+test('ElevenLabs narration can continue when its price is unavailable', async (t) => {
+  const { config } = await import('../config.js');
+  const original = config.useSupabase;
+  Object.assign(config, { useSupabase: true });
+  t.after(() => { Object.assign(config, { useSupabase: original }); });
+  const captured: Array<{ event: StoryUsageEvent; delta: StoryUsageTotals }> = [];
+  const event = await recordStoryUsage(storage(captured), 'story-1', 'user-1', {
+    provider: 'elevenlabs', operation: 'page_audio', source: 'add_audio', status: 'succeeded',
+    model: 'eleven_multilingual_v2', billedCharacters: 100,
+  }, async () => undefined);
+  assert.equal(event.pricingStatus, 'incomplete');
+  assert.equal(captured[0].delta.audioCostUsdMicros, 0);
 });

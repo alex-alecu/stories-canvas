@@ -18,7 +18,9 @@ import { generateScenario, generateScenarioWithMetadata, type GeneratedScenarioR
 import { generateAllCharacterSheets } from '../services/characterSheet.js';
 import { finishTrackedGeneration, getTrackedGeneration, isGenerationActive, startTrackedGeneration } from '../services/generationRegistry.js';
 import { generateAllSceneImages, retryFailedSceneImages } from '../services/sceneGenerator.js';
-import { generateAllPageAudio, generatePageAudio, retryMissingAudio, savePageAudio, isElevenLabsConfigured } from '../services/elevenlabs.js';
+import { generateAllPageAudio, generatePageAudio, retryMissingAudio, savePageAudio, isAudioConfigured } from '../services/audio.js';
+import { getAudioModelSettings, withAudioModelSettings } from '../services/audioGenerationContext.js';
+import { DEFAULT_AUDIO_MODEL, parseAudioModelSettings } from '../../shared/audioModels.js';
 import { reviewPageText } from '../services/pageTextReview.js';
 import {
   consumeCredits,
@@ -54,6 +56,7 @@ import type {
 import {
   DEFAULT_AGE,
   DEFAULT_ART_STYLE,
+  DEFAULT_VOICE_KEY,
   STORY_REACTION_FEEDBACK_MAX_CHARS,
   estimateInitialStoryPageCount,
   getVoiceName,
@@ -94,7 +97,7 @@ export const audioOps = {
   generatePageAudio,
   retryMissingAudio,
   savePageAudio,
-  isElevenLabsConfigured,
+  isAudioConfigured,
 };
 
 export const pageTextReviewOps = {
@@ -124,6 +127,19 @@ export const storageOps = {
   updateStoryVoice: async (storyId: string, voice: VoiceKey) => (
     config.useSupabase ? sbStorage.updateStoryVoice(storyId, voice) : fsStorage.updateStoryVoice(storyId, voice)
   ),
+  updateStoryAudioSettings: async (storyId: string, story: StoryMeta) => {
+    if (!story.scenario) throw new Error('Story has no scenario data');
+    await updateStoryScenario(storyId, story.scenario, story.status, story.prompt, {
+      voice: story.voice,
+      artStyle: story.artStyle,
+      language: story.language,
+      scenarioRevision: getScenarioRevision(story),
+      renderedScenarioRevision: getRenderedScenarioRevision(story),
+      storyMode: story.storyMode,
+      creditCost: story.creditCost,
+      generationInputs: story.generationInputs,
+    });
+  },
   createStory: async (
     storyId: string,
     prompt: string,
@@ -305,6 +321,7 @@ async function saveScenario(
 ): Promise<void> {
   if (config.useSupabase) {
     await sbStorage.updateStoryScenario(storyId, scenario, status, prompt, {
+      voice: options.voice,
       artStyle: options.artStyle,
       language: options.language,
       scenarioRevision: options.scenarioRevision,
@@ -362,6 +379,7 @@ async function updateStoryScenario(
 ): Promise<void> {
   if (config.useSupabase) {
     await sbStorage.updateStoryScenario(storyId, scenario, status, prompt, {
+      voice: options.voice,
       artStyle: options.artStyle,
       language: options.language,
       scenarioRevision: options.scenarioRevision,
@@ -745,6 +763,32 @@ function storyWithSelectedImageModel(story: StoryMeta): StoryMeta {
   return { ...story, generationInputs };
 }
 
+function storyWithSelectedAudioModel(story: StoryMeta, voice: VoiceKey): StoryMeta {
+  const settings = getAudioModelSettings();
+  const audioModel = settings.audioModel === DEFAULT_AUDIO_MODEL ? config.elevenLabsModel : settings.audioModel;
+  const generationInputs = story.generationInputs
+    ? {
+      ...story.generationInputs,
+      storyMode: 'pro_audio' as const,
+      voice,
+      audioEnabled: true,
+      audioModel,
+      audioVoice: settings.audioVoice,
+    }
+    : buildGenerationInputsSnapshot(
+      story.prompt,
+      story.language ?? config.defaultLanguage,
+      story.scenario?.targetAge ?? DEFAULT_AGE,
+      story.artStyle ?? DEFAULT_ART_STYLE,
+      'pro_audio',
+      voice,
+      getImageModel().tier === 'pro',
+      story.scenario?.pages.length,
+    );
+
+  return { ...story, voice, storyMode: 'pro_audio', generationInputs };
+}
+
 async function refundRegenerationCharge(userId: string | undefined, storyId: string, amount: number, note: string): Promise<void> {
   if (!config.useSupabase || !userId || amount <= 0) return;
 
@@ -799,6 +843,7 @@ function buildGenerationInputsSnapshot(
   proModel: boolean,
   pageCount?: number,
 ): StoryGenerationInputs {
+  const audioSettings = getAudioModelSettings();
   return { ...buildStoryGenerationInputs({
     prompt,
     language,
@@ -809,9 +854,9 @@ function buildGenerationInputsSnapshot(
     proModel,
     scenarioModel: getTextModelSettings().textModel,
     imageModel: getImageModel(proModel).id,
-    audioModel: config.elevenLabsModel,
+    audioModel: audioSettings.audioModel === DEFAULT_AUDIO_MODEL ? config.elevenLabsModel : audioSettings.audioModel,
     pageCount,
-  }), ...getTextModelSettings(), billingCurrency: 'USD' };
+  }), ...getTextModelSettings(), audioVoice: audioSettings.audioVoice, billingCurrency: 'USD' };
 }
 
 function applyScenarioGroundingInputs(
@@ -948,6 +993,7 @@ function createUsageRecorder(storyId: string, userId: string | undefined, source
       });
     },
     recordPageAudio: async (pageNumber: number, usage: {
+      provider: 'openrouter' | 'elevenlabs';
       model: string;
       status: 'succeeded' | 'failed';
       billedCharacters: number;
@@ -956,7 +1002,7 @@ function createUsageRecorder(storyId: string, userId: string | undefined, source
     }) => {
       await safeRecord(`page_audio:${pageNumber}`, async () => {
         await recordStoryUsage(usageStorage, storyId, userId, {
-          provider: 'elevenlabs',
+          provider: usage.provider,
           operation: 'page_audio',
           source,
           status: usage.status,
@@ -1049,11 +1095,13 @@ router.use(async (req, res, next) => {
   try {
     if (req.path === '/') {
       const settings = parseTextModelSettings(req.body?.textModel, req.body?.thinkingLevel);
+      const language = typeof req.body?.language === 'string' ? req.body.language : config.defaultLanguage;
+      const audioSettings = parseAudioModelSettings(req.body?.audioModel, req.body?.audioVoice, language);
       const requestedPro = req.body?.audioEnabled !== undefined
         ? false
         : storyModeUsesProModel(resolveRequestedStoryMode(req.body as CreateStoryRequest));
       const imageModel = parseImageModel(req.body?.imageModel ?? (requestedPro ? DEFAULT_IMAGE_MODEL_PRO : DEFAULT_IMAGE_MODEL));
-      return withTextModelSettings(settings, () => withImageModel(imageModel, next));
+      return withTextModelSettings(settings, () => withImageModel(imageModel, () => withAudioModelSettings(audioSettings, next)));
     }
     if (!/\/(regenerate-assets|retry|generate-audio|regenerate-image|script-audio)\/?$/i.test(req.path)) return next();
     const id = req.path.split('/')[1];
@@ -1067,7 +1115,19 @@ router.use(async (req, res, next) => {
     const imageModel = /\/regenerate-image\/?$/i.test(req.path) && req.body?.imageModel !== undefined
       ? parseImageModel(req.body.imageModel)
       : getStoredImageModel(inputs, requestedPro);
-    return withTextModelSettings(settings, () => withImageModel(imageModel, next));
+    const allowAudioOverride = /\/(generate-audio|script-audio)\/?$/i.test(req.path);
+    const storedAudioModel = inputs?.audioModel ?? DEFAULT_AUDIO_MODEL;
+    const audioModel = allowAudioOverride && req.body?.audioModel !== undefined ? req.body.audioModel : storedAudioModel;
+    const audioVoice = allowAudioOverride && req.body?.audioModel !== undefined
+      ? req.body?.audioVoice
+      : allowAudioOverride && req.body?.audioVoice !== undefined ? req.body.audioVoice : inputs?.audioVoice;
+    const audioSettings = parseAudioModelSettings(
+      audioModel,
+      audioVoice,
+      story?.language ?? inputs?.language ?? config.defaultLanguage,
+      true,
+    );
+    return withTextModelSettings(settings, () => withImageModel(imageModel, () => withAudioModelSettings(audioSettings, next)));
   } catch (error) {
     res.status(400).json({ error: error instanceof Error ? error.message : 'Invalid model settings.' });
   }
@@ -1177,8 +1237,11 @@ router.post('/', optionalAuth, async (req: Request, res: Response) => {
     const storyMode = resolveRequestedStoryMode(request);
     const estimatedPageCount = estimateInitialStoryPageCount(trimmedPrompt);
     const creditCost = 0;
+    const audioSettings = getAudioModelSettings();
+    const requestedStoryVoice = normalizeVoiceKey(typeof voice === 'string' ? voice : undefined);
     const storyVoice = storyMode === 'pro_audio'
-      ? normalizeVoiceKey(typeof voice === 'string' ? voice : undefined)
+      ? requestedStoryVoice
+        ?? (voice === undefined && audioSettings.audioModel !== DEFAULT_AUDIO_MODEL ? DEFAULT_VOICE_KEY : undefined)
       : undefined;
     const useProModel = getImageModel().tier === 'pro';
     const storyId = crypto.randomUUID();
@@ -1199,7 +1262,7 @@ router.post('/', optionalAuth, async (req: Request, res: Response) => {
       return;
     }
 
-    if (storyMode === 'pro_audio' && !audioOps.isElevenLabsConfigured()) {
+    if (storyMode === 'pro_audio' && !audioOps.isAudioConfigured()) {
       notifyStoryBlock({
         blockType: 'service_unavailable',
         action: 'story_create',
@@ -1484,7 +1547,7 @@ async function runGenerationPipeline(
       const coverUrl = getPageImageUrl(storyId, 1, userId);
       try {
         await sbStorage.updateStoryProgress(storyId, {
-          status: voice && audioOps.isElevenLabsConfigured() ? 'generating_audio' : 'completed',
+          status: voice && audioOps.isAudioConfigured() ? 'generating_audio' : 'completed',
           completed_pages: completedPages,
           failed_pages: failedPages,
         });
@@ -1500,7 +1563,7 @@ async function runGenerationPipeline(
     let audioFailed = false;
     let audioError: string | undefined;
 
-    if (voice && audioOps.isElevenLabsConfigured()) {
+    if (voice && audioOps.isAudioConfigured()) {
       if (signal.aborted) throw new Error('Generation cancelled');
       await updateStoryStatus(storyId, 'generating_audio');
 
@@ -1896,7 +1959,7 @@ async function runRegenerateAssetsPipeline(
       const coverUrl = getPageImageUrl(storyId, 1, userId);
       try {
         await sbStorage.updateStoryProgress(storyId, {
-          status: story.voice && audioOps.isElevenLabsConfigured() ? 'generating_audio' : 'completed',
+          status: story.voice && audioOps.isAudioConfigured() ? 'generating_audio' : 'completed',
           completed_pages: completedPages,
           failed_pages: failedPages,
         });
@@ -1910,7 +1973,7 @@ async function runRegenerateAssetsPipeline(
     let audioFailed = false;
     let audioError: string | undefined;
 
-    if (story.voice && audioOps.isElevenLabsConfigured()) {
+    if (story.voice && audioOps.isAudioConfigured()) {
       if (signal.aborted) throw new Error('Generation cancelled');
       await updateStoryStatus(storyId, 'generating_audio');
       await sendProgressUpdate(storyId, {
@@ -2096,7 +2159,7 @@ router.post('/:id/retry', optionalAuth, async (req: Request, res: Response) => {
         res.status(400).json({ error: 'Select a narrator voice.' });
         return;
       }
-      if (mode === 'pro_audio' && !audioOps.isElevenLabsConfigured()) {
+      if (mode === 'pro_audio' && !audioOps.isAudioConfigured()) {
         res.status(503).json({ error: 'Audio generation service is not configured' });
         return;
       }
@@ -2251,7 +2314,7 @@ async function runRetryPipeline(
     }
 
     // Phase 2: Retry missing audio
-    if (needsAudioRetry && audioOps.isElevenLabsConfigured()) {
+    if (needsAudioRetry && audioOps.isAudioConfigured()) {
       if (signal.aborted) throw new Error('Generation cancelled');
 
       // We need to re-fetch the story to get updated page data after image retry
@@ -2401,13 +2464,15 @@ router.post('/:id/generate-audio', optionalAuth, async (req: Request, res: Respo
       return;
     }
 
-    const requestedVoice = normalizeVoiceKey(typeof req.body?.voice === 'string' ? req.body.voice : undefined);
+    const requestedVoice = normalizeVoiceKey(typeof req.body?.voice === 'string' ? req.body.voice : undefined)
+      ?? (getAudioModelSettings().audioModel === DEFAULT_AUDIO_MODEL ? undefined : DEFAULT_VOICE_KEY);
     if (!requestedVoice) {
       res.status(400).json({ error: 'A valid narrator voice is required' });
       return;
     }
+    const storyForGeneration = storyWithSelectedAudioModel(story, requestedVoice);
 
-    if (!audioOps.isElevenLabsConfigured()) {
+    if (!audioOps.isAudioConfigured()) {
       notifyStoryBlock({
         blockType: 'service_unavailable',
         action: 'story_add_audio',
@@ -2487,7 +2552,7 @@ router.post('/:id/generate-audio', optionalAuth, async (req: Request, res: Respo
     }
 
     try {
-      await storageOps.updateStoryVoice(storyId, requestedVoice);
+      await storageOps.updateStoryAudioSettings(storyId, storyForGeneration);
     } catch (error) {
       if (config.useSupabase && chargedCredits > 0) {
         try {
@@ -2517,10 +2582,7 @@ router.post('/:id/generate-audio', optionalAuth, async (req: Request, res: Respo
 
     runAudioGenerationPipeline(
       storyId,
-      {
-        ...story,
-        voice: requestedVoice,
-      },
+      storyForGeneration,
       requestedVoice,
       'add_audio',
       controller,
@@ -3021,13 +3083,21 @@ router.patch('/:id/pages/:pageNumber/script-audio', optionalAuth, async (req: Re
       return;
     }
 
-    const voiceKey = normalizeVoiceKey(story.voice);
-    if (!voiceKey) {
+    const storedVoiceKey = normalizeVoiceKey(story.voice);
+    if (!storedVoiceKey) {
       res.status(400).json({ error: 'Story has no narrator voice. Add narration first.' });
       return;
     }
+    const requestedVoiceValue = req.body?.voice;
+    const requestedVoiceKey = normalizeVoiceKey(typeof requestedVoiceValue === 'string' ? requestedVoiceValue : undefined);
+    if (requestedVoiceValue !== undefined && !requestedVoiceKey) {
+      res.status(400).json({ error: 'A valid narrator voice is required' });
+      return;
+    }
+    const voiceKey = requestedVoiceKey ?? storedVoiceKey;
+    const storyForGeneration = storyWithSelectedAudioModel(story, voiceKey);
 
-    if (!audioOps.isElevenLabsConfigured()) {
+    if (!audioOps.isAudioConfigured()) {
       notifyStoryBlock({
         blockType: 'service_unavailable',
         action: 'story_regenerate_audio',
@@ -3124,6 +3194,7 @@ router.patch('/:id/pages/:pageNumber/script-audio', optionalAuth, async (req: Re
       }
     }
 
+    await storageOps.updateStoryAudioSettings(storyId, storyForGeneration);
     const controller = startTrackedGeneration(storyId);
     res.json({
       status: 'generating_audio',
@@ -3132,7 +3203,7 @@ router.patch('/:id/pages/:pageNumber/script-audio', optionalAuth, async (req: Re
       availableCredits,
     } as RegeneratePageAudioResponse);
 
-    runRegeneratePageAudioPipeline(storyId, story, pageNumber, text, voiceKey, chargedCredits, req.authUser?.id, controller)
+    runRegeneratePageAudioPipeline(storyId, storyForGeneration, pageNumber, text, voiceKey, chargedCredits, req.authUser?.id, controller)
       .catch(error => {
         console.error(`Page audio regeneration pipeline failed for ${storyId} page ${pageNumber}:`, error);
       });
@@ -3175,7 +3246,7 @@ async function runRegeneratePageAudioPipeline(
     });
 
     if (signal.aborted) throw new Error('Generation cancelled');
-    const audioBuffer = await audioOps.generatePageAudio(text, voiceKey, usage => usageRecorder.recordPageAudio(pageNumber, usage));
+    const audioBuffer = await audioOps.generatePageAudio(text, voiceKey, usage => usageRecorder.recordPageAudio(pageNumber, usage), signal);
     if (signal.aborted) throw new Error('Generation cancelled');
     const audioUrl = await audioOps.savePageAudio(storyId, getPageAudioFilename(pageNumber), audioBuffer, story.userId);
 

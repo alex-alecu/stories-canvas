@@ -230,6 +230,7 @@ export default function StoryPage() {
         myReaction={story.myReaction ?? null}
         storyMode={story.storyMode}
         generationInputs={story.generationInputs}
+        storyLanguage={story.language}
         openRouterCosts={story.openRouterCosts}
         canManageStory={isOnline && !!user && !!story.userId && story.userId === user.id}
         canUseOnlineActions={isOnline}

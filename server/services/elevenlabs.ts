@@ -1,11 +1,8 @@
-import { requireAudioPricing } from './modelPriceCatalog.js';
 import { ElevenLabsClient } from '@elevenlabs/elevenlabs-js';
 import pRetry, { AbortError } from 'p-retry';
 import { config } from '../config.js';
-import { uploadAudio, updatePageAudioUrl as sbUpdatePageAudioUrl } from './supabaseStorage.js';
-import { saveAudio, updatePageAudioUrl as fsUpdatePageAudioUrl } from '../utils/storage.js';
-import { getPageAudioFilename } from '../utils/storyMedia.js';
-import type { Page, VoiceKey, GenerationProgress } from '../../shared/types.js';
+import type { VoiceKey } from '../../shared/types.js';
+import type { AudioUsageEvent } from './openrouterAudio.js';
 
 let client: ElevenLabsClient | null = null;
 
@@ -85,12 +82,12 @@ async function streamToBuffer(stream: ReadableStream<Uint8Array>, timeoutMs = 60
   return Promise.race([readAll(), timeout]);
 }
 
-export async function generatePageAudio(
+export async function generateElevenLabsPageAudio(
   text: string,
   voiceKey: VoiceKey,
   onUsage?: AudioUsageCallback,
+  signal?: AbortSignal,
 ): Promise<Buffer> {
-  await requireAudioPricing(config.elevenLabsModel);
   const elevenlabs = getClient();
   const settings = getVoiceSettings(voiceKey);
   const billedCharacters = text.length;
@@ -111,11 +108,13 @@ export async function generatePageAudio(
         }, {
           timeoutInSeconds: 60,
           maxRetries: 0,
+          abortSignal: signal,
         });
         const buffer = await streamToBuffer(audioStream, 60_000);
         return buffer;
       } catch (error) {
         await onUsage?.({
+          provider: 'elevenlabs',
           model: config.elevenLabsModel,
           status: 'failed',
           billedCharacters: 0,
@@ -149,6 +148,7 @@ export async function generatePageAudio(
     },
   );
   await onUsage?.({
+    provider: 'elevenlabs',
     model: config.elevenLabsModel,
     status: 'succeeded',
     billedCharacters,
@@ -160,183 +160,6 @@ export async function generatePageAudio(
   });
   return buffer;
 }
+type AudioUsageCallback = (usage: AudioUsageEvent) => void | Promise<void>;
 
-export async function savePageAudio(storyId: string, filename: string, audioBuffer: Buffer, userId?: string): Promise<string> {
-  if (config.useSupabase) {
-    return uploadAudio(userId, storyId, filename, audioBuffer);
-  } else {
-    await saveAudio(storyId, filename, audioBuffer);
-    return `/api/stories/${storyId}/audio/${filename}`;
-  }
-}
-
-async function updatePageAudioUrlBoth(storyId: string, pageNumber: number, audioUrl: string): Promise<void> {
-  if (config.useSupabase) {
-    await sbUpdatePageAudioUrl(storyId, pageNumber, audioUrl);
-  } else {
-    await fsUpdatePageAudioUrl(storyId, pageNumber, audioUrl);
-  }
-}
-
-type AudioProgressCallback = (progress: Partial<GenerationProgress>) => void;
-type AudioUsageCallback = (usage: {
-  model: string;
-  status: 'succeeded' | 'failed';
-  billedCharacters: number;
-  usageAvailable: boolean;
-  usageDetails: Record<string, unknown>;
-}) => void | Promise<void>;
-
-export interface AudioGenerationResult {
-  completedCount: number;
-  failedCount: number;
-  skippedCount: number;
-  error?: string;
-}
-
-export async function generateAllPageAudio(
-  storyId: string,
-  pages: Page[],
-  voiceKey: VoiceKey,
-  userId: string | undefined,
-  signal: AbortSignal,
-  onProgress?: AudioProgressCallback,
-  onUsage?: (page: Page, usage: {
-    model: string;
-    status: 'succeeded' | 'failed';
-    billedCharacters: number;
-    usageAvailable?: boolean;
-    usageDetails: Record<string, unknown>;
-  }) => void | Promise<void>,
-): Promise<AudioGenerationResult> {
-  let completedCount = 0;
-  let failedCount = 0;
-  let fatalError: string | undefined;
-
-  for (const page of pages) {
-    if (signal.aborted) throw new Error('Generation cancelled');
-
-    // On unrecoverable error (auth/quota), skip remaining pages
-    if (fatalError) break;
-
-    const filename = getPageAudioFilename(page.pageNumber);
-
-    try {
-      onProgress?.({
-        message: `Generating narration for page ${page.pageNumber}/${pages.length}...`,
-        pageNumber: page.pageNumber,
-        pageStatus: 'generating',
-      });
-
-      const audioBuffer = await generatePageAudio(page.text, voiceKey, usage => onUsage?.(page, usage));
-      const audioUrl = await savePageAudio(storyId, filename, audioBuffer, userId);
-      await updatePageAudioUrlBoth(storyId, page.pageNumber, audioUrl);
-      page.audioUrl = audioUrl;
-
-      completedCount++;
-      onProgress?.({
-        message: `Narration for page ${page.pageNumber} complete`,
-        pageNumber: page.pageNumber,
-        pageStatus: 'completed',
-      });
-    } catch (error) {
-      if (signal.aborted) throw new Error('Generation cancelled');
-      failedCount++;
-      console.error(`Failed to generate audio for page ${page.pageNumber}:`, error);
-      onProgress?.({
-        message: `Narration for page ${page.pageNumber} failed`,
-        pageNumber: page.pageNumber,
-        pageStatus: 'failed',
-      });
-
-      // Detect unrecoverable errors (auth/quota) and abort remaining pages
-      if (error instanceof Error && error.name === 'AbortError') {
-        fatalError = error.message;
-        console.warn(`Fatal audio error â skipping remaining ${pages.length - completedCount - failedCount} pages: ${fatalError}`);
-        break;
-      }
-      // Other errors are non-fatal â continue with remaining pages
-    }
-  }
-
-  const skippedCount = pages.length - completedCount - failedCount;
-  return { completedCount, failedCount, skippedCount, error: fatalError };
-}
-
-export function isElevenLabsConfigured(): boolean {
-  return !!config.elevenLabsApiKey;
-}
-
-/**
- * Retry audio generation only for pages that are missing audioUrl.
- */
-export async function retryMissingAudio(
-  storyId: string,
-  pages: Page[],
-  voiceKey: VoiceKey,
-  userId: string | undefined,
-  signal: AbortSignal,
-  onProgress?: AudioProgressCallback,
-  onUsage?: (page: Page, usage: {
-    model: string;
-    status: 'succeeded' | 'failed';
-    billedCharacters: number;
-    usageAvailable?: boolean;
-    usageDetails: Record<string, unknown>;
-  }) => void | Promise<void>,
-): Promise<AudioGenerationResult> {
-  // Filter to only pages missing audio
-  const pagesNeedingAudio = pages.filter(p => !p.audioUrl);
-
-  if (pagesNeedingAudio.length === 0) {
-    return { completedCount: 0, failedCount: 0, skippedCount: 0 };
-  }
-
-  let completedCount = 0;
-  let failedCount = 0;
-  let fatalError: string | undefined;
-
-  for (const page of pagesNeedingAudio) {
-    if (signal.aborted) throw new Error('Generation cancelled');
-    if (fatalError) break;
-
-    const filename = getPageAudioFilename(page.pageNumber);
-
-    try {
-      onProgress?.({
-        message: `Retrying narration for page ${page.pageNumber}...`,
-        pageNumber: page.pageNumber,
-        pageStatus: 'generating',
-      });
-
-      const audioBuffer = await generatePageAudio(page.text, voiceKey, usage => onUsage?.(page, usage));
-      const audioUrl = await savePageAudio(storyId, filename, audioBuffer, userId);
-      await updatePageAudioUrlBoth(storyId, page.pageNumber, audioUrl);
-      page.audioUrl = audioUrl;
-
-      completedCount++;
-      onProgress?.({
-        message: `Narration for page ${page.pageNumber} complete`,
-        pageNumber: page.pageNumber,
-        pageStatus: 'completed',
-      });
-    } catch (error) {
-      if (signal.aborted) throw new Error('Generation cancelled');
-      failedCount++;
-      console.error(`Failed to retry audio for page ${page.pageNumber}:`, error);
-      onProgress?.({
-        message: `Narration for page ${page.pageNumber} failed`,
-        pageNumber: page.pageNumber,
-        pageStatus: 'failed',
-      });
-
-      if (error instanceof Error && error.name === 'AbortError') {
-        fatalError = error.message;
-        break;
-      }
-    }
-  }
-
-  const skippedCount = pagesNeedingAudio.length - completedCount - failedCount;
-  return { completedCount, failedCount, skippedCount, error: fatalError };
-}
+export function isElevenLabsConfigured(): boolean { return !!config.elevenLabsApiKey; }

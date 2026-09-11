@@ -1,4 +1,3 @@
-import type { TextModelSettings } from '../../shared/textModels';
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import StoryInput from '../components/StoryInput';
@@ -16,7 +15,7 @@ import { useLanguage } from '../i18n/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
 import { isSupabaseConfigured } from '../lib/supabaseConfig';
 import type { StorySummary } from '../types';
-import type { ArtStyleKey, StoryMode, StoryStatus, VoiceKey } from '../../shared/types';
+import type { CreateStoryRequest, StoryStatus } from '../../shared/types';
 import { readStorageItem, removeStorageItem, writeStorageItem } from '../lib/browserStorage';
 
 const GENERATING_STORY_KEY = 'stories-canvas:generatingStoryId';
@@ -132,10 +131,10 @@ export default function Home() {
     return () => observer.disconnect();
   }, [hasSettledUserStories, shouldLoadPublicStories]);
 
-  const handleCreateStory = useCallback(async (prompt: string, age: number, style: ArtStyleKey, settings: TextModelSettings, imageModel: string, audioEnabled: boolean, voice?: VoiceKey) => {
+  const handleCreateStory = useCallback(async (request: CreateStoryRequest) => {
     try {
       requestPermission();
-      const result = await createStory.mutateAsync({ prompt, language, age, style, ...settings, imageModel, audioEnabled, voice });
+      const result = await createStory.mutateAsync({ ...request, language });
       setGeneratingStoryId(result.id);
     } catch (error) {
       console.error('Failed to create story:', error);

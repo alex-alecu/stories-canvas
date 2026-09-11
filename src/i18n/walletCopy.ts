@@ -2,7 +2,7 @@ import type { Translations } from './types';
 
 export function getWalletCopy(language: string) {
   return language === 'ro' ? {
-    model: 'Model de text', thinking: 'Nivel de gândire', low: 'Redus', medium: 'Mediu', high: 'Ridicat',
+    model: 'Model de text', audioModel: 'Model audio', nativeVoice: 'Voce nativă', thinking: 'Nivel de gândire', low: 'Redus', medium: 'Mediu', high: 'Ridicat',
     notRecorded: 'Neînregistrat',
     narration: 'Adaugă narațiune', minimum: 'Ai nevoie de cel puțin 10 USD pentru o poveste nouă.',
     actualCost: 'Plătești costul generării: text, imagini și narațiune.',
@@ -12,8 +12,8 @@ export function getWalletCopy(language: string) {
     pay: 'Plătești cât folosești', payDetail: 'Fiecare cerere este scăzută din sold în dolari SUA.',
     keep: 'Fondurile nu expiră', keepDetail: 'Soldul rămas este disponibil pentru următoarea poveste.',
     usage: 'Costul poveștii', modelDefault: 'Recomandat',
-    openRouterCosts: 'Costuri (USD)', textCost: 'Text', imageCost: 'Imagini', totalCost: 'Total',
-    costsIncludeUpdates: 'Include generarea inițială și modificările de text și imagini.',
+    openRouterCosts: 'Costuri (USD)', textCost: 'Text', imageCost: 'Imagini', audioCost: 'Narațiune', totalCost: 'Total',
+    costsIncludeUpdates: 'Include generarea inițială și modificările de text, imagini și narațiune. Costurile ElevenLabs nu sunt incluse în aceste totaluri.',
     incompleteCosts: 'Unele costuri nu sunt disponibile. Totalul include doar costurile cunoscute.',
     costsUnavailable: 'Costurile nu sunt disponibile momentan.',
     input: 'Intrare', output: 'Ieșire', perMillion: 'USD / 1 milion de tokenuri',
@@ -21,7 +21,7 @@ export function getWalletCopy(language: string) {
     aboveInput: 'Peste {tokens} tokenuri de intrare',
     priceNote: 'Cache-ul, cererile lungi și instrumentele pot schimba costul final.',
   } : {
-    model: 'Text model', thinking: 'Thinking level', low: 'Low', medium: 'Medium', high: 'High',
+    model: 'Text model', audioModel: 'Audio model', nativeVoice: 'Native voice', thinking: 'Thinking level', low: 'Low', medium: 'Medium', high: 'High',
     notRecorded: 'Not recorded',
     narration: 'Add narration', minimum: 'You need at least $10 to start a new story.',
     actualCost: 'You pay the generation cost for text, images, and narration.',
@@ -31,8 +31,8 @@ export function getWalletCopy(language: string) {
     pay: 'Pay for use', payDetail: 'Each request cost is taken from your balance in US dollars.',
     keep: 'Funds do not expire', keepDetail: 'Use the remaining balance for your next story.',
     usage: 'Story cost', modelDefault: 'Recommended',
-    openRouterCosts: 'Costs (USD)', textCost: 'Text', imageCost: 'Images', totalCost: 'Total',
-    costsIncludeUpdates: 'Includes the first generation and all text and image changes.',
+    openRouterCosts: 'Costs (USD)', textCost: 'Text', imageCost: 'Images', audioCost: 'Narration', totalCost: 'Total',
+    costsIncludeUpdates: 'Includes the first generation and all text, image, and narration changes. ElevenLabs costs are not included in these totals.',
     incompleteCosts: 'Some costs are not available. The total includes only known costs.',
     costsUnavailable: 'Costs are not available at this time.',
     input: 'Input', output: 'Output', perMillion: 'USD / 1 million tokens',

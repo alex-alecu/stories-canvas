@@ -91,6 +91,8 @@ export async function createStory(params: {
   imageModel?: string;
   audioEnabled?: boolean;
   voice?: string;
+  audioModel?: string;
+  audioVoice?: string;
 }): Promise<CreateStoryResponse> {
   const authHeaders = await getAuthHeaders();
   const res = await fetch('/api/stories', {
@@ -107,6 +109,8 @@ export async function createStory(params: {
       imageModel: params.imageModel,
       audioEnabled: params.audioEnabled,
       voice: params.voice,
+      audioModel: params.audioModel,
+      audioVoice: params.audioVoice,
     }),
   });
   if (!res.ok) {
@@ -178,12 +182,12 @@ export async function regenerateStoryAssets(id: string): Promise<RegenerateAsset
   return res.json();
 }
 
-export async function generateStoryAudio({ id, voice }: { id: string; voice: VoiceKey }): Promise<GenerateAudioResponse> {
+export async function generateStoryAudio({ id, voice, audioModel, audioVoice }: { id: string; voice?: VoiceKey; audioModel: string; audioVoice?: string }): Promise<GenerateAudioResponse> {
   const authHeaders = await getAuthHeaders();
   const res = await fetch(`/api/stories/${id}/generate-audio`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...authHeaders },
-    body: JSON.stringify({ voice }),
+    body: JSON.stringify({ voice, audioModel, audioVoice }),
   });
   if (!res.ok) {
     throw await readError(res, 'Failed to generate narration');
@@ -218,16 +222,22 @@ export async function regeneratePageAudio({
   id,
   pageNumber,
   text,
+  voice,
+  audioModel,
+  audioVoice,
 }: {
   id: string;
   pageNumber: number;
   text: string;
+  voice?: VoiceKey;
+  audioModel?: string;
+  audioVoice?: string;
 }): Promise<RegeneratePageAudioResponse> {
   const authHeaders = await getAuthHeaders();
   const res = await fetch(`/api/stories/${id}/pages/${pageNumber}/script-audio`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', ...authHeaders },
-    body: JSON.stringify({ text }),
+    body: JSON.stringify({ text, voice, audioModel, audioVoice }),
   });
   if (!res.ok) {
     throw await readError(res, 'Failed to update page script and narration');

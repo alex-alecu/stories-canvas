@@ -347,6 +347,7 @@ export async function updateStoryScenario(
   status: StoryStatus,
   prompt: string,
   options: {
+    voice?: VoiceKey;
     artStyle?: ArtStyleKey;
     language?: string;
     scenarioRevision?: number;
@@ -355,8 +356,8 @@ export async function updateStoryScenario(
     creditCost?: number;
     generationInputs?: StoryGenerationInputs;
   } = {},
+  supabase = getSupabase(),
 ): Promise<void> {
-  const supabase = getSupabase();
   const updatePayload: Record<string, unknown> = {
     scenario,
     title: scenario.title,
@@ -364,6 +365,7 @@ export async function updateStoryScenario(
     total_pages: scenario.pages.length,
     status,
     prompt,
+    voice: options.voice,
     art_style: options.artStyle ?? null,
     language: options.language ?? config.defaultLanguage,
     scenario_revision: options.scenarioRevision,

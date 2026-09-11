@@ -2,6 +2,8 @@ import { getWalletCopy } from '../i18n/walletCopy';
 import { TEXT_MODELS } from '../../shared/textModels';
 import { DEFAULT_IMAGE_MODEL, DEFAULT_IMAGE_MODEL_PRO, IMAGE_MODELS, getSelectableImageModelId, getStoredImageModel } from '../../shared/imageModels';
 import ImageModelPicker from './ImageModelPicker';
+import AudioModelPicker from './AudioModelPicker';
+import { AUDIO_MODELS, DEFAULT_AUDIO_MODEL, getAudioVoices, isAudioModelAvailable } from '../../shared/audioModels';
 import { useState, useEffect, useCallback, useMemo, useRef, type FormEvent } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import type { GenerationProgress, Page, Scenario, StoryMode, StoryReaction, StoryStatus, StoryOpenRouterCosts, StoryGenerationInputs } from '../types';
@@ -26,6 +28,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../i18n/LanguageContext';
 import { formatStoryStatusMessage, getVoiceOptionText } from '../i18n/storyStatusCopy';
 import FontSizeControl from './FontSizeControl';
+import { clientSiteConfig } from '../lib/siteConfig';
 
 const PAGE_FEEDBACK_MAX_CHARS = 800;
 const PAGE_TEXT_OVERLAY_MAX_CHARS = 320;
@@ -46,6 +49,7 @@ interface StoryToolsModalProps {
   currentPage?: Page;
   storyMode?: StoryMode;
   generationInputs?: StoryGenerationInputs;
+  storyLanguage?: string;
   openRouterCosts?: StoryOpenRouterCosts | null;
   likeCount?: number;
   dislikeCount?: number;
@@ -96,6 +100,7 @@ export default function StoryToolsModal({
   currentPage,
   storyMode,
   generationInputs,
+  storyLanguage,
   openRouterCosts,
   likeCount = 0,
   dislikeCount = 0,
@@ -137,6 +142,11 @@ export default function StoryToolsModal({
   const [dislikeFeedback, setDislikeFeedback] = useState('');
   const [dislikeFeedbackError, setDislikeFeedbackError] = useState<string | null>(null);
   const [selectedVoice, setSelectedVoice] = useState<VoiceKey>(DEFAULT_VOICE_KEY);
+  const [audioModel, setAudioModel] = useState(() => {
+    const stored = generationInputs?.audioModel;
+    return stored?.startsWith('eleven_') ? DEFAULT_AUDIO_MODEL : stored || DEFAULT_AUDIO_MODEL;
+  });
+  const [audioVoice, setAudioVoice] = useState<string | undefined>(() => generationInputs?.audioVoice);
   const [imageModel, setImageModel] = useState(() => generationInputs
     ? getSelectableImageModelId(savedImageModel.id)
     : storyMode === 'fast' ? DEFAULT_IMAGE_MODEL : DEFAULT_IMAGE_MODEL_PRO);
@@ -157,20 +167,36 @@ export default function StoryToolsModal({
   const { progress: sseProgress } = useStoryGeneration(isTrackingGeneration && !operationStarting ? storyId : null);
   const activeProgress = isTrackingGeneration ? sseProgress : progress;
   const storyVoice = normalizeVoiceKey(voice);
+  const storedAudioModel = generationInputs?.audioModel?.startsWith('eleven_')
+    ? DEFAULT_AUDIO_MODEL
+    : generationInputs?.audioModel || DEFAULT_AUDIO_MODEL;
+  const storedAudioVoice = generationInputs?.audioVoice;
+  const speechLanguage = storyLanguage || generationInputs?.language || clientSiteConfig.defaultLanguage;
+  const audioModelAvailable = isAudioModelAvailable(audioModel, speechLanguage);
+  const audioVoices = getAudioVoices(audioModel, speechLanguage);
+  const hasNarrationConfig = !!voice || !!generationInputs?.audioEnabled;
   const availableCredits = billingOverview?.balance.availableCredits ?? 0;
   const pageTextMaxChars = getPageTextMaxChars(scenario.targetAge);
   const characterSheets = assets?.characterSheets ?? [];
   const currentImageUrl = currentPage?.imageUrl || `/api/stories/${storyId}/images/page-${String(currentPage?.pageNumber ?? 1).padStart(2, '0')}.png`;
-  const currentVoiceLabel = storyVoice
+  const currentVoiceLabel = audioModel !== DEFAULT_AUDIO_MODEL
+    ? audioVoices.find(option => option.id === audioVoice)?.name ?? audioVoice ?? t.currentVoice
+    : storyVoice
     ? getVoiceOptionText(VOICE_OPTIONS.find(option => option.key === storyVoice) ?? VOICE_OPTIONS[0], t).label
     : t.currentVoice;
+  const storedAudioVoices = getAudioVoices(storedAudioModel, speechLanguage);
+  const storedVoiceLabel = storedAudioModel !== DEFAULT_AUDIO_MODEL
+    ? storedAudioVoices.find(option => option.id === storedAudioVoice)?.name ?? storedAudioVoice ?? t.currentVoice
+    : storyVoice
+      ? getVoiceOptionText(VOICE_OPTIONS.find(option => option.key === storyVoice) ?? VOICE_OPTIONS[0], t).label
+      : t.currentVoice;
+  const storedAudioModelName = AUDIO_MODELS.find(option => option.id === storedAudioModel)?.name ?? storedAudioModel;
 
   const canReact = canUseOnlineActions && !!user && storyStatus === 'completed';
   const canUsePageActions = canUseOnlineActions && canManageStory && storyStatus === 'completed' && !isGenerating && !!currentPage;
   const imageFeedbackTrimmed = imageFeedback.trim();
   const dislikeFeedbackTrimmed = dislikeFeedback.replace(/\s+/g, ' ').trim();
   const pageTextTrimmed = pageText.replace(/\s+/g, ' ').trim();
-  const pageTextChanged = pageTextTrimmed !== (currentPage?.text ?? '').replace(/\s+/g, ' ').trim();
   const pageTextInvalid = !pageTextTrimmed || pageTextTrimmed.length > pageTextMaxChars;
 
   const needsFunds = !!user && !!billingOverview && availableCredits <= 0;
@@ -217,6 +243,18 @@ export default function StoryToolsModal({
       ).id)
       : storyMode === 'fast' ? DEFAULT_IMAGE_MODEL : DEFAULT_IMAGE_MODEL_PRO);
   }, [generationInputs, storyId, storyMode]);
+
+  useEffect(() => {
+    const stored = generationInputs?.audioModel;
+    setAudioModel(stored?.startsWith('eleven_') ? DEFAULT_AUDIO_MODEL : stored || DEFAULT_AUDIO_MODEL);
+    setAudioVoice(generationInputs?.audioVoice);
+    setSelectedVoice(storyVoice ?? DEFAULT_VOICE_KEY);
+  }, [generationInputs, storyId, storyVoice]);
+
+  useEffect(() => {
+    if (audioModel === DEFAULT_AUDIO_MODEL || !audioModelAvailable) return;
+    if (!audioVoices.some(option => option.id === audioVoice)) setAudioVoice(audioVoices[0]?.id);
+  }, [audioModel, audioModelAvailable, audioVoice, audioVoices]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -293,8 +331,8 @@ export default function StoryToolsModal({
   );
 
   const shouldHaveAudio = useMemo(
-    () => !!voice || scenario.pages.some(p => !!p.audioUrl),
-    [scenario.pages, voice],
+    () => hasNarrationConfig || scenario.pages.some(p => !!p.audioUrl),
+    [hasNarrationConfig, scenario.pages],
   );
 
   const missingAudioCount = useMemo(
@@ -312,7 +350,7 @@ export default function StoryToolsModal({
     && canUseOnlineActions
     && canManageStory
     && !isGenerating
-    && !voice
+    && !hasNarrationConfig
     && !storyHasAudio
     && scenario.pages.length > 0;
   const showAddNarration = canStartAddNarration || audioTriggered || audioResult !== null;
@@ -361,6 +399,11 @@ export default function StoryToolsModal({
     }
   }, [canUseOnlineActions, clearOperationGracePeriod, retryStory, startOperationGracePeriod, storyId]);
 
+  const handleAudioModelChange = useCallback((nextModel: string) => {
+    setAudioModel(nextModel);
+    setAudioVoice(getAudioVoices(nextModel, speechLanguage)[0]?.id);
+  }, [speechLanguage]);
+
   const handleGenerateAudio = useCallback(async () => {
     if (!canStartAddNarration) return;
     if (needsFunds) {
@@ -371,7 +414,12 @@ export default function StoryToolsModal({
     setAudioResult(null);
     startOperationGracePeriod();
     try {
-      await generateAudio.mutateAsync({ id: storyId, voice: selectedVoice });
+      await generateAudio.mutateAsync({
+        id: storyId,
+        voice: audioModel === DEFAULT_AUDIO_MODEL ? selectedVoice : undefined,
+        audioModel,
+        audioVoice: audioModel === DEFAULT_AUDIO_MODEL ? undefined : audioVoice,
+      });
     } catch {
       setAudioTriggered(false);
       setAudioResult('failed');
@@ -384,6 +432,8 @@ export default function StoryToolsModal({
     goToBilling,
     needsFunds,
     selectedVoice,
+    audioModel,
+    audioVoice,
     startOperationGracePeriod,
     storyId,
   ]);
@@ -481,7 +531,7 @@ export default function StoryToolsModal({
   ]);
 
   const handlePageAudioSubmit = useCallback(async () => {
-    if (!currentPage || !canUsePageActions || !storyVoice) return;
+    if (!currentPage || !canUsePageActions || !hasNarrationConfig || !audioModelAvailable) return;
     if (needsFunds) {
       goToBilling();
       return;
@@ -500,6 +550,9 @@ export default function StoryToolsModal({
         id: storyId,
         pageNumber: currentPage.pageNumber,
         text: pageTextTrimmed,
+        voice: audioModel === DEFAULT_AUDIO_MODEL ? selectedVoice : undefined,
+        audioModel,
+        audioVoice: audioModel === DEFAULT_AUDIO_MODEL ? undefined : audioVoice,
       });
     } catch (error) {
       setPageAudioTriggered(false);
@@ -519,7 +572,11 @@ export default function StoryToolsModal({
     regeneratePageAudio,
     startOperationGracePeriod,
     storyId,
-    storyVoice,
+    hasNarrationConfig,
+    audioModel,
+    audioModelAvailable,
+    audioVoice,
+    selectedVoice,
     t,
   ]);
 
@@ -605,6 +662,20 @@ export default function StoryToolsModal({
             <dt>{imageCopy.label}</dt>
             <dd className="min-w-0 break-words text-right text-white">{imageModelName}</dd>
           </div>
+          {hasNarrationConfig && (
+            <>
+              <div className="flex items-start justify-between gap-4 text-white/65">
+                <dt>{walletCopy.audioModel}</dt>
+                <dd className="min-w-0 break-words text-right text-white">{storedAudioModelName}</dd>
+              </div>
+              {storedAudioModel !== DEFAULT_AUDIO_MODEL && storedAudioVoice && (
+                <div className="flex items-start justify-between gap-4 text-white/65">
+                  <dt>{walletCopy.nativeVoice}</dt>
+                  <dd className="min-w-0 break-words text-right text-white">{storedVoiceLabel}</dd>
+                </div>
+              )}
+            </>
+          )}
         </dl>
         {canManageStory && openRouterCosts !== undefined && (
           <div className="mt-4 border-t border-white/10 pt-4">
@@ -615,6 +686,7 @@ export default function StoryToolsModal({
                   {[
                     [walletCopy.textCost, openRouterCosts.textCostUsdMicros],
                     [walletCopy.imageCost, openRouterCosts.imageCostUsdMicros],
+                    [walletCopy.audioCost, openRouterCosts.audioCostUsdMicros ?? 0],
                   ].map(([label, cost]) => (
                     <div key={label} className="flex items-center justify-between gap-4 text-white/65">
                       <dt>{label}</dt>
@@ -623,7 +695,7 @@ export default function StoryToolsModal({
                   ))}
                   <div className="flex items-center justify-between gap-4 border-t border-white/10 pt-2 font-semibold text-white">
                     <dt>{walletCopy.totalCost}</dt>
-                    <dd>{costFormatter.format((openRouterCosts.textCostUsdMicros + openRouterCosts.imageCostUsdMicros) / 1_000_000)}</dd>
+                    <dd>{costFormatter.format((openRouterCosts.textCostUsdMicros + openRouterCosts.imageCostUsdMicros + (openRouterCosts.audioCostUsdMicros ?? 0)) / 1_000_000)}</dd>
                   </div>
                 </dl>
                 <p className="mt-2 text-xs leading-relaxed text-white/45">{openRouterCosts.unpricedRequests > 0 ? walletCopy.incompleteCosts : walletCopy.costsIncludeUpdates}</p>
@@ -758,10 +830,10 @@ export default function StoryToolsModal({
           {renderActionRow({
             title: t.audioAndScriptTitle,
             description: t.audioAndScriptDescription,
-            disabled: !storyVoice || !canUsePageActions,
+            disabled: !hasNarrationConfig || !canUsePageActions,
             disabledMessage: !canManageStory
               ? t.signInAsOwnerToRecreatePage
-              : storyVoice
+              : hasNarrationConfig
                 ? t.pageActionsAvailableAfterGeneration
                 : t.addNarrationFirst,
             onOpen: () => setView('audio'),
@@ -781,25 +853,20 @@ export default function StoryToolsModal({
             )}
           </div>
 
-          <label htmlFor="story-tools-voice-select" className="mt-4 block text-sm text-white/70">
-            {t.selectVoice}
-          </label>
-          <select
-            id="story-tools-voice-select"
-            value={selectedVoice}
-            onChange={(event) => setSelectedVoice(event.target.value as VoiceKey)}
-            disabled={isBusy || !canStartAddNarration}
-            className="mt-2 w-full rounded-lg border border-white/10 bg-white/10 px-3 py-2 text-sm text-white focus:border-primary-300 focus:outline-none disabled:opacity-50"
-          >
-            {VOICE_OPTIONS.map((option) => {
-              const { label, description } = getVoiceOptionText(option, t);
-              return (
-                <option key={option.key} value={option.key} className="bg-[#1a1a2e] text-white">
-                  {label} - {description}
-                </option>
-              );
-            })}
-          </select>
+          <div className="mt-4">
+            <AudioModelPicker model={audioModel} voice={audioVoice} language={language} speechLanguage={speechLanguage} onModelChange={handleAudioModelChange} onVoiceChange={setAudioVoice} disabled={isBusy || !canStartAddNarration} dark />
+          </div>
+          {audioModel === DEFAULT_AUDIO_MODEL && (
+            <>
+              <label htmlFor="story-tools-voice-select" className="mt-4 block text-sm text-white/70">{t.selectVoice}</label>
+              <select id="story-tools-voice-select" value={selectedVoice} onChange={(event) => setSelectedVoice(event.target.value as VoiceKey)} disabled={isBusy || !canStartAddNarration} className="mt-2 w-full rounded-lg border border-white/10 bg-white/10 px-3 py-2 text-sm text-white focus:border-primary-300 focus:outline-none disabled:opacity-50">
+                {VOICE_OPTIONS.map((option) => {
+                  const { label, description } = getVoiceOptionText(option, t);
+                  return <option key={option.key} value={option.key} className="bg-[#1a1a2e] text-white">{label} - {description}</option>;
+                })}
+              </select>
+            </>
+          )}
 
           {isAddingNarration && renderProgress(t.generatingNarration)}
           {renderResult(audioResult, t.narrationSuccess, t.narrationGenerationFailed)}
@@ -808,7 +875,7 @@ export default function StoryToolsModal({
             <button
               type="button"
               onClick={handleGenerateAudio}
-              disabled={isBusy || !canStartAddNarration}
+              disabled={isBusy || !canStartAddNarration || !audioModelAvailable}
               className="rounded-lg bg-primary-500 px-5 py-2 text-sm font-bold text-white transition-colors hover:bg-primary-600 disabled:cursor-not-allowed disabled:bg-primary-500/45"
             >
               {needsFunds ? t.getCredits : isAddingNarration ? t.generatingNarration : t.generateNarration}
@@ -929,8 +996,18 @@ export default function StoryToolsModal({
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/35">{t.voiceLabel}</p>
             <p className="mt-1 text-sm font-semibold text-white">{currentVoiceLabel}</p>
           </div>
-          <span className="rounded-full bg-white/10 px-2 py-1 text-xs text-white/65">{t.sameVoice}</span>
         </div>
+        <div className="mt-4">
+          <AudioModelPicker model={audioModel} voice={audioVoice} language={language} speechLanguage={speechLanguage} onModelChange={handleAudioModelChange} onVoiceChange={setAudioVoice} disabled={!canUsePageActions || isBusy} dark />
+        </div>
+        {audioModel === DEFAULT_AUDIO_MODEL && (
+          <label htmlFor="story-tools-page-voice-select" className="mt-4 block text-sm text-white/70">
+            {t.selectVoice}
+            <select id="story-tools-page-voice-select" value={selectedVoice} onChange={event => setSelectedVoice(event.target.value as VoiceKey)} disabled={!canUsePageActions || isBusy} className="mt-2 w-full rounded-lg border border-white/10 bg-white/10 px-3 py-2 text-sm text-white focus:border-primary-300 focus:outline-none disabled:opacity-50">
+              {VOICE_OPTIONS.map(option => <option key={option.key} value={option.key} className="bg-[#1a1a2e] text-white">{getVoiceOptionText(option, t).label}</option>)}
+            </select>
+          </label>
+        )}
         {currentPage?.audioUrl && (
           <audio controls src={currentPage.audioUrl} className="mt-4 w-full" />
         )}
@@ -955,7 +1032,7 @@ export default function StoryToolsModal({
       <div className="rounded-lg bg-white/[0.04] px-3 py-2 text-sm text-white/60">
         {t.costLabel}: <span className="font-semibold text-white">{getWalletCopy(language).actualCost}</span>
       </div>
-      {!storyVoice && (
+      {!hasNarrationConfig && (
         <p className="rounded-lg bg-amber-500/15 px-3 py-2 text-sm text-amber-200">{t.addNarrationFirst}</p>
       )}
       {pageAudioError && <p className="rounded-lg bg-red-500/15 px-3 py-2 text-sm text-red-300">{pageAudioError}</p>}
@@ -964,7 +1041,7 @@ export default function StoryToolsModal({
       <button
         type="button"
         onClick={handlePageAudioSubmit}
-        disabled={!storyVoice || !canUsePageActions || isBusy || regeneratePageAudio.isPending || pageTextInvalid || !pageTextChanged}
+        disabled={!hasNarrationConfig || !audioModelAvailable || !canUsePageActions || isBusy || regeneratePageAudio.isPending || pageTextInvalid}
         className="w-full rounded-lg bg-primary-500 px-5 py-3 text-sm font-bold text-white transition-colors hover:bg-primary-600 disabled:cursor-not-allowed disabled:bg-primary-500/45"
       >
         {needsFunds ? t.getCredits : isRegeneratingPageAudio ? t.updating : t.updateScriptAndAudio}

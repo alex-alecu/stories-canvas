@@ -49,6 +49,7 @@ interface StoryViewerProps {
   myReaction?: StoryReaction | null;
   storyMode?: StoryMode;
   generationInputs?: StoryGenerationInputs;
+  storyLanguage?: string;
   openRouterCosts?: StoryOpenRouterCosts | null;
   canManageStory?: boolean;
   canUseOnlineActions?: boolean;
@@ -109,6 +110,7 @@ export default function StoryViewer({
   myReaction = null,
   storyMode,
   generationInputs,
+  storyLanguage,
   openRouterCosts,
   canManageStory = false,
   canUseOnlineActions = true,
@@ -826,6 +828,7 @@ export default function StoryViewer({
           currentPage={currentPage}
           storyMode={storyMode}
           generationInputs={generationInputs}
+          storyLanguage={storyLanguage}
           openRouterCosts={openRouterCosts}
           likeCount={likeCount}
           dislikeCount={dislikeCount}
