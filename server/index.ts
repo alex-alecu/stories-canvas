@@ -4,6 +4,7 @@ import { isGenerationActive } from './services/generationRegistry.js';
 import { runRecoveryPass } from './services/recoveryRunner.js';
 import { recoverStuckStories } from './services/supabaseStorage.js';
 import { refreshModelPriceCatalog } from './services/modelPriceCatalog.js';
+import { runInstagramMarketing } from './services/marketing.js';
 
 const app = createApp();
 
@@ -14,6 +15,10 @@ app.listen(config.port, () => {
 
   // Recover stories stuck in generating states from a previous crash/restart
   if (config.useSupabase) {
+    const runMarketing = () => runInstagramMarketing()
+      .catch(() => { /* The runner records the stage and failure in the server and activity logs. */ });
+    void runMarketing();
+    setInterval(() => void runMarketing(), 60_000);
     const refreshPrices = () => refreshModelPriceCatalog()
       .catch(error => console.error('Failed to refresh model price catalog:', error));
     void refreshPrices();

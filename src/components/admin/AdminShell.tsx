@@ -48,6 +48,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
     { to: '/admin', label: 'Dashboard', end: true },
     { to: '/admin/users', label: 'Users', end: false },
     { to: '/admin/stories', label: 'Stories', end: false },
+    { to: '/admin/marketing', label: 'Marketing', end: false },
   ];
 
   return (

@@ -48,6 +48,13 @@ function isBrowser(): boolean {
   return typeof window !== 'undefined' && typeof document !== 'undefined';
 }
 
+function isAdminPage(): boolean {
+  if (!isBrowser()) return false;
+  const adminPath = /^\/admin(?:\/|$)/;
+  return adminPath.test(window.location.pathname)
+    || adminPath.test(new URLSearchParams(window.location.search).get('returnTo') || '');
+}
+
 function marketingWindow(): MarketingWindow | null {
   return isBrowser() ? window as MarketingWindow : null;
 }
@@ -151,7 +158,7 @@ export function getMarketingAttribution(): MarketingAttribution | undefined {
 }
 
 export function captureMarketingAttribution(): MarketingAttribution | undefined {
-  if (!isBrowser()) return undefined;
+  if (!isBrowser() || isAdminPage()) return undefined;
 
   const existing = getMarketingAttribution() ?? {};
   const params = new URLSearchParams(window.location.search);
@@ -209,7 +216,7 @@ export function getCheckoutMarketingPayload(eventId = createMarketingEventId('ch
 
 export function loadMarketingPixels(): void {
   const w = marketingWindow();
-  if (!w || !hasMarketingConsent()) return;
+  if (!w || isAdminPage() || !hasMarketingConsent()) return;
 
   const gtmId = compactValue(import.meta.env.VITE_GTM_ID, 80);
   if (gtmId) {
@@ -280,7 +287,7 @@ export function loadMarketingPixels(): void {
 
 export function trackPageView(path = isBrowser() ? `${window.location.pathname}${window.location.search}` : '/', title = isBrowser() ? document.title : ''): void {
   const w = marketingWindow();
-  if (!w || !hasMarketingConsent()) return;
+  if (!w || isAdminPage() || !hasMarketingConsent()) return;
 
   loadMarketingPixels();
 

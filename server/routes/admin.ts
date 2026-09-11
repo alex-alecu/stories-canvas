@@ -4,8 +4,10 @@ import { grantCredits, updateStoryPackOffer } from '../services/billingStorage.j
 import { getAdminOverview, getAdminUserDetail, listAdminStories, searchUsersPage } from '../services/adminStorage.js';
 import { refreshModelPriceCatalog } from '../services/modelPriceCatalog.js';
 import type { StoryPackOffer } from '../../shared/types.js';
+import marketingRouter from './marketing.js';
 
 const router = Router();
+router.use('/marketing', marketingRouter);
 
 const OFFER_SLUGS = new Set<StoryPackOffer['slug']>(['pack_5', 'pack_12', 'pack_20']);
 const PAGE_SIZES = new Set([10, 25, 50]);

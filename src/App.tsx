@@ -18,6 +18,7 @@ const Explore = lazy(() => import('./pages/Explore'));
 const Admin = lazy(() => import('./pages/Admin'));
 const AdminUsers = lazy(() => import('./pages/AdminUsers'));
 const AdminStories = lazy(() => import('./pages/AdminStories'));
+const AdminMarketing = lazy(() => import('./pages/AdminMarketing'));
 const BlogArticlePage = lazy(() => import('./pages/BlogArticlePage'));
 
 function RouteFallback() {
@@ -46,6 +47,7 @@ export default function App() {
           <Route path="/admin" element={<Admin />} />
           <Route path="/admin/users" element={<AdminUsers />} />
           <Route path="/admin/stories" element={<AdminStories />} />
+          <Route path="/admin/marketing" element={<AdminMarketing />} />
           <Route path="/blog/:slug" element={<BlogArticlePage />} />
           <Route path="/legal/terms" element={<LegalPage routeKey="terms" />} />
           <Route path="/legal/privacy" element={<LegalPage routeKey="privacy" />} />
