@@ -1,4 +1,8 @@
 import TextModelPicker from './TextModelPicker';
+import ImageModelPicker from './ImageModelPicker';
+import AudioModelPicker from './AudioModelPicker';
+import { DEFAULT_IMAGE_MODEL } from '../../shared/imageModels';
+import { DEFAULT_AUDIO_MODEL, getAudioVoices, isAudioModelAvailable } from '../../shared/audioModels';
 import { MINIMUM_STORY_BALANCE_USD, parseTextModelSettings, type TextModelSettings } from '../../shared/textModels';
 import { getWalletCopy } from '../i18n/walletCopy';
 import { useState, useEffect, type FormEvent } from 'react';
@@ -16,6 +20,7 @@ import {
   type ArtStyleKey,
   type StoryMode,
   type VoiceKey,
+  type CreateStoryRequest,
 } from '../../shared/types';
 import { getRandomStoryIdea } from '../data/storyIdeas';
 import { getVoiceOptionText } from '../i18n/storyStatusCopy';
@@ -34,7 +39,7 @@ const styleTranslationMap: Record<SelectableArtStyleKey, keyof ReturnType<typeof
 };
 
 interface StoryInputProps {
-  onSubmit: (prompt: string, age: number, style: ArtStyleKey, settings: TextModelSettings, audioEnabled: boolean, voice?: VoiceKey) => void;
+  onSubmit: (request: CreateStoryRequest) => void;
   isLoading: boolean;
   isOffline?: boolean;
 }
@@ -44,8 +49,11 @@ export default function StoryInput({ onSubmit, isLoading, isOffline = false }: S
   const [age, setAge] = useState<number>(DEFAULT_AGE);
   const [style, setStyle] = useState<ArtStyleKey>(DEFAULT_ART_STYLE);
   const [settings, setSettings] = useState(() => parseTextModelSettings(undefined, undefined));
+  const [imageModel, setImageModel] = useState(DEFAULT_IMAGE_MODEL);
   const [audioEnabled, setAudioEnabled] = useState(false);
   const [voice, setVoice] = useState<VoiceKey | ''>(DEFAULT_VOICE_KEY);
+  const [audioModel, setAudioModel] = useState(DEFAULT_AUDIO_MODEL);
+  const [audioVoice, setAudioVoice] = useState<string | undefined>();
   const maxLength = 500;
   const { user, loading } = useAuth();
   const { data: billingOverview } = useBillingOverview(!!user);
@@ -84,10 +92,35 @@ export default function StoryInput({ onSubmit, isLoading, isOffline = false }: S
     }
 
     const trimmed = prompt.trim();
-    if (trimmed && !isLoading) {
-      onSubmit(trimmed, age, style, settings, audioEnabled, audioEnabled ? voice || undefined : undefined);
+    if (trimmed && !isLoading && (!audioEnabled || isAudioModelAvailable(audioModel, language))) {
+      onSubmit({
+        prompt: trimmed,
+        age,
+        style,
+        ...settings,
+        imageModel,
+        audioEnabled,
+        ...(audioEnabled ? {
+          audioModel,
+          ...(audioModel === DEFAULT_AUDIO_MODEL
+            ? { voice: voice || undefined }
+            : { audioVoice }),
+        } : {}),
+      });
     }
   };
+
+  const handleAudioModelChange = (nextModel: string) => {
+    setAudioModel(nextModel);
+    const nextVoice = getAudioVoices(nextModel, language)[0]?.id;
+    setAudioVoice(nextVoice);
+  };
+
+  useEffect(() => {
+    if (audioModel === DEFAULT_AUDIO_MODEL || !isAudioModelAvailable(audioModel, language)) return;
+    const voices = getAudioVoices(audioModel, language);
+    if (!voices.some(option => option.id === audioVoice)) setAudioVoice(voices[0]?.id);
+  }, [audioModel, audioVoice, language]);
 
   const handleIdeaClick = () => {
     setPrompt(getRandomStoryIdea(language));
@@ -224,7 +257,7 @@ export default function StoryInput({ onSubmit, isLoading, isOffline = false }: S
                   </select>
                 </div>
 
-                {audioEnabled ? (
+                {audioEnabled && audioModel === DEFAULT_AUDIO_MODEL ? (
                   <div className="flex items-center gap-2 min-w-0 lg:justify-end">
                     <label htmlFor="voice-select" className="text-sm text-gray-400 dark:text-gray-500 whitespace-nowrap">
                       {t.narratorVoice}
@@ -251,11 +284,22 @@ export default function StoryInput({ onSubmit, isLoading, isOffline = false }: S
                 )}
               </div>
 
-              <TextModelPicker value={settings} onChange={setSettings} disabled={isLoading} />
+              <TextModelPicker value={settings} onChange={next => setSettings(current => ({ ...current, ...next }))} disabled={isLoading} />
+              <ImageModelPicker value={imageModel} onChange={setImageModel} disabled={isLoading} language={language} />
               <label className="flex cursor-pointer items-center gap-3 py-1 text-sm font-medium text-gray-700 dark:text-gray-200">
                 <input type="checkbox" checked={audioEnabled} onChange={event => setAudioEnabled(event.target.checked)} disabled={isLoading} className="h-4 w-4 accent-primary-600" />
                 {copy.narration}
               </label>
+              {audioEnabled && (
+                <AudioModelPicker
+                  model={audioModel}
+                  voice={audioVoice}
+                  language={language}
+                  onModelChange={handleAudioModelChange}
+                  onVoiceChange={setAudioVoice}
+                  disabled={isLoading}
+                />
+              )}
             </div>
           )}
 
@@ -272,7 +316,7 @@ export default function StoryInput({ onSubmit, isLoading, isOffline = false }: S
             )}
             <button
               type="submit"
-              disabled={user ? (isLoading || !billingOverview || (hasEnoughCredits && !prompt.trim())) : false}
+              disabled={user ? (isLoading || !billingOverview || (hasEnoughCredits && (!prompt.trim() || (audioEnabled && !isAudioModelAvailable(audioModel, language))))) : false}
               className="w-full bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 disabled:from-gray-300 disabled:to-gray-300 dark:disabled:from-gray-700 dark:disabled:to-gray-700 text-white font-bold py-2.5 px-8 rounded-xl transition-all disabled:cursor-not-allowed transform hover:scale-[1.02] active:scale-[0.98] lg:w-auto lg:min-w-[220px]"
             >
               {isLoading ? (

@@ -11,6 +11,7 @@ import { getPageImageFilename } from '../utils/storyMedia.js';
 import type { Page, Character, GenerationProgress } from '../../shared/types.js';
 import { reviewSceneImage, type SceneImageReviewResult } from './sceneImageReview.js';
 import { TextCostUnavailableError, type TextUsageEvent } from './openrouter.js';
+import { getImageModel } from './imageGenerationContext.js';
 
 async function saveSceneImage(storyId: string, filename: string, base64: string, userId?: string): Promise<void> {
   if (config.useSupabase) {
@@ -194,12 +195,11 @@ export async function generateSceneImage(
 
   function buildRequest(useSceneContinuity: boolean, correction = '') {
     const referenceImages: Array<{ data: string; mimeType: string }> = [];
-    const hasPreviousScene = useSceneContinuity && !!previousSceneBase64;
-    const hasCurrentScene = useSceneContinuity && !!currentSceneBase64;
+    const referenceLimit = getImageModel(pro).maxReferences;
     // Gemini 3 image models accept scene/object references in addition to four
     // character references on Flash and five on Pro. Do not let continuity
     // images remove the authoritative character sheets.
-    const maxCharSheets = pro ? 5 : 4;
+    const maxCharSheets = Math.min(pro ? 5 : 4, referenceLimit);
     const includedCharNames: string[] = [];
     for (const charName of page.characters) {
       if (includedCharNames.length >= maxCharSheets) break;
@@ -209,9 +209,11 @@ export async function generateSceneImage(
         includedCharNames.push(charName);
       }
     }
+    const hasCurrentScene = useSceneContinuity && !!currentSceneBase64 && referenceImages.length < referenceLimit;
     if (hasCurrentScene) {
       referenceImages.push({ data: currentSceneBase64!, mimeType: 'image/png' });
     }
+    const hasPreviousScene = useSceneContinuity && !!previousSceneBase64 && referenceImages.length < referenceLimit;
     if (hasPreviousScene) {
       referenceImages.push({ data: previousSceneBase64!, mimeType: 'image/png' });
     }

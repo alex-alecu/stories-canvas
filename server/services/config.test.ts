@@ -7,7 +7,6 @@ const {
   resolveDefaultAppLanguage,
   resolveNonNegativeNumberEnv,
   resolveStoryPackPricingConfig,
-  resolveImageModelId,
 } = await import('../config.js');
 
 test('text roles have a default OpenRouter model', () => {
@@ -17,13 +16,8 @@ test('text roles have a default OpenRouter model', () => {
   assert.equal(config.pageTextReviewModel, 'google/gemini-3.8-flash');
 });
 
-test('image models use OpenRouter IDs and no direct Google credential', () => {
-  assert.equal(config.imageModel, 'google/gemini-3.1-flash-image-preview');
-  assert.equal(config.imageModelPro, 'google/gemini-3-pro-image-preview');
+test('image generation has no direct Google credential', () => {
   assert.equal('geminiApiKey' in config, false);
-  assert.equal(resolveImageModelId('gemini-3.1-flash-image-preview', ''), 'google/gemini-3.1-flash-image-preview');
-  assert.equal(resolveImageModelId('gemini-3-pro-image-preview', ''), 'google/gemini-3-pro-image-preview');
-  assert.equal(resolveImageModelId('openai/gpt-image-2', ''), 'openai/gpt-image-2');
 });
 
 test('resolveDefaultAppLanguage only accepts site-localized deployment languages', () => {

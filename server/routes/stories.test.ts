@@ -110,6 +110,7 @@ async function createStoriesHarness(dataDir: string, configOverrides: Record<str
   return {
     server,
     storiesModule,
+    generationRegistry,
     close: async () => {
       await new Promise<void>((resolve, reject) => {
         server.close((error) => error ? reject(error) : resolve());
@@ -172,7 +173,7 @@ test('POST /api/stories stores canonical narrator keys unchanged', async (t) => 
   t.mock.method(harness.storiesModule.scenarioOps, 'generateScenarioWithMetadata', async () => makeGeneratedScenarioResult());
   t.mock.method(harness.storiesModule.illustrationOps, 'generateAllCharacterSheets', async () => []);
   t.mock.method(harness.storiesModule.illustrationOps, 'generateAllSceneImages', async () => {});
-  t.mock.method(harness.storiesModule.audioOps, 'isElevenLabsConfigured', () => true);
+  t.mock.method(harness.storiesModule.audioOps, 'isAudioConfigured', () => true);
   t.mock.method(harness.storiesModule.audioOps, 'generateAllPageAudio', async () => ({
     completedCount: 0,
     failedCount: 0,
@@ -212,7 +213,7 @@ test('POST /api/stories normalizes legacy narrator keys before persistence', asy
   t.mock.method(harness.storiesModule.scenarioOps, 'generateScenarioWithMetadata', async () => makeGeneratedScenarioResult());
   t.mock.method(harness.storiesModule.illustrationOps, 'generateAllCharacterSheets', async () => []);
   t.mock.method(harness.storiesModule.illustrationOps, 'generateAllSceneImages', async () => {});
-  t.mock.method(harness.storiesModule.audioOps, 'isElevenLabsConfigured', () => true);
+  t.mock.method(harness.storiesModule.audioOps, 'isAudioConfigured', () => true);
   t.mock.method(harness.storiesModule.audioOps, 'generateAllPageAudio', async () => ({
     completedCount: 0,
     failedCount: 0,
@@ -252,7 +253,7 @@ test('POST /api/stories stores no fixed story charge', async (t) => {
   t.mock.method(harness.storiesModule.scenarioOps, 'generateScenarioWithMetadata', async () => makeGeneratedScenarioResult());
   t.mock.method(harness.storiesModule.illustrationOps, 'generateAllCharacterSheets', async () => []);
   t.mock.method(harness.storiesModule.illustrationOps, 'generateAllSceneImages', async () => {});
-  t.mock.method(harness.storiesModule.audioOps, 'isElevenLabsConfigured', () => true);
+  t.mock.method(harness.storiesModule.audioOps, 'isAudioConfigured', () => true);
   t.mock.method(harness.storiesModule.audioOps, 'generateAllPageAudio', async () => ({
     completedCount: 0,
     failedCount: 0,
@@ -297,6 +298,8 @@ test('POST /api/stories persists generation inputs and usage totals for filesyst
     await fs.rm(dataDir, { recursive: true, force: true });
   });
 
+  const { getImageModel } = await import('../services/imageGenerationContext.js');
+  let generatedImageModel = '';
   const scenario = makeScenario([
     makePage({
       status: 'pending',
@@ -399,6 +402,7 @@ test('POST /api/stories persists generation inputs and usage totals for filesyst
       usageDetails: Record<string, unknown>;
     }) => void | Promise<void>,
   ) => {
+    generatedImageModel = getImageModel().id;
     await onUsage?.({}, {
       model: 'gemini-3.1-flash-image-preview',
       status: 'succeeded',
@@ -445,7 +449,7 @@ test('POST /api/stories persists generation inputs and usage totals for filesyst
     onProgress?.({ pageNumber: page.pageNumber, pageStatus: 'completed', message: 'Page complete' });
   });
 
-  t.mock.method(harness.storiesModule.audioOps, 'isElevenLabsConfigured', () => true);
+  t.mock.method(harness.storiesModule.audioOps, 'isAudioConfigured', () => true);
   t.mock.method(harness.storiesModule.audioOps, 'generateAllPageAudio', async (
     _storyId: string,
     pages: Page[],
@@ -454,6 +458,7 @@ test('POST /api/stories persists generation inputs and usage totals for filesyst
     _signal: AbortSignal,
     _onProgress?: unknown,
     onUsage?: (page: Page, usage: {
+      provider: 'elevenlabs';
       model: string;
       status: 'succeeded' | 'failed';
       billedCharacters: number;
@@ -462,6 +467,7 @@ test('POST /api/stories persists generation inputs and usage totals for filesyst
   ) => {
     const [page] = pages;
     await onUsage?.(page, {
+      provider: 'elevenlabs',
       model: 'eleven_multilingual_v2',
       status: 'succeeded',
       billedCharacters: page.text.length,
@@ -484,6 +490,7 @@ test('POST /api/stories persists generation inputs and usage totals for filesyst
       age: 5,
       style: 'watercolor',
       language: 'ro',
+      imageModel: 'bytedance-seed/seedream-5-0-pro',
     }),
   });
 
@@ -502,6 +509,9 @@ test('POST /api/stories persists generation inputs and usage totals for filesyst
   assert.equal(savedStory.generationInputs?.voice, 'corina');
   assert.equal(savedStory.generationInputs?.audioEnabled, true);
   assert.equal(savedStory.generationInputs?.proModel, true);
+  assert.equal(savedStory.generationInputs?.imageModel, 'bytedance-seed/seedream-5-0-pro');
+  assert.equal(savedStory.generationInputs?.imageModelPro, undefined);
+  assert.equal(generatedImageModel, 'bytedance-seed/seedream-5-0-pro');
   assert.equal(savedStory.generationInputs?.retellingMode, 'faithful_retelling');
   assert.equal(savedStory.generationInputs?.sourceTitle, 'Greuceanu');
   assert.equal(savedStory.generationInputs?.sourceProvider, 'wikisource');
@@ -533,6 +543,24 @@ test('POST /api/stories persists generation inputs and usage totals for filesyst
   assert.ok(usageEvents.every(event => event.source === 'initial_generation'));
   assert.ok(usageEvents.every(event => event.status === 'succeeded'));
   assert.ok(usageEvents.every(event => event.pricingStatus === 'incomplete'));
+});
+
+test('POST /api/stories rejects an image model outside the model list', async (t) => {
+  const dataDir = mkdtempSync(path.join(os.tmpdir(), 'stories-invalid-image-model-'));
+  const harness = await createStoriesHarness(dataDir);
+  t.after(async () => {
+    await harness.close();
+    await fs.rm(dataDir, { recursive: true, force: true });
+  });
+
+  const response = await fetch(`${harness.baseUrl}/api/stories`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ prompt: 'Tell a story about a rabbit.', imageModel: 'unknown/image-model' }),
+  });
+
+  assert.equal(response.status, 400);
+  assert.deepEqual(await response.json(), { error: 'Select an image model from the model list.' });
 });
 
 test('an accounting write failure reports a failed story and sends a failure alert', async (t) => {
@@ -757,7 +785,7 @@ test('POST /api/stories rejects Pro + Audio when narration is unavailable', asyn
     await fs.rm(dataDir, { recursive: true, force: true });
   });
 
-  t.mock.method(harness.storiesModule.audioOps, 'isElevenLabsConfigured', () => false);
+  t.mock.method(harness.storiesModule.audioOps, 'isAudioConfigured', () => false);
   let slackAlert: Record<string, unknown> | null = null;
   t.mock.method(harness.storiesModule.storySlackOps, 'sendStoryBlockAlert', async (params) => {
     slackAlert = params as Record<string, unknown>;
@@ -845,6 +873,7 @@ test('POST /api/stories/:id/generate-audio starts narration with no fixed charge
 
   let chargedReason: string | undefined;
   let storedVoice: string | undefined;
+  let storedInputs: StoryMeta['generationInputs'];
   let generatedVoice: string | undefined;
 
   t.mock.method(harness.storiesModule.storageOps, 'getStory', async () => makeStoryMeta({
@@ -855,8 +884,9 @@ test('POST /api/stories/:id/generate-audio starts narration with no fixed charge
     userId: 'user-audio',
     scenario: makeScenario([makePage()]),
   }));
-  t.mock.method(harness.storiesModule.storageOps, 'updateStoryVoice', async (_storyId: string, voice: string) => {
-    storedVoice = voice;
+  t.mock.method(harness.storiesModule.storageOps, 'updateStoryAudioSettings', async (_storyId: string, story: StoryMeta) => {
+    storedVoice = story.voice;
+    storedInputs = story.generationInputs;
   });
   t.mock.method(harness.storiesModule.storageOps, 'updateStoryStatus', async () => {});
   t.mock.method(harness.storiesModule.storageOps, 'updateStoryProgress', async () => {});
@@ -865,7 +895,7 @@ test('POST /api/stories/:id/generate-audio starts narration with no fixed charge
     chargedReason = params.reason;
     return { ledger_id: 'ledger-add-audio', available_credits: 4.9 };
   });
-  t.mock.method(harness.storiesModule.audioOps, 'isElevenLabsConfigured', () => true);
+  t.mock.method(harness.storiesModule.audioOps, 'isAudioConfigured', () => true);
   t.mock.method(harness.storiesModule.audioOps, 'retryMissingAudio', async (_storyId: string, _pages: Page[], voiceKey: string) => {
     generatedVoice = voiceKey;
     return {
@@ -893,6 +923,8 @@ test('POST /api/stories/:id/generate-audio starts narration with no fixed charge
   await waitFor(async () => generatedVoice, value => value === 'serban');
   assert.equal(chargedReason, undefined);
   assert.equal(storedVoice, 'serban');
+  assert.equal(storedInputs?.audioEnabled, true);
+  assert.equal(storedInputs?.audioModel, 'eleven_multilingual_v2');
   assert.equal(generatedVoice, 'serban');
 });
 
@@ -932,7 +964,7 @@ test('POST /api/stories/:id/generate-audio returns 402 when credits are insuffic
     releasedSlot = true;
     return 1;
   });
-  t.mock.method(harness.storiesModule.audioOps, 'isElevenLabsConfigured', () => true);
+  t.mock.method(harness.storiesModule.audioOps, 'isAudioConfigured', () => true);
   t.mock.method(harness.storiesModule.storySlackOps, 'sendStoryBlockAlert', async (params) => {
     slackAlert = params as Record<string, unknown>;
   });
@@ -989,7 +1021,7 @@ test('POST /api/stories/:id/generate-audio returns 429 before charging when gene
     charged = true;
     return { ledger_id: 'unexpected', available_credits: 0 };
   });
-  t.mock.method(harness.storiesModule.audioOps, 'isElevenLabsConfigured', () => true);
+  t.mock.method(harness.storiesModule.audioOps, 'isAudioConfigured', () => true);
   t.mock.method(harness.storiesModule.storySlackOps, 'sendStoryBlockAlert', async (params) => {
     slackAlert = params as Record<string, unknown>;
   });
@@ -1057,22 +1089,30 @@ test('page edits use saved text models from current and older story snapshots', 
 test('POST /api/stories/:id/pages/:pageNumber/regenerate-image reviews feedback and increments image revision', async (t) => {
   const dataDir = mkdtempSync(path.join(os.tmpdir(), 'stories-page-image-regenerate-'));
   const harness = await createStoriesHarness(dataDir);
+  const storyId = '00000000-0000-4000-8000-000000000099';
+  const { getImageModel } = await import('../services/imageGenerationContext.js');
   t.after(async () => {
     await harness.close();
     await fs.rm(dataDir, { recursive: true, force: true });
   });
 
   await writeStoryMeta(dataDir, {
-    id: 'story-page-image',
+    id: storyId,
     prompt: 'A story with one page.',
     status: 'completed',
     createdAt: '2026-03-29T00:00:00.000Z',
     storyMode: 'fast',
+    generationInputs: {
+      prompt: 'A story with one page.', language: 'en', age: 3, artStyle: 'watercolor', storyMode: 'fast',
+      audioEnabled: false, proModel: false, scenarioModel: 'google/gemini-3.8-flash',
+      imageModel: 'google/gemini-3.1-flash-image', pricingVersion: '2026-04-15',
+    },
     scenario: makeScenario([makePage({ imageRevision: 0 })]),
   });
 
   let reviewedText = '';
   let generatedPrompt = '';
+  let generatedImageModel = '';
   t.mock.method(harness.storiesModule.pageTextReviewOps, 'reviewPageText', async (input: { text: string }) => {
     reviewedText = input.text;
     return { allowed: true };
@@ -1091,6 +1131,7 @@ test('POST /api/stories/:id/pages/:pageNumber/regenerate-image reviews feedback 
     _onCharacterSheetUsage?: unknown,
     options?: { includeCurrentSceneReference?: boolean },
   ) => {
+    generatedImageModel = getImageModel().id;
     generatedPrompt = pages[0].imagePrompt;
     assert.deepEqual(pageNumbers, [1]);
     assert.equal(pro, true);
@@ -1099,10 +1140,10 @@ test('POST /api/stories/:id/pages/:pageNumber/regenerate-image reviews feedback 
     return 1;
   });
 
-  const response = await fetch(`${harness.baseUrl}/api/stories/story-page-image/pages/1/regenerate-image`, {
+  const response = await fetch(`${harness.baseUrl}/api/stories/${storyId}/pages/1/regenerate-image/`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ feedback: 'Make the moon brighter.', mode: 'pro' }),
+    body: JSON.stringify({ feedback: 'Make the moon brighter.', imageModel: 'black-forest-labs/flux.2-pro' }),
   });
 
   assert.equal(response.status, 200);
@@ -1112,12 +1153,89 @@ test('POST /api/stories/:id/pages/:pageNumber/regenerate-image reviews feedback 
   assert.equal(body.chargedCredits, 0);
 
   const updated = await waitFor(
-    () => readStoryMeta(dataDir, 'story-page-image'),
+    () => readStoryMeta(dataDir, storyId),
     story => story.scenario?.pages[0]?.imageRevision === 1,
   );
   assert.equal(reviewedText, 'Make the moon brighter.');
   assert.match(generatedPrompt, /User feedback for this regeneration: Make the moon brighter\./);
+  assert.equal(generatedImageModel, 'black-forest-labs/flux.2-pro');
+  assert.equal(updated.generationInputs?.imageModel, 'black-forest-labs/flux.2-pro');
+  assert.equal(updated.generationInputs?.proModel, true);
   assert.equal(updated.scenario?.pages[0].status, 'completed');
+});
+
+test('failed page image regeneration preserves the selected model for retry', async (t) => {
+  const dataDir = mkdtempSync(path.join(os.tmpdir(), 'stories-page-image-model-retry-'));
+  const harness = await createStoriesHarness(dataDir);
+  const storyId = '00000000-0000-4000-8000-000000000100';
+  const { getImageModel } = await import('../services/imageGenerationContext.js');
+  t.after(async () => {
+    await harness.close();
+    await fs.rm(dataDir, { recursive: true, force: true });
+  });
+
+  await writeStoryMeta(dataDir, {
+    id: storyId,
+    prompt: 'A story with one page.',
+    status: 'completed',
+    createdAt: '2026-03-29T00:00:00.000Z',
+    storyMode: 'fast',
+    generationInputs: {
+      prompt: 'A story with one page.', language: 'en', age: 3, artStyle: 'watercolor', storyMode: 'fast',
+      audioEnabled: false, proModel: false, scenarioModel: 'google/gemini-3.8-flash',
+      imageModel: 'google/gemini-3.1-flash-image', pricingVersion: '2026-04-15',
+    },
+    scenario: makeScenario([makePage({ imageRevision: 0 })]),
+  });
+
+  let attempts = 0;
+  let retryModel = '';
+  t.mock.method(harness.storiesModule.pageTextReviewOps, 'reviewPageText', async () => ({ allowed: true }));
+  t.mock.method(harness.storiesModule.illustrationOps, 'retryFailedSceneImages', async (
+    _storyId: string,
+    _pages: Page[],
+    _characters: unknown,
+    _pageNumbers: number[],
+    _style: unknown,
+    onProgress?: (progress: { pageNumber?: number; pageStatus?: string; message?: string }) => void,
+  ) => {
+    const model = getImageModel().id;
+    if (attempts++ === 0) {
+      onProgress?.({ pageNumber: 1, pageStatus: 'failed', message: 'provider failed' });
+      return 0;
+    }
+    retryModel = model;
+    return 0;
+  });
+
+  const response = await fetch(`${harness.baseUrl}/api/stories/${storyId}/pages/1/regenerate-image`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ feedback: 'Make the moon brighter.', imageModel: 'black-forest-labs/flux.2-pro' }),
+  });
+
+  assert.equal(response.status, 200);
+  const failed = await waitFor(
+    async () => ({
+      story: await readStoryMeta(dataDir, storyId),
+      active: harness.generationRegistry.isGenerationActive(storyId),
+    }),
+    ({ story, active }) => story.generationInputs?.imageModel === 'black-forest-labs/flux.2-pro'
+      && story.status === 'completed'
+      && !active,
+  );
+  assert.equal(failed.story.generationInputs?.proModel, true);
+
+  const retryResponse = await fetch(`${harness.baseUrl}/api/stories/${storyId}/pages/1/regenerate-image`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ feedback: 'Try the same change again.' }),
+  });
+  assert.equal(retryResponse.status, 200);
+  assert.equal(
+    await waitFor(async () => retryModel, model => model === 'black-forest-labs/flux.2-pro'),
+    'black-forest-labs/flux.2-pro',
+  );
 });
 
 test('PATCH /api/stories/:id/pages/:pageNumber/script-audio reviews text and updates the same-voice narration', async (t) => {
@@ -1145,7 +1263,7 @@ test('PATCH /api/stories/:id/pages/:pageNumber/script-audio reviews text and upd
     reviewedText = input.text;
     return { allowed: true };
   });
-  t.mock.method(harness.storiesModule.audioOps, 'isElevenLabsConfigured', () => true);
+  t.mock.method(harness.storiesModule.audioOps, 'isAudioConfigured', () => true);
   t.mock.method(harness.storiesModule.audioOps, 'generatePageAudio', async (text: string, voiceKey: string) => {
     generatedText = text;
     generatedVoice = voiceKey;
@@ -1174,6 +1292,118 @@ test('PATCH /api/stories/:id/pages/:pageNumber/script-audio reviews text and upd
   assert.equal(generatedVoice, 'jora');
   assert.equal(updated.scenario?.pages[0].text, 'The dragon waves softly at the stars.');
   assert.equal(updated.scenario?.pages[0].audioUrl, '/new-audio.mp3');
+});
+
+test('PATCH page audio retries the same saved model and voice after a failed generation', async (t) => {
+  const dataDir = mkdtempSync(path.join(os.tmpdir(), 'stories-page-audio-model-'));
+  const harness = await createStoriesHarness(dataDir, { openrouterApiKey: 'router-test-key' });
+  t.after(async () => {
+    await harness.close();
+    await fs.rm(dataDir, { recursive: true, force: true });
+  });
+  const storyId = '11111111-1111-4111-a111-111111111111';
+  const page = makePage({ audioUrl: '/old-audio.mp3' });
+  await writeStoryMeta(dataDir, {
+    id: storyId, prompt: 'A story with narration.', status: 'completed',
+    createdAt: '2026-09-11T00:00:00.000Z', language: 'en', voice: 'jora', storyMode: 'pro_audio',
+    scenario: makeScenario([page]),
+  });
+  let attempts = 0;
+  let generatedSettings: { audioModel: string; audioVoice?: string } | undefined;
+  t.mock.method(harness.storiesModule.pageTextReviewOps, 'reviewPageText', async () => ({ allowed: true }));
+  t.mock.method(harness.storiesModule.audioOps, 'isAudioConfigured', () => true);
+  t.mock.method(harness.storiesModule.audioOps, 'generatePageAudio', async () => {
+    if (attempts++ === 0) throw new Error('Audio provider failed');
+    generatedSettings = (await import('../services/audioGenerationContext.js')).getAudioModelSettings();
+    return Buffer.from('audio');
+  });
+  t.mock.method(harness.storiesModule.audioOps, 'savePageAudio', async () => '/new-audio.mp3');
+
+  const response = await fetch(`${harness.baseUrl}/api/stories/${storyId}/pages/1/script-audio`, {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text: page.text, audioModel: 'hexgrad/kokoro-82m', audioVoice: 'bf_emma' }),
+  });
+  assert.equal(response.status, 200);
+  const failed = await waitFor(
+    async () => ({
+      story: await readStoryMeta(dataDir, storyId),
+      active: harness.generationRegistry.isGenerationActive(storyId),
+    }),
+    ({ story, active }) => story.status === 'completed'
+      && story.scenario?.pages[0]?.audioUrl === '/old-audio.mp3'
+      && story.generationInputs?.audioModel === 'hexgrad/kokoro-82m'
+      && story.generationInputs?.audioVoice === 'bf_emma'
+      && !active,
+  );
+  assert.equal(failed.story.generationInputs?.audioModel, 'hexgrad/kokoro-82m');
+
+  const retryResponse = await fetch(`${harness.baseUrl}/api/stories/${storyId}/pages/1/script-audio`, {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text: page.text, audioModel: 'hexgrad/kokoro-82m', audioVoice: 'bf_emma' }),
+  });
+  assert.equal(retryResponse.status, 200);
+  const saved = await waitFor(
+    () => readStoryMeta(dataDir, storyId),
+    story => story.scenario?.pages[0]?.audioUrl === '/new-audio.mp3',
+  );
+  assert.deepEqual(generatedSettings, { audioModel: 'hexgrad/kokoro-82m', audioVoice: 'bf_emma' });
+  assert.equal(saved.generationInputs?.audioModel, 'hexgrad/kokoro-82m');
+  assert.equal(saved.generationInputs?.audioVoice, 'bf_emma');
+});
+
+test('model settings read failure stops regeneration before a second story read', async (t) => {
+  const dataDir = mkdtempSync(path.join(os.tmpdir(), 'stories-model-settings-read-failure-'));
+  const harness = await createStoriesHarness(dataDir);
+  const storyId = '33333333-3333-4333-a333-333333333333';
+  t.after(async () => {
+    await harness.close();
+    await fs.rm(dataDir, { recursive: true, force: true });
+  });
+
+  let reads = 0;
+  let generated = false;
+  t.mock.method(harness.storiesModule.storageOps, 'getStory', async () => {
+    reads++;
+    if (reads === 1) throw new Error('Storage unavailable');
+    return makeStoryMeta({ id: storyId, status: 'completed' });
+  });
+  t.mock.method(harness.storiesModule.illustrationOps, 'generateAllCharacterSheets', async () => {
+    generated = true;
+    return new Map();
+  });
+
+  const response = await fetch(`${harness.baseUrl}/api/stories/${storyId}/regenerate-assets`, { method: 'POST' });
+
+  assert.equal(response.status, 400);
+  assert.equal(reads, 1);
+  assert.equal(generated, false);
+});
+
+test('PATCH page audio does not leave an active generation when settings cannot be saved', async (t) => {
+  const dataDir = mkdtempSync(path.join(os.tmpdir(), 'stories-page-audio-save-failure-'));
+  const harness = await createStoriesHarness(dataDir, { elevenLabsApiKey: 'eleven-test-key' });
+  t.after(async () => {
+    await harness.close();
+    await fs.rm(dataDir, { recursive: true, force: true });
+  });
+  const storyId = '22222222-2222-4222-a222-222222222222';
+  const page = makePage({ audioUrl: '/old-audio.mp3' });
+  await writeStoryMeta(dataDir, {
+    id: storyId, prompt: 'A story with narration.', status: 'completed',
+    createdAt: '2026-09-11T00:00:00.000Z', language: 'en', voice: 'jora', storyMode: 'pro_audio',
+    scenario: makeScenario([page]),
+  });
+  t.mock.method(harness.storiesModule.pageTextReviewOps, 'reviewPageText', async () => ({ allowed: true }));
+  t.mock.method(harness.storiesModule.audioOps, 'isAudioConfigured', () => true);
+  t.mock.method(harness.storiesModule.storageOps, 'updateStoryAudioSettings', async () => {
+    throw new Error('Storage unavailable');
+  });
+
+  const response = await fetch(`${harness.baseUrl}/api/stories/${storyId}/pages/1/script-audio`, {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: page.text }),
+  });
+  assert.equal(response.status, 500);
+  assert.equal(harness.generationRegistry.isGenerationActive(storyId), false);
 });
 
 test('POST /api/stories/:id/pages/:pageNumber/regenerate-image blocks unsafe feedback before generation', async (t) => {
@@ -1255,7 +1485,7 @@ test('PATCH /api/stories/:id/pages/:pageNumber/script-audio returns 402 before a
     throw new InsufficientCreditsError();
   });
   t.mock.method(harness.storiesModule.billingOps, 'getUserCreditBalance', async () => ({ availableCredits: 0 }));
-  t.mock.method(harness.storiesModule.audioOps, 'isElevenLabsConfigured', () => true);
+  t.mock.method(harness.storiesModule.audioOps, 'isAudioConfigured', () => true);
   t.mock.method(harness.storiesModule.audioOps, 'generatePageAudio', async () => {
     generated = true;
     return Buffer.from('audio');
@@ -1367,7 +1597,7 @@ test('POST /api/stories/:id/generate-audio rejects stories that already have nar
     charged = true;
     return { ledger_id: 'unexpected', available_credits: 0 };
   });
-  t.mock.method(harness.storiesModule.audioOps, 'isElevenLabsConfigured', () => true);
+  t.mock.method(harness.storiesModule.audioOps, 'isAudioConfigured', () => true);
 
   const response = await fetch(`${harness.baseUrl}/api/stories/story-audio-already-narrated/generate-audio`, {
     method: 'POST',
@@ -1420,6 +1650,7 @@ test('POST /api/stories/:id/retry restarts a failed script with saved settings a
   const harness = await createStoriesHarness(dataDir);
   const storyId = '2bbc27dd-9c62-4a37-a995-8e66ab6c4e66';
   const { getTextModelSettings } = await import('../services/textGenerationContext.js');
+  const { getAudioModelSettings } = await import('../services/audioGenerationContext.js');
   let releaseDraft!: () => void;
   const draftReady = new Promise<void>(resolve => { releaseDraft = resolve; });
   t.after(async () => {
@@ -1435,6 +1666,7 @@ test('POST /api/stories/:id/retry restarts a failed script with saved settings a
       storyMode: 'fast', audioEnabled: false, proModel: false,
       textModel: 'openai/gpt-6-astra', scenarioModel: 'openai/gpt-6-astra', thinkingLevel: 'high',
       imageModel: 'google/gemini-3.1-flash-image-preview', imageModelPro: 'google/gemini-3-pro-image-preview',
+      audioModel: 'hexgrad/kokoro-82m', audioVoice: 'bf_emma',
       pricingVersion: 'catalog-v2',
     },
   }));
@@ -1448,6 +1680,7 @@ test('POST /api/stories/:id/retry restarts a failed script with saved settings a
     assert.equal(age, 5);
     assert.equal(style, 'storybook');
     assert.deepEqual(getTextModelSettings(), { textModel: 'openai/gpt-6-astra', thinkingLevel: 'high' });
+    assert.deepEqual(getAudioModelSettings(), { audioModel: 'hexgrad/kokoro-82m', audioVoice: 'bf_emma' });
     await draftReady;
     await usage?.onDraftUsage?.({ model: 'openai/gpt-6-astra', status: 'succeeded',
       inputTokens: 100, outputTokens: 50, totalTokens: 150,
@@ -1526,7 +1759,7 @@ test('POST /api/stories/:id/retry resolves stored legacy voice keys for missing 
   });
 
   let resolvedVoice: string | undefined;
-  t.mock.method(harness.storiesModule.audioOps, 'isElevenLabsConfigured', () => true);
+  t.mock.method(harness.storiesModule.audioOps, 'isAudioConfigured', () => true);
   t.mock.method(harness.storiesModule.audioOps, 'retryMissingAudio', async (_storyId: string, _pages: Page[], voiceKey: string) => {
     resolvedVoice = voiceKey;
     return {
@@ -1957,6 +2190,7 @@ test('GET /api/stories/:id gives the owner recorded OpenRouter text and image co
   assert.deepEqual(detail.openRouterCosts, {
     textCostUsdMicros: 120_006,
     imageCostUsdMicros: 700_009,
+    audioCostUsdMicros: 800_000,
     unpricedRequests: 2,
   });
 
@@ -2215,7 +2449,7 @@ test('POST /api/stories/:id/regenerate-assets syncs renderedScenarioRevision to 
       onProgress?.({ pageNumber: page.pageNumber, pageStatus: 'completed', message: `Page ${page.pageNumber} complete` });
     }
   });
-  t.mock.method(harness.storiesModule.audioOps, 'isElevenLabsConfigured', () => false);
+  t.mock.method(harness.storiesModule.audioOps, 'isAudioConfigured', () => false);
 
   await writeStoryMeta(dataDir, {
     id: 'story-regenerate-assets',

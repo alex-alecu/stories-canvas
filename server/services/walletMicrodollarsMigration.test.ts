@@ -103,4 +103,24 @@ test('wallet migration preserves existing money and uses integer microdollars fo
   await db.query(`SELECT apply_story_pack_environment_defaults('${'a'.repeat(64)}', 'usd', 1234, 2500, 5000)`);
   assert.deepEqual((await db.query(`SELECT amount_usd_micros::text AS amount FROM story_pack_offers WHERE slug = 'pack_5'`)).rows,
     [{ amount: '12340000' }]);
+
+  await t.test('speech migration keeps audio totals and charges one debit per request', async () => {
+    await db.exec(await fs.readFile(new URL('20260911072001_openrouter_audio_usage.sql', migrations), 'utf8'));
+    const before = BigInt(await readBalance());
+    const audioEventId = '30000000-0000-4000-8000-000000000003';
+    const recordAudio = () => db.query(`SELECT record_story_usage_event(
+      '${audioEventId}', '${storyId}', '${userId}', 'openrouter', 'page_audio', 'add_audio', 'succeeded',
+      'minimax/speech-2.8-hd', 1, 0, 0, 0, 0, 100, 0, 1234, '{}', '{}', 'complete', now(), now())`);
+    await recordAudio();
+    await recordAudio();
+    assert.equal(BigInt(await readBalance()), before - 1234n);
+    const readCosts = () => db.query(`SELECT usage_text_cost_usd_micros::text AS text,
+      usage_image_cost_usd_micros::text AS image, usage_audio_cost_usd_micros::text AS audio
+      FROM stories WHERE id = '${storyId}'`);
+    const expected = [{ text: '0', image: '34360002', audio: '1234' }];
+    assert.deepEqual((await readCosts()).rows, expected);
+    await db.query('SELECT rebuild_story_usage_aggregates()');
+    assert.deepEqual((await readCosts()).rows, expected);
+    assert.equal(BigInt(await readBalance()), before - 1234n);
+  });
 });

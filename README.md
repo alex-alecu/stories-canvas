@@ -76,15 +76,23 @@ The text prompt that accompanies these reference images re-describes each charac
 
 Before any image request is sent to a provider, the app also sanitizes the outbound prompt: branded animation-style references are originalized and exact character names are replaced with neutral aliases. This keeps the stored story content unchanged while reducing provider policy blocks.
 
-Images use the [OpenRouter Image API](https://openrouter.ai/docs/guides/overview/multimodal/image-generation). The default models are `google/gemini-3.1-flash-image-preview` and `google/gemini-3-pro-image-preview`. Requests retain character and scene references, use the 4:3 format at 1K resolution, and save PNG files. The app uses the selected image model without an automatic upgrade from Flash to Pro. Cancellation reaches active image requests and stops further retries.
+Images use the [OpenRouter Image API](https://openrouter.ai/docs/guides/overview/multimodal/image-generation). Select an image model when you create a story or change a page image. The app saves the selected model for later requests. The default is Gemini 3.1 Flash Image.
+
+The list contains Fast and Pro options from Google, OpenAI, ByteDance Seed, and Black Forest Labs. The model IDs and request limits were checked against the [OpenRouter image catalog](https://openrouter.ai/api/v1/images/models) on 2026-09-11. FLUX.2 Klein 4B provides an open-weight option.
+
+Requests use the 4:3 format and save PNG files. Google and Seedream Pro use 1K resolution. Seedream Lite uses 2K. OpenAI and FLUX use their default resolution. Character references have priority over scene references when the model limits the number of input images. Cancellation stops active requests and further retries.
 
 This layered approach — character sheets for identity, previous scene for style and environment — is what keeps the story visually consistent from the first page to the last.
 
 ### Step 4 — Record Narration
 
-If the user selected narration, each page's text is sent to a text-to-speech model one page at a time. The app offers three family-role narrator options backed by the curated Romanian shortlist: Grandpa (Jora Slobod), Dad (Serban Popescu), and Mom (Corina Capuccina). All three use the same narration-oriented speech settings, and the resulting audio clips are saved so the story can be played back like an audiobook.
+The app sends each page's text to the selected speech model and saves MP3 audio. Select the model when you create a story, add narration, or change a page's narration. The app saves the model and voice before generation starts. Retries use these saved settings.
 
-Narration is only available at story creation time in this version. Users cannot buy or add narration later to an existing story.
+ElevenLabs remains the default. It keeps the existing family-role voices. The four OpenRouter options are Gemini 3.1 Flash TTS Preview, MAI-Voice-2, MiniMax Speech 2.8 HD, and Kokoro 82M. OpenRouter models use their own voice lists. The models were checked against the [OpenRouter speech catalog](https://openrouter.ai/api/v1/models?output_modalities=speech) on 2026-09-11.
+
+The selector shows language limits. Google and MiniMax include Romanian and English. MAI-Voice-2 is limited to the English, Spanish, French, and German voices listed by OpenRouter. Kokoro supports English, Spanish, French, Hindi, Italian, Japanese, Portuguese, and Chinese. It does not support Romanian.
+
+OpenRouter speech uses the [Speech API](https://openrouter.ai/docs/guides/overview/multimodal/tts). Its MP3 response includes a generation ID. The app uses that ID to read the actual request cost. A missing cost stops further OpenRouter audio requests. ElevenLabs can continue without a price record; any configured ElevenLabs estimate remains in use. ElevenLabs costs are separate from the displayed OpenRouter total.
 
 ## Admin Features
 
@@ -101,8 +109,8 @@ The first admin accounts are bootstrapped from `ADMIN_BOOTSTRAP_EMAILS`.
 
 Copy `.env.example` to `.env` and fill in the values you need:
 
-- `OPENROUTER_API_KEY` enables text, image generation, and reviews. Keep it on the server. Direct OpenAI and Gemini keys are no longer used.
-- `IMAGE_MODEL` and `IMAGE_MODEL_PRO` are optional OpenRouter image model IDs. Existing bare `gemini-*` IDs are converted to `google/gemini-*` IDs.
+- `OPENROUTER_API_KEY` enables text, images, speech, and reviews. Keep it on the server. Direct OpenAI and Gemini keys are no longer used.
+- Image models are selected in the app. `IMAGE_MODEL` and `IMAGE_MODEL_PRO` are no longer used. Saved Gemini model IDs remain supported for existing stories.
 - `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_KEY` enable auth, storage, billing, and admin APIs
 - `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` enable Checkout and webhook fulfillment
 - `APP_BASE_URL` should match the browser origin used for local or deployed checkout redirects
@@ -136,7 +144,7 @@ stripe listen \
 ## Deployment and Checks
 
 1. Stop active generation before the cutover. Back up the database.
-2. Apply all migrations, including `20260906075743_openrouter_usd_wallet.sql`, `20260906100130_openrouter_image_usage.sql`, and `20260907150817_wallet_microdollars.sql`.
+2. Apply all migrations, including `20260906075743_openrouter_usd_wallet.sql`, `20260906100130_openrouter_image_usage.sql`, `20260907150817_wallet_microdollars.sql`, and `20260911072001_openrouter_audio_usage.sql`.
 3. Set `OPENROUTER_API_KEY` and deploy the application with the migrations. Remove the old Gemini key. Existing ElevenLabs, Supabase, and Stripe keys remain in use.
 4. Remove old `STORY_PACK_*` environment defaults. USD funding amounts are now set in the admin screen.
 5. Verify a Stripe sandbox purchase. A completed USD Checkout grants the exact amount in its signed snapshot, once. Old Checkout sessions retain their legacy credit value at the 1:1 conversion rate.

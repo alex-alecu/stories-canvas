@@ -29,9 +29,42 @@ test('story costs query selects OpenRouter requests for one story across all res
   });
 
   assert.deepEqual(await getStoryOpenRouterCosts('story-costs', client), {
-    textCostUsdMicros: 1000, imageCostUsdMicros: 200_000, unpricedRequests: 0,
+    textCostUsdMicros: 1000, imageCostUsdMicros: 200_000, audioCostUsdMicros: 900_000, unpricedRequests: 0,
   });
   assert.deepEqual(offsets, [0, 1000]);
+});
+
+test('updateStoryScenario persists narrator and audio settings together', async () => {
+  const { updateStoryScenario } = await import('./supabaseStorage.js');
+  let payload: Record<string, unknown> | undefined;
+  const client = createClient('https://stories.example.test', 'test-key', {
+    auth: { persistSession: false, autoRefreshToken: false },
+    global: { fetch: async (input, init) => {
+      const url = new URL(String(input));
+      assert.equal(url.pathname, '/rest/v1/stories');
+      assert.equal(url.searchParams.get('id'), 'eq.story-audio-settings');
+      assert.equal(init?.method, 'PATCH');
+      payload = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      return new Response(JSON.stringify({}), { headers: { 'Content-Type': 'application/json' } });
+    } },
+  });
+  await updateStoryScenario('story-audio-settings', makeScenario(), 'generating_audio', 'A sunrise story.', {
+    voice: 'serban',
+    generationInputs: {
+      prompt: 'A sunrise story.', language: 'en', age: 3, artStyle: 'watercolor', storyMode: 'pro_audio',
+      audioEnabled: true, proModel: false, scenarioModel: 'google/gemini-3.8-flash',
+      imageModel: 'google/gemini-3.1-flash-image', audioModel: 'google/gemini-3.1-flash-tts-preview',
+      audioVoice: 'Kore', pricingVersion: '2026-04-15',
+    },
+  }, client);
+
+  assert.equal(payload?.voice, 'serban');
+  assert.deepEqual(payload?.generation_inputs, {
+    prompt: 'A sunrise story.', language: 'en', age: 3, artStyle: 'watercolor', storyMode: 'pro_audio',
+    audioEnabled: true, proModel: false, scenarioModel: 'google/gemini-3.8-flash',
+    imageModel: 'google/gemini-3.1-flash-image', audioModel: 'google/gemini-3.1-flash-tts-preview',
+    audioVoice: 'Kore', pricingVersion: '2026-04-15',
+  });
 });
 
 

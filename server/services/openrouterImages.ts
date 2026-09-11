@@ -1,8 +1,8 @@
 import OpenAI, { APIError } from 'openai';
 import { AbortError } from 'p-retry';
 import sharp from 'sharp';
-import { config } from '../config.js';
 import { getOpenRouterClient, resolveOpenRouterCost } from './openrouterClient.js';
+import { getImageModel } from './imageGenerationContext.js';
 
 export interface ImageUsageEvent {
   model: string;
@@ -54,13 +54,17 @@ export async function generateImage(
   options: ImageGenerationOptions = {},
 ): Promise<string> {
   options.signal?.throwIfAborted();
-  const model = options.pro ? config.imageModelPro : config.imageModel;
+  const imageModel = getImageModel(options.pro);
+  const model = imageModel.id;
+  if (referenceImages.length > imageModel.maxReferences) {
+    throw new Error(`${imageModel.name} supports at most ${imageModel.maxReferences} reference images.`);
+  }
   const api = options.client ?? getOpenRouterClient();
   let response: ImageResponse;
   let responseId: string | undefined;
   try {
     const result = await api.post<ImageResponse>('/images', {
-      body: { model, prompt, n: 1, aspect_ratio: '4:3', resolution: '1K', output_format: 'png',
+      body: { model, prompt, n: 1, aspect_ratio: '4:3', ...(imageModel.resolution ? { resolution: imageModel.resolution } : {}), output_format: 'png',
         input_references: referenceImages.map(image => ({ type: 'image_url', image_url: { url: `data:${image.mimeType};base64,${image.data}` } })),
         provider: { sort: 'price' } },
       timeout: 5 * 60 * 1000, maxRetries: 0, signal: options.signal,

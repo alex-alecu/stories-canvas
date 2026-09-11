@@ -379,6 +379,57 @@ test('generateSceneImage keeps four character sheets with scene continuity refer
   ]);
 });
 
+test('FLUX Klein keeps four character sheets and omits optional scene references above its limit', async () => {
+  const { withImageModel } = await import('./imageGenerationContext.js');
+  const { parseImageModel } = await import('../../shared/imageModels.js');
+  const sceneGenerator = await import('./sceneGenerator.js');
+  const characters: Character[] = Array.from({ length: 4 }, (_, index) => ({
+    name: `Hero ${index + 1}`,
+    role: 'hero',
+    appearance: `Distinct appearance ${index + 1}.`,
+    clothing: `Distinct clothing ${index + 1}.`,
+    personality: 'Brave.',
+    characterSheetPrompt: `Reference sheet ${index + 1}.`,
+  }));
+  let references: string[] = [];
+  let prompt = '';
+
+  const result = await withImageModel(parseImageModel('black-forest-labs/flux.2-klein-4b'), () => sceneGenerator.generateSceneImage(
+    'story-qwen-reference-limit',
+    makePage({
+      pageNumber: 9,
+      text: 'The four heroes meet in the garden.',
+      imagePrompt: 'The four heroes meet in the garden.',
+      characters: characters.map(character => character.name),
+    }),
+    characters,
+    new Map(characters.map((character, index) => [character.name, `sheet-${index + 1}`])),
+    'Storybook illustration style',
+    undefined,
+    undefined,
+    'previous-scene',
+    false,
+    {
+      generateImage: async (value, referenceImages) => {
+        prompt = value;
+        references = (referenceImages ?? []).map(image => image.data);
+        return 'scene-image';
+      },
+      reviewImage: async () => ({ pass: true, summary: 'Ready.', retryFeedback: '', issues: [] }),
+      retryOptions: { retries: 0, minTimeout: 0, maxTimeout: 0, randomize: false },
+      saveSceneImage: async () => {},
+      updatePageStatus: async () => {},
+    },
+    undefined,
+    'current-scene',
+  ));
+
+  assert.equal(result, 'scene-image');
+  assert.deepEqual(references, ['sheet-1', 'sheet-2', 'sheet-3', 'sheet-4']);
+  assert.doesNotMatch(prompt, /current page image to preserve/);
+  assert.doesNotMatch(prompt, /previous scene image as a continuity reference/);
+});
+
 test('generateSceneImage logs the exact prohibited prompt and provider-policy debug context', async () => {
   const sceneGenerator = await import('./sceneGenerator.js');
   const imageProvider = await import('./openrouterImages.js');

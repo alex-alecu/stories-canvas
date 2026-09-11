@@ -123,14 +123,16 @@ export function normalizeStoryUsageTotals(usageTotals?: Partial<StoryUsageTotals
 export type StoryRequestCost = Pick<StoryUsageEvent, 'provider' | 'operation' | 'costUsdMicros' | 'pricingStatus'>;
 
 export function sumOpenRouterCosts(events: StoryRequestCost[]): StoryOpenRouterCosts {
-  const costs: StoryOpenRouterCosts = { textCostUsdMicros: 0, imageCostUsdMicros: 0, unpricedRequests: 0 };
+  const costs: StoryOpenRouterCosts = { textCostUsdMicros: 0, imageCostUsdMicros: 0, audioCostUsdMicros: 0, unpricedRequests: 0 };
   for (const event of events) {
-    if (event.provider !== 'openrouter' || event.operation === 'page_audio') continue;
+    if (event.provider !== 'openrouter') continue;
     if (event.pricingStatus !== 'complete') {
       costs.unpricedRequests += 1;
       continue;
     }
-    if (event.operation === 'character_sheet' || event.operation === 'page_image') {
+    if (event.operation === 'page_audio') {
+      costs.audioCostUsdMicros += event.costUsdMicros;
+    } else if (event.operation === 'character_sheet' || event.operation === 'page_image') {
       costs.imageCostUsdMicros += event.costUsdMicros;
     } else {
       costs.textCostUsdMicros += event.costUsdMicros;
@@ -149,7 +151,7 @@ export function buildStoryGenerationInputs(params: {
   proModel: boolean;
   scenarioModel: string;
   imageModel: string;
-  imageModelPro: string;
+  imageModelPro?: string;
   audioModel?: string;
   pageCount?: number;
 }): StoryGenerationInputs {
@@ -200,7 +202,7 @@ function buildTotalsDelta(input: StoryUsageRecordInput, inputTokens: number, out
     costUsdMicros,
   };
 
-  if (input.provider === 'elevenlabs') {
+  if (input.provider === 'elevenlabs' || input.operation === 'page_audio') {
     totals.audioCostUsdMicros = costUsdMicros;
     return totals;
   }
@@ -281,7 +283,7 @@ export async function recordStoryUsage(
     event,
     buildTotalsDelta(input, inputTokens, outputTokens, totalTokens, costUsdMicros),
   );
-  if (config.useSupabase && input.status === 'succeeded' && event.pricingStatus === 'incomplete') {
+  if (config.useSupabase && input.provider !== 'elevenlabs' && input.status === 'succeeded' && event.pricingStatus === 'incomplete') {
     throw new Error('The request cost is unavailable. Generation stopped.');
   }
   return event;

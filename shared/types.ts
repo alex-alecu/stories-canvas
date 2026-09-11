@@ -205,8 +205,9 @@ export interface StoryGenerationInputs {
   proModel: boolean;
   scenarioModel: string;
   imageModel: string;
-  imageModelPro: string;
+  imageModelPro?: string;
   audioModel?: string;
+  audioVoice?: string;
   pricingVersion: string;
   pageCount?: number;
   retellingMode?: 'original' | 'faithful_retelling';
@@ -231,6 +232,7 @@ export interface StoryUsageTotals {
 export interface StoryOpenRouterCosts {
   textCostUsdMicros: number;
   imageCostUsdMicros: number;
+  audioCostUsdMicros: number;
   unpricedRequests: number;
 }
 
@@ -367,6 +369,9 @@ export interface GenerationProgress {
 export interface CreateStoryRequest {
   textModel?: string;
   thinkingLevel?: ThinkingLevel;
+  imageModel?: string;
+  audioModel?: string;
+  audioVoice?: string;
   audioEnabled?: boolean;
   prompt: string;
   language?: string;
