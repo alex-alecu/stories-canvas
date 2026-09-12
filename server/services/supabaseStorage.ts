@@ -18,6 +18,7 @@ import {
   type VoiceKey,
 } from '../../shared/types.js';
 import { isStoryReaction } from '../../shared/types.js';
+import { storyRequiresAudio } from '../../shared/storyAudio.js';
 import {
   MEDIA_CACHE_MAX_AGE_SECONDS,
   isCoverImageSourceFilename,
@@ -987,7 +988,7 @@ export async function recoverStuckStories(deps: RecoveryDeps = {}): Promise<numb
 
     const hasFailedImages = pages.some(p => p.status === 'failed');
     const allImagesComplete = pages.every(p => p.status === 'completed');
-    const shouldHaveAudio = !!story.voice;
+    const shouldHaveAudio = storyRequiresAudio(story);
     const allAudioPresent = !shouldHaveAudio || pages.every(p => !!p.audioUrl);
 
     if (allImagesComplete && allAudioPresent) {

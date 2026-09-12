@@ -253,6 +253,42 @@ test('recoverStuckStories keeps successful recovery behavior unchanged for stale
   assert.deepEqual(updates, [{ id: 'story-stale', status: 'completed' }]);
 });
 
+test('recoverStuckStories uses the saved audio choice when a story has an old voice', async (t) => {
+  const supabaseStorage = await import('./supabaseStorage.js');
+  for (const entry of [
+    { name: 'disabled audio and complete images', audioEnabled: false, pageStatus: 'completed', expectedStatus: 'completed', expectedLog: /all content present/ },
+    { name: 'disabled audio and pending images', audioEnabled: false, pageStatus: 'pending', expectedStatus: 'failed', expectedLog: /images incomplete/ },
+    { name: 'requested audio that is missing', audioEnabled: true, pageStatus: 'completed', expectedStatus: 'completed', expectedLog: /missing audio: true/ },
+  ] as const) {
+    await t.test(entry.name, async () => {
+      const updates: Array<{ id: string; status: string }> = [];
+      const messages: string[] = [];
+      const released: string[] = [];
+      const recoveredCount = await supabaseStorage.recoverStuckStories({
+        loadActiveGenerations: async () => [makeStoryMeta({
+          id: 'story-audio-choice', voice: 'jora', storyMode: 'pro_audio',
+          generationInputs: {
+            prompt: 'A sunrise story.', language: 'en', age: 3, artStyle: 'watercolor', storyMode: 'pro_audio',
+            audioEnabled: entry.audioEnabled, proModel: false, scenarioModel: 'google/gemini-3.8-flash',
+            imageModel: 'google/gemini-3.1-flash-image', pricingVersion: '2026-04-15',
+          },
+          scenario: makeScenario({ pages: [makePage({ status: entry.pageStatus })] }),
+        })],
+        now: () => Date.parse('2026-03-31T00:10:00.000Z'),
+        updateStatus: async (id, status) => { updates.push({ id, status }); },
+        releaseGenerationSlot: async id => { released.push(id); },
+        log: { log: message => { messages.push(String(message)); } },
+      });
+
+      assert.equal(recoveredCount, 1);
+      assert.deepEqual(updates, [{ id: 'story-audio-choice', status: entry.expectedStatus }]);
+      assert.deepEqual(released, ['story-audio-choice']);
+      assert.equal(messages.length, 1);
+      assert.match(messages[0], entry.expectedLog);
+    });
+  }
+});
+
 test('recoverStuckStories skips stories that are still active on this server', async () => {
   const supabaseStorage = await import('./supabaseStorage.js');
   const updates: Array<{ id: string; status: string }> = [];

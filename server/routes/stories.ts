@@ -21,6 +21,7 @@ import { generateAllSceneImages, retryFailedSceneImages } from '../services/scen
 import { generateAllPageAudio, generatePageAudio, retryMissingAudio, savePageAudio, isAudioConfigured } from '../services/audio.js';
 import { getAudioModelSettings, withAudioModelSettings } from '../services/audioGenerationContext.js';
 import { DEFAULT_AUDIO_MODEL, parseAudioModelSettings } from '../../shared/audioModels.js';
+import { storyRequiresAudio, withoutDisabledAudioFailure } from '../../shared/storyAudio.js';
 import { reviewPageText } from '../services/pageTextReview.js';
 import {
   consumeCredits,
@@ -406,7 +407,9 @@ async function updateStoryStatus(storyId: string, status: StoryStatus): Promise<
 }
 
 async function getStory(storyId: string): Promise<StoryMeta | null> {
-  return storageOps.getStory(storyId);
+  const story = await storageOps.getStory(storyId);
+  if (!story) return null;
+  return { ...story, progressMessage: withoutDisabledAudioFailure(story.progressMessage, storyRequiresAudio(story)) };
 }
 
 const usageStorage: StoryUsageStorage = {
@@ -754,7 +757,7 @@ function storyWithSelectedImageModel(story: StoryMeta): StoryMeta {
       story.language ?? config.defaultLanguage,
       story.scenario?.targetAge ?? DEFAULT_AGE,
       story.artStyle ?? DEFAULT_ART_STYLE,
-      getSafeStoryMode(story),
+      storyRequiresAudio(story) ? 'pro_audio' : getSafeStoryMode(story),
       story.voice,
       proModel,
       story.scenario?.pages.length,
@@ -1959,7 +1962,7 @@ async function runRegenerateAssetsPipeline(
       const coverUrl = getPageImageUrl(storyId, 1, userId);
       try {
         await sbStorage.updateStoryProgress(storyId, {
-          status: story.voice && audioOps.isAudioConfigured() ? 'generating_audio' : 'completed',
+          status: storyRequiresAudio(story) && story.voice && audioOps.isAudioConfigured() ? 'generating_audio' : 'completed',
           completed_pages: completedPages,
           failed_pages: failedPages,
         });
@@ -1973,7 +1976,7 @@ async function runRegenerateAssetsPipeline(
     let audioFailed = false;
     let audioError: string | undefined;
 
-    if (story.voice && audioOps.isAudioConfigured()) {
+    if (storyRequiresAudio(story) && story.voice && audioOps.isAudioConfigured()) {
       if (signal.aborted) throw new Error('Generation cancelled');
       await updateStoryStatus(storyId, 'generating_audio');
       await sendProgressUpdate(storyId, {
@@ -2153,7 +2156,9 @@ router.post('/:id/retry', optionalAuth, async (req: Request, res: Response) => {
         res.status(400).json({ error: 'The saved story prompt is missing or invalid.' });
         return;
       }
-      const mode = inputs?.storyMode ?? story.storyMode ?? 'fast';
+      const savedMode = inputs?.storyMode ?? story.storyMode ?? 'fast';
+      const mode = storyRequiresAudio(story) ? 'pro_audio'
+        : savedMode === 'pro_audio' ? (inputs?.proModel ? 'pro' : 'fast') : savedMode;
       const voice = mode === 'pro_audio' ? normalizeVoiceKey(inputs?.voice ?? story.voice) : undefined;
       if (mode === 'pro_audio' && !voice) {
         res.status(400).json({ error: 'Select a narrator voice.' });
@@ -2191,10 +2196,8 @@ router.post('/:id/retry', optionalAuth, async (req: Request, res: Response) => {
 
     const pages = story.scenario.pages;
     const failedImagePages = pages.filter(p => p.status === 'failed').map(p => p.pageNumber);
-    const hasAudioPages = pages.some(pageHasAudio);
     const missingAudioPages = pages.filter(p => !pageHasAudio(p));
-    // Story should have audio if it has a voice setting OR some pages already have audio
-    const shouldHaveAudio = !!story.voice || hasAudioPages;
+    const shouldHaveAudio = storyRequiresAudio(story);
     const needsAudioRetry = shouldHaveAudio && missingAudioPages.length > 0;
 
     if (failedImagePages.length === 0 && !needsAudioRetry) {
@@ -2491,7 +2494,7 @@ router.post('/:id/generate-audio', optionalAuth, async (req: Request, res: Respo
       return;
     }
 
-    if (story.voice) {
+    if (storyRequiresAudio(story)) {
       res.status(400).json({ error: 'Story already has a narrator voice. Use retry to generate missing narration.' });
       return;
     }

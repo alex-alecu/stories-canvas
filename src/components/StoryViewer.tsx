@@ -9,6 +9,7 @@ import { useFontSize, type FontSize } from '../contexts/FontSizeContext';
 import { useAuth } from '../contexts/AuthContext';
 import { readStorageItem, readStoredBoolean, readStoredNumber, writeStorageItem } from '../lib/browserStorage';
 import { formatStoryStatusMessage } from '../i18n/storyStatusCopy';
+import { storyRequiresAudio, withoutDisabledAudioFailure } from '../../shared/storyAudio';
 import StoryToolsModal from './StoryToolsModal';
 import 'swiper/css';
 import 'swiper/css/navigation';
@@ -142,18 +143,19 @@ export default function StoryViewer({
   const navigate = useNavigate();
 
   // Detect errors for the tools button indicator
+  const shouldHaveAudio = storyRequiresAudio({ voice, storyMode, generationInputs, scenario });
+  const savedIssueMessage = withoutDisabledAudioFailure(storyMessage, shouldHaveAudio);
   const hasErrors = useMemo(() => {
     const hasFailedImages = scenario.pages.some(p => p.status === 'failed');
-    const shouldHaveAudio = !!voice || scenario.pages.some(p => !!p.audioUrl);
     const hasMissingAudio = shouldHaveAudio && scenario.pages.some(p => !p.audioUrl);
     return hasFailedImages || hasMissingAudio;
-  }, [scenario.pages, voice]);
+  }, [scenario.pages, shouldHaveAudio]);
 
   const issueMessage = useMemo(() => {
     if (!hasErrors) return null;
-    if (!isGenerating && storyMessage) return formatStoryStatusMessage(storyMessage, t, language);
+    if (!isGenerating && savedIssueMessage) return formatStoryStatusMessage(savedIssueMessage, t, language);
     return null;
-  }, [hasErrors, isGenerating, storyMessage, t, language]);
+  }, [hasErrors, isGenerating, savedIssueMessage, t, language]);
 
   useEffect(() => {
     if (previousStoryIdRef.current !== storyId) {
@@ -290,12 +292,13 @@ export default function StoryViewer({
   // Audio failure notification (auto-dismiss after 5s)
   const [showAudioFailed, setShowAudioFailed] = useState(false);
   useEffect(() => {
-    if (progress?.audioFailed) {
+    if (shouldHaveAudio && progress?.audioFailed) {
       setShowAudioFailed(true);
       const timer = setTimeout(() => setShowAudioFailed(false), 5000);
       return () => clearTimeout(timer);
     }
-  }, [progress?.audioFailed]);
+    setShowAudioFailed(false);
+  }, [progress?.audioFailed, shouldHaveAudio, storyId]);
 
   // Audio playback state
   const audioRef = useRef<HTMLAudioElement | null>(null);

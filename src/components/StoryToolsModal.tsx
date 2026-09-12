@@ -29,6 +29,7 @@ import { useLanguage } from '../i18n/LanguageContext';
 import { formatStoryStatusMessage, getVoiceOptionText } from '../i18n/storyStatusCopy';
 import FontSizeControl from './FontSizeControl';
 import { clientSiteConfig } from '../lib/siteConfig';
+import { storyRequiresAudio, withoutDisabledAudioFailure } from '../../shared/storyAudio';
 
 const PAGE_FEEDBACK_MAX_CHARS = 800;
 const PAGE_TEXT_OVERLAY_MAX_CHARS = 320;
@@ -176,7 +177,8 @@ export default function StoryToolsModal({
   const speechLanguage = storyLanguage || generationInputs?.language || clientSiteConfig.defaultLanguage;
   const audioModelAvailable = isAudioModelAvailable(audioModel, speechLanguage);
   const audioVoices = getAudioVoices(audioModel, speechLanguage);
-  const hasNarrationConfig = !!voice || !!generationInputs?.audioEnabled;
+  const hasNarrationConfig = storyRequiresAudio({ voice, storyMode, generationInputs, scenario });
+  const issueMessage = withoutDisabledAudioFailure(storyMessage, hasNarrationConfig);
   const hasElevenLabsEstimate = hasNarrationConfig && storedAudioModel === DEFAULT_AUDIO_MODEL;
   const elevenLabsEstimateUsdMicros = hasElevenLabsEstimate
     ? Math.round(scenario.pages.reduce((sum, page) => sum + page.text.length, 0)
@@ -338,14 +340,9 @@ export default function StoryToolsModal({
     [scenario.pages],
   );
 
-  const shouldHaveAudio = useMemo(
-    () => hasNarrationConfig || scenario.pages.some(p => !!p.audioUrl),
-    [hasNarrationConfig, scenario.pages],
-  );
-
   const missingAudioCount = useMemo(
-    () => shouldHaveAudio ? scenario.pages.filter(p => !p.audioUrl).length : 0,
-    [scenario.pages, shouldHaveAudio],
+    () => hasNarrationConfig ? scenario.pages.filter(p => !p.audioUrl).length : 0,
+    [scenario.pages, hasNarrationConfig],
   );
 
   const storyHasAudio = useMemo(
@@ -909,8 +906,8 @@ export default function StoryToolsModal({
         <section className="rounded-lg border border-amber-400/20 bg-amber-500/[0.08] p-4">
           <h3 className="text-sm font-semibold text-white">{t.storyStatus}</h3>
           <p className="mt-1 text-sm text-white/60">{t.retryDescription}</p>
-          {storyMessage && (
-            <p className="mt-2 text-sm text-amber-300">{storyMessage}</p>
+          {issueMessage && (
+            <p className="mt-2 text-sm text-amber-300">{issueMessage}</p>
           )}
           <div className="mt-3 flex flex-wrap gap-2">
             {failedImageCount > 0 && (
