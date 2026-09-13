@@ -3,8 +3,9 @@ import ImageModelPicker from './ImageModelPicker';
 import AudioModelPicker from './AudioModelPicker';
 import { DEFAULT_IMAGE_MODEL } from '../../shared/imageModels';
 import { DEFAULT_AUDIO_MODEL, getAudioVoices, isAudioModelAvailable } from '../../shared/audioModels';
-import { MINIMUM_STORY_BALANCE_USD, parseTextModelSettings, type TextModelSettings } from '../../shared/textModels';
+import { MINIMUM_STORY_BALANCE_USD, parseTextModelSettings } from '../../shared/textModels';
 import { getWalletCopy } from '../i18n/walletCopy';
+import { getStoryInputCopy } from '../i18n/storyInputCopy';
 import { useState, useEffect, type FormEvent } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -18,7 +19,6 @@ import {
   getAgeGroup,
   VOICE_OPTIONS,
   type ArtStyleKey,
-  type StoryMode,
   type VoiceKey,
   type CreateStoryRequest,
 } from '../../shared/types';
@@ -61,6 +61,7 @@ export default function StoryInput({ onSubmit, isLoading, isOffline = false }: S
   const navigate = useNavigate();
   const location = useLocation();
   const copy = getWalletCopy(language);
+  const formCopy = getStoryInputCopy(language);
   const requiredCredits = MINIMUM_STORY_BALANCE_USD;
   const availableCredits = billingOverview?.balance.availableCredits ?? 0;
   const hasEnoughCredits = !user || (!!billingOverview && availableCredits >= requiredCredits);
@@ -127,7 +128,11 @@ export default function StoryInput({ onSubmit, isLoading, isOffline = false }: S
   };
 
   const isGuest = !loading && !user;
-  const creditsSummary = `${copy.minimum}${user && billingOverview ? ` ${t.creditsAvailableLabel}: ${formatCredits(availableCredits, t)}` : ''}`;
+  const defaultSettings = parseTextModelSettings(undefined, undefined);
+  const hasCustomSettings = settings.textModel !== defaultSettings.textModel
+    || settings.thinkingLevel !== defaultSettings.thinkingLevel
+    || imageModel !== DEFAULT_IMAGE_MODEL;
+  const selectClass = 'mt-2 min-h-13 w-full min-w-0 rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-base text-gray-800 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-100 disabled:opacity-50 sm:text-sm dark:border-gray-700 dark:bg-surface-dark dark:text-gray-100';
 
   return (
     <div className="w-full max-w-5xl mx-auto">
@@ -178,8 +183,8 @@ export default function StoryInput({ onSubmit, isLoading, isOffline = false }: S
           </p>
         </div>
       ) : (
-        <form onSubmit={handleSubmit} className="relative">
-        <div className="bg-white dark:bg-surface-dark-elevated rounded-2xl shadow-lg shadow-primary-100/50 dark:shadow-primary-900/30 border border-primary-100 dark:border-primary-800/50 overflow-hidden transition-shadow focus-within:shadow-xl focus-within:shadow-primary-200/50 dark:focus-within:shadow-primary-800/40 focus-within:border-primary-200 dark:focus-within:border-primary-700">
+        <form onSubmit={handleSubmit} className="relative mx-auto max-w-3xl">
+        <div className="overflow-hidden rounded-2xl border border-gray-200/80 bg-white shadow-xl shadow-primary-900/5 dark:border-white/10 dark:bg-surface-dark-elevated sm:rounded-3xl">
           {/* Overlay for guest users: captures clicks/focus on the textarea */}
           {isGuest && (
             <div
@@ -188,128 +193,180 @@ export default function StoryInput({ onSubmit, isLoading, isOffline = false }: S
               title={t.storyInputGuestPlaceholder}
             />
           )}
-          <textarea
-            value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
-            placeholder={isGuest
-              ? t.storyInputGuestPlaceholder
-              : t.storyInputPlaceholder
-            }
-            maxLength={maxLength}
-            rows={3}
-            disabled={isLoading}
-            readOnly={isGuest}
-            className="w-full px-6 pt-5 pb-2 text-gray-700 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500 bg-transparent resize-none focus:outline-none disabled:opacity-50 text-lg"
-          />
+          <div className="px-4 pt-4 sm:px-6 sm:pt-6">
+            <label htmlFor="story-prompt" className="block text-xl font-bold tracking-tight text-gray-800 dark:text-gray-100 sm:text-2xl">
+              {formCopy.prompt}
+            </label>
+            <textarea
+              id="story-prompt"
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              placeholder={isGuest ? t.storyInputGuestPlaceholder : t.storyInputPlaceholder}
+              maxLength={maxLength}
+              rows={3}
+              disabled={isLoading}
+              readOnly={isGuest}
+              className="mt-3 block w-full rounded-xl border border-gray-200 bg-gray-50/70 px-4 py-3 text-base leading-relaxed text-gray-700 placeholder-gray-400 focus:border-primary-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary-100 disabled:opacity-50 dark:border-gray-700 dark:bg-surface-dark dark:text-gray-200 dark:placeholder-gray-500 dark:focus:ring-primary-900"
+            />
+            {!isGuest && (
+              <div className="mt-2 flex items-center justify-between gap-3">
+                <button
+                  type="button"
+                  onClick={handleIdeaClick}
+                  disabled={isLoading}
+                  className="inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-md py-1 text-sm font-semibold text-primary-600 transition-colors hover:text-primary-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500 disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-0 dark:text-primary-300 dark:hover:text-primary-200"
+                >
+                  <svg aria-hidden="true" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5L12 3ZM20 3v4m-2-2h4" />
+                  </svg>
+                  {t.storyIdeaButton}
+                </button>
+                <span className="text-xs tabular-nums text-gray-400 dark:text-gray-500">{prompt.length}/{maxLength}</span>
+              </div>
+            )}
+          </div>
 
-          {/* Inspire me button - only for authenticated users */}
           {!isGuest && (
-            <div className="px-6 pb-1">
-              <button
-                type="button"
-                onClick={handleIdeaClick}
-                disabled={isLoading}
-                className="inline-flex items-center gap-1.5 text-sm text-primary-500 dark:text-primary-400 hover:text-primary-600 dark:hover:text-primary-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
-                  <path fillRule="evenodd" d="M9 4.5a.75.75 0 01.721.544l.813 2.846a3.75 3.75 0 002.576 2.576l2.846.813a.75.75 0 010 1.442l-2.846.813a3.75 3.75 0 00-2.576 2.576l-.813 2.846a.75.75 0 01-1.442 0l-.813-2.846a3.75 3.75 0 00-2.576-2.576l-2.846-.813a.75.75 0 010-1.442l2.846-.813A3.75 3.75 0 007.466 7.89l.813-2.846A.75.75 0 019 4.5zM18 1.5a.75.75 0 01.728.568l.258 1.036c.236.94.97 1.674 1.91 1.91l1.036.258a.75.75 0 010 1.456l-1.036.258c-.94.236-1.674.97-1.91 1.91l-.258 1.036a.75.75 0 01-1.456 0l-.258-1.036a2.625 2.625 0 00-1.91-1.91l-1.036-.258a.75.75 0 010-1.456l1.036-.258a2.625 2.625 0 001.91-1.91l.258-1.036A.75.75 0 0118 1.5z" clipRule="evenodd" />
-                </svg>
-                {t.storyIdeaButton}
-              </button>
-            </div>
-          )}
-
-          {/* Age & Style selectors - only for authenticated users */}
-          {!isGuest && (
-            <div className="px-6 pb-3 space-y-3">
-              <div className="grid gap-3 lg:grid-cols-[auto_minmax(0,1fr)_minmax(0,1fr)] lg:items-center">
-                <div className="flex items-center gap-2">
-                  <label htmlFor="age-select" className="text-sm text-gray-400 dark:text-gray-500 whitespace-nowrap">
-                    {t.childAge}
-                  </label>
-                  <select
-                    id="age-select"
-                    value={age}
-                    onChange={(e) => setAge(Number(e.target.value))}
-                    disabled={isLoading}
-                    className="text-sm bg-gray-50 dark:bg-surface-dark border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1.5 text-gray-700 dark:text-gray-300 focus:outline-none focus:border-primary-300 dark:focus:border-primary-600 disabled:opacity-50 cursor-pointer"
-                  >
+            <div className="space-y-5 px-4 py-4 sm:px-6 sm:py-6">
+              <div className="grid grid-cols-1 gap-5 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)]">
+                <fieldset disabled={isLoading} className="min-w-0">
+                  <legend className="text-sm font-semibold text-gray-700 dark:text-gray-200">{t.childAge}</legend>
+                  <div className="mt-2 grid grid-cols-5 gap-1 rounded-xl bg-gray-100 p-1 dark:bg-surface-dark">
                     {AGE_RANGES.map(({ value, label }) => (
-                      <option key={value} value={value}>{label}</option>
+                      <label key={value} className="relative min-w-0 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="child-age"
+                          value={value}
+                          checked={age === value}
+                          onChange={() => setAge(value)}
+                          className="peer sr-only"
+                        />
+                        <span className="flex min-h-11 items-center justify-center rounded-lg text-base font-semibold text-gray-500 transition-colors peer-checked:bg-white peer-checked:text-primary-700 peer-checked:shadow-sm peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-primary-500 peer-disabled:cursor-not-allowed peer-disabled:opacity-50 dark:text-gray-400 dark:peer-checked:bg-surface-dark-accent dark:peer-checked:text-primary-200">{label}</span>
+                      </label>
                     ))}
-                  </select>
-                </div>
-
-                <div className="flex items-center gap-2 min-w-0">
-                  <label htmlFor="style-select" className="text-sm text-gray-400 dark:text-gray-500 whitespace-nowrap">
-                    {t.artStyle}
-                  </label>
+                  </div>
+                </fieldset>
+                <label htmlFor="style-select" className="min-w-0 text-sm font-semibold text-gray-700 dark:text-gray-200">
+                  {t.artStyle}
                   <select
                     id="style-select"
                     value={style}
                     onChange={(e) => setStyle(e.target.value as ArtStyleKey)}
                     disabled={isLoading}
-                    className="w-full min-w-0 text-sm bg-gray-50 dark:bg-surface-dark border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1.5 text-gray-700 dark:text-gray-300 focus:outline-none focus:border-primary-300 dark:focus:border-primary-600 disabled:opacity-50 cursor-pointer"
+                    className={selectClass}
                   >
                     {STYLE_KEYS.map((key) => (
                       <option key={key} value={key}>{t[styleTranslationMap[key]]}</option>
                     ))}
                   </select>
-                </div>
-
-                {audioEnabled && audioModel === DEFAULT_AUDIO_MODEL ? (
-                  <div className="flex items-center gap-2 min-w-0 lg:justify-end">
-                    <label htmlFor="voice-select" className="text-sm text-gray-400 dark:text-gray-500 whitespace-nowrap">
-                      {t.narratorVoice}
-                    </label>
-                    <select
-                      id="voice-select"
-                      value={voice}
-                      onChange={(e) => setVoice(e.target.value as VoiceKey | '')}
-                      disabled={isLoading}
-                      className="w-full min-w-0 lg:max-w-[220px] text-sm bg-gray-50 dark:bg-surface-dark border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1.5 text-gray-700 dark:text-gray-300 focus:outline-none focus:border-primary-300 dark:focus:border-primary-600 disabled:opacity-50 cursor-pointer"
-                    >
-                      {VOICE_OPTIONS.map((option) => {
-                        const { label } = getVoiceOptionText(option, t);
-                        return (
-                          <option key={option.key} value={option.key}>
-                            {label}
-                          </option>
-                        );
-                      })}
-                    </select>
-                  </div>
-                ) : (
-                  <div className="hidden lg:block" />
-                )}
+                </label>
               </div>
 
-              <TextModelPicker value={settings} onChange={next => setSettings(current => ({ ...current, ...next }))} disabled={isLoading} />
-              <ImageModelPicker value={imageModel} onChange={setImageModel} disabled={isLoading} language={language} />
-              <label className="flex cursor-pointer items-center gap-3 py-1 text-sm font-medium text-gray-700 dark:text-gray-200">
-                <input type="checkbox" checked={audioEnabled} onChange={event => setAudioEnabled(event.target.checked)} disabled={isLoading} className="h-4 w-4 accent-primary-600" />
-                {copy.narration}
-              </label>
-              {audioEnabled && (
-                <AudioModelPicker
-                  model={audioModel}
-                  voice={audioVoice}
-                  language={language}
-                  onModelChange={handleAudioModelChange}
-                  onVoiceChange={setAudioVoice}
-                  disabled={isLoading}
-                />
-              )}
+              <section aria-labelledby="narration-label" className="border-t border-gray-100 pt-5 dark:border-gray-700">
+                <label className="flex min-h-11 cursor-pointer items-center justify-between gap-4 sm:min-h-0">
+                  <span className="flex min-w-0 items-center gap-3">
+                    <span aria-hidden="true" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary-50 text-primary-600 dark:bg-primary-900/30 dark:text-primary-300">
+                      <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M4 14v-3a8 8 0 0 1 16 0v3M4 13H3v6h4v-6H4Zm16 0h1v6h-4v-6h3Z" />
+                      </svg>
+                    </span>
+                    <span className="min-w-0">
+                      <span id="narration-label" className="block text-sm font-bold text-gray-800 dark:text-gray-100">{copy.narration}</span>
+                      <span id="narration-hint" className="mt-0.5 block text-sm text-gray-500 dark:text-gray-400">{formCopy.narrationHint}</span>
+                    </span>
+                  </span>
+                  <span className="relative inline-flex shrink-0">
+                    <input
+                      type="checkbox"
+                      role="switch"
+                      aria-labelledby="narration-label"
+                      aria-describedby="narration-hint"
+                      aria-controls="narration-options"
+                      checked={audioEnabled}
+                      onChange={event => setAudioEnabled(event.target.checked)}
+                      disabled={isLoading}
+                      className="peer sr-only"
+                    />
+                    <span aria-hidden="true" className="h-6 w-11 rounded-full bg-gray-300 transition-colors peer-checked:bg-primary-600 peer-focus-visible:ring-2 peer-focus-visible:ring-primary-500 peer-focus-visible:ring-offset-2 peer-disabled:opacity-50 dark:bg-gray-600" />
+                    <span aria-hidden="true" className="pointer-events-none absolute left-1 top-1 h-4 w-4 rounded-full bg-white shadow-sm transition-transform peer-checked:translate-x-5 peer-disabled:opacity-50" />
+                  </span>
+                </label>
+                <div id="narration-options" hidden={!audioEnabled}>
+                  {audioEnabled && (
+                    <div className="mt-4">
+                      <AudioModelPicker
+                        model={audioModel}
+                        voice={audioVoice}
+                        language={language}
+                        onModelChange={handleAudioModelChange}
+                        onVoiceChange={setAudioVoice}
+                        disabled={isLoading}
+                        modelDisclosure
+                        defaultVoicePicker={
+                          <label htmlFor="voice-select" className="block min-w-0 text-sm font-semibold text-gray-700 dark:text-gray-200">
+                            {t.narratorVoice}
+                            <select
+                              id="voice-select"
+                              value={voice}
+                              onChange={(e) => setVoice(e.target.value as VoiceKey | '')}
+                              disabled={isLoading}
+                              className={selectClass}
+                            >
+                              {VOICE_OPTIONS.map((option) => (
+                                <option key={option.key} value={option.key}>{getVoiceOptionText(option, t).label}</option>
+                              ))}
+                            </select>
+                          </label>
+                        }
+                      />
+                    </div>
+                  )}
+                </div>
+              </section>
+
+              <details className="group border-t border-gray-100 pt-4 dark:border-gray-700">
+                <summary className="flex min-h-11 cursor-pointer list-none items-center gap-3 rounded-md text-sm focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary-500 sm:min-h-0 [&::-webkit-details-marker]:hidden">
+                  <span className="min-w-0">
+                    <span className="block font-semibold text-gray-700 dark:text-gray-200">{formCopy.advanced}</span>
+                    <span className={`mt-0.5 block text-xs ${hasCustomSettings ? 'text-primary-600 dark:text-primary-300' : 'text-gray-500 dark:text-gray-400'}`}>
+                      {hasCustomSettings ? formCopy.settingsCustom : formCopy.settingsDefault}
+                    </span>
+                  </span>
+                  <svg aria-hidden="true" className="ml-auto h-4 w-4 shrink-0 text-gray-400 transition-transform group-open:rotate-180" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="m6 9 6 6 6-6" />
+                  </svg>
+                </summary>
+                <div className="mt-4 space-y-4">
+                  <TextModelPicker value={settings} onChange={next => setSettings(current => ({ ...current, ...next }))} disabled={isLoading} />
+                  <div>
+                    <ImageModelPicker value={imageModel} onChange={setImageModel} disabled={isLoading} language={language} />
+                  </div>
+                  {hasCustomSettings && (
+                    <div className="flex justify-end">
+                      <button type="button" disabled={isLoading}
+                        onClick={() => { setSettings(defaultSettings); setImageModel(DEFAULT_IMAGE_MODEL); }}
+                        className="min-h-11 rounded-lg px-3 text-sm font-semibold text-primary-600 hover:bg-primary-50 focus-visible:outline-2 focus-visible:outline-primary-500 disabled:opacity-50 dark:text-primary-300 dark:hover:bg-white/5">
+                        {formCopy.resetSettings}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </details>
             </div>
           )}
 
-          <div className="flex flex-col gap-4 px-6 pb-4 lg:flex-row lg:items-end lg:justify-between">
+          <div className="flex flex-col gap-4 border-t border-gray-100 bg-gray-50/70 px-4 py-4 sm:px-6 sm:py-5 sm:flex-row sm:items-center sm:justify-between dark:border-gray-700 dark:bg-white/[0.02]">
             {!isGuest ? (
-              <div className="flex flex-col gap-2">
-                <p className="text-sm text-gray-500 dark:text-gray-300">
-                  {creditsSummary}
-                </p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">{copy.actualCost}</p>
+              <div className="min-w-0 space-y-1.5">
+                {billingOverview ? (
+                  <p className="flex flex-wrap items-baseline gap-x-2 text-sm text-gray-500 dark:text-gray-400">
+                    <span>{t.creditsAvailableLabel}</span>
+                    <strong className="text-lg font-bold tabular-nums text-gray-800 dark:text-gray-100">{formatCredits(availableCredits, t)}</strong>
+                  </p>
+                ) : <p className="text-sm text-gray-500 dark:text-gray-400">{copy.minimum}</p>}
+                {billingOverview && !hasEnoughCredits && <p className="text-sm font-medium text-amber-800 dark:text-amber-300">{copy.minimum}</p>}
+                <p className="text-xs leading-relaxed text-gray-500 dark:text-gray-400">{copy.actualCost}</p>
               </div>
             ) : (
               <span />
@@ -317,7 +374,7 @@ export default function StoryInput({ onSubmit, isLoading, isOffline = false }: S
             <button
               type="submit"
               disabled={user ? (isLoading || !billingOverview || (hasEnoughCredits && (!prompt.trim() || (audioEnabled && !isAudioModelAvailable(audioModel, language))))) : false}
-              className="w-full bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 disabled:from-gray-300 disabled:to-gray-300 dark:disabled:from-gray-700 dark:disabled:to-gray-700 text-white font-bold py-2.5 px-8 rounded-xl transition-all disabled:cursor-not-allowed transform hover:scale-[1.02] active:scale-[0.98] lg:w-auto lg:min-w-[220px]"
+              className="min-h-12 w-full bg-primary-600 hover:bg-primary-700 disabled:bg-gray-300 dark:disabled:bg-gray-700 text-white font-bold py-2.5 px-8 rounded-xl transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500 disabled:cursor-not-allowed shrink-0 sm:w-auto sm:min-w-[180px]"
             >
               {isLoading ? (
                 <span className="flex items-center justify-center gap-2">
