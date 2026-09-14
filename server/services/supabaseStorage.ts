@@ -922,15 +922,70 @@ export async function listStoryFiles(storyId: string, userId?: string): Promise<
   return [];
 }
 
-export async function downloadImage(storyId: string, filename: string, userId?: string): Promise<string> {
-  const supabase = getSupabase();
+export async function downloadImage(
+  storyId: string,
+  filename: string,
+  userId?: string,
+  client = getSupabase(),
+): Promise<string> {
+  const supabase = client;
   const storagePath = userId ? `${userId}/${storyId}/${filename}` : `${storyId}/${filename}`;
 
   const { data, error } = await supabase.storage.from(BUCKET).download(storagePath);
-  if (error) throw new Error(`Failed to download image ${filename}: ${error.message}`, { cause: error });
+  if (error) throw await toDownloadImageError(filename, error);
 
   const arrayBuffer = await data.arrayBuffer();
   return Buffer.from(arrayBuffer).toString('base64');
+}
+
+/**
+ * The Supabase storage client's download() call skips JSON parsing on error responses
+ * (it requests raw bytes), so a failed download only surfaces the outer HTTP status and
+ * an unreadable {} message even when the object is simply missing. Read the response body
+ * ourselves so a real "not found" (frequently reported with an inconsistent outer HTTP
+ * status, e.g. 400) is distinguishable from a genuine storage failure like a timeout or
+ * permission error. The resolved status is attached directly to the thrown Error so
+ * isMissingStoredImage can recognize it without inspecting SDK internals.
+ */
+async function toDownloadImageError(filename: string, error: unknown): Promise<Error & { status?: number }> {
+  const fallbackMessage = error instanceof Error ? error.message : String(error);
+  const { status, message } = await readStorageErrorDetails(error, fallbackMessage);
+  const wrapped = new Error(`Failed to download image ${filename}: ${message}`, { cause: error }) as Error & { status?: number };
+  if (status !== undefined) wrapped.status = status;
+  return wrapped;
+}
+
+async function readStorageErrorDetails(
+  error: unknown,
+  fallbackMessage: string,
+): Promise<{ status?: number; message: string }> {
+  const original = (error as { originalError?: unknown } | undefined)?.originalError;
+  if (!original || typeof original !== 'object' || typeof (original as Response).status !== 'number') {
+    return { message: fallbackMessage };
+  }
+  const response = original as Response;
+  let bodyText: string | undefined;
+  try {
+    if (!response.bodyUsed && typeof response.text === 'function') {
+      bodyText = await response.text();
+    }
+  } catch {
+    // Body already consumed or unreadable; fall back to the outer HTTP status alone.
+  }
+  if (!bodyText) {
+    return { status: response.status, message: response.statusText || fallbackMessage || `HTTP ${response.status}` };
+  }
+  try {
+    const parsed = JSON.parse(bodyText) as { statusCode?: string | number; error?: string; message?: string };
+    const message = parsed.message || parsed.error || bodyText;
+    const parsedStatus = Number(parsed.statusCode);
+    if (Number.isFinite(parsedStatus)) return { status: parsedStatus, message };
+    if (typeof parsed.error === 'string' && /not.found/i.test(parsed.error)) return { status: 404, message };
+    if (typeof message === 'string' && /not found/i.test(message)) return { status: 404, message };
+    return { status: response.status, message };
+  } catch {
+    return { status: response.status, message: bodyText };
+  }
 }
 
 // ---------- Startup Recovery ----------

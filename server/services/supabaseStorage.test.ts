@@ -383,3 +383,48 @@ test('recoverStuckStories skips stories that are still active on this server', a
   assert.equal(recoveredCount, 0);
   assert.deepEqual(updates, []);
 });
+
+test('downloadImage treats a Supabase "object not found" response as a missing file', async () => {
+  const { downloadImage } = await import('./supabaseStorage.js');
+  // Reproduces the exact shape logged in production for story 41b24f87-a7ad-49aa-a897-d7d52a150cf4:
+  // Supabase storage's download() reports a missing object with an outer 400 status, and the
+  // storage-js client never parses that body, so the SDK's own message collapses to "{}".
+  const client = createClient('https://images.example.test', 'test-key', {
+    auth: { persistSession: false, autoRefreshToken: false },
+    global: {
+      fetch: async () => new Response(
+        JSON.stringify({ statusCode: 404, error: 'not_found', message: 'Object not found' }),
+        { status: 400, statusText: 'Bad Request', headers: { 'content-type': 'application/json' } },
+      ),
+    },
+  });
+  await assert.rejects(
+    downloadImage('story-1', 'page-05.png', 'user-1', client as never),
+    (error: Error & { status?: number }) => {
+      assert.equal(error.status, 404);
+      assert.match(error.message, /Object not found/);
+      return true;
+    },
+  );
+});
+
+test('downloadImage keeps a genuine storage failure as a hard error', async () => {
+  const { downloadImage } = await import('./supabaseStorage.js');
+  const client = createClient('https://images.example.test', 'test-key', {
+    auth: { persistSession: false, autoRefreshToken: false },
+    global: {
+      fetch: async () => new Response(
+        JSON.stringify({ statusCode: 500, error: 'Internal Server Error', message: 'upstream timeout' }),
+        { status: 500, statusText: 'Internal Server Error', headers: { 'content-type': 'application/json' } },
+      ),
+    },
+  });
+  await assert.rejects(
+    downloadImage('story-1', 'page-05.png', 'user-1', client as never),
+    (error: Error & { status?: number }) => {
+      assert.equal(error.status, 500);
+      assert.match(error.message, /upstream timeout/);
+      return true;
+    },
+  );
+});
