@@ -154,6 +154,15 @@ async function writeStoryMeta(dataDir: string, story: Omit<StoryMeta, 'voice'> &
   const storyDir = path.join(dataDir, story.id);
   await fs.mkdir(storyDir, { recursive: true });
   await fs.writeFile(path.join(storyDir, 'scenario.json'), JSON.stringify(story, null, 2));
+  const validPng = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+    'base64',
+  );
+  for (const page of story.scenario?.pages ?? []) {
+    if (page.status === 'completed') {
+      await fs.writeFile(path.join(storyDir, `page-${String(page.pageNumber).padStart(2, '0')}.png`), validPng);
+    }
+  }
 }
 
 async function readStoryMeta(dataDir: string, storyId: string): Promise<Omit<StoryMeta, 'voice'> & { voice?: string }> {
@@ -1275,7 +1284,16 @@ test('page image changes preserve the audio choice for reload and retry', async 
         ]),
       }));
       t.mock.method(harness.storiesModule.pageTextReviewOps, 'reviewPageText', async () => ({ allowed: true }));
-      t.mock.method(harness.storiesModule.illustrationOps, 'retryFailedSceneImages', async () => 1);
+      t.mock.method(harness.storiesModule.illustrationOps, 'retryFailedSceneImages', async (
+        id: string, pages: Page[], _characters: unknown, pageNumbers: number[],
+      ) => {
+        const { updatePageStatus } = await import('../utils/storage.js');
+        for (const pageNumber of pageNumbers) {
+          await updatePageStatus(id, pageNumber, 'completed');
+          pages.find(page => page.pageNumber === pageNumber)!.status = 'completed';
+        }
+        return pageNumbers.length;
+      });
       t.mock.method(harness.storiesModule.audioOps, 'isAudioConfigured', () => true);
       const retryAudio = t.mock.method(harness.storiesModule.audioOps, 'retryMissingAudio', async () => ({
         completedCount: 0, failedCount: 1, skippedCount: 0,
@@ -2587,8 +2605,10 @@ test('POST /api/stories/:id/regenerate-assets keeps audio disabled and syncs the
 
   t.mock.method(harness.storiesModule.illustrationOps, 'generateAllCharacterSheets', async () => new Map());
   t.mock.method(harness.storiesModule.illustrationOps, 'generateAllSceneImages', async (_storyId: string, pages: Page[], _characters: unknown, _sheets: unknown, _style: unknown, onProgress?: (progress: { pageNumber?: number; pageStatus?: string; message?: string }) => void) => {
+    const { updatePageStatus } = await import('../utils/storage.js');
     for (const page of pages) {
       page.status = 'completed';
+      await updatePageStatus(_storyId, page.pageNumber, 'completed');
       onProgress?.({ pageNumber: page.pageNumber, pageStatus: 'completed', message: `Page ${page.pageNumber} complete` });
     }
   });
@@ -2731,4 +2751,125 @@ test('GET /api/stories/active/generations returns 500 for non-transient errors',
 
   assert.equal(response.status, 500);
   assert.deepEqual(await response.json(), { error: 'Failed to get active generations' });
+});
+
+test('continuation keeps four saved pages and completes the three missing pages of an initial render', async (t) => {
+  const dataDir = mkdtempSync(path.join(os.tmpdir(), 'stories-continue-initial-'));
+  const harness = await createStoriesHarness(dataDir);
+  t.after(async () => { await harness.close(); await fs.rm(dataDir, { recursive: true, force: true }); });
+  const storyId = 'story-continue-initial';
+  const pages = Array.from({ length: 7 }, (_, i) => makePage({ pageNumber: i + 1,
+    status: i < 4 ? 'completed' : i === 4 ? 'generating' : 'pending' }));
+  await writeStoryMeta(dataDir, { id: storyId, prompt: 'Keep this script.', status: 'failed',
+    createdAt: '2026-09-13T13:36:29Z', scenarioRevision: 1, renderedScenarioRevision: 0,
+    scenario: makeScenario(pages), generationInputs: makeAudioInputs(false) });
+  const script = t.mock.method(harness.storiesModule.scenarioOps, 'generateScenarioWithMetadata', async () => {
+    throw new Error('Continuation must not rewrite the script');
+  });
+  const retry = t.mock.method(harness.storiesModule.illustrationOps, 'retryFailedSceneImages', async (
+    id: string, retryPages: Page[], _characters: unknown, numbers: number[],
+  ) => {
+    assert.deepEqual(numbers, [5, 6, 7]);
+    const { updatePageStatus } = await import('../utils/storage.js');
+    for (const number of numbers) {
+      await updatePageStatus(id, number, 'completed');
+      retryPages.find(page => page.pageNumber === number)!.status = 'completed';
+    }
+    return numbers.length;
+  });
+  const response = await fetch(`${harness.baseUrl}/api/stories/${storyId}/retry`, { method: 'POST' });
+  assert.equal(response.status, 200, await response.text());
+  const saved = await waitFor(() => readStoryMeta(dataDir, storyId), story => story.status === 'completed');
+  assert.equal(saved.status, 'completed');
+  assert.equal(saved.renderedScenarioRevision, 1);
+  assert.deepEqual(saved.scenario?.pages.map(page => page.status), Array(7).fill('completed'));
+  assert.deepEqual(saved.scenario?.pages.slice(0, 4), pages.slice(0, 4));
+  assert.equal(saved.prompt, 'Keep this script.');
+  assert.equal(script.mock.callCount(), 0);
+  assert.equal(retry.mock.callCount(), 1);
+});
+
+test('a continuation that leaves an image missing stays failed and keeps its completed pages', async (t) => {
+  const dataDir = mkdtempSync(path.join(os.tmpdir(), 'stories-continue-failure-'));
+  const harness = await createStoriesHarness(dataDir);
+  t.after(async () => { await harness.close(); await fs.rm(dataDir, { recursive: true, force: true }); });
+  const storyId = 'story-continue-failure';
+  await writeStoryMeta(dataDir, { id: storyId, prompt: 'Keep pages.', status: 'failed',
+    createdAt: '2026-09-13T13:36:29Z', scenarioRevision: 1, renderedScenarioRevision: 0,
+    scenario: makeScenario([makePage(), makePage({ pageNumber: 2, status: 'pending' })]) });
+  t.mock.method(harness.storiesModule.illustrationOps, 'retryFailedSceneImages', async () => 0);
+  const response = await fetch(`${harness.baseUrl}/api/stories/${storyId}/retry`, { method: 'POST' });
+  assert.equal(response.status, 200);
+  await waitFor(async () => harness.generationRegistry.listTrackedGenerationIds(), ids => ids.length === 0);
+  const saved = await readStoryMeta(dataDir, storyId);
+  assert.equal(saved.status, 'failed');
+  assert.equal(saved.renderedScenarioRevision, 0);
+  assert.equal(saved.scenario?.pages[0].status, 'completed');
+});
+
+test('duplicate continuation requests are rejected while the first run is active', async (t) => {
+  const dataDir = mkdtempSync(path.join(os.tmpdir(), 'stories-continue-duplicate-'));
+  const harness = await createStoriesHarness(dataDir);
+  t.after(async () => { await harness.close(); await fs.rm(dataDir, { recursive: true, force: true }); });
+  const storyId = 'story-continue-duplicate';
+  await writeStoryMeta(dataDir, {
+    id: storyId,
+    prompt: 'Continue once.',
+    status: 'failed',
+    createdAt: '2026-09-13T13:36:29Z',
+    scenarioRevision: 1,
+    renderedScenarioRevision: 0,
+    scenario: makeScenario([makePage({ status: 'pending' })]),
+  });
+
+  let releaseGeneration!: () => void;
+  const generationCanFinish = new Promise<void>(resolve => { releaseGeneration = resolve; });
+  t.mock.method(harness.storiesModule.illustrationOps, 'retryFailedSceneImages', async (
+    id: string, pages: Page[], _characters: unknown, numbers: number[],
+  ) => {
+    await generationCanFinish;
+    const { updatePageStatus } = await import('../utils/storage.js');
+    await updatePageStatus(id, numbers[0], 'completed');
+    pages[0].status = 'completed';
+    return 1;
+  });
+
+  const first = await fetch(`${harness.baseUrl}/api/stories/${storyId}/retry`, { method: 'POST' });
+  assert.equal(first.status, 200);
+  const duplicate = await fetch(`${harness.baseUrl}/api/stories/${storyId}/retry`, { method: 'POST' });
+  assert.equal(duplicate.status, 409);
+
+  releaseGeneration();
+  await waitFor(async () => harness.generationRegistry.isGenerationActive(storyId), active => !active);
+});
+
+test('a failed stale asset refresh continues and syncs its rendered revision', async (t) => {
+  const dataDir = mkdtempSync(path.join(os.tmpdir(), 'stories-continue-refresh-'));
+  const harness = await createStoriesHarness(dataDir);
+  t.after(async () => { await harness.close(); await fs.rm(dataDir, { recursive: true, force: true }); });
+  const storyId = 'story-continue-refresh';
+  await writeStoryMeta(dataDir, {
+    id: storyId,
+    prompt: 'Use the revised script.',
+    status: 'failed',
+    createdAt: '2026-09-13T13:36:29Z',
+    scenarioRevision: 2,
+    renderedScenarioRevision: 1,
+    scenario: makeScenario([makePage(), makePage({ pageNumber: 2, status: 'pending' })]),
+  });
+  t.mock.method(harness.storiesModule.illustrationOps, 'retryFailedSceneImages', async (
+    id: string, pages: Page[], _characters: unknown, numbers: number[],
+  ) => {
+    assert.deepEqual(numbers, [2]);
+    const { updatePageStatus } = await import('../utils/storage.js');
+    await updatePageStatus(id, 2, 'completed');
+    pages[1].status = 'completed';
+    return 1;
+  });
+
+  const response = await fetch(`${harness.baseUrl}/api/stories/${storyId}/retry`, { method: 'POST' });
+  assert.equal(response.status, 200, await response.text());
+  const saved = await waitFor(() => readStoryMeta(dataDir, storyId), story => story.status === 'completed');
+  assert.equal(saved.renderedScenarioRevision, 2);
+  assert.deepEqual(saved.scenario?.pages.map(page => page.status), ['completed', 'completed']);
 });

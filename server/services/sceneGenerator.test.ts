@@ -1,7 +1,43 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 import test from 'node:test';
+import sharp from 'sharp';
 
 import type { Character, Page } from '../../shared/types.js';
+
+test('restoreSavedSceneImages restores valid saved pages and leaves missing pages incomplete', async t => {
+  const { config } = await import('../config.js');
+  const { restoreSavedSceneImages } = await import('./sceneGenerator.js');
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'saved-scenes-'));
+  const previous = { dataDir: config.dataDir, useSupabase: config.useSupabase };
+  Object.assign(config, { dataDir: directory, useSupabase: false });
+  t.after(async () => { Object.assign(config, previous); await fs.rm(directory, { recursive: true, force: true }); });
+  const storyId = 'saved-story';
+  const pages = [
+    makePage({ pageNumber: 1, status: 'generating' }),
+    makePage({ pageNumber: 2, status: 'pending' }),
+    makePage({ pageNumber: 3, status: 'completed' }),
+    makePage({ pageNumber: 4, status: 'completed' }),
+  ];
+  const storyDirectory = path.join(directory, storyId);
+  await fs.mkdir(storyDirectory, { recursive: true });
+  await fs.writeFile(path.join(storyDirectory, 'scenario.json'), JSON.stringify({
+    id: storyId, prompt: 'Story', status: 'failed', createdAt: new Date().toISOString(),
+    scenario: { title: 'Story', targetAge: 3, characters: [], pages },
+  }));
+  await fs.writeFile(path.join(storyDirectory, 'page-01.png'), await sharp({
+    create: { width: 2, height: 2, channels: 3, background: 'red' },
+  }).png().toBuffer());
+  await fs.writeFile(path.join(storyDirectory, 'page-04.png'), 'corrupt image');
+
+  await restoreSavedSceneImages(storyId, pages);
+
+  assert.deepEqual(pages.map(page => page.status), ['completed', 'pending', 'pending', 'pending']);
+  const saved = JSON.parse(await fs.readFile(path.join(storyDirectory, 'scenario.json'), 'utf8'));
+  assert.deepEqual(saved.scenario.pages.map((page: Page) => page.status), ['completed', 'pending', 'pending', 'pending']);
+});
 
 
 function makePage(overrides: Partial<Page> = {}): Page {
@@ -237,7 +273,6 @@ test('generateSceneImage includes current page image as regeneration context', a
         capturedReferenceImages = referenceImages ?? [];
         return 'scene-image-base64';
       },
-      reviewImage: async () => ({ pass: true, summary: 'Ready.', retryFeedback: '', issues: [] }),
       retryOptions: {
         retries: 0,
         minTimeout: 0,
@@ -256,75 +291,6 @@ test('generateSceneImage includes current page image as regeneration context', a
     { data: 'current-page-image-base64', mimeType: 'image/png' },
   ]);
   assert.match(capturedPrompt, /current page image to preserve/);
-});
-
-test('generateSceneImage retries a failed visual review without a drifted previous scene', async () => {
-  const sceneGenerator = await import('./sceneGenerator.js');
-  const hero: Character = {
-    name: 'Prâslea',
-    role: 'hero',
-    appearance: 'Warm olive skin and wavy black hair.',
-    clothing: 'Moss-green tunic and ochre cloak.',
-    personality: 'Brave.',
-    characterSheetPrompt: 'Reference sheet for Prâslea.',
-  };
-  const references: string[][] = [];
-  const prompts: string[] = [];
-  let reviews = 0;
-  let saved = '';
-
-  const result = await sceneGenerator.generateSceneImage(
-    'story-quality-retry',
-    makePage({
-      pageNumber: 7,
-      text: 'Prâslea enters the copper palace.',
-      imagePrompt: 'Prâslea enters the copper palace.',
-      characters: ['Prâslea'],
-    }),
-    [hero],
-    new Map([['Prâslea', 'hero-sheet']]),
-    'Storybook illustration style',
-    undefined,
-    undefined,
-    'previous-scene',
-    true,
-    {
-      generateImage: async (prompt, referenceImages) => {
-        prompts.push(prompt);
-        references.push((referenceImages ?? []).map(image => image.data));
-        return prompts.length === 1 ? 'wrong-hero' : 'correct-hero';
-      },
-      reviewImage: async () => {
-        reviews++;
-        return reviews === 1
-          ? {
-              pass: false,
-              summary: 'The hero identity changed.',
-              retryFeedback: 'Use olive skin and black hair from the reference sheet.',
-              issues: [{
-                code: 'wrong_character_identity',
-                severity: 'major',
-                characterName: 'Prâslea',
-                summary: 'The hero is blond.',
-              }],
-            }
-          : { pass: true, summary: 'Ready.', retryFeedback: '', issues: [] };
-      },
-      retryOptions: { retries: 0, minTimeout: 0, maxTimeout: 0, randomize: false },
-      saveSceneImage: async (_storyId, _filename, base64) => { saved = base64; },
-      updatePageStatus: async () => {},
-    },
-  );
-
-  assert.equal(result, 'correct-hero');
-  assert.equal(saved, 'correct-hero');
-  assert.equal(reviews, 2);
-  assert.deepEqual(references, [
-    ['hero-sheet', 'previous-scene'],
-    ['hero-sheet'],
-  ]);
-  assert.match(prompts[1], /VISUAL QUALITY CORRECTION/);
-  assert.match(prompts[1], /olive skin and black hair/i);
 });
 
 test('generateSceneImage keeps four character sheets with scene continuity references', async () => {
@@ -359,7 +325,6 @@ test('generateSceneImage keeps four character sheets with scene continuity refer
         references = (referenceImages ?? []).map(image => image.data);
         return 'scene-image';
       },
-      reviewImage: async () => ({ pass: true, summary: 'Ready.', retryFeedback: '', issues: [] }),
       retryOptions: { retries: 0, minTimeout: 0, maxTimeout: 0, randomize: false },
       saveSceneImage: async () => {},
       updatePageStatus: async () => {},
@@ -415,7 +380,6 @@ test('FLUX Klein keeps four character sheets and omits optional scene references
         references = (referenceImages ?? []).map(image => image.data);
         return 'scene-image';
       },
-      reviewImage: async () => ({ pass: true, summary: 'Ready.', retryFeedback: '', issues: [] }),
       retryOptions: { retries: 0, minTimeout: 0, maxTimeout: 0, randomize: false },
       saveSceneImage: async () => {},
       updatePageStatus: async () => {},
@@ -555,7 +519,6 @@ test('generateSceneImage sanitizes outbound prompts without mutating visible sto
         capturedPrompts.push(prompt);
         return 'scene-image-base64';
       },
-      reviewImage: async () => ({ pass: true, summary: 'Ready.', retryFeedback: '', issues: [] }),
       retryOptions: {
         retries: 0,
         minTimeout: 0,

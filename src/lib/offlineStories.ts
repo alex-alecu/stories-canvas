@@ -1,6 +1,7 @@
 import type { StoryAssets, StoryMeta, StorySummary } from '../types';
 import { cacheStoryMedia, deleteCachedStoryMedia } from './serviceWorker';
 import { fetchStory, fetchStoryAssets } from './storyApi';
+import { storyAssetsAreStale } from '../../shared/storyCompletion';
 
 const DB_NAME = 'stories-canvas-offline';
 const DB_VERSION = 1;
@@ -46,7 +47,7 @@ export async function getOfflineStory(id: string): Promise<OfflineStoryRecord | 
   const db = await openOfflineDb();
   return requestToPromise<OfflineStoryRecord | undefined>(
     db.transaction(STORE_NAME, 'readonly').objectStore(STORE_NAME).get(id),
-  ).then(record => record ?? null);
+  ).then(record => record ? normalizeOfflineRecord(record) : null);
 }
 
 export async function listOfflineStories(): Promise<OfflineStoryRecord[]> {
@@ -55,7 +56,9 @@ export async function listOfflineStories(): Promise<OfflineStoryRecord[]> {
     db.transaction(STORE_NAME, 'readonly').objectStore(STORE_NAME).getAll(),
   );
 
-  return records.sort((a, b) => Date.parse(b.lastViewedAt) - Date.parse(a.lastViewedAt));
+  return records
+    .map(normalizeOfflineRecord)
+    .sort((a, b) => Date.parse(b.lastViewedAt) - Date.parse(a.lastViewedAt));
 }
 
 export async function listOfflineStorySummaries(search?: string): Promise<StorySummary[]> {
@@ -96,7 +99,7 @@ export async function downloadStoryForOffline(
   existingStory?: StoryMeta,
 ): Promise<OfflineStoryRecord> {
   const story = existingStory?.scenario ? existingStory : await fetchStory(storyId);
-  if (story.status !== 'completed' || story.assetsStale || !story.scenario) {
+  if (story.status !== 'completed' || storyAssetsAreStale(story) || !story.scenario) {
     throw new Error('Only completed stories can be downloaded');
   }
 
@@ -245,7 +248,7 @@ function summarizeStory(story: StoryMeta): StorySummary {
     completedPages: pages.filter(page => page.status === 'completed').length,
     isPublic: story.isPublic,
     hasAudio: pages.some(page => !!page.audioUrl),
-    assetsStale: story.assetsStale,
+    assetsStale: storyAssetsAreStale(story),
     viewCount: story.viewCount ?? 0,
     likeCount: story.likeCount ?? 0,
     dislikeCount: story.dislikeCount ?? 0,
@@ -257,9 +260,18 @@ function buildAssetSignature(story: StoryMeta, assetUrls: string[]): string {
   return [
     story.scenarioRevision ?? 0,
     story.renderedScenarioRevision ?? 0,
-    story.assetsStale ? 'stale' : 'fresh',
+    storyAssetsAreStale(story) ? 'stale' : 'fresh',
     ...assetUrls,
   ].join('|');
+}
+
+function normalizeOfflineRecord(record: OfflineStoryRecord): OfflineStoryRecord {
+  const assetsStale = storyAssetsAreStale(record.story);
+  return {
+    ...record,
+    story: { ...record.story, assetsStale },
+    summary: { ...record.summary, assetsStale },
+  };
 }
 
 async function pruneRecentDownloads(limit = RECENT_DOWNLOAD_LIMIT): Promise<void> {

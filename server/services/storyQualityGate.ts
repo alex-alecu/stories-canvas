@@ -1,6 +1,6 @@
 import type { Scenario, StoryUsageStatus } from '../../shared/types.js';
 import { config } from '../config.js';
-import { generateJSON } from './openrouter.js';
+import { generateJSON, TextCostUnavailableError } from './openrouter.js';
 import type { TextGenerationOptions } from './openrouter.js';
 import type { StoryPromptContext } from './storyPrompt.js';
 import { storyScriptSchema } from './storyScriptSchema.js';
@@ -10,11 +10,9 @@ import {
   MAX_RETELLING_SCENARIO_CHARACTERS,
   normalizeScenarioWhitespace,
   validateScenario,
-  type ScenarioValidationIssue,
 } from './scenarioValidation.js';
 
 export const STORY_QUALITY_MIN_SCORE = 4;
-const STORY_QUALITY_VALIDATION_REPAIR_LIMIT = 1;
 
 export const STORY_QUALITY_ISSUE_CODES = [
   'language_fluency',
@@ -70,11 +68,18 @@ interface UsageEvent {
   usageAvailable?: boolean;
 }
 
+function isExhaustedFundsError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const value = error as { status?: unknown; message?: unknown };
+  return value.status === 402
+    || (typeof value.message === 'string' && /insufficient (?:funds|credits)|balance is used/i.test(value.message));
+}
+
 export interface StoryQualityGateOptions {
   generate?: typeof generateJSON;
   onReviewUsage?: (usage: UsageEvent) => void | Promise<void>;
   onRewriteUsage?: (usage: UsageEvent) => void | Promise<void>;
-  onProgress?: (step: 'review' | 'rewrite' | 'validation_repair') => void;
+  onProgress?: (step: 'review' | 'rewrite') => void;
   signal?: AbortSignal;
 }
 
@@ -270,12 +275,9 @@ function rewritePrompt(
   context: StoryPromptContext,
   scenario: Scenario,
   review: StoryQualityReview,
-  validationIssues: ScenarioValidationIssue[] = [],
 ): string {
   return JSON.stringify({
-    task: validationIssues.length
-      ? 'Correct the validation errors in the rewritten script'
-      : 'Correct the supplied review findings in the complete script',
+    task: 'Correct the supplied review findings in the complete script',
     language: context.language,
     targetAge: context.targetAge,
     maximumPageCount: context.pageCount,
@@ -283,7 +285,6 @@ function rewritePrompt(
     originalRequest: context.userPrompt,
     compactSourceRules: compactSourceRules(context),
     qualityReview: review,
-    validationIssues: validationIssues.length ? validationIssues : undefined,
     currentScript: scenario,
   });
 }
@@ -302,7 +303,7 @@ async function reviewStory(
     {
       model: config.reviewModel,
       reasoningEffort: 'medium',
-      maxRetries: 2,
+      maxRetries: 1,
       signal,
       onUsage,
     },
@@ -317,37 +318,53 @@ async function generateValidatedRewrite(
   generate: typeof generateJSON,
   options: StoryQualityGateOptions,
 ): Promise<Scenario> {
-  let scenario = inputScenario;
-  let issues: ScenarioValidationIssue[] = [];
-  for (let attempt = 0; attempt <= STORY_QUALITY_VALIDATION_REPAIR_LIMIT; attempt++) {
-    options.signal?.throwIfAborted();
-    options.onProgress?.(attempt === 0 ? 'rewrite' : 'validation_repair');
+  options.signal?.throwIfAborted();
+  options.onProgress?.('rewrite');
+  let usageFailure: unknown;
+  const onUsage: TextGenerationOptions['onUsage'] = options.onRewriteUsage
+    ? async usage => {
+      try {
+        await options.onRewriteUsage!(usage);
+      } catch (error) {
+        usageFailure = error;
+        throw error;
+      }
+    }
+    : undefined;
+  try {
     const rewritten = await generate<Scenario>(
-      rewritePrompt(context, scenario, review, issues),
+      rewritePrompt(context, inputScenario, review),
       QUALITY_REWRITE_SYSTEM_INSTRUCTION,
       storyScriptSchema as unknown as Record<string, unknown>,
       {
         model: config.scenarioModel,
         reasoningEffort: 'high',
-        maxRetries: 2,
+        maxRetries: 1,
         signal: options.signal,
-        onUsage: options.onRewriteUsage,
+        onUsage,
       },
     );
     options.signal?.throwIfAborted();
-    scenario = normalizeScenarioWhitespace(rewritten);
-    issues = validateScenario(scenario, context.targetAge, {
+    const scenario = normalizeScenarioWhitespace(rewritten);
+    const issues = validateScenario(scenario, context.targetAge, {
       pageCount: context.pageCount,
       maxCharacters: context.retellingSource ? MAX_RETELLING_SCENARIO_CHARACTERS : undefined,
     });
-    if (issues.length === 0) {
-      return {
-        ...scenario,
-        pages: scenario.pages.map(page => ({ ...page, status: 'pending' as const })),
-      };
+    if (issues.length > 0) {
+      console.warn(`Story correction was invalid. Using the validated draft: ${formatScenarioValidationIssues(issues)}`);
+      return inputScenario;
     }
+    return {
+      ...scenario,
+      pages: scenario.pages.map(page => ({ ...page, status: 'pending' as const })),
+    };
+  } catch (error) {
+    options.signal?.throwIfAborted();
+    if (usageFailure !== undefined) throw usageFailure;
+    if (error instanceof TextCostUnavailableError || isExhaustedFundsError(error)) throw error;
+    console.warn('Story correction failed. Using the validated draft.', error);
+    return inputScenario;
   }
-  throw new Error(`Quality rewrite failed validation: ${formatScenarioValidationIssues(issues)}`);
 }
 
 export async function enforceStoryQuality(
@@ -357,15 +374,36 @@ export async function enforceStoryQuality(
 ): Promise<Scenario> {
   const generate = options.generate ?? generateJSON;
   const scenario = normalizeScenarioWhitespace(inputScenario);
+  const draftIssues = validateScenario(scenario, context.targetAge, {
+    pageCount: context.pageCount,
+    maxCharacters: context.retellingSource ? MAX_RETELLING_SCENARIO_CHARACTERS : undefined,
+  });
+  if (draftIssues.length > 0) {
+    throw new Error(formatScenarioValidationIssues(draftIssues));
+  }
   options.signal?.throwIfAborted();
   options.onProgress?.('review');
-  const review = await reviewStory(
-    context,
-    scenario,
-    generate,
-    options.onReviewUsage,
-    options.signal,
-  );
+  let reviewUsageFailure: unknown;
+  const onReviewUsage: TextGenerationOptions['onUsage'] = options.onReviewUsage
+    ? async usage => {
+      try {
+        await options.onReviewUsage!(usage);
+      } catch (error) {
+        reviewUsageFailure = error;
+        throw error;
+      }
+    }
+    : undefined;
+  let review: StoryQualityReview;
+  try {
+    review = await reviewStory(context, scenario, generate, onReviewUsage, options.signal);
+  } catch (error) {
+    options.signal?.throwIfAborted();
+    if (reviewUsageFailure !== undefined) throw reviewUsageFailure;
+    if (error instanceof TextCostUnavailableError || isExhaustedFundsError(error)) throw error;
+    console.warn('Story review failed. Using the validated draft.', error);
+    return scenario;
+  }
   options.signal?.throwIfAborted();
   if (review.pass && review.issues.length === 0) return scenario;
   return generateValidatedRewrite(context, scenario, review, generate, options);

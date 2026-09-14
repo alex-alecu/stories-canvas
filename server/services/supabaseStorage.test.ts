@@ -2,7 +2,53 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createClient } from '@supabase/supabase-js';
 
-import type { Page, Scenario, StoryMeta } from '../../shared/types.js';
+import type { Page, Scenario, StoryMeta, StoryUsageEvent, StoryUsageTotals } from '../../shared/types.js';
+
+function usageEvent(): StoryUsageEvent {
+  return {
+    id: 'usage-event-1', storyId: 'story-1', provider: 'openrouter', operation: 'page_image',
+    source: 'initial_generation', status: 'succeeded', model: 'image-model', pageNumber: 1,
+    inputTokens: 1, outputTokens: 2, totalTokens: 3, generatedImages: 1,
+    billedCharacters: 0, imageOutputTokens: 2, costUsdMicros: 50,
+    usageDetails: {}, pricingSnapshot: {}, pricingStatus: 'complete',
+    calculatedAt: '2026-09-14T04:00:00.000Z', createdAt: '2026-09-14T04:00:00.000Z',
+  };
+}
+
+test('appendStoryUsageEvent retries only transient writes with the same event', async () => {
+  const { appendStoryUsageEvent } = await import('./supabaseStorage.js');
+  const payloads: unknown[] = [];
+  const delays: number[] = [];
+  const errors = [{ message: 'Gateway Timeout', status: 504 }, { message: 'Bad Gateway', status: 502 }, null];
+  const client = { rpc: async (_name: string, payload: unknown) => {
+    payloads.push(payload);
+    return { error: errors.shift() };
+  } };
+  await appendStoryUsageEvent('story-1', usageEvent(), {} as StoryUsageTotals, client as never,
+    async milliseconds => { delays.push(milliseconds); });
+  assert.equal(payloads.length, 3);
+  assert.deepEqual(payloads[1], payloads[0]);
+  assert.deepEqual(payloads[2], payloads[0]);
+  assert.deepEqual(delays, [1_000, 3_000]);
+});
+
+test('appendStoryUsageEvent does not retry permanent errors', async () => {
+  const { appendStoryUsageEvent } = await import('./supabaseStorage.js');
+  let attempts = 0;
+  await assert.rejects(appendStoryUsageEvent('story-1', usageEvent(), {} as StoryUsageTotals, {
+    rpc: async () => { attempts++; return { error: { message: 'permission denied', status: 403 } }; },
+  } as never, async () => {}), /permission denied/);
+  assert.equal(attempts, 1);
+});
+
+test('appendStoryUsageEvent stops after three transient attempts', async () => {
+  const { appendStoryUsageEvent } = await import('./supabaseStorage.js');
+  let attempts = 0;
+  await assert.rejects(appendStoryUsageEvent('story-1', usageEvent(), {} as StoryUsageTotals, {
+    rpc: async () => { attempts++; return { error: { message: 'Gateway Timeout', status: 504 } }; },
+  } as never, async () => {}), /Gateway Timeout/);
+  assert.equal(attempts, 3);
+});
 
 test('story costs query selects OpenRouter requests for one story across all result pages', async () => {
   const { getStoryOpenRouterCosts } = await import('./supabaseStorage.js');
@@ -251,6 +297,27 @@ test('recoverStuckStories keeps successful recovery behavior unchanged for stale
 
   assert.equal(recoveredCount, 1);
   assert.deepEqual(updates, [{ id: 'story-stale', status: 'completed' }]);
+});
+
+test('recoverStuckStories keeps incomplete images failed and syncs a completed initial render', async () => {
+  const supabaseStorage = await import('./supabaseStorage.js');
+  const statuses: Array<{ id: string; status: string }> = [];
+  const revisions: Array<{ id: string; revision: number }> = [];
+  const base = { createdAt: '2026-03-30T00:00:00.000Z', scenarioRevision: 1, renderedScenarioRevision: 0 };
+  const recovered = await supabaseStorage.recoverStuckStories({
+    loadActiveGenerations: async () => [
+      makeStoryMeta({ ...base, id: 'incomplete', scenario: makeScenario({ pages: [makePage(), makePage({ pageNumber: 2, status: 'pending' })] }) }),
+      makeStoryMeta({ ...base, id: 'complete', scenario: makeScenario({ pages: [makePage()] }) }),
+    ],
+    now: () => Date.parse('2026-03-31T00:10:00.000Z'),
+    updateStatus: async (id, status) => { statuses.push({ id, status }); },
+    updateRenderedRevision: async (id, revision) => { revisions.push({ id, revision }); },
+    releaseGenerationSlot: async () => 0,
+    log: { log() {} },
+  });
+  assert.equal(recovered, 2);
+  assert.deepEqual(statuses, [{ id: 'incomplete', status: 'failed' }, { id: 'complete', status: 'completed' }]);
+  assert.deepEqual(revisions, [{ id: 'complete', revision: 1 }]);
 });
 
 test('recoverStuckStories uses the saved audio choice when a story has an old voice', async (t) => {

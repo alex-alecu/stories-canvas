@@ -206,7 +206,7 @@ export default function StoryInput({ onSubmit, isLoading, isOffline = false }: S
               rows={3}
               disabled={isLoading}
               readOnly={isGuest}
-              className="mt-3 block w-full rounded-xl border border-gray-200 bg-gray-50/70 px-4 py-3 text-base leading-relaxed text-gray-700 placeholder-gray-400 focus:border-primary-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary-100 disabled:opacity-50 dark:border-gray-700 dark:bg-surface-dark dark:text-gray-200 dark:placeholder-gray-500 dark:focus:ring-primary-900"
+              className="mt-3 block w-full rounded-xl border border-gray-200 bg-gray-50/70 px-4 py-3 text-base leading-relaxed text-gray-700 placeholder-gray-400 focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-100 disabled:opacity-50 dark:border-gray-700 dark:bg-surface-dark dark:text-gray-200 dark:placeholder-gray-500 dark:focus:ring-primary-900"
             />
             {!isGuest && (
               <div className="mt-2 flex items-center justify-between gap-3">

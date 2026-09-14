@@ -161,7 +161,7 @@ export default function StoryPage() {
   // Check if any pages have completed images
   const hasCompletedPages = story.scenario?.pages?.some(p => p.status === 'completed');
 
-  if (story.assetsStale && story.scenario && !isGenerating) {
+  if (story.status === 'completed' && story.assetsStale && story.scenario && !isGenerating) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
         <div className="bg-white dark:bg-surface-dark-elevated rounded-2xl shadow-lg dark:shadow-primary-900/30 p-8 max-w-lg w-full text-center">
@@ -234,6 +234,9 @@ export default function StoryPage() {
         openRouterCosts={story.openRouterCosts}
         canManageStory={isOnline && !!user && !!story.userId && story.userId === user.id}
         canUseOnlineActions={isOnline}
+        onContinueGeneration={handleRetryStory}
+        isContinuingGeneration={retryStory.isPending}
+        continueGenerationError={retryStory.isError ? (retryStory.error?.message || t.retryFailed) : undefined}
         publicPreviewGate={publicPreviewGate}
       />
     );

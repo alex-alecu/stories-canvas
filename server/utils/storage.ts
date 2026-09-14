@@ -14,6 +14,7 @@ import {
   type VoiceKey,
 } from '../../shared/types.js';
 import { EMPTY_STORY_USAGE_TOTALS, normalizeStoryUsageTotals, sumOpenRouterCosts } from '../services/storyUsage.js';
+import { storyAssetsAreStale } from '../../shared/storyCompletion.js';
 
 const writeLocks = new Map<string, Promise<void>>();
 const storyDirOverrides = new Map<string, string>();
@@ -75,7 +76,7 @@ function normalizeStoryMetaVoice(story: StoryMeta): StoryMeta {
     language: story.language ?? config.defaultLanguage,
     scenarioRevision,
     renderedScenarioRevision,
-    assetsStale: scenarioRevision > renderedScenarioRevision,
+    assetsStale: storyAssetsAreStale({ scenario: story.scenario, scenarioRevision, renderedScenarioRevision }),
     usageTotals: normalizeStoryUsageTotals(story.usageTotals),
     generationInputs: story.generationInputs,
     viewCount: normalizeCount(story.viewCount),
@@ -91,8 +92,9 @@ async function readRawStory(storyId: string): Promise<StoryMeta | null> {
     const data = await fs.readFile(filePath, 'utf-8');
     storyDirOverrides.set(storyId, path.dirname(filePath));
     return JSON.parse(data) as StoryMeta;
-  } catch {
-    return null;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
+    throw error;
   }
 }
 

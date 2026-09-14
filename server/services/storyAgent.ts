@@ -128,14 +128,12 @@ export async function generateStoryScriptWithAgents(
     onRewriteUsage: usageCallbacks?.onRewriteUsage,
     onProgress: step => {
       const reviewing = step === 'review';
-      const repairing = step === 'validation_repair';
       onProgress?.({
         status: 'reviewing_scenario',
         currentPhase: reviewing ? 'Reviewing story script...'
-          : repairing ? 'Correcting story format...' : 'Correcting story script...',
+          : 'Correcting story script...',
         message: reviewing ? 'Checking the story before illustration...'
-          : repairing ? 'Correcting the story format...'
-            : 'Correcting the story after review...',
+          : 'Correcting the story after review...',
         activity: activity('story-quality', 'subagent', 'working',
           reviewing ? 'Story review' : 'Story correction'),
       });
