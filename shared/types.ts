@@ -19,10 +19,10 @@ export type StoryUsageOperation =
   | 'scenario_review'
   | 'scenario_review_rewrite'
   | 'page_text_review'
-  | 'page_image_review'
   | 'character_sheet'
   | 'page_image'
   | 'page_audio';
+export type LegacyStoryUsageOperation = 'page_image_review';
 
 export const STORY_PAGE_DEFAULT_MAX_COUNT = 10;
 export const STORY_PAGE_MAX_COUNT = 20;
@@ -241,7 +241,7 @@ export interface StoryUsageEvent {
   storyId: string;
   userId?: string;
   provider: StoryUsageProvider;
-  operation: StoryUsageOperation;
+  operation: StoryUsageOperation | LegacyStoryUsageOperation;
   source: StoryUsageSource;
   status: StoryUsageStatus;
   model: string;

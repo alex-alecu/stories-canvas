@@ -32,3 +32,12 @@ test('image review usage migration adds the OpenAI visual review operation', asy
   assert.match(sql, /story_usage_events_operation_check/);
   assert.match(sql, /'page image review' = ANY\(roles\)/);
 });
+
+test('forward migration removes the obsolete image review model role', async () => {
+  const sql = await fs.readFile(path.join(
+    process.cwd(), 'supabase', 'migrations', '20260914042859_remove_page_image_review_role.sql',
+  ), 'utf-8');
+
+  assert.match(sql, /array_remove\(roles, 'page image review'\)/);
+  assert.doesNotMatch(sql, /story_usage_events_operation_check/);
+});

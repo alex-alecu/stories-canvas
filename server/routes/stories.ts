@@ -17,11 +17,12 @@ import { getCharacterSheetFilename } from '../services/characterSheet.js';
 import { generateScenario, generateScenarioWithMetadata, type GeneratedScenarioResult } from '../services/scenario.js';
 import { generateAllCharacterSheets } from '../services/characterSheet.js';
 import { finishTrackedGeneration, getTrackedGeneration, isGenerationActive, startTrackedGeneration } from '../services/generationRegistry.js';
-import { generateAllSceneImages, retryFailedSceneImages } from '../services/sceneGenerator.js';
+import { generateAllSceneImages, retryFailedSceneImages, restoreSavedSceneImages } from '../services/sceneGenerator.js';
 import { generateAllPageAudio, generatePageAudio, retryMissingAudio, savePageAudio, isAudioConfigured } from '../services/audio.js';
 import { getAudioModelSettings, withAudioModelSettings } from '../services/audioGenerationContext.js';
 import { DEFAULT_AUDIO_MODEL, parseAudioModelSettings } from '../../shared/audioModels.js';
 import { storyRequiresAudio, withoutDisabledAudioFailure } from '../../shared/storyAudio.js';
+import { storyAssetsAreStale, summarizeStoryImages } from '../../shared/storyCompletion.js';
 import { reviewPageText } from '../services/pageTextReview.js';
 import {
   consumeCredits,
@@ -91,6 +92,7 @@ export const illustrationOps = {
   generateAllCharacterSheets,
   generateAllSceneImages,
   retryFailedSceneImages,
+  restoreSavedSceneImages,
 };
 
 export const audioOps = {
@@ -481,9 +483,6 @@ function getRenderedScenarioRevision(story: Pick<StoryMeta, 'scenario' | 'render
   return getScenarioRevision(story);
 }
 
-function storyAssetsAreStale(story: Pick<StoryMeta, 'scenario' | 'scenarioRevision' | 'renderedScenarioRevision'>): boolean {
-  return getScenarioRevision(story) > getRenderedScenarioRevision(story);
-}
 
 function toStorySummary(story: StoryMeta) {
   const firstPageRevision = story.scenario?.pages?.[0]?.imageRevision;
@@ -721,6 +720,28 @@ function getFailedPageNumbers(scenario: Scenario): number[] {
   return scenario.pages.filter(page => page.status === 'failed').map(page => page.pageNumber);
 }
 
+async function savedImageProgress(storyId: string) {
+  const story = await getStory(storyId);
+  return summarizeStoryImages(story?.scenario);
+}
+
+async function completeImageGeneration(
+  storyId: string,
+  revision: number,
+  message: string,
+  audio: { audioFailed?: boolean; audioError?: string } = {},
+): Promise<void> {
+  const counts = await savedImageProgress(storyId);
+  const complete = counts.totalPages > 0 && counts.failedPages.length === 0;
+  if (complete) await updateRenderedScenarioRevision(storyId, revision);
+  const status = complete ? 'completed' : 'failed';
+  await updateStoryStatus(storyId, status);
+  await sendProgressUpdate(storyId, {
+    storyId, status, currentPhase: complete ? 'Done!' : 'Failed', ...counts,
+    message: complete ? message : summarizeImageProviderFailure(counts.failedPages), ...audio,
+  }, { persistBeforeSend: true });
+}
+
 async function persistScenarioAfterPageMutation(storyId: string, story: StoryMeta, scenario: Scenario): Promise<void> {
   await updateStoryScenario(storyId, scenario, 'completed', story.prompt, {
     voice: story.voice,
@@ -917,7 +938,7 @@ function createUsageRecorder(storyId: string, userId: string | undefined, source
   }
 
   return {
-    recordText: async (operation: 'source_analysis' | 'scenario_draft' | 'scenario_validation_repair' | 'scenario_review' | 'scenario_review_rewrite' | 'page_text_review' | 'page_image_review', usage: {
+    recordText: async (operation: 'source_analysis' | 'scenario_draft' | 'scenario_validation_repair' | 'scenario_review' | 'scenario_review_rewrite' | 'page_text_review', usage: {
       model: string;
       status: 'succeeded' | 'failed';
       inputTokens: number;
@@ -1541,8 +1562,6 @@ async function runGenerationPipeline(
       signal,
       pro,
       (page, usage) => usageRecorder.recordPageImage(page.pageNumber, usage),
-      (page, usage) => usageRecorder.recordText('page_image_review', usage),
-      scenario.targetAge,
     );
 
     // Update cover image URL
@@ -1550,7 +1569,7 @@ async function runGenerationPipeline(
       const coverUrl = getPageImageUrl(storyId, 1, userId);
       try {
         await sbStorage.updateStoryProgress(storyId, {
-          status: voice && audioOps.isAudioConfigured() ? 'generating_audio' : 'completed',
+          status: voice && audioOps.isAudioConfigured() ? 'generating_audio' : 'generating_images',
           completed_pages: completedPages,
           failed_pages: failedPages,
         });
@@ -1664,19 +1683,7 @@ async function runGenerationPipeline(
         failedPages,
       });
     }
-    await updateRenderedScenarioRevision(storyId, initialScenarioRevision);
-    await updateStoryStatus(storyId, 'completed');
-    await sendProgressUpdate(storyId, {
-      storyId,
-      status: 'completed',
-      currentPhase: 'Done!',
-      completedPages,
-      totalPages: scenario.pages.length,
-      failedPages,
-      message: completionMessage,
-      audioFailed,
-      audioError,
-    });
+    await completeImageGeneration(storyId, initialScenarioRevision, completionMessage, { audioFailed, audioError });
   } catch (caught) {
     const { error, isCancelled } = getGenerationFailure(caught, signal);
     const status = isCancelled ? 'cancelled' : 'failed';
@@ -1707,9 +1714,7 @@ async function runGenerationPipeline(
       storyId,
       status,
       currentPhase: isCancelled ? 'Cancelled' : 'Failed',
-      completedPages: 0,
-      totalPages: 0,
-      failedPages: [],
+      ...await savedImageProgress(storyId),
       message: isCancelled ? 'Generation cancelled'
         : error instanceof TextContentBlockedError || error instanceof TextOutputLimitError
           ? error.message : 'Generation failed',
@@ -1954,15 +1959,13 @@ async function runRegenerateAssetsPipeline(
       signal,
       undefined,
       (page, usage) => usageRecorder.recordPageImage(page.pageNumber, usage),
-      (page, usage) => usageRecorder.recordText('page_image_review', usage),
-      scenario.targetAge,
     );
 
     if (config.useSupabase) {
       const coverUrl = getPageImageUrl(storyId, 1, userId);
       try {
         await sbStorage.updateStoryProgress(storyId, {
-          status: storyRequiresAudio(story) && story.voice && audioOps.isAudioConfigured() ? 'generating_audio' : 'completed',
+          status: storyRequiresAudio(story) && story.voice && audioOps.isAudioConfigured() ? 'generating_audio' : 'generating_images',
           completed_pages: completedPages,
           failed_pages: failedPages,
         });
@@ -2050,19 +2053,7 @@ async function runRegenerateAssetsPipeline(
       });
     }
 
-    await updateRenderedScenarioRevision(storyId, getScenarioRevision(story));
-    await updateStoryStatus(storyId, 'completed');
-    await sendProgressUpdate(storyId, {
-      storyId,
-      status: 'completed',
-      currentPhase: 'Done!',
-      completedPages,
-      totalPages: scenario.pages.length,
-      failedPages,
-      message: completionMessage,
-      audioFailed,
-      audioError,
-    });
+    await completeImageGeneration(storyId, getScenarioRevision(story), completionMessage, { audioFailed, audioError });
   } catch (caught) {
     const { error, isCancelled } = getGenerationFailure(caught, signal);
     const status = isCancelled ? 'completed' : 'failed';
@@ -2090,13 +2081,11 @@ async function runRegenerateAssetsPipeline(
       await updateStoryStatus(storyId, status);
     } catch {}
 
-    sendSSE(storyId, {
+    await sendProgressUpdate(storyId, {
       storyId,
       status,
       currentPhase: isCancelled ? 'Cancelled' : 'Failed',
-      completedPages: 0,
-      totalPages: story.scenario?.pages.length ?? 0,
-      failedPages: [],
+      ...await savedImageProgress(storyId),
       message: isCancelled ? 'Asset regeneration cancelled' : (error instanceof Error ? error.message : 'Asset regeneration failed'),
     });
   } finally {
@@ -2189,26 +2178,8 @@ router.post('/:id/retry', optionalAuth, async (req: Request, res: Response) => {
       return;
     }
 
-    if (storyAssetsAreStale(story)) {
+    if (story.status === 'completed' && storyAssetsAreStale(story)) {
       res.status(400).json({ error: 'Story assets are out of date. Regenerate assets instead of retrying.' });
-      return;
-    }
-
-    const pages = story.scenario.pages;
-    const failedImagePages = pages.filter(p => p.status === 'failed').map(p => p.pageNumber);
-    const missingAudioPages = pages.filter(p => !pageHasAudio(p));
-    const shouldHaveAudio = storyRequiresAudio(story);
-    const needsAudioRetry = shouldHaveAudio && missingAudioPages.length > 0;
-
-    if (failedImagePages.length === 0 && !needsAudioRetry) {
-      // Fix stuck status: if the story appears complete but status is still a
-      // generating state (e.g. pipeline crashed), correct it to 'completed'.
-      let resolvedStatus = story.status;
-      if (story.status !== 'completed' && story.status !== 'failed') {
-        await updateStoryStatus(storyId, 'completed');
-        resolvedStatus = 'completed';
-      }
-      res.json({ status: resolvedStatus, retriedImages: 0, retriedAudio: 0 } as RetryStoryResponse);
       return;
     }
 
@@ -2217,17 +2188,51 @@ router.post('/:id/retry', optionalAuth, async (req: Request, res: Response) => {
       return;
     }
 
-    // Return immediately, retry happens in background
-    res.json({
-      status: (failedImagePages.length > 0 ? 'generating_images' : 'generating_audio') as StoryStatus,
-      retriedImages: failedImagePages.length,
-      retriedAudio: needsAudioRetry ? missingAudioPages.length : 0,
-    } as RetryStoryResponse);
+    // Register the run before any asynchronous recovery work. This makes a
+    // second request fail before the first response reaches the browser.
+    const controller = startTrackedGeneration(storyId);
 
-    // Run retry pipeline in background
-    runRetryPipeline(storyId, story, failedImagePages, needsAudioRetry).catch(error => {
-      console.error(`Retry pipeline failed for ${storyId}:`, error);
-    });
+    try {
+      await illustrationOps.restoreSavedSceneImages(
+        storyId,
+        story.scenario.pages,
+        story.userId,
+        controller.signal,
+      );
+
+      const missingImagePages = story.scenario.pages
+        .filter(page => page.status !== 'completed')
+        .map(page => page.pageNumber);
+      const missingAudioPages = story.scenario.pages.filter(page => !pageHasAudio(page));
+      const needsAudioRetry = storyRequiresAudio(story) && missingAudioPages.length > 0;
+
+      if (missingImagePages.length === 0 && !needsAudioRetry) {
+        await updateRenderedScenarioRevision(storyId, story.scenarioRevision ?? 1);
+        await updateStoryStatus(storyId, 'completed');
+        finishTrackedGeneration(storyId);
+        await releaseUserGenerationSlot(storyId);
+        res.json({ status: 'completed', retriedImages: 0, retriedAudio: 0 } as RetryStoryResponse);
+        return;
+      }
+
+      const nextStatus: StoryStatus = missingImagePages.length > 0 ? 'generating_images' : 'generating_audio';
+      await updateStoryStatus(storyId, nextStatus);
+
+      // Return immediately. The registered pipeline continues in the background.
+      res.json({
+        status: nextStatus,
+        retriedImages: missingImagePages.length,
+        retriedAudio: needsAudioRetry ? missingAudioPages.length : 0,
+      } as RetryStoryResponse);
+
+      runRetryPipeline(storyId, story, missingImagePages, needsAudioRetry, controller).catch(error => {
+        console.error(`Retry pipeline failed for ${storyId}:`, error);
+      });
+    } catch (error) {
+      finishTrackedGeneration(storyId);
+      await releaseUserGenerationSlot(storyId);
+      throw error;
+    }
   } catch (error) {
     console.error('Failed to retry story:', error);
     res.status(500).json({ error: 'Failed to retry story' });
@@ -2237,10 +2242,10 @@ router.post('/:id/retry', optionalAuth, async (req: Request, res: Response) => {
 async function runRetryPipeline(
   storyId: string,
   story: StoryMeta,
-  failedImagePages: number[],
+  missingImagePages: number[],
   needsAudioRetry: boolean,
+  controller: AbortController,
 ): Promise<void> {
-  const controller = startTrackedGeneration(storyId);
   const { signal } = controller;
   const usageRecorder = createUsageRecorder(storyId, story.userId, 'retry');
 
@@ -2249,11 +2254,11 @@ async function runRetryPipeline(
 
   try {
     let completedImages = 0;
-    const totalRetries = failedImagePages.length;
+    const totalRetries = missingImagePages.length;
     let lastImageFailureMessage: string | undefined;
 
-    // Phase 1: Retry failed images
-    if (failedImagePages.length > 0) {
+    // Phase 1: Continue all images that are not complete.
+    if (missingImagePages.length > 0) {
       await updateStoryStatus(storyId, 'generating_images');
 
       await sendProgressUpdate(storyId, {
@@ -2263,7 +2268,7 @@ async function runRetryPipeline(
         completedPages: 0,
         totalPages: totalRetries,
         failedPages: [],
-        message: `Retrying ${failedImagePages.length} failed illustration(s)...`,
+        message: `Continuing ${missingImagePages.length} illustration(s)...`,
       });
 
       const styleDescription = storyStyleOps.getStoryArtStyleDescription(story);
@@ -2273,7 +2278,7 @@ async function runRetryPipeline(
         storyId,
         scenario.pages,
         scenario.characters,
-        failedImagePages,
+        missingImagePages,
         styleDescription,
         (progress) => {
           if (progress.pageStatus === 'completed') {
@@ -2302,12 +2307,10 @@ async function runRetryPipeline(
         (page, usage) => usageRecorder.recordPageImage(page.pageNumber, usage),
         (_character, usage) => usageRecorder.recordCharacterSheet(usage),
         {},
-        (page, usage) => usageRecorder.recordText('page_image_review', usage),
-        scenario.targetAge,
       );
 
       // Update cover image if page 1 was retried and succeeded
-      if (failedImagePages.includes(1) && !failedPages.includes(1) && config.useSupabase) {
+      if (missingImagePages.includes(1) && !failedPages.includes(1) && config.useSupabase) {
         const coverUrl = getPageImageUrl(storyId, 1, userId);
         try {
           const { getSupabase } = await import('../services/supabase.js');
@@ -2317,7 +2320,12 @@ async function runRetryPipeline(
     }
 
     // Phase 2: Retry missing audio
-    if (needsAudioRetry && audioOps.isAudioConfigured()) {
+    const storyAfterImages = await getStory(storyId);
+    const imageProgress = summarizeStoryImages(storyAfterImages?.scenario);
+    let audioFailed = false;
+    let audioError: string | undefined;
+
+    if (needsAudioRetry && imageProgress.failedPages.length === 0 && audioOps.isAudioConfigured()) {
       if (signal.aborted) throw new Error('Generation cancelled');
 
       // We need to re-fetch the story to get updated page data after image retry
@@ -2329,6 +2337,8 @@ async function runRetryPipeline(
       const voiceKey = normalizeVoiceKey(updatedStory?.voice || story.voice);
       if (!voiceKey) {
         console.warn(`[retry] Story ${storyId} needs audio retry but has no voice set — skipping audio`);
+        audioFailed = true;
+        audioError = 'Narration could not continue because the saved voice is unavailable.';
       } else {
         await updateStoryStatus(storyId, 'generating_audio');
 
@@ -2343,7 +2353,7 @@ async function runRetryPipeline(
         });
 
         let audioCompletedPages = 0;
-        await audioOps.retryMissingAudio(
+        const audioResult = await audioOps.retryMissingAudio(
           storyId,
           updatedPages,
           voiceKey,
@@ -2365,12 +2375,19 @@ async function runRetryPipeline(
           },
           (page, usage) => usageRecorder.recordPageAudio(page.pageNumber, usage),
         );
+        if (audioResult.completedCount < pagesNeedingAudio.length) {
+          audioFailed = true;
+          audioError = audioResult.error || 'Some narration pages could not be generated';
+        }
       }
+    } else if (needsAudioRetry && imageProgress.failedPages.length === 0) {
+      audioFailed = true;
+      audioError = 'Narration generation service is not configured';
     }
 
-    const remainingFailedPages = scenario.pages
-      .filter(page => page.status === 'failed')
-      .map(page => page.pageNumber);
+    const finalStory = await getStory(storyId);
+    const finalImageProgress = summarizeStoryImages(finalStory?.scenario);
+    const remainingFailedPages = finalImageProgress.failedPages;
     const retryCompletionMessage = summarizeImageProviderFailure(remainingFailedPages, lastImageFailureMessage);
     if (remainingFailedPages.length > 0) {
       notifyStoryBlock({
@@ -2383,19 +2400,17 @@ async function runRetryPipeline(
       });
     }
 
-    // Complete
-    await updateStoryStatus(storyId, 'completed');
-    await sendProgressUpdate(storyId, {
-      storyId,
-      status: 'completed',
-      currentPhase: 'Done!',
-      completedPages: 0,
-      totalPages: 0,
-      failedPages: remainingFailedPages,
-      message: retryCompletionMessage === 'Story generated successfully!'
+    const completionMessage = audioFailed && audioError
+      ? `${retryCompletionMessage} ${audioError}`
+      : retryCompletionMessage === 'Story generated successfully!'
         ? 'Retry completed successfully!'
-        : retryCompletionMessage,
-    });
+        : retryCompletionMessage;
+    await completeImageGeneration(
+      storyId,
+      story.scenarioRevision ?? 1,
+      completionMessage,
+      { audioFailed, audioError },
+    );
   } catch (caught) {
     const { error, isCancelled } = getGenerationFailure(caught, signal);
     const status = isCancelled ? 'cancelled' : 'failed';
@@ -2413,16 +2428,14 @@ async function runRetryPipeline(
     }
 
     try {
-      await updateStoryStatus(storyId, status === 'cancelled' ? 'completed' : 'failed');
+      await updateStoryStatus(storyId, 'failed');
     } catch {}
 
-    sendSSE(storyId, {
+    await sendProgressUpdate(storyId, {
       storyId,
-      status: status === 'cancelled' ? 'completed' : 'failed',
+      status: 'failed',
       currentPhase: isCancelled ? 'Cancelled' : 'Retry failed',
-      completedPages: 0,
-      totalPages: 0,
-      failedPages: [],
+      ...await savedImageProgress(storyId),
       message: isCancelled ? 'Retry cancelled' : (error instanceof Error ? error.message : 'Retry failed'),
     });
   } finally {
@@ -2959,8 +2972,6 @@ async function runRegeneratePageImagePipeline(
       (page, usage) => usageRecorder.recordPageImage(page.pageNumber, usage),
       (_character, usage) => usageRecorder.recordCharacterSheet(usage),
       { includeCurrentSceneReference: true },
-      (page, usage) => usageRecorder.recordText('page_image_review', usage),
-      scenarioForGeneration.targetAge,
     );
 
     if (signal.aborted) throw new Error('Generation cancelled');

@@ -19,6 +19,7 @@ import {
 } from '../../shared/types.js';
 import { isStoryReaction } from '../../shared/types.js';
 import { storyRequiresAudio } from '../../shared/storyAudio.js';
+import { storyAssetsAreStale } from '../../shared/storyCompletion.js';
 import {
   MEDIA_CACHE_MAX_AGE_SECONDS,
   isCoverImageSourceFilename,
@@ -507,7 +508,7 @@ function rowToStoryMeta(row: StoryRow): StoryMeta {
     progressMessage: row.progress_message ?? undefined,
     scenarioRevision,
     renderedScenarioRevision,
-    assetsStale: scenarioRevision > renderedScenarioRevision,
+    assetsStale: storyAssetsAreStale({ scenario: row.scenario ?? undefined, scenarioRevision, renderedScenarioRevision }),
     storyMode: row.story_mode ?? undefined,
     creditCost: row.credit_cost_usd_micros == null ? undefined : fromMicrodollars(row.credit_cost_usd_micros),
     creditRefundedAt: row.credit_refunded_at ?? undefined,
@@ -661,9 +662,10 @@ export async function appendStoryUsageEvent(
   storyId: string,
   event: StoryUsageEvent,
   _totalsDelta: StoryUsageTotals,
+  client = getSupabase(),
+  delay: (milliseconds: number) => Promise<void> = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds)),
 ): Promise<void> {
-  const supabase = getSupabase();
-  const { error } = await supabase.rpc('record_story_usage_event', {
+  const payload = {
     p_id: event.id,
     p_story_id: storyId,
     p_user_id: event.userId ?? null,
@@ -685,9 +687,16 @@ export async function appendStoryUsageEvent(
     p_pricing_status: event.pricingStatus,
     p_calculated_at: event.calculatedAt,
     p_created_at: event.createdAt,
-  });
-  if (error) {
-    throw new Error(`Failed to record story usage event: ${error.message}`);
+  };
+  const retryDelays = [1_000, 3_000];
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const { error } = await client.rpc('record_story_usage_event', payload);
+    if (!error) return;
+    const classified = classifySupabaseOperationError('story usage recording', error);
+    if (!isTransientDependencyError(classified) || attempt === 2) {
+      throw new Error(`Failed to record story usage event: ${error.message}`, { cause: classified });
+    }
+    await delay(retryDelays[attempt]);
   }
 }
 
@@ -918,7 +927,7 @@ export async function downloadImage(storyId: string, filename: string, userId?: 
   const storagePath = userId ? `${userId}/${storyId}/${filename}` : `${storyId}/${filename}`;
 
   const { data, error } = await supabase.storage.from(BUCKET).download(storagePath);
-  if (error) throw new Error(`Failed to download image ${filename}: ${error.message}`);
+  if (error) throw new Error(`Failed to download image ${filename}: ${error.message}`, { cause: error });
 
   const arrayBuffer = await data.arrayBuffer();
   return Buffer.from(arrayBuffer).toString('base64');
@@ -937,6 +946,7 @@ export interface RecoveryDeps {
   now?: () => number;
   releaseGenerationSlot?: (storyId: string) => Promise<unknown>;
   updateStatus?: (id: string, status: StoryStatus) => Promise<void>;
+  updateRenderedRevision?: (id: string, revision: number) => Promise<void>;
 }
 
 export async function recoverStuckStories(deps: RecoveryDeps = {}): Promise<number> {
@@ -944,6 +954,8 @@ export async function recoverStuckStories(deps: RecoveryDeps = {}): Promise<numb
   const loadActiveGenerations = deps.loadActiveGenerations ?? (() => getActiveGenerations());
   const logger = deps.log ?? console;
   const persistStatus = deps.updateStatus ?? updateStoryStatus;
+  const persistRenderedRevision = deps.updateRenderedRevision
+    ?? (deps.updateStatus ? async () => {} : updateStoryRenderedScenarioRevision);
   const releaseSlot = deps.releaseGenerationSlot ?? releaseGenerationSlot;
 
   async function persistRecoveredStatus(storyId: string, status: StoryStatus): Promise<void> {
@@ -986,21 +998,23 @@ export async function recoverStuckStories(deps: RecoveryDeps = {}): Promise<numb
       continue;
     }
 
-    const hasFailedImages = pages.some(p => p.status === 'failed');
     const allImagesComplete = pages.every(p => p.status === 'completed');
     const shouldHaveAudio = storyRequiresAudio(story);
     const allAudioPresent = !shouldHaveAudio || pages.every(p => !!p.audioUrl);
 
     if (allImagesComplete && allAudioPresent) {
       // Everything is done — mark completed
+      if (!storyAssetsAreStale(story) && (story.renderedScenarioRevision ?? 0) < (story.scenarioRevision ?? 1)) {
+        await persistRenderedRevision(story.id, story.scenarioRevision ?? 1);
+      }
       await persistRecoveredStatus(story.id, 'completed');
       logger.log(`  [recovery] ${story.id}: all content present → completed`);
-    } else if (hasFailedImages || (shouldHaveAudio && pages.some(p => !p.audioUrl))) {
-      // Has failures or missing audio — mark completed (retry can fix the rest)
-      // We use 'completed' rather than 'failed' so the story is viewable,
-      // and the retry button will appear for the missing content.
+    } else if (allImagesComplete && shouldHaveAudio && pages.some(p => !p.audioUrl)) {
+      if (!storyAssetsAreStale(story) && (story.renderedScenarioRevision ?? 0) < (story.scenarioRevision ?? 1)) {
+        await persistRenderedRevision(story.id, story.scenarioRevision ?? 1);
+      }
       await persistRecoveredStatus(story.id, 'completed');
-      logger.log(`  [recovery] ${story.id}: partial content (failed images: ${hasFailedImages}, missing audio: ${shouldHaveAudio && pages.some(p => !p.audioUrl)}) → completed`);
+      logger.log(`  [recovery] ${story.id}: partial content (failed images: false, missing audio: true) → completed`);
     } else {
       // Images still pending/generating — mark failed since pipeline is dead
       await persistRecoveredStatus(story.id, 'failed');

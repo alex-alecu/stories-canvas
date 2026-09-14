@@ -10,6 +10,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { readStorageItem, readStoredBoolean, readStoredNumber, writeStorageItem } from '../lib/browserStorage';
 import { formatStoryStatusMessage } from '../i18n/storyStatusCopy';
 import { storyRequiresAudio, withoutDisabledAudioFailure } from '../../shared/storyAudio';
+import { getStoryContinuationCopy } from '../../shared/storyCompletion';
 import StoryToolsModal from './StoryToolsModal';
 import 'swiper/css';
 import 'swiper/css/navigation';
@@ -56,6 +57,9 @@ interface StoryViewerProps {
   openRouterCosts?: StoryOpenRouterCosts | null;
   canManageStory?: boolean;
   canUseOnlineActions?: boolean;
+  onContinueGeneration?: () => void;
+  isContinuingGeneration?: boolean;
+  continueGenerationError?: string;
   publicPreviewGate?: {
     pageLimit: number;
     totalPages: number;
@@ -117,9 +121,13 @@ export default function StoryViewer({
   openRouterCosts,
   canManageStory = false,
   canUseOnlineActions = true,
+  onContinueGeneration,
+  isContinuingGeneration = false,
+  continueGenerationError,
   publicPreviewGate,
 }: StoryViewerProps) {
   const { t, language } = useLanguage();
+  const continuationCopy = getStoryContinuationCopy(language);
   const { fontSize } = useFontSize();
   const { user } = useAuth();
   const loginMarker = user?.last_sign_in_at ? `${user.id}:${user.last_sign_in_at}` : null;
@@ -146,7 +154,7 @@ export default function StoryViewer({
   const shouldHaveAudio = storyRequiresAudio({ voice, storyMode, generationInputs, scenario });
   const savedIssueMessage = withoutDisabledAudioFailure(storyMessage, shouldHaveAudio);
   const hasErrors = useMemo(() => {
-    const hasFailedImages = scenario.pages.some(p => p.status === 'failed');
+    const hasFailedImages = scenario.pages.some(p => p.status !== 'completed');
     const hasMissingAudio = shouldHaveAudio && scenario.pages.some(p => !p.audioUrl);
     return hasFailedImages || hasMissingAudio;
   }, [scenario.pages, shouldHaveAudio]);
@@ -713,6 +721,28 @@ export default function StoryViewer({
       {issueMessage && !showAudioFailed && (
         <div className="absolute bottom-32 right-4 z-50 max-w-sm bg-amber-500/90 backdrop-blur-sm text-black px-3 py-2 rounded-2xl text-xs font-medium shadow-lg">
           {issueMessage}
+        </div>
+      )}
+
+      {storyStatus === 'failed' && !isGenerating && (
+        <div
+          role="alert"
+          className="absolute bottom-24 left-1/2 z-50 w-[min(92vw,28rem)] -translate-x-1/2 rounded-2xl bg-black/80 p-4 text-center text-white shadow-xl backdrop-blur-sm"
+        >
+          <p className="text-sm font-semibold">{continuationCopy.message}</p>
+          {continueGenerationError && (
+            <p className="mt-2 text-xs text-red-300">{continueGenerationError}</p>
+          )}
+          {canManageStory && canUseOnlineActions && onContinueGeneration && (
+            <button
+              type="button"
+              onClick={onContinueGeneration}
+              disabled={isContinuingGeneration}
+              className="mt-3 rounded-xl bg-primary-500 px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-primary-600 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isContinuingGeneration ? continuationCopy.pendingAction : continuationCopy.action}
+            </button>
+          )}
         </div>
       )}
 

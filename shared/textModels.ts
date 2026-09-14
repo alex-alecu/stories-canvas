@@ -14,7 +14,7 @@ export interface TextModelOption {
 }
 
 // Curated from OpenRouter's model catalog on 2026-09-06. All support images,
-// tool calls, and structured output, including the story image review step.
+// tool calls, and structured output.
 export const TEXT_MODELS: readonly TextModelOption[] = [
   { id: 'google/gemini-3.8-flash', name: 'Gemini 3.8 Flash', thinkingLevels: ['low', 'medium', 'high'],
     maxCompletionTokens: 65_536,

@@ -62,8 +62,10 @@ test('enforceStoryQuality returns one validated correction without another revie
   const rewritten = makeScenario('Mara raises the lantern. Its warm light shows the safe path.');
   const outputs: unknown[] = [review(3, true), rewritten, review(4)];
   const efforts: unknown[] = [];
+  const requestOptions: TextGenerationOptions[] = [];
   const result = await enforceStoryQuality(context, makeScenario('Mara path light then go.'), {
-    generate: (async (_prompt: string, _system: string, _schema: unknown, options: { reasoningEffort?: unknown }) => {
+    generate: (async (_prompt: string, _system: string, _schema: unknown, options: TextGenerationOptions) => {
+      requestOptions.push(options);
       efforts.push(options.reasoningEffort);
       return outputs.shift();
     }) as never,
@@ -72,18 +74,20 @@ test('enforceStoryQuality returns one validated correction without another revie
   assert.equal(result.pages[0].text, rewritten.pages[0].text);
   assert.deepEqual(efforts, ['medium', 'high']);
   assert.equal(outputs.length, 1);
+  assert.ok(requestOptions.every(options => options.maxRetries === 1));
 });
 
-test('an incomplete review cannot start a paid rewrite with lost findings', async () => {
+test('an incomplete review keeps the valid input without a correction', async () => {
   const { enforceStoryQuality } = await import('./storyQualityGate.js');
   let calls = 0;
-  await assert.rejects(enforceStoryQuality(context, makeScenario(), {
+  const result = await enforceStoryQuality(context, makeScenario(), {
     generate: (async () => {
       calls++;
       return { scores: { naturalLanguageWriting: 4, ageSafety: 3 },
         issues: [{ code: 'age_safety', severity: 'major', description: 'Soften the danger.', page: 3 }] };
     }) as never,
-  }), /required format.*before rewriting/);
+  });
+  assert.deepEqual(result, makeScenario());
   assert.equal(calls, 1);
 });
 
@@ -213,7 +217,7 @@ test('allowed source softening reaches every quality review and correction step'
   invalidRewrite.pages[0].imagePrompt = 'Mother Goat and Little Goat beside their home.';
   const corrected = structuredClone(invalidRewrite);
   corrected.pages[0].characters.push('Little Goat');
-  const outputs: unknown[] = [review(3, true), invalidRewrite, corrected];
+  const outputs: unknown[] = [review(3, true), corrected];
   const requests: Array<{ prompt: Record<string, any>; system: string }> = [];
 
   await enforceStoryQuality(retellingContext, scenario, {
@@ -226,7 +230,6 @@ test('allowed source softening reaches every quality review and correction step'
   assert.deepEqual(requests.map(request => request.prompt.task), [
     'Final paid-story quality review',
     'Correct the supplied review findings in the complete script',
-    'Correct the validation errors in the rewritten script',
   ]);
   for (const { prompt, system } of requests) {
     assert.deepEqual(prompt.compactSourceRules.softenableBeats, softenableBeats);
@@ -238,59 +241,54 @@ test('allowed source softening reaches every quality review and correction step'
   }
 });
 
-test('a correction repairs a missing page character and returns without another review', async () => {
+test('an invalid correction keeps the draft without a validation repair', async () => {
   const { enforceStoryQuality } = await import('./storyQualityGate.js');
+  const original = makeScenario();
   const invalid = rewriteMissingVisibleCharacter();
-  const corrected = structuredClone(invalid);
-  corrected.pages[11].characters.push('Împăratul văduv');
-  const outputs: unknown[] = [review(3, true), invalid, corrected];
-  const prompts: Record<string, any>[] = [];
-  const requestOptions: TextGenerationOptions[] = [];
+  const outputs: unknown[] = [review(3, true), invalid];
   const progress: string[] = [];
-  const onReviewUsage = async () => {};
-  const onRewriteUsage = async () => {};
-  const signal = new AbortController().signal;
-
-  const result = await enforceStoryQuality(longContext, makeScenario(), {
-    onReviewUsage, onRewriteUsage, signal,
+  const result = await enforceStoryQuality(longContext, original, {
     onProgress: step => progress.push(step),
-    generate: (async (prompt: string, _system: string, _schema: unknown, options: TextGenerationOptions) => {
+    generate: (async () => {
       assert.ok(outputs.length > 0, 'No further review or rewrite may start.');
-      assert.equal(progress.length, requestOptions.length + 1, 'Progress must be sent before each request.');
-      prompts.push(JSON.parse(prompt));
-      requestOptions.push(options);
       return outputs.shift();
     }) as never,
   });
-
-  assert.deepEqual(result.pages[11].characters, ['Mara', 'Împăratul văduv']);
-  assert.equal(prompts.length, 3);
-  assert.deepEqual(progress, ['review', 'rewrite', 'validation_repair']);
-  assert.deepEqual(prompts[2].validationIssues, [{
-    code: 'page.characters.missingVisible', path: 'pages[11].characters',
-    message: 'imagePrompt names visible character "Împăratul văduv", so the page characters list must include it',
-  }]);
-  assert.deepEqual(prompts[2].currentScript.pages[11].characters, ['Mara']);
-  assert.equal(prompts[2].originalRequest, context.userPrompt);
-  assert.deepEqual(prompts[2].qualityReview, prompts[1].qualityReview);
-  assert.equal(requestOptions[0].onUsage, onReviewUsage);
-  assert.equal(requestOptions[1].onUsage, onRewriteUsage);
-  assert.equal(requestOptions[2].onUsage, onRewriteUsage);
-  assert.ok(requestOptions.every(options => options.signal === signal));
+  assert.deepEqual(result, original);
+  assert.equal(outputs.length, 0);
+  assert.deepEqual(progress, ['review', 'rewrite']);
 });
 
-test('an invalid repair stops and reports its remaining validation errors', async () => {
+test('review and correction errors keep the valid input draft', async t => {
   const { enforceStoryQuality } = await import('./storyQualityGate.js');
-  const invalid = rewriteMissingVisibleCharacter();
-  const badRepair = structuredClone(invalid);
-  badRepair.pages[11].characters.push('Împăratul văduv');
-  badRepair.pages[11].text = 'A'.repeat(201);
-  const outputs: unknown[] = [review(3, true), invalid, badRepair];
+  for (const step of ['review', 'rewrite']) {
+    for (const output of [null, { title: 42 }, new Error('Provider unavailable')]) {
+      await t.test(`${step}: ${JSON.stringify(output)}`, async t => {
+        const warnings = t.mock.method(console, 'warn', () => {});
+        let calls = 0;
+        const original = makeScenario();
+        const result = await enforceStoryQuality(context, original, {
+          generate: (async () => {
+            if (++calls === 1 && step === 'rewrite') return review(3, true);
+            if (output instanceof Error) throw output;
+            return output;
+          }) as never,
+        });
+        assert.deepEqual(result, original);
+        assert.equal(calls, step === 'review' ? 1 : 2);
+        assert.equal(warnings.mock.calls.length, 1);
+      });
+    }
+  }
+});
+
+test('an invalid input draft stops before review', async () => {
+  const { enforceStoryQuality } = await import('./storyQualityGate.js');
   let calls = 0;
-  await assert.rejects(enforceStoryQuality(longContext, makeScenario(), {
-    generate: (async () => { calls++; return outputs.shift(); }) as never,
-  }), /Quality rewrite failed validation: pages\[11\]\.text: page text is too long/);
-  assert.equal(calls, 3);
+  await assert.rejects(enforceStoryQuality(context, makeScenario('A'.repeat(201)), {
+    generate: (async () => { calls++; return review(4); }) as never,
+  }), /page text is too long/);
+  assert.equal(calls, 0);
 });
 
 test('cancellation after the review prevents a correction or a successful return', async () => {
@@ -341,17 +339,52 @@ test('cancellation after an invalid rewrite prevents a repair request', async ()
   assert.equal(calls, 2);
 });
 
-test('a failed repair request stops without another model call', async () => {
+test('unknown correction cost stops without another model call', async () => {
   const { enforceStoryQuality } = await import('./storyQualityGate.js');
   const { TextCostUnavailableError } = await import('./openrouter.js');
   const costError = new TextCostUnavailableError('The request cost is unavailable.');
   let calls = 0;
-  await assert.rejects(enforceStoryQuality(longContext, makeScenario(), {
+  await assert.rejects(enforceStoryQuality(context, makeScenario(), {
     generate: (async () => {
       if (++calls === 1) return review(3, true);
-      if (calls === 2) return rewriteMissingVisibleCharacter();
       throw costError;
     }) as never,
   }), error => error === costError);
-  assert.equal(calls, 3);
+  assert.equal(calls, 2);
+});
+
+test('exhausted provider funds stop review and correction', async () => {
+  const { enforceStoryQuality } = await import('./storyQualityGate.js');
+  for (const step of ['review', 'rewrite']) {
+    const exhausted = Object.assign(new Error('Insufficient credits'), { status: 402 });
+    let calls = 0;
+    await assert.rejects(enforceStoryQuality(context, makeScenario(), {
+      generate: (async () => {
+        calls++;
+        if (step === 'rewrite' && calls === 1) return review(3, true);
+        throw exhausted;
+      }) as never,
+    }), error => error === exhausted);
+    assert.equal(calls, step === 'review' ? 1 : 2);
+  }
+});
+
+test('usage write failures stop both review and correction without an abort signal', async () => {
+  const { enforceStoryQuality } = await import('./storyQualityGate.js');
+  const failure = new Error('Usage database unavailable');
+  for (const step of ['review', 'rewrite']) {
+    let calls = 0;
+    const onUsage = async () => { throw failure; };
+    await assert.rejects(enforceStoryQuality(context, makeScenario(), {
+      onReviewUsage: step === 'review' ? onUsage : undefined,
+      onRewriteUsage: step === 'rewrite' ? onUsage : undefined,
+      generate: (async (_prompt: string, _system: string, _schema: unknown, options: TextGenerationOptions) => {
+        calls++;
+        await options.onUsage?.({ model: 'test', status: 'succeeded', inputTokens: 10,
+          outputTokens: 10, totalTokens: 20, usageAvailable: true, usageDetails: { providerCostUsd: 0.001 } });
+        return review(3, true);
+      }) as never,
+    }), error => error === failure);
+    assert.equal(calls, step === 'review' ? 1 : 2);
+  }
 });

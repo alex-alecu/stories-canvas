@@ -1,5 +1,6 @@
 import pRetry, { AbortError } from 'p-retry';
 import fs from 'fs/promises';
+import sharp from 'sharp';
 import { generateImage, ImageCostUnavailableError, isImagePolicyBlockedError, isImageSafetyBlockedError } from './openrouterImages.js';
 import { buildCharacterAliasMap, prepareSceneImagePrompt } from './imagePromptPreparation.js';
 import { saveImage, updatePageStatus as fsUpdatePageStatus, getImagePath } from '../utils/storage.js';
@@ -9,8 +10,6 @@ import { config } from '../config.js';
 import { imageGenerationLimiter } from '../utils/rateLimiter.js';
 import { getPageImageFilename } from '../utils/storyMedia.js';
 import type { Page, Character, GenerationProgress } from '../../shared/types.js';
-import { reviewSceneImage, type SceneImageReviewResult } from './sceneImageReview.js';
-import { TextCostUnavailableError, type TextUsageEvent } from './openrouter.js';
 import { getImageModel } from './imageGenerationContext.js';
 
 async function saveSceneImage(storyId: string, filename: string, base64: string, userId?: string): Promise<void> {
@@ -39,6 +38,52 @@ async function downloadImageForRetry(storyId: string, filename: string, userId?:
   return buffer.toString('base64');
 }
 
+function isMissingStoredImage(error: unknown): boolean {
+  let value: unknown = error;
+  for (let depth = 0; depth < 3 && value && typeof value === 'object'; depth++) {
+    const record = value as { cause?: unknown; code?: unknown; status?: unknown; statusCode?: unknown; message?: unknown };
+    if (record.code === 'ENOENT' || record.code === 'NoSuchKey' || record.code === 'NoSuchObject'
+      || record.status === 404 || record.statusCode === 404) return true;
+    value = record.cause;
+  }
+  return error instanceof Error && /object not found|image not found/i.test(error.message);
+}
+
+function isInvalidStoredImage(error: unknown): boolean {
+  return error instanceof Error
+    && /unsupported image format|invalid image|corrupt|vips/i.test(error.message);
+}
+
+export async function restoreSavedSceneImages(
+  storyId: string,
+  pages: Page[],
+  userId?: string,
+  signal?: AbortSignal,
+): Promise<void> {
+  for (const page of pages) {
+    signal?.throwIfAborted();
+    try {
+      const base64 = await downloadImageForRetry(storyId, getPageImageFilename(page.pageNumber), userId);
+      const metadata = await sharp(Buffer.from(base64, 'base64')).metadata();
+      if (!metadata.width || !metadata.height) throw new Error('Invalid image dimensions');
+      if (page.status !== 'completed') {
+        await updatePageStatusBoth(storyId, page.pageNumber, 'completed');
+        page.status = 'completed';
+      }
+    } catch (error) {
+      signal?.throwIfAborted();
+      if (isMissingStoredImage(error) || isInvalidStoredImage(error)) {
+        if (page.status === 'completed') {
+          await updatePageStatusBoth(storyId, page.pageNumber, 'pending');
+          page.status = 'pending';
+        }
+        continue;
+      }
+      throw error;
+    }
+  }
+}
+
 function softenPrompt(prompt: string): string {
   return prompt
     .replace(/angry|furious|rage/gi, 'upset')
@@ -60,8 +105,6 @@ function promptContainsExactName(prompt: string, name: string): boolean {
 interface SceneGenerationDeps {
   signal?: AbortSignal;
   generateImage?: typeof generateImage;
-  reviewImage?: typeof reviewSceneImage;
-  maxQualityAttempts?: number;
   log?: Pick<Console, 'error' | 'warn'>;
   retryOptions?: Partial<{
     factor: number;
@@ -84,8 +127,6 @@ type SceneUsageCallback = (page: Page, usage: {
   usageDetails: Record<string, unknown>;
 }) => void | Promise<void>;
 
-type SceneReviewUsageCallback = (page: Page, usage: TextUsageEvent) => void | Promise<void>;
-
 type CharacterSheetUsageCallback = (character: Character, usage: {
   model: string;
   status: 'succeeded' | 'failed';
@@ -100,21 +141,7 @@ interface RetrySceneImageOptions {
   includeCurrentSceneReference?: boolean;
 }
 
-class SceneQualityError extends Error {
-  readonly review: SceneImageReviewResult;
-
-  constructor(pageNumber: number, review: SceneImageReviewResult) {
-    super(`Page ${pageNumber} failed visual quality review: ${review.summary}`);
-    this.name = 'SceneQualityError';
-    this.review = review;
-  }
-}
-
 function buildProviderFailureMessage(pageNumber: number, error: unknown): string {
-  if (error instanceof SceneQualityError) {
-    return `Page ${pageNumber} could not pass the visual character and scene check after regeneration. You can retry it from Story Tools.`;
-  }
-
   if (isImageSafetyBlockedError(error)) {
     return `Page ${pageNumber} could not be illustrated because the image provider blocked it with safety filters, even after retrying with a softened prompt. You can retry it from Story Tools.`;
   }
@@ -173,17 +200,13 @@ export async function generateSceneImage(
   deps: SceneGenerationDeps = {},
   onUsage?: SceneUsageCallback,
   currentSceneBase64?: string | null,
-  onReviewUsage?: SceneReviewUsageCallback,
-  targetAge = 6,
 ): Promise<string | null> {
   deps.signal?.throwIfAborted();
   const pageFilename = getPageImageFilename(page.pageNumber);
   const runGenerateImage = deps.generateImage ?? generateImage;
-  const runReviewImage = deps.reviewImage ?? reviewSceneImage;
   const persistSceneImage = deps.saveSceneImage ?? saveSceneImage;
   const setPageStatus = deps.updatePageStatus ?? updatePageStatusBoth;
   const logger = deps.log ?? console;
-  const maxQualityAttempts = Math.max(1, deps.maxQualityAttempts ?? 2);
 
   await setPageStatus(storyId, page.pageNumber, 'generating');
   onProgress?.({ message: `Generating image for page ${page.pageNumber}...`, pageNumber: page.pageNumber, pageStatus: 'generating' });
@@ -193,7 +216,7 @@ export async function generateSceneImage(
   let lastReferenceImages: Array<{ data: string; mimeType: string }> = [];
   let lastHasPreviousScene = false;
 
-  function buildRequest(useSceneContinuity: boolean, correction = '') {
+  function buildRequest() {
     const referenceImages: Array<{ data: string; mimeType: string }> = [];
     const referenceLimit = getImageModel(pro).maxReferences;
     // Gemini 3 image models accept scene/object references in addition to four
@@ -209,15 +232,15 @@ export async function generateSceneImage(
         includedCharNames.push(charName);
       }
     }
-    const hasCurrentScene = useSceneContinuity && !!currentSceneBase64 && referenceImages.length < referenceLimit;
+    const hasCurrentScene = !!currentSceneBase64 && referenceImages.length < referenceLimit;
     if (hasCurrentScene) {
       referenceImages.push({ data: currentSceneBase64!, mimeType: 'image/png' });
     }
-    const hasPreviousScene = useSceneContinuity && !!previousSceneBase64 && referenceImages.length < referenceLimit;
+    const hasPreviousScene = !!previousSceneBase64 && referenceImages.length < referenceLimit;
     if (hasPreviousScene) {
       referenceImages.push({ data: previousSceneBase64!, mimeType: 'image/png' });
     }
-    const basePrompt = prepareSceneImagePrompt(
+    const prompt = prepareSceneImagePrompt(
       page,
       characters,
       hasPreviousScene,
@@ -225,97 +248,66 @@ export async function generateSceneImage(
       styleDescription,
       hasCurrentScene,
     );
-    const prompt = correction
-      ? `${basePrompt}\n\nVISUAL QUALITY CORRECTION:\n${correction}\nUse the character reference sheets as the only source of character identity. Do not copy an incorrect face, skin tone, hair, or clothing from another scene.`
-      : basePrompt;
     return { referenceImages, hasPreviousScene, includedCharNames, prompt };
   }
 
   try {
-    let correction = '';
-    for (let qualityAttempt = 1; qualityAttempt <= maxQualityAttempts; qualityAttempt++) {
-      deps.signal?.throwIfAborted();
-      const request = buildRequest(qualityAttempt === 1, correction);
-      lastPrompt = request.prompt;
-      lastIncludedCharNames = request.includedCharNames;
-      lastReferenceImages = request.referenceImages;
-      lastHasPreviousScene = request.hasPreviousScene;
-      const base64 = await pRetry(
-        async (attemptNumber) => {
-          try {
-            if (deps.signal?.aborted) throw new AbortError('Generation cancelled');
-            return await runGenerateImage(
-              attemptNumber > 1 ? softenPrompt(request.prompt) : request.prompt,
-              request.referenceImages,
-              {
-                pro,
-                signal: deps.signal,
-                onUsage: usage => onUsage?.(page, usage),
-              },
-            );
-          } catch (error: any) {
-            if (isImageSafetyBlockedError(error)) {
-              if (attemptNumber === 1) {
-                logger.warn(
-                  `[scene:${storyId}] Safety filter hit on page ${page.pageNumber}, attempt ${attemptNumber}. `
-                  + `Softening prompt... ${error.message}`,
-                );
-              }
-              if (attemptNumber >= 2) throw new AbortError(error);
-              throw error;
+    const request = buildRequest();
+    lastPrompt = request.prompt;
+    lastIncludedCharNames = request.includedCharNames;
+    lastReferenceImages = request.referenceImages;
+    lastHasPreviousScene = request.hasPreviousScene;
+    const base64 = await pRetry(
+      async (attemptNumber) => {
+        try {
+          if (deps.signal?.aborted) throw new AbortError('Generation cancelled');
+          return await runGenerateImage(
+            attemptNumber > 1 ? softenPrompt(request.prompt) : request.prompt,
+            request.referenceImages,
+            {
+              pro,
+              signal: deps.signal,
+              onUsage: usage => onUsage?.(page, usage),
+            },
+          );
+        } catch (error: any) {
+          if (isImageSafetyBlockedError(error)) {
+            if (attemptNumber === 1) {
+              logger.warn(
+                `[scene:${storyId}] Safety filter hit on page ${page.pageNumber}, attempt ${attemptNumber}. `
+                + `Softening prompt... ${error.message}`,
+              );
             }
-            if (isImagePolicyBlockedError(error)) throw new AbortError(error);
-            if (error?.status === 429 || error?.message?.includes('429') || error?.message?.includes('RESOURCE_EXHAUSTED')) {
-              logger.warn(`[scene:${storyId}] Rate limited on page ${page.pageNumber}, attempt ${attemptNumber}. Retrying...`);
-            }
+            if (attemptNumber >= 2) throw new AbortError(error);
             throw error;
           }
+          if (isImagePolicyBlockedError(error)) throw new AbortError(error);
+          if (error?.status === 429 || error?.message?.includes('429') || error?.message?.includes('RESOURCE_EXHAUSTED')) {
+            logger.warn(`[scene:${storyId}] Rate limited on page ${page.pageNumber}, attempt ${attemptNumber}. Retrying...`);
+          }
+          throw error;
+        }
+      },
+      {
+        signal: deps.signal,
+        retries: 3,
+        minTimeout: 5000,
+        maxTimeout: 30000,
+        factor: 2,
+        randomize: true,
+        onFailedAttempt: (error) => {
+          if (isImageSafetyBlockedError(error)) return;
+          logger.warn(`[scene:${storyId}] Page ${page.pageNumber} attempt ${error.attemptNumber} failed: ${error.message}`);
         },
-        {
-          signal: deps.signal,
-          retries: 3,
-          minTimeout: 5000,
-          maxTimeout: 30000,
-          factor: 2,
-          randomize: true,
-          onFailedAttempt: (error) => {
-            if (isImageSafetyBlockedError(error)) return;
-            logger.warn(`[scene:${storyId}] Page ${page.pageNumber} attempt ${error.attemptNumber} failed: ${error.message}`);
-          },
-          ...deps.retryOptions,
-        },
-      );
+        ...deps.retryOptions,
+      },
+    );
 
-      const review = await runReviewImage(
-        page,
-        characters,
-        request.includedCharNames,
-        base64,
-        characterSheets,
-        targetAge,
-        { onUsage: usage => onReviewUsage?.(page, usage), signal: deps.signal },
-      );
-      deps.signal?.throwIfAborted();
-      if (review.pass) {
-        await persistSceneImage(storyId, pageFilename, base64, userId);
-        await setPageStatus(storyId, page.pageNumber, 'completed');
-        onProgress?.({ message: `Page ${page.pageNumber} completed`, pageNumber: page.pageNumber, pageStatus: 'completed' });
-        return base64;
-      }
-      if (qualityAttempt >= maxQualityAttempts) {
-        throw new SceneQualityError(page.pageNumber, review);
-      }
-      correction = review.retryFeedback || review.issues.map(issue => issue.summary).join(' ');
-      logger.warn(
-        `[scene:${storyId}] Page ${page.pageNumber} failed visual review. Regenerating without scene identity references. ${review.summary}`,
-      );
-      onProgress?.({
-        message: `Correcting character consistency on page ${page.pageNumber}...`,
-        pageNumber: page.pageNumber,
-        pageStatus: 'generating',
-      });
-    }
-    throw new Error(`Page ${page.pageNumber} ended without a visual quality result`);
+    deps.signal?.throwIfAborted();
+    await persistSceneImage(storyId, pageFilename, base64, userId);
+    await setPageStatus(storyId, page.pageNumber, 'completed');
+    onProgress?.({ message: `Page ${page.pageNumber} completed`, pageNumber: page.pageNumber, pageStatus: 'completed' });
+    return base64;
   } catch (error) {
     deps.signal?.throwIfAborted();
     const failureMessage = buildProviderFailureMessage(page.pageNumber, error);
@@ -338,16 +330,12 @@ export async function generateSceneImage(
         `[scene:${storyId}] Page ${page.pageNumber} was rejected by provider policy. `
         + `Marking it failed and leaving it retryable. ${error.message} Debug: ${debugContext}`,
       );
-    } else if (error instanceof SceneQualityError) {
-      logger.warn(
-        `[scene:${storyId}] Page ${page.pageNumber} failed visual quality review after regeneration. ${error.review.summary}`,
-      );
     } else {
       logger.error(`[scene:${storyId}] Failed to generate page ${page.pageNumber}:`, error);
     }
     await setPageStatus(storyId, page.pageNumber, 'failed');
     onProgress?.({ message: failureMessage, pageNumber: page.pageNumber, pageStatus: 'failed' });
-    if (error instanceof ImageCostUnavailableError || error instanceof TextCostUnavailableError) throw error;
+    if (error instanceof ImageCostUnavailableError) throw error;
     return null;
   }
 }
@@ -363,8 +351,6 @@ export async function generateAllSceneImages(
   signal?: AbortSignal,
   pro?: boolean,
   onUsage?: SceneUsageCallback,
-  onReviewUsage?: SceneReviewUsageCallback,
-  targetAge = 6,
 ): Promise<void> {
   let previousSceneBase64: string | null = null;
 
@@ -378,7 +364,6 @@ export async function generateAllSceneImages(
       generateSceneImage(
         storyId, page, characters, characterSheets, styleDescription,
         onProgress, userId, previousSceneBase64, pro, { signal }, onUsage, undefined,
-        onReviewUsage, targetAge,
       ),
     );
 
@@ -405,8 +390,6 @@ export async function retryFailedSceneImages(
   onUsage?: SceneUsageCallback,
   onCharacterSheetUsage?: CharacterSheetUsageCallback,
   options: RetrySceneImageOptions = {},
-  onReviewUsage?: SceneReviewUsageCallback,
-  targetAge = 6,
 ): Promise<number> {
   let retriedCount = 0;
 
@@ -418,7 +401,8 @@ export async function retryFailedSceneImages(
       const filename = getCharacterSheetFilename(character.name);
       const base64 = await downloadImageForRetry(storyId, filename, userId);
       characterSheets.set(character.name, base64);
-    } catch {
+    } catch (error) {
+      if (!isMissingStoredImage(error)) throw error;
       signal?.throwIfAborted();
       try {
         console.warn(`[scene:${storyId}] Could not download character sheet for ${character.name}. Regenerating it before retrying scenes...`);
@@ -460,7 +444,8 @@ export async function retryFailedSceneImages(
     if (options.includeCurrentSceneReference) {
       try {
         currentSceneBase64 = await downloadImageForRetry(storyId, getPageImageFilename(failedPageNum), userId);
-      } catch {
+      } catch (error) {
+        if (!isMissingStoredImage(error)) throw error;
         currentSceneBase64 = null;
       }
     }
@@ -474,7 +459,8 @@ export async function retryFailedSceneImages(
           const filename = getPageImageFilename(i);
           previousSceneBase64 = await downloadImageForRetry(storyId, filename, userId);
           break;
-        } catch {
+        } catch (error) {
+          if (!isMissingStoredImage(error)) throw error;
           continue;
         }
       }
@@ -484,7 +470,6 @@ export async function retryFailedSceneImages(
       generateSceneImage(
         storyId, page, characters, characterSheets, styleDescription,
         onProgress, userId, previousSceneBase64, pro, { signal }, onUsage, currentSceneBase64,
-        onReviewUsage, targetAge,
       ),
     );
 
