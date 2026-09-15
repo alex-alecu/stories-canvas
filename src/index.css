@@ -78,6 +78,15 @@ body {
   transition: background 0.8s ease, background-color 0.8s ease;
 }
 
+/* viewport-fit=cover lets fullscreen surfaces paint under the system bars.
+   Normal pages must stay inside the safe area. */
+body {
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+}
+
 .story-card-open-target,
 .story-card-open-target * {
   -webkit-touch-callout: none;
