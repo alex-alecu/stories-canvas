@@ -585,7 +585,8 @@ export default function StoryViewer({
       if (
         isPublicPreviewGateSlide ||
         activeImageMaxScaleRef.current <= 1 ||
-        !window.matchMedia(DESKTOP_ZOOM_QUERY).matches
+        !window.matchMedia(DESKTOP_ZOOM_QUERY).matches ||
+        (event.target instanceof Element && event.target.closest('[data-story-tools-modal]'))
       ) {
         return;
       }
