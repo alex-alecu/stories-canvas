@@ -25,7 +25,7 @@ export default function MarketingConsentBanner() {
   }
 
   return (
-    <div className="fixed bottom-3 left-1/2 z-50 w-[calc(100vw-1.5rem)] max-w-md -translate-x-1/2 rounded-2xl border border-gray-200 bg-white p-4 shadow-lg dark:border-gray-800 dark:bg-surface-dark-elevated md:left-auto md:right-4 md:w-[28rem] md:max-w-[calc(100vw-2rem)] md:translate-x-0">
+    <div className="fixed bottom-[calc(0.75rem+env(safe-area-inset-bottom,0px))] left-1/2 z-50 w-[calc(100vw-1.5rem)] max-w-md -translate-x-1/2 rounded-2xl border border-gray-200 bg-white p-4 shadow-lg dark:border-gray-800 dark:bg-surface-dark-elevated md:left-auto md:right-4 md:w-[28rem] md:max-w-[calc(100vw-2rem)] md:translate-x-0">
       <div className="flex flex-col gap-3">
         <div className="text-sm text-gray-600 dark:text-gray-300">
           <p className="font-semibold text-gray-900 dark:text-gray-100">{t.marketingConsentTitle}</p>

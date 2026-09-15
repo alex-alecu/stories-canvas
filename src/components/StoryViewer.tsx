@@ -22,10 +22,16 @@ const PLAYBACK_RATES = [0.8, 0.9, 1, 1.1] as const;
 const DEFAULT_IMAGE_ZOOM = 1;
 const DESKTOP_ZOOM_QUERY = '(min-width: 768px)';
 const WHEEL_ZOOM_SENSITIVITY = 0.0012;
+const SUBTITLE_FADE_MS = 160;
 
 type ImageSize = {
   width: number;
   height: number;
+};
+
+type SubtitleContent = {
+  text: string;
+  pageNumber: number | null;
 };
 
 function getStoredAutoPlay(): boolean {
@@ -499,6 +505,34 @@ export default function StoryViewer({
     activeImageMaxScaleRef.current = activeImageMaxScale;
   }, [activeImageMaxScale]);
 
+  // Caption shown by the persistent subtitle layer. The layer lives outside the
+  // swiper, so the text crossfades while the background stays on screen.
+  const [subtitle, setSubtitle] = useState<SubtitleContent>(() => ({
+    text: scenario.pages[0]?.text ?? '',
+    pageNumber: scenario.pages[0]?.pageNumber ?? null,
+  }));
+  const [subtitleVisible, setSubtitleVisible] = useState(true);
+  const nextSubtitleText = currentPage?.text ?? '';
+  const nextSubtitlePageNumber = currentPage?.pageNumber ?? null;
+
+  useEffect(() => {
+    // The preview gate slide has no caption. Keep the previous one so the layer
+    // fades out at a stable height instead of collapsing.
+    if (!nextSubtitleText) return;
+    if (nextSubtitleText === subtitle.text && nextSubtitlePageNumber === subtitle.pageNumber) {
+      // A fast swipe back to the same page cancels the pending swap. Make sure
+      // the caption does not stay hidden.
+      setSubtitleVisible(true);
+      return;
+    }
+    setSubtitleVisible(false);
+    const timer = setTimeout(() => {
+      setSubtitle({ text: nextSubtitleText, pageNumber: nextSubtitlePageNumber });
+      setSubtitleVisible(true);
+    }, SUBTITLE_FADE_MS);
+    return () => clearTimeout(timer);
+  }, [nextSubtitleText, nextSubtitlePageNumber, subtitle.text, subtitle.pageNumber]);
+
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return undefined;
@@ -627,7 +661,7 @@ export default function StoryViewer({
       {/* Back button */}
       <Link
         to="/"
-        className="absolute top-4 left-4 z-50 bg-black/40 hover:bg-black/60 backdrop-blur-sm text-white w-10 h-10 rounded-full flex items-center justify-center transition-colors"
+        className="story-top-left absolute z-50 bg-black/60 hover:bg-black/75 backdrop-blur-sm text-white w-10 h-10 rounded-full flex items-center justify-center transition-colors"
         aria-label={t.backHome}
       >
         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -637,11 +671,11 @@ export default function StoryViewer({
 
       {/* Reading controls */}
       {showAudioControls && (
-        <div className="absolute top-4 left-16 z-50 flex max-w-[calc(100vw-8rem)] items-center gap-2 overflow-x-auto pr-1 [scrollbar-width:none] story-top-controls">
+        <div className="story-top-controls-pos absolute z-50 flex max-w-[calc(100vw-8rem)] items-center gap-2 overflow-x-auto pr-1 [scrollbar-width:none] story-top-controls">
           {/* Auto-play toggle */}
           <button
             onClick={toggleAutoPlay}
-            className="bg-black/40 hover:bg-black/60 backdrop-blur-sm text-white h-10 rounded-full flex items-center gap-2 px-3 transition-colors text-sm font-medium"
+            className="bg-black/60 hover:bg-black/75 backdrop-blur-sm text-white h-10 rounded-full flex items-center gap-2 px-3 transition-colors text-sm font-medium"
             aria-label={t.autoPlay}
             aria-pressed={autoPlay}
           >
@@ -664,7 +698,7 @@ export default function StoryViewer({
           {currentPageAudioUrl && (
             <button
               onClick={handleGlobalPlayPause}
-              className="bg-black/40 hover:bg-black/60 backdrop-blur-sm text-white w-10 h-10 rounded-full flex items-center justify-center transition-colors"
+              className="bg-black/60 hover:bg-black/75 backdrop-blur-sm text-white w-10 h-10 rounded-full flex items-center justify-center transition-colors"
               aria-label={playingPage === currentPageNumber ? t.pauseNarration : t.playNarration}
             >
               {audioLoading === currentPageNumber ? (
@@ -685,7 +719,7 @@ export default function StoryViewer({
           {/* Playback speed */}
           <button
             onClick={cyclePlaybackRate}
-            className="bg-black/40 hover:bg-black/60 backdrop-blur-sm text-white h-10 px-3 rounded-full flex items-center justify-center transition-colors text-sm font-medium"
+            className="bg-black/60 hover:bg-black/75 backdrop-blur-sm text-white h-10 px-3 rounded-full flex items-center justify-center transition-colors text-sm font-medium"
             aria-label={t.narrationSpeed}
           >
             {playbackRate}x
@@ -694,10 +728,10 @@ export default function StoryViewer({
       )}
 
       {/* Story tools button */}
-      <div className="absolute top-4 right-4 z-50 flex items-center gap-2">
+      <div className="story-top-right absolute z-50 flex items-center gap-2">
         <button
           onClick={() => setShowTools(true)}
-          className="relative bg-black/40 hover:bg-black/60 backdrop-blur-sm text-white w-10 h-10 rounded-full flex items-center justify-center transition-colors"
+          className="relative bg-black/60 hover:bg-black/75 backdrop-blur-sm text-white w-10 h-10 rounded-full flex items-center justify-center transition-colors"
           aria-label={t.storyTools}
         >
           {/* Settings icon */}
@@ -791,19 +825,6 @@ export default function StoryViewer({
                   )}
                 </div>
               )}
-
-              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/85 via-black/60 via-[25%] to-transparent">
-                <div className="px-6 pb-4 pt-10 md:px-12 md:pb-3 md:pt-14">
-                  <p className={`text-white ${fontSizeClasses[fontSize]} leading-relaxed max-w-3xl mx-auto text-center drop-shadow-lg font-medium transition-[font-size] duration-200`}>
-                    {page.text}
-                  </p>
-                  <div className="flex items-center justify-center gap-3 mt-3">
-                    <p className="text-white/40 text-xs">
-                      {page.pageNumber} / {displayTotalPages}
-                    </p>
-                  </div>
-                </div>
-              </div>
             </div>
           </SwiperSlide>
         ))}
@@ -857,6 +878,32 @@ export default function StoryViewer({
         )}
       </Swiper>
 
+      {/* Caption layer. It sits outside the swiper, so the background stays in
+          place between slides and only the text crossfades. */}
+      {!!subtitle.text && (
+        <div
+          className={`story-subtitle pointer-events-none absolute inset-x-0 z-40 flex items-end bg-gradient-to-t from-black/85 via-black/60 via-[25%] to-transparent transition-opacity duration-300 ${
+            isPublicPreviewGateSlide ? 'opacity-0' : 'opacity-100'
+          }`}
+          aria-hidden={isPublicPreviewGateSlide}
+        >
+          <div
+            className={`w-full px-6 md:px-12 transition-all duration-200 ease-out motion-reduce:transition-none ${
+              subtitleVisible ? 'translate-y-0 opacity-100' : 'translate-y-1 opacity-0'
+            }`}
+          >
+            <p className={`text-white ${fontSizeClasses[fontSize]} leading-relaxed max-w-3xl mx-auto text-center drop-shadow-lg font-medium transition-[font-size] duration-200`}>
+              {subtitle.text}
+            </p>
+            <div className="flex items-center justify-center gap-3 mt-3">
+              <p className="text-white/40 text-xs">
+                {subtitle.pageNumber} / {displayTotalPages}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Story Tools modal */}
       {showTools && (
         <StoryToolsModal
@@ -899,6 +946,46 @@ export default function StoryViewer({
         }
         .story-top-controls::-webkit-scrollbar {
           display: none;
+        }
+        /* Keep the floating controls clear of the system bar and of the
+           scroll edge effect that Safari draws at the top of the viewport. */
+        .story-top-left,
+        .story-top-controls-pos,
+        .story-top-right {
+          top: calc(env(safe-area-inset-top, 0px) + 1rem);
+        }
+        .story-top-left {
+          left: calc(env(safe-area-inset-left, 0px) + 1rem);
+        }
+        .story-top-controls-pos {
+          left: calc(env(safe-area-inset-left, 0px) + 4rem);
+        }
+        .story-top-right {
+          right: calc(env(safe-area-inset-right, 0px) + 1rem);
+        }
+        .story-subtitle {
+          bottom: 0;
+          min-height: 12rem;
+          padding-top: 2.5rem;
+          padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 1rem);
+        }
+        /* Fill the strip between the fixed layer and the physical screen edge
+           when the visual viewport is taller than the layout viewport. */
+        .story-subtitle::after {
+          content: '';
+          position: absolute;
+          top: 100%;
+          left: 0;
+          right: 0;
+          height: 4rem;
+          background: #000;
+        }
+        @media (min-width: 768px) {
+          .story-subtitle {
+            min-height: 14rem;
+            padding-top: 3.5rem;
+            padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 0.75rem);
+          }
         }
       `}</style>
     </div>
