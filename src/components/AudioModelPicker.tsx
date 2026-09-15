@@ -35,8 +35,8 @@ export default function AudioModelPicker({
   const available = isAudioModelAvailable(model, speechLanguage);
   const voices = getAudioVoices(model, speechLanguage);
   const selectClass = dark
-    ? 'mt-1.5 min-h-11 w-full min-w-0 rounded-lg border border-white/10 bg-black/25 px-3 py-2 text-base text-white focus:border-primary-400 focus:outline-none disabled:opacity-50 sm:min-h-0 sm:text-sm'
-    : 'mt-1.5 min-h-11 w-full min-w-0 rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-base text-gray-800 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-100 disabled:opacity-50 sm:min-h-0 sm:text-sm dark:border-gray-700 dark:bg-surface-dark dark:text-gray-100';
+    ? 'mt-1.5 min-h-11 w-full min-w-0 rounded-lg border border-white/10 bg-black/25 px-3 py-2 text-base text-white [color-scheme:dark] focus:border-primary-400 focus:outline-none disabled:opacity-50 [&_option]:bg-surface-dark-elevated [&_option]:text-gray-100 sm:min-h-0 sm:text-sm'
+    : 'mt-1.5 min-h-11 w-full min-w-0 rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-base text-gray-800 [color-scheme:light] focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-100 disabled:opacity-50 [&_option]:bg-white [&_option]:text-gray-800 sm:min-h-0 sm:text-sm dark:border-gray-700 dark:bg-surface-dark dark:text-gray-100 dark:[color-scheme:dark] dark:[&_option]:bg-surface-dark-elevated dark:[&_option]:text-gray-100';
 
   const modelPicker = (
       <label className={`block min-w-0 text-sm font-semibold ${dark ? 'text-white/70' : 'text-gray-700 dark:text-gray-200'}`}>
