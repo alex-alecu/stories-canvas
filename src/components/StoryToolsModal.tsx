@@ -1081,7 +1081,10 @@ export default function StoryToolsModal({
           if (event.target === event.currentTarget) onClose();
         }}
       >
-        <div className="flex max-h-[85vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#1a1a2e] shadow-2xl">
+        <div
+          data-story-tools-modal
+          className="flex max-h-[85vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#1a1a2e] shadow-2xl"
+        >
           <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
             <div className="flex min-w-0 items-center gap-3">
               {view !== 'settings' && (
