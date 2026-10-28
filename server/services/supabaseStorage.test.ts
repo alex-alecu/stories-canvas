@@ -95,7 +95,7 @@ test('updateStoryScenario persists narrator and audio settings together', async 
     } },
   });
   await updateStoryScenario('story-audio-settings', makeScenario(), 'generating_audio', 'A sunrise story.', {
-    voice: 'serban',
+    voice: 'dad',
     generationInputs: {
       prompt: 'A sunrise story.', language: 'en', age: 3, artStyle: 'watercolor', storyMode: 'pro_audio',
       audioEnabled: true, proModel: false, scenarioModel: 'google/gemini-3.8-flash',
@@ -104,7 +104,7 @@ test('updateStoryScenario persists narrator and audio settings together', async 
     },
   }, client);
 
-  assert.equal(payload?.voice, 'serban');
+  assert.equal(payload?.voice, 'dad');
   assert.deepEqual(payload?.generation_inputs, {
     prompt: 'A sunrise story.', language: 'en', age: 3, artStyle: 'watercolor', storyMode: 'pro_audio',
     audioEnabled: true, proModel: false, scenarioModel: 'google/gemini-3.8-flash',
@@ -333,7 +333,7 @@ test('recoverStuckStories uses the saved audio choice when a story has an old vo
       const released: string[] = [];
       const recoveredCount = await supabaseStorage.recoverStuckStories({
         loadActiveGenerations: async () => [makeStoryMeta({
-          id: 'story-audio-choice', voice: 'jora', storyMode: 'pro_audio',
+          id: 'story-audio-choice', voice: 'grandpa', storyMode: 'pro_audio',
           generationInputs: {
             prompt: 'A sunrise story.', language: 'en', age: 3, artStyle: 'watercolor', storyMode: 'pro_audio',
             audioEnabled: entry.audioEnabled, proModel: false, scenarioModel: 'google/gemini-3.8-flash',

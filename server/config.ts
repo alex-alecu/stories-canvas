@@ -1,3 +1,4 @@
+import { ELEVENLABS_ESTIMATE_USD_PER_1K_CHARACTERS } from '../shared/audioModels.js';
 import { DEFAULT_TEXT_MODEL } from '../shared/textModels.js';
 import path from 'path';
 import { createHash } from 'node:crypto';
@@ -170,12 +171,13 @@ export const config = {
 
   // ElevenLabs configuration
   elevenLabsApiKey: optionalEnv('ELEVENLABS_API_KEY'),
-  elevenLabsModel: process.env.ELEVENLABS_MODEL || 'eleven_multilingual_v2',
-  elevenLabsPriceUsdPer1kCharacters: resolveNonNegativeNumberEnv('ELEVENLABS_PRICE_USD_PER_1K_CHARACTERS', 0.10),
+  elevenLabsModel: process.env.ELEVENLABS_MODEL || 'eleven_v4',
+  elevenLabsPriceUsdPer1kCharacters: resolveNonNegativeNumberEnv('ELEVENLABS_PRICE_USD_PER_1K_CHARACTERS', ELEVENLABS_ESTIMATE_USD_PER_1K_CHARACTERS),
   voiceIds: {
-    jora: optionalEnv('VOICE_JORA_ID') || 'OlBp4oyr3FBAGEAtJOnU', // Jora Slobod
-    serban: optionalEnv('VOICE_SERBAN_ID') || '8nBBDfYxYXmDNaqTCxPH', // Serban Popescu
-    corina: optionalEnv('VOICE_CORINA_ID') || 'RjgBjNgGkuZd49zyCxIq', // Corina Capuccina
+    grandpa: optionalEnv('VOICE_GRANDPA_ID') || optionalEnv('VOICE_JORA_ID') || 'OlBp4oyr3FBAGEAtJOnU',
+    grandma: optionalEnv('VOICE_GRANDMA_ID') || optionalEnv('VOICE_CORINA_ID') || 'RjgBjNgGkuZd49zyCxIq',
+    mom: optionalEnv('VOICE_MOM_ID') || '3z9q8Y7plHbvhDZehEII',
+    dad: optionalEnv('VOICE_DAD_ID') || 'S98OhkhaxeAKHEbhoLi7',
   },
 
   // Stripe configuration

@@ -6,7 +6,7 @@ import type { Page } from '../../shared/types.js';
 test('the saved audio choice has priority over an old narrator and mode', () => {
   assert.equal(storyRequiresAudio({
     voice: 'jora', storyMode: 'pro_audio',
-    generationInputs: { audioEnabled: false, storyMode: 'pro_audio', voice: 'jora' },
+    generationInputs: { audioEnabled: false, storyMode: 'pro_audio', voice: 'grandpa' },
   }), false);
   assert.equal(storyRequiresAudio({
     generationInputs: { audioEnabled: true, storyMode: 'fast' },

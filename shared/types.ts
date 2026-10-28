@@ -5,7 +5,7 @@ export type StoryStatus = 'generating_scenario' | 'reviewing_scenario' | 'genera
 
 export type ArtStyleKey = 'disney-pixar' | 'watercolor' | 'storybook' | 'anime' | 'colored-pencil' | 'paper-cutout';
 
-export type VoiceKey = 'bunica' | 'jora' | 'serban' | 'corina';
+export type VoiceKey = 'grandma' | 'grandpa' | 'dad' | 'mom';
 export type StoryMode = 'fast' | 'pro' | 'pro_audio';
 export type StoryReaction = 'like' | 'dislike';
 export const STORY_REACTION_FEEDBACK_MAX_CHARS = 500;
@@ -85,23 +85,20 @@ export function isStoryReaction(value: unknown): value is StoryReaction {
   return value === 'like' || value === 'dislike';
 }
 
-export type LegacyVoiceKey = 'grandma' | 'grandpa' | 'dad' | 'mom' | 'whisper';
+export type LegacyVoiceKey = 'bunica' | 'jora' | 'serban' | 'corina' | 'whisper';
 
-export const DEFAULT_VOICE_KEY: VoiceKey = 'jora';
+export const DEFAULT_VOICE_KEY: VoiceKey = 'grandpa';
 
+// Saved stories use the current speaker for their original family role.
 export const LEGACY_VOICE_KEY_ALIASES: Record<LegacyVoiceKey, VoiceKey> = {
-  grandma: 'bunica',
-  mom: 'corina',
-  grandpa: 'jora',
-  dad: 'serban',
-  whisper: 'jora',
+  bunica: 'grandma', corina: 'mom', jora: 'grandpa', serban: 'dad', whisper: 'grandpa',
 };
 
 export const VOICE_OPTIONS = [
-  { key: 'jora', name: 'Grandpa', labelKey: 'voiceJora', descKey: 'voiceJoraDesc' },
-  { key: 'bunica', name: 'Grandma', labelKey: 'voiceBunica', descKey: 'voiceBunicaDesc' },
-  { key: 'corina', name: 'Mom', labelKey: 'voiceCorina', descKey: 'voiceCorinaDesc' },
-  { key: 'serban', name: 'Dad', labelKey: 'voiceSerban', descKey: 'voiceSerbanDesc' },
+  { key: 'grandpa', name: 'Grandpa', labelKey: 'voiceJora', descKey: 'voiceJoraDesc' },
+  { key: 'grandma', name: 'Grandma', labelKey: 'voiceBunica', descKey: 'voiceBunicaDesc' },
+  { key: 'mom', name: 'Mom', labelKey: 'voiceCorina', descKey: 'voiceCorinaDesc' },
+  { key: 'dad', name: 'Dad', labelKey: 'voiceSerban', descKey: 'voiceSerbanDesc' },
 ] as const satisfies ReadonlyArray<{ key: VoiceKey; name: string; labelKey: string; descKey: string }>;
 
 const VOICE_OPTION_MAP = new Map<VoiceKey, (typeof VOICE_OPTIONS)[number]>(
@@ -119,7 +116,7 @@ export function normalizeVoiceKey(value: string | null | undefined): VoiceKey | 
   if (isVoiceKey(trimmedValue)) {
     return trimmedValue;
   }
-  if (trimmedValue in LEGACY_VOICE_KEY_ALIASES) {
+  if (Object.hasOwn(LEGACY_VOICE_KEY_ALIASES, trimmedValue)) {
     return LEGACY_VOICE_KEY_ALIASES[trimmedValue as LegacyVoiceKey];
   }
   return undefined;

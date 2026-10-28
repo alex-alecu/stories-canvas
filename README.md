@@ -88,11 +88,14 @@ This layered approach — character sheets for identity, previous scene for styl
 
 The app sends each page's text to the selected speech model and saves MP3 audio. Select the model when you create a story, add narration, or change a page's narration. The app saves the model and voice before generation starts. Retries use these saved settings.
 
-ElevenLabs remains the default. It keeps the existing family-role voices. The four OpenRouter options are Gemini 3.1 Flash TTS Preview, MAI-Voice-2, MiniMax Speech 2.8 HD, and Kokoro 82M. OpenRouter models use their own voice lists. The models were checked against the [OpenRouter speech catalog](https://openrouter.ai/api/v1/models?output_modalities=speech) on 2026-09-11.
+Eleven v4 (`eleven_v4`) is the default speech model. The four family voices are Grandpa, Grandma, Mom, and Dad. Each voice uses a different speaker. The removed speaker is replaced when an old story uses the Dad role. Existing voice keys still map to their family roles. The model uses stability 0.5 and similarity 0.8; unsupported style and speed controls are omitted. The default ElevenLabs estimate is $0.08 per 1,000 characters. An explicit `ELEVENLABS_MODEL` or price setting overrides these defaults; update old deployment settings when this change is deployed.
 
-The selector shows language limits. Google and MiniMax include Romanian and English. MAI-Voice-2 is limited to the English, Spanish, French, and German voices listed by OpenRouter. Kokoro supports English, Spanish, French, Hindi, Italian, Japanese, Portuguese, and Chinese. It does not support Romanian.
+The five OpenRouter alternatives are Gemini 3.8 Flash TTS, MAI Voice 2.1, MiniMax Speech 2.8 HD, Fish Audio S2.1 Pro, and Voxtral TTS 3. The selector shows language limits. All five have Romanian and English options. The current voice list was checked against the [OpenRouter speech catalog](https://openrouter.ai/api/v1/models?output_modalities=speech) on 2026-10-28. Family labels describe the narrator role. They are not speaker names. Removed models remain valid for saved retries; new selections use the current model list.
 
-OpenRouter speech uses the [Speech API](https://openrouter.ai/docs/guides/overview/multimodal/tts). Its MP3 response includes a generation ID. The app uses that ID to read the actual request cost. A missing cost stops further OpenRouter audio requests. ElevenLabs can continue without a price record; any configured ElevenLabs estimate remains in use. ElevenLabs costs are separate from the displayed OpenRouter total.
+OpenRouter speech uses the [Speech API](https://openrouter.ai/docs/guides/overview/multimodal/tts). Gemini returns 24 kHz, 16-bit mono PCM; the app converts this audio to MP3. The bundled `ffmpeg-static` encoder sets all new narration to -16 LUFS with a -2 dB true-peak target. Old saved MP3 files are not changed.
+
+The MP3 or PCM response includes a generation ID. The app uses that ID to read the actual request cost. Speech cost records can take more than one minute to appear. Cost lookup waits for up to about two minutes, with a 150-second deadline. The app does not repeat the paid speech request while it waits. A missing cost stops further OpenRouter audio requests. ElevenLabs costs use the configured estimate and remain separate from the displayed OpenRouter total.
+
 
 ## Admin Features
 

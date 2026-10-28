@@ -1,6 +1,6 @@
 import OpenAI, { APIError } from 'openai';
 import { AbortError } from 'p-retry';
-import type { AudioModelSettings } from '../../shared/audioModels.js';
+import { getAudioResponseFormat, type AudioModelSettings } from '../../shared/audioModels.js';
 import { getOpenRouterClient, resolveOpenRouterCost } from './openrouterClient.js';
 
 export interface AudioUsageEvent {
@@ -65,7 +65,7 @@ export async function generateOpenRouterPageAudio(
       model: settings.audioModel,
       input: text,
       voice: settings.audioVoice,
-      response_format: 'mp3',
+      response_format: getAudioResponseFormat(settings.audioModel),
     }, { timeout: 60_000, maxRetries: 0, signal: requestSignal }).withResponse();
     response = result.data;
     responseId = result.response.headers.get('x-generation-id') || undefined;
@@ -96,7 +96,9 @@ export async function generateOpenRouterPageAudio(
   } catch (error) {
     outputError = error instanceof Error ? error : new Error(String(error));
   }
-  const cost = await resolveOpenRouterCost(undefined, responseId, api);
+  const cost = await resolveOpenRouterCost(undefined, responseId, api, options.signal
+    ? AbortSignal.any([options.signal, AbortSignal.timeout(150_000)])
+    : AbortSignal.timeout(150_000));
   await reportUsage(options, {
     provider: 'openrouter', model: settings.audioModel, status: outputError ? 'failed' : 'succeeded',
     billedCharacters: text.length, usageAvailable: cost !== null,

@@ -4,7 +4,7 @@ import OpenAI from 'openai';
 import pRetry from 'p-retry';
 import { generateOpenRouterPageAudio, type AudioUsageEvent } from './openrouterAudio.js';
 
-const settings = { audioModel: 'google/gemini-3.1-flash-tts-preview', audioVoice: 'Rasalgethi' };
+const settings = { audioModel: 'google/gemini-3.8-flash-tts', audioVoice: 'Rasalgethi' };
 
 function fixture(audio: ConstructorParameters<typeof Response>[0] = Buffer.from('ID3audio'), contentType = 'audio/mpeg', cost: number | null = 0.0123, status = 200) {
   const requests: Array<{ path: string; body?: Record<string, unknown> }> = [];
@@ -31,7 +31,7 @@ test('OpenRouter audio uses the speech endpoint and records the resolved respons
   });
   assert.equal(audio.toString(), 'ID3audio');
   assert.deepEqual(api.requests[0].body, {
-    model: settings.audioModel, input: 'Hello', voice: settings.audioVoice, response_format: 'mp3',
+    model: settings.audioModel, input: 'Hello', voice: settings.audioVoice, response_format: 'pcm',
   });
   assert.match(api.requests[1].path, /generation\?id=gen-audio-1/);
   assert.equal(usage?.provider, 'openrouter');

@@ -1,6 +1,8 @@
 import { AUDIO_MODELS, DEFAULT_AUDIO_MODEL, getAudioVoices, isAudioModelAvailable } from '../../shared/audioModels';
 import type { ReactNode } from 'react';
 
+const familyLabelsRo: Record<string, string> = { Grandpa: 'Bunic', Grandma: 'Bunică', Mom: 'Mamă', Dad: 'Tată' };
+
 const copyFor = (language: string) => language === 'ro'
   ? { model: 'Model audio', voice: 'Voce', unavailable: 'Indisponibil pentru această limbă' }
   : { model: 'Audio model', voice: 'Voice', unavailable: 'Not available for this language' };
@@ -43,7 +45,7 @@ export default function AudioModelPicker({
         {copy.model}
         <select value={model} onChange={event => onModelChange(event.target.value)} disabled={disabled} className={selectClass}>
           {AUDIO_MODELS.map(option => (
-            <option key={option.id} value={option.id}>
+            <option key={option.id} value={option.id} disabled={!isAudioModelAvailable(option.id, speechLanguage)}>
               {option.name}{isAudioModelAvailable(option.id, speechLanguage) ? '' : ` · ${copy.unavailable}`}
             </option>
           ))}
@@ -54,7 +56,7 @@ export default function AudioModelPicker({
         <label className={`block min-w-0 text-sm font-semibold ${dark ? 'text-white/70' : 'text-gray-700 dark:text-gray-200'}`}>
           {copy.voice}
           <select value={voice ?? ''} onChange={event => onVoiceChange(event.target.value || undefined)} disabled={disabled || !available} className={selectClass}>
-            {voices.map(option => <option key={option.id} value={option.id}>{option.name}</option>)}
+            {voices.map(option => <option key={option.id} value={option.id}>{language === 'ro' ? (familyLabelsRo[option.name] ?? option.name) : option.name}</option>)}
           </select>
         </label>
   );

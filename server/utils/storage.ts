@@ -1,4 +1,5 @@
 import fs from 'fs/promises';
+import { randomUUID } from 'node:crypto';
 import path from 'path';
 import { config } from '../config.js';
 import {
@@ -45,6 +46,17 @@ async function withLock<T>(storyId: string, fn: () => Promise<T>): Promise<T> {
 
 async function ensureDir(dir: string): Promise<void> {
   await fs.mkdir(dir, { recursive: true });
+}
+
+async function writeJsonFile(filePath: string, value: unknown): Promise<void> {
+  const temporaryPath = `${filePath}.${randomUUID()}.tmp`;
+  try {
+    await fs.writeFile(temporaryPath, JSON.stringify(value, null, 2), { encoding: 'utf8', flag: 'wx' });
+    await fs.rename(temporaryPath, filePath);
+  } catch (error) {
+    await fs.rm(temporaryPath, { force: true }).catch(() => {});
+    throw error;
+  }
 }
 
 function normalizeCount(value: unknown): number {
@@ -126,7 +138,7 @@ async function readUsageEvents(storyId: string): Promise<StoryUsageEvent[]> {
 
 async function writeUsageEvents(storyId: string, events: StoryUsageEvent[]): Promise<void> {
   const dir = await getStoryDir(storyId);
-  await fs.writeFile(path.join(dir, 'usage-events.json'), JSON.stringify(events, null, 2));
+  await writeJsonFile(path.join(dir, 'usage-events.json'), events);
 }
 
 export async function getStoryOpenRouterCosts(storyId: string) {
@@ -190,7 +202,7 @@ export async function createStory(
     scenarioRevision: 0,
     renderedScenarioRevision: 0,
   };
-  await fs.writeFile(path.join(dir, 'scenario.json'), JSON.stringify(meta, null, 2));
+  await writeJsonFile(path.join(dir, 'scenario.json'), meta);
   await writeUsageEvents(storyId, []);
 }
 
@@ -224,7 +236,7 @@ export async function saveScenario(
     likeCount: normalizeCount(existing?.likeCount),
     dislikeCount: normalizeCount(existing?.dislikeCount),
   };
-  await fs.writeFile(path.join(dir, 'scenario.json'), JSON.stringify(meta, null, 2));
+  await writeJsonFile(path.join(dir, 'scenario.json'), meta);
 }
 
 export async function updateStoryScenario(
@@ -243,7 +255,7 @@ export async function updateStoryStatus(storyId: string, status: StoryStatus): P
     const filePath = path.join(dir, 'scenario.json');
     const data = JSON.parse(await fs.readFile(filePath, 'utf-8')) as StoryMeta;
     data.status = status;
-    await fs.writeFile(filePath, JSON.stringify(data, null, 2));
+    await writeJsonFile(filePath, data);
   });
 }
 
@@ -258,7 +270,7 @@ export async function updatePageStatus(storyId: string, pageNumber: number, stat
         page.status = status;
       }
     }
-    await fs.writeFile(filePath, JSON.stringify(data, null, 2));
+    await writeJsonFile(filePath, data);
   });
 }
 
@@ -275,7 +287,7 @@ export async function updatePageAudioUrl(storyId: string, pageNumber: number, au
       }
     }
 
-    await fs.writeFile(filePath, JSON.stringify(data, null, 2));
+    await writeJsonFile(filePath, data);
   });
 }
 
@@ -306,7 +318,7 @@ export async function updateStoryVoice(storyId: string, voice: VoiceKey): Promis
     const filePath = path.join(dir, 'scenario.json');
     const data = JSON.parse(await fs.readFile(filePath, 'utf-8')) as StoryMeta;
     data.voice = voice;
-    await fs.writeFile(filePath, JSON.stringify(data, null, 2));
+    await writeJsonFile(filePath, data);
   });
 }
 
@@ -319,7 +331,7 @@ export async function updateStoryRenderedScenarioRevision(
     const filePath = path.join(dir, 'scenario.json');
     const data = JSON.parse(await fs.readFile(filePath, 'utf-8')) as StoryMeta;
     data.renderedScenarioRevision = renderedScenarioRevision;
-    await fs.writeFile(filePath, JSON.stringify(data, null, 2));
+    await writeJsonFile(filePath, data);
   });
 }
 
@@ -350,7 +362,7 @@ export async function appendStoryUsageEvent(
     data.usageTotals = mergeUsageTotals(data.usageTotals, totalsDelta);
     const events = await readUsageEvents(storyId);
     events.push(event);
-    await fs.writeFile(filePath, JSON.stringify(data, null, 2));
+    await writeJsonFile(filePath, data);
     await writeUsageEvents(storyId, events);
   });
 }
@@ -385,7 +397,7 @@ export async function incrementStoryViewCount(storyId: string): Promise<number> 
     const data = JSON.parse(await fs.readFile(filePath, 'utf-8')) as StoryMeta;
     const viewCount = normalizeCount(data.viewCount) + 1;
     data.viewCount = viewCount;
-    await fs.writeFile(filePath, JSON.stringify(data, null, 2));
+    await writeJsonFile(filePath, data);
     return viewCount;
   });
 }

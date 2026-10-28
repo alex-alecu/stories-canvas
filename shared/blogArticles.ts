@@ -54,7 +54,7 @@ export function listBlogArticleLocales(language?: string): BlogArticleLocale[] {
   const resolvedLanguage = resolveBlogLanguage(language);
   if (!resolvedLanguage) return [];
   return BLOG_ARTICLES
-    .map(article => article.locales[resolvedLanguage])
+    .map<BlogArticleLocale | undefined>(article => article.locales[resolvedLanguage])
     .filter((entry): entry is BlogArticleLocale => !!entry);
 }
 

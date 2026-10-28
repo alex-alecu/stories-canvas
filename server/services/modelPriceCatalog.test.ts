@@ -6,7 +6,7 @@ test('the active price catalog contains only the configured narration rate', () 
   const entries = buildAudioPriceCatalog(new Date('2026-09-06T10:00:00Z'));
   assert.equal(entries.length, 1);
   assert.equal(entries[0].provider, 'elevenlabs');
-  assert.equal(entries[0].audioUsdPerCharacter, '0.0001');
+  assert.equal(entries[0].audioUsdPerCharacter, '0.00008');
   assert.equal(entries[0].fetchedAt, '2026-09-06T10:00:00.000Z');
 });
 

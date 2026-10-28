@@ -1,6 +1,7 @@
+import { prepareNarrationAudio } from './audioOutput.js';
 import { config } from '../config.js';
 import type { GenerationProgress, Page, VoiceKey } from '../../shared/types.js';
-import { DEFAULT_AUDIO_MODEL } from '../../shared/audioModels.js';
+import { DEFAULT_AUDIO_MODEL, getAudioResponseFormat } from '../../shared/audioModels.js';
 import { getPageAudioFilename } from '../utils/storyMedia.js';
 import { saveAudio, updatePageAudioUrl as fsUpdatePageAudioUrl } from '../utils/storage.js';
 import { uploadAudio, updatePageAudioUrl as sbUpdatePageAudioUrl } from './supabaseStorage.js';
@@ -24,16 +25,17 @@ export function isAudioConfigured(): boolean {
     : !!config.openrouterApiKey || !!process.env.OPENROUTER_API_KEY?.trim();
 }
 
-export function generatePageAudio(
+export async function generatePageAudio(
   text: string,
   voiceKey: VoiceKey,
   onUsage?: (usage: AudioUsageEvent) => void | Promise<void>,
   signal?: AbortSignal,
 ): Promise<Buffer> {
   const settings = getAudioModelSettings();
-  return settings.audioModel === DEFAULT_AUDIO_MODEL
+  const audio = await (settings.audioModel === DEFAULT_AUDIO_MODEL
     ? generateElevenLabsPageAudio(text, voiceKey, onUsage, signal)
-    : generateOpenRouterPageAudio(text, settings, { onUsage, signal });
+    : generateOpenRouterPageAudio(text, settings, { onUsage, signal }));
+  return prepareNarrationAudio(audio, getAudioResponseFormat(settings.audioModel), signal);
 }
 
 export async function savePageAudio(storyId: string, filename: string, audioBuffer: Buffer, userId?: string): Promise<string> {
