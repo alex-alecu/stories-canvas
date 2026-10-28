@@ -83,7 +83,7 @@ router.post('/prices/refresh', requireAdmin, async (_req: Request, res: Response
   }
 });
 
-router.get('/users/:userId', requireAdmin, async (req: Request, res: Response) => {
+router.get('/users/:userId', requireAdmin, async (req: Request<{ userId: string }>, res: Response) => {
   try {
     const detail = await getAdminUserDetail(req.params.userId);
     if (!detail) {

@@ -123,7 +123,7 @@ test('Meta purchase conversion uses checkout event id for dedup and Stripe sessi
 
   let requestUrl = '';
   let requestBody: any = null;
-  t.mock.method(globalThis, 'fetch', async (url, init) => {
+  t.mock.method(globalThis, 'fetch', async (...[url, init]: Parameters<typeof fetch>) => {
     requestUrl = String(url);
     requestBody = JSON.parse(String(init?.body));
     return new Response('{}', { status: 200 });

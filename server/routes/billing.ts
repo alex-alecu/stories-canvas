@@ -26,16 +26,6 @@ import { sendPaymentAlert, type PaymentAlertParams } from '../services/slackAler
 
 const router = Router();
 export const billingWebhookRouter = Router();
-const FULFILLABLE_CHECKOUT_EVENTS = new Set<Stripe.Event.Type>([
-  'checkout.session.completed',
-  'checkout.session.async_payment_succeeded',
-]);
-const FAILED_CHECKOUT_EVENTS = new Set<Stripe.Event.Type>([
-  'checkout.session.async_payment_failed',
-]);
-const EXPIRED_CHECKOUT_EVENTS = new Set<Stripe.Event.Type>([
-  'checkout.session.expired',
-]);
 
 export const billingStorageOps = {
   createPendingStoryPackPurchase,
@@ -318,7 +308,7 @@ billingWebhookRouter.post('/', async (req: Request, res: Response) => {
     const event = billingStripeOps.verifyStripeWebhookEvent(req.body, signature);
     await billingStorageOps.createWebhookEvent(event.id, event.type, event.data.object);
 
-    if (FULFILLABLE_CHECKOUT_EVENTS.has(event.type)) {
+    if (event.type === 'checkout.session.completed' || event.type === 'checkout.session.async_payment_succeeded') {
       const session = event.data.object;
 
       if (session.payment_status === 'paid') {
@@ -352,10 +342,10 @@ billingWebhookRouter.post('/', async (req: Request, res: Response) => {
           }
         }
       }
-    } else if (FAILED_CHECKOUT_EVENTS.has(event.type)) {
+    } else if (event.type === 'checkout.session.async_payment_failed') {
       const session = event.data.object;
       await billingStorageOps.markStoryPackPurchaseFailed(getCheckoutPurchaseParams(session));
-    } else if (EXPIRED_CHECKOUT_EVENTS.has(event.type)) {
+    } else if (event.type === 'checkout.session.expired') {
       const session = event.data.object;
       await billingStorageOps.markStoryPackPurchaseExpired(getCheckoutPurchaseParams(session));
     }

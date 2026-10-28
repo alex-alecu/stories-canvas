@@ -202,7 +202,9 @@ export default function BlogArticlePage() {
     );
   }
 
-  const firstHeading = article.blocks.find(block => block.type === 'heading' && block.depth === 1);
+  const firstHeading = article.blocks.find(
+    (block): block is Extract<BlogMarkdownBlock, { type: 'heading' }> => block.type === 'heading' && block.depth === 1,
+  );
   const displayTitle = firstHeading?.text ?? article.meta.title;
   const visibleBlocks = firstHeading
     ? article.blocks.filter(block => block !== firstHeading)

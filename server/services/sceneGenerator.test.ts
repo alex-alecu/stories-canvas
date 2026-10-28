@@ -359,7 +359,7 @@ test('FLUX Klein keeps four character sheets and omits optional scene references
   let references: string[] = [];
   let prompt = '';
 
-  const result = await withImageModel(parseImageModel('black-forest-labs/flux.2-klein-4b'), () => sceneGenerator.generateSceneImage(
+  const result = await withImageModel(parseImageModel('black-forest-labs/flux.2-klein-4b', true), () => sceneGenerator.generateSceneImage(
     'story-qwen-reference-limit',
     makePage({
       pageNumber: 9,

@@ -20,43 +20,10 @@ interface VoiceSettings {
   voiceId: string;
   stability: number;
   similarityBoost: number;
-  style: number;
-  speed: number;
 }
 
 export function getVoiceSettings(voiceKey: VoiceKey): VoiceSettings {
-  const baseSettings: Record<VoiceKey, VoiceSettings> = {
-    bunica: {
-      voiceId: config.voiceIds.corina,
-      stability: 0.82,
-      similarityBoost: 0.8,
-      style: 0.18,
-      speed: 0.95,
-    },
-    jora: {
-      voiceId: config.voiceIds.jora,
-      stability: 0.8,
-      similarityBoost: 0.8,
-      style: 0.2,
-      speed: 0.96,
-    },
-    serban: {
-      voiceId: config.voiceIds.serban,
-      stability: 0.74,
-      similarityBoost: 0.8,
-      style: 0.38,
-      speed: 0.98,
-    },
-    corina: {
-      voiceId: config.voiceIds.corina,
-      stability: 0.74,
-      similarityBoost: 0.8,
-      style: 0.42,
-      speed: 0.98,
-    },
-  };
-
-  return baseSettings[voiceKey];
+  return { voiceId: config.voiceIds[voiceKey], stability: 0.5, similarityBoost: 0.8 };
 }
 
 async function streamToBuffer(stream: ReadableStream<Uint8Array>, timeoutMs = 60_000): Promise<Buffer> {
@@ -72,14 +39,16 @@ async function streamToBuffer(stream: ReadableStream<Uint8Array>, timeoutMs = 60
     return Buffer.concat(chunks);
   };
 
+  let timer: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<never>((_, reject) => {
-    setTimeout(() => {
+    timer = setTimeout(() => {
       reader.cancel().catch(() => {});
       reject(new Error('Stream read timed out'));
     }, timeoutMs);
   });
 
-  return Promise.race([readAll(), timeout]);
+  try { return await Promise.race([readAll(), timeout]); }
+  finally { clearTimeout(timer); reader.releaseLock(); }
 }
 
 export async function generateElevenLabsPageAudio(
@@ -102,8 +71,6 @@ export async function generateElevenLabsPageAudio(
           voiceSettings: {
             stability: settings.stability,
             similarityBoost: settings.similarityBoost,
-            style: settings.style,
-            speed: settings.speed,
           },
         }, {
           timeoutInSeconds: 60,

@@ -66,7 +66,7 @@ test('the official SDK repairs invalid submissions, preserves reasoning, and req
   assert.deepEqual(previous.reasoning_details, [{ type: 'reasoning.encrypted', data: 'opaque-data' }]);
   assert.equal(api.usage.length, 2);
   assert.equal(api.usage[0].usageDetails.providerCostUsd, 0.012345);
-  assert.deepEqual(api.requests[0].reasoning, { effort: 'medium' });
+  assert.deepEqual(api.requests[0].reasoning, { effort: 'xhigh' });
   assert.equal('parallel_tool_calls' in api.requests[0], false);
 });
 
@@ -104,7 +104,7 @@ test('review findings produce a corrected script and clear progress before illus
 });
 
 test('Fable uses the selected model without unsupported tool options', async () => {
-  await withTextModelSettings(parseTextModelSettings('anthropic/claude-fable-5.1', 'high'), async () => {
+  await withTextModelSettings(parseTextModelSettings('anthropic/claude-fable-5.1', 'high', true), async () => {
     const api = fixture([makeScenario()]);
     await generateStoryScriptWithAgents('A child finds a lantern.', 'en', 4, 'storybook', undefined, undefined, {
       runner: { model: api.model }, resolveSource: async () => undefined, enforceQuality: async (_context, scenario) => scenario,

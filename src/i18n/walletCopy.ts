@@ -2,7 +2,7 @@ import type { Translations } from './types';
 
 export function getWalletCopy(language: string) {
   return language === 'ro' ? {
-    model: 'Model de text', audioModel: 'Model audio', nativeVoice: 'Voce nativă', thinking: 'Nivel de gândire', low: 'Redus', medium: 'Mediu', high: 'Ridicat',
+    model: 'Model de text', audioModel: 'Model audio', nativeVoice: 'Voce nativă', thinking: 'Nivel de gândire', low: 'Redus', medium: 'Mediu', high: 'Ridicat', xhigh: 'Foarte ridicat',
     notRecorded: 'Neînregistrat',
     narration: 'Adaugă narațiune', minimum: 'Ai nevoie de cel puțin 10 USD pentru o poveste nouă.',
     actualCost: 'Plătești costul generării: text, imagini și narațiune.',
@@ -15,7 +15,7 @@ export function getWalletCopy(language: string) {
     openRouterCosts: 'Costuri (USD)', textCost: 'Text', imageCost: 'Imagini', audioCost: 'Narațiune', totalCost: 'Total',
     costsIncludeUpdates: 'Costurile înregistrate includ generarea inițială și modificările de text, imagini și narațiune prin OpenRouter.',
     estimatedAudioCost: 'Narațiune (estimare)', estimatedTotalCost: 'Total (estimare)',
-    elevenLabsEstimateNote: 'Estimare ElevenLabs: 0,10 USD la 1.000 de caractere din textul actual al poveștii. Doar pentru afișare; nu include încercările anterioare și nu modifică suma facturată.',
+    elevenLabsEstimateNote: 'Estimare ElevenLabs: 0,08 USD la 1.000 de caractere din textul actual al poveștii. Doar pentru afișare; nu include încercările anterioare și nu modifică suma facturată.',
     incompleteCosts: 'Unele costuri nu sunt disponibile. Totalul include doar costurile cunoscute.',
     incompleteCostsWithElevenLabsEstimate: 'Unele costuri înregistrate nu sunt disponibile. Totalul include costurile OpenRouter cunoscute și estimarea ElevenLabs afișată.',
     costsUnavailable: 'Costurile nu sunt disponibile momentan.',
@@ -24,7 +24,7 @@ export function getWalletCopy(language: string) {
     aboveInput: 'Peste {tokens} tokenuri de intrare',
     priceNote: 'Cache-ul, cererile lungi și instrumentele pot schimba costul final.',
   } : {
-    model: 'Text model', audioModel: 'Audio model', nativeVoice: 'Native voice', thinking: 'Thinking level', low: 'Low', medium: 'Medium', high: 'High',
+    model: 'Text model', audioModel: 'Audio model', nativeVoice: 'Native voice', thinking: 'Thinking level', low: 'Low', medium: 'Medium', high: 'High', xhigh: 'Extra high',
     notRecorded: 'Not recorded',
     narration: 'Add narration', minimum: 'You need at least $10 to start a new story.',
     actualCost: 'You pay the generation cost for text, images, and narration.',
@@ -37,7 +37,7 @@ export function getWalletCopy(language: string) {
     openRouterCosts: 'Costs (USD)', textCost: 'Text', imageCost: 'Images', audioCost: 'Narration', totalCost: 'Total',
     costsIncludeUpdates: 'Recorded costs include the first generation and all text, image, and narration changes through OpenRouter.',
     estimatedAudioCost: 'Narration (estimate)', estimatedTotalCost: 'Total (estimate)',
-    elevenLabsEstimateNote: 'ElevenLabs estimate: $0.10 per 1,000 characters of the current story text. Display only; excludes earlier attempts and does not change the billed amount.',
+    elevenLabsEstimateNote: 'ElevenLabs estimate: $0.08 per 1,000 characters of the current story text. Display only; excludes earlier attempts and does not change the billed amount.',
     incompleteCosts: 'Some costs are not available. The total includes only known costs.',
     incompleteCostsWithElevenLabsEstimate: 'Some recorded costs are not available. The total includes known OpenRouter costs and the displayed ElevenLabs estimate.',
     costsUnavailable: 'Costs are not available at this time.',

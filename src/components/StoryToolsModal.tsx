@@ -3,7 +3,7 @@ import { TEXT_MODELS } from '../../shared/textModels';
 import { DEFAULT_IMAGE_MODEL, DEFAULT_IMAGE_MODEL_PRO, IMAGE_MODELS, getSelectableImageModelId, getStoredImageModel } from '../../shared/imageModels';
 import ImageModelPicker from './ImageModelPicker';
 import AudioModelPicker from './AudioModelPicker';
-import { AUDIO_MODELS, DEFAULT_AUDIO_MODEL, getAudioVoices, isAudioModelAvailable } from '../../shared/audioModels';
+import { AUDIO_MODELS, DEFAULT_AUDIO_MODEL, ELEVENLABS_ESTIMATE_USD_PER_1K_CHARACTERS, getSelectableAudioModel, getAudioVoices, isAudioModelAvailable } from '../../shared/audioModels';
 import { useState, useEffect, useCallback, useMemo, useRef, type FormEvent } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import type { GenerationProgress, Page, Scenario, StoryMode, StoryReaction, StoryStatus, StoryOpenRouterCosts, StoryGenerationInputs } from '../types';
@@ -33,8 +33,6 @@ import { storyRequiresAudio, withoutDisabledAudioFailure } from '../../shared/st
 
 const PAGE_FEEDBACK_MAX_CHARS = 800;
 const PAGE_TEXT_OVERLAY_MAX_CHARS = 320;
-// Display estimate only. Billing and stored usage keep their provider costs.
-const ELEVENLABS_ESTIMATE_USD_PER_1K_CHARACTERS = 0.10;
 
 type ToolsView = 'settings' | 'image' | 'audio';
 type OperationResult = 'success' | 'failed' | null;
@@ -147,7 +145,7 @@ export default function StoryToolsModal({
   const [selectedVoice, setSelectedVoice] = useState<VoiceKey>(DEFAULT_VOICE_KEY);
   const [audioModel, setAudioModel] = useState(() => {
     const stored = generationInputs?.audioModel;
-    return stored?.startsWith('eleven_') ? DEFAULT_AUDIO_MODEL : stored || DEFAULT_AUDIO_MODEL;
+    return getSelectableAudioModel(stored);
   });
   const [audioVoice, setAudioVoice] = useState<string | undefined>(() => generationInputs?.audioVoice);
   const [imageModel, setImageModel] = useState(() => generationInputs
@@ -256,7 +254,7 @@ export default function StoryToolsModal({
 
   useEffect(() => {
     const stored = generationInputs?.audioModel;
-    setAudioModel(stored?.startsWith('eleven_') ? DEFAULT_AUDIO_MODEL : stored || DEFAULT_AUDIO_MODEL);
+    setAudioModel(getSelectableAudioModel(stored));
     setAudioVoice(generationInputs?.audioVoice);
     setSelectedVoice(storyVoice ?? DEFAULT_VOICE_KEY);
   }, [generationInputs, storyId, storyVoice]);

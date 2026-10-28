@@ -17,7 +17,7 @@ test('reviewPageText allows safe page text', async () => {
       purpose: 'page_text',
     },
     async <T>(_prompt: string, _system: string, _schema: Record<string, unknown>, options?: TextGenerationOptions): Promise<T> => {
-      assert.equal(options?.model, 'google/gemini-3.8-flash');
+      assert.equal(options?.model, 'anthropic/claude-opus-5.5');
       assert.equal(options?.temperature, 0);
       assert.equal(options?.reasoningEffort, 'none');
       return { allowed: true, reasonCode: '', explanation: '' } as T;

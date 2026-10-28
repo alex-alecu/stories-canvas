@@ -19,13 +19,13 @@ type VoiceOption = (typeof import('../../shared/types').VOICE_OPTIONS)[number];
 
 export function getVoiceOptionText(option: VoiceOption, t: Translations): { label: string; description: string } {
   switch (option.key) {
-    case 'bunica':
+    case 'grandma':
       return { label: t.voiceBunica, description: t.voiceBunicaDesc };
-    case 'jora':
+    case 'grandpa':
       return { label: t.voiceJora, description: t.voiceJoraDesc };
-    case 'serban':
+    case 'dad':
       return { label: t.voiceSerban, description: t.voiceSerbanDesc };
-    case 'corina':
+    case 'mom':
       return { label: t.voiceCorina, description: t.voiceCorinaDesc };
   }
 }

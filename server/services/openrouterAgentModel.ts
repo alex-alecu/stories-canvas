@@ -3,7 +3,7 @@ import type OpenAI from 'openai';
 import { APIError } from 'openai';
 import { getOpenRouterClient, TEXT_REQUEST_TIMEOUT_MS } from './openrouterClient.js';
 import { getTextModelSettings } from './textGenerationContext.js';
-import { getTextCompletionTokenLimit, TEXT_MODELS } from '../../shared/textModels.js';
+import { getTextCompletionTokenLimit, supportsTextModelToolChoice } from '../../shared/textModels.js';
 import { buildTextUsageEvent, getTextResponseError, TextCostUnavailableError, type RouterCompletion, type TextUsageEvent } from './openrouter.js';
 
 export interface StoryAgentModelOptions {
@@ -17,7 +17,7 @@ export interface StoryAgentModelOptions {
 // OpenRouter settings, exact cost records, and opaque reasoning on tool continuations.
 export function createOpenRouterAgentModel(options: StoryAgentModelOptions = {}): Model {
   const settings = getTextModelSettings();
-  const supportsToolChoice = TEXT_MODELS.find(model => model.id === settings.textModel)?.supportsToolChoice !== false;
+  const supportsToolChoice = supportsTextModelToolChoice(settings.textModel);
   const reasoningByCall = new Map<string, unknown[]>();
   const retryableErrors = new WeakSet<Error>();
   let previousInput: unknown;

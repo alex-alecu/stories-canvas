@@ -77,7 +77,7 @@ test('successful images are saved directly and remain references for later pages
     return Response.json({ id: `image-${requests.length}`, data: [{ b64_json: png.toString('base64') }], usage: { cost: 0.01 } });
   });
   const costs: unknown[] = [];
-  await withImageModel(parseImageModel('black-forest-labs/flux.2-klein-4b'), () =>
+  await withImageModel(parseImageModel('black-forest-labs/flux.2-klein-4b', true), () =>
     generateAllSceneImages(storyId, pages, [], new Map(), undefined, undefined, undefined, undefined, false,
       (_page, usage) => { costs.push(usage.usageDetails.providerCostUsd); }));
   assert.equal(requests.length, 2);

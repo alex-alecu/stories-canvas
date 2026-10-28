@@ -8,6 +8,8 @@ let clientKey: string | undefined;
 // A full story with high thinking can take more than five minutes.
 export const TEXT_REQUEST_TIMEOUT_MS = 15 * 60 * 1000;
 const COST_LOOKUP_RETRY_DELAYS_MS = [500, 1_000, 2_000, 4_000] as const;
+// Live speech records can take more than one minute to appear in /generation.
+const SPEECH_COST_LOOKUP_RETRY_DELAYS_MS = [500, 1_000, 2_000, 4_000, 8_000, 16_000, 30_000, 30_000, 30_000] as const;
 
 export function getOpenRouterClient(): OpenAI {
   const apiKey = process.env.OPENROUTER_API_KEY?.trim() || config.openrouterApiKey;
@@ -31,17 +33,24 @@ function isNotReadyCostLookupError(error: unknown): boolean {
   return typeof error === 'object' && error !== null && 'status' in error && error.status === 404;
 }
 
-function waitForCostLookupRetry(delayMs: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, delayMs));
+
+function waitForCostLookupRetry(delayMs: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const abort = () => { clearTimeout(timer); reject(signal?.reason); };
+    const timer = setTimeout(() => { signal?.removeEventListener('abort', abort); resolve(); }, delayMs);
+    if (signal?.aborted) abort();
+    else signal?.addEventListener('abort', abort, { once: true });
+  });
 }
 
-export async function resolveOpenRouterCost(cost: unknown, responseId: string | undefined, api: Pick<OpenAI, 'get'>): Promise<number | null> {
+export async function resolveOpenRouterCost(cost: unknown, responseId: string | undefined, api: Pick<OpenAI, 'get'>, signal?: AbortSignal): Promise<number | null> {
   if (validCost(cost) || !responseId) return validCost(cost) ? cost : null;
 
-  for (let attempt = 0; attempt <= COST_LOOKUP_RETRY_DELAYS_MS.length; attempt++) {
+  const delays = responseId.startsWith('gen-tts-') ? SPEECH_COST_LOOKUP_RETRY_DELAYS_MS : COST_LOOKUP_RETRY_DELAYS_MS;
+  for (let attempt = 0; attempt <= delays.length; attempt++) {
     try {
       const result = await api.get<{ data: { total_cost?: number } }>('/generation', {
-        query: { id: responseId }, timeout: 15_000, maxRetries: 2,
+        query: { id: responseId }, timeout: 15_000, maxRetries: 2, signal,
       });
       cost = result.data.total_cost;
       if (validCost(cost)) return cost;
@@ -49,8 +58,11 @@ export async function resolveOpenRouterCost(cost: unknown, responseId: string | 
       if (!isNotReadyCostLookupError(error)) return null;
     }
 
-    const delayMs = COST_LOOKUP_RETRY_DELAYS_MS[attempt];
-    if (delayMs !== undefined) await waitForCostLookupRetry(delayMs);
+    const delayMs = delays[attempt];
+    if (delayMs !== undefined) {
+      try { await waitForCostLookupRetry(delayMs, signal); }
+      catch { return null; }
+    }
   }
 
   return null;

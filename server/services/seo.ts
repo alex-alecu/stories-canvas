@@ -194,7 +194,7 @@ function storyImage(story: StoryMeta): string {
   );
 }
 
-function isPublicCompletedStory(story: StoryMeta | null): story is StoryMeta {
+function isPublicCompletedStory(story: StoryMeta | null): story is StoryMeta & { scenario: NonNullable<StoryMeta['scenario']> } {
   return !!story && story.isPublic === true && story.status === 'completed' && !!story.scenario;
 }
 

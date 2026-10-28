@@ -84,9 +84,14 @@ export function getObfuscatedEmailLabel(): string {
   return `${local}${legalContactEmail.atLabel}${domain}`;
 }
 
+function getBrowserWindow(): { location: { origin: string } } | undefined {
+  return (globalThis as { window?: { location: { origin: string } } }).window;
+}
+
 function getConfiguredWebsite(): string {
-  if (typeof window !== 'undefined') {
-    return window.location.origin;
+  const browserWindow = getBrowserWindow();
+  if (browserWindow) {
+    return browserWindow.location.origin;
   }
   const env = (globalThis as unknown as { process?: { env?: Record<string, string | undefined> } }).process?.env;
   return env?.APP_BASE_URL || env?.PUBLIC_APP_URL || legalCompany.website;
@@ -95,7 +100,7 @@ function getConfiguredWebsite(): string {
 function getConfiguredLegalLanguage(): LegalProfileKey {
   const env = (import.meta as unknown as { env?: Record<string, string | undefined> }).env;
   const processEnv = (globalThis as unknown as { process?: { env?: Record<string, string | undefined> } }).process?.env;
-  const language = typeof window === 'undefined'
+  const language = !getBrowserWindow()
     ? processEnv?.APP_DEFAULT_LANGUAGE
     : env?.VITE_APP_DEFAULT_LANGUAGE || env?.VITE_DEFAULT_LANGUAGE;
   return language === 'en' ? 'en' : 'ro';

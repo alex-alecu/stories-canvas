@@ -6,6 +6,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
+import { normalizeVoiceKey } from '../../shared/types.js';
 import type { StoryBlockAlertParams } from '../services/slackAlerts.js';
 
 import {
@@ -110,7 +111,7 @@ async function createStoriesHarness(dataDir: string, configOverrides: Record<str
   }
   app.use('/api/stories', storiesModule.default);
 
-  const server = app.listen(0);
+  const server = app.listen(0, '127.0.0.1');
   await once(server, 'listening');
   const address = server.address();
 
@@ -127,10 +128,11 @@ async function createStoriesHarness(dataDir: string, configOverrides: Record<str
         server.close((error) => error ? reject(error) : resolve());
       });
       generationRegistry.abortAllTrackedGenerations();
-      await waitFor(
+      const activeGenerationIds = await waitFor(
         async () => generationRegistry.listTrackedGenerationIds(),
-        activeGenerationIds => activeGenerationIds.length === 0,
-      ).catch(() => {});
+        ids => ids.length === 0,
+      );
+      assert.deepEqual(activeGenerationIds, [], 'Story test cleanup timed out with active generations');
     },
     baseUrl: `http://127.0.0.1:${address.port}`,
   };
@@ -226,7 +228,7 @@ test('saved audio choices control reload warnings and asset retries', async (t) 
       const audioFailure = 'Some narration pages could not be generated';
       const imageFailure = '1 illustrations could not be generated because the image provider blocked or rejected them. Open Story Tools to retry those pages.';
       await writeStoryMeta(dataDir, makeStoryMeta({
-        id: storyId, status: 'completed', voice: 'jora', storyMode: 'pro_audio',
+        id: storyId, status: 'completed', voice: 'grandpa', storyMode: 'pro_audio',
         generationInputs: makeAudioInputs(entry.audioEnabled),
         progressMessage: entry.failedImage ? `${imageFailure} ${audioFailure}` : audioFailure,
         scenario: makeScenario([makePage({ status: entry.failedImage ? 'failed' : 'completed' })]),
@@ -292,7 +294,7 @@ test('POST /api/stories stores canonical narrator keys unchanged', async (t) => 
     story => story.voice === 'corina',
   );
 
-  assert.equal(savedStory.voice, 'corina');
+  assert.equal(savedStory.voice, 'mom');
   assert.equal(savedStory.storyMode, 'pro_audio');
   assert.equal(savedStory.creditCost, 0);
 });
@@ -332,7 +334,7 @@ test('POST /api/stories normalizes legacy narrator keys before persistence', asy
     story => story.voice === 'jora',
   );
 
-  assert.equal(savedStory.voice, 'jora');
+  assert.equal(savedStory.voice, 'grandpa');
   assert.equal(savedStory.storyMode, 'pro_audio');
   assert.equal(savedStory.creditCost, 0);
 });
@@ -381,7 +383,7 @@ test('POST /api/stories stores no fixed story charge', async (t) => {
 
     assert.equal(savedStory.storyMode, scenarioCase.storyMode);
     assert.equal(savedStory.creditCost, scenarioCase.creditCost);
-    assert.equal(savedStory.voice, scenarioCase.voice);
+    assert.equal(savedStory.voice, scenarioCase.voice ? normalizeVoiceKey(scenarioCase.voice) : undefined);
   }
 });
 
@@ -585,7 +587,7 @@ test('POST /api/stories persists generation inputs and usage totals for filesyst
       age: 5,
       style: 'watercolor',
       language: 'ro',
-      imageModel: 'bytedance-seed/seedream-5-0-pro',
+      imageModel: 'openai/gpt-image-2.5-sunburst',
     }),
   });
 
@@ -601,12 +603,12 @@ test('POST /api/stories persists generation inputs and usage totals for filesyst
   assert.equal(savedStory.generationInputs?.age, 5);
   assert.equal(savedStory.generationInputs?.artStyle, 'watercolor');
   assert.equal(savedStory.generationInputs?.storyMode, 'pro_audio');
-  assert.equal(savedStory.generationInputs?.voice, 'corina');
+  assert.equal(savedStory.generationInputs?.voice, 'mom');
   assert.equal(savedStory.generationInputs?.audioEnabled, true);
   assert.equal(savedStory.generationInputs?.proModel, true);
-  assert.equal(savedStory.generationInputs?.imageModel, 'bytedance-seed/seedream-5-0-pro');
+  assert.equal(savedStory.generationInputs?.imageModel, 'openai/gpt-image-2.5-sunburst');
   assert.equal(savedStory.generationInputs?.imageModelPro, undefined);
-  assert.equal(generatedImageModel, 'bytedance-seed/seedream-5-0-pro');
+  assert.equal(generatedImageModel, 'openai/gpt-image-2.5-sunburst');
   assert.equal(savedStory.generationInputs?.retellingMode, 'faithful_retelling');
   assert.equal(savedStory.generationInputs?.sourceTitle, 'Greuceanu');
   assert.equal(savedStory.generationInputs?.sourceProvider, 'wikisource');
@@ -882,9 +884,9 @@ test('POST /api/stories rejects Pro + Audio when narration is unavailable', asyn
   });
 
   t.mock.method(harness.storiesModule.audioOps, 'isAudioConfigured', () => false);
-  let slackAlert: Record<string, unknown> | null = null;
-  t.mock.method(harness.storiesModule.storySlackOps, 'sendStoryBlockAlert', async (params) => {
-    slackAlert = params as Record<string, unknown>;
+  const slackAlerts: StoryBlockAlertParams[] = [];
+  t.mock.method(harness.storiesModule.storySlackOps, 'sendStoryBlockAlert', async (params: StoryBlockAlertParams) => {
+    slackAlerts.push(params);
   });
 
   const response = await fetch(`${harness.baseUrl}/api/stories`, {
@@ -900,7 +902,7 @@ test('POST /api/stories rejects Pro + Audio when narration is unavailable', asyn
   assert.equal(response.status, 503);
   const body = await response.json() as { error: string };
   assert.equal(body.error, 'Audio generation service is not configured');
-  await waitFor(async () => slackAlert, value => value !== null);
+  const slackAlert = await waitFor(async () => slackAlerts[0], value => value !== undefined);
   assert.equal(slackAlert?.blockType, 'service_unavailable');
   assert.equal(slackAlert?.action, 'story_create');
 });
@@ -917,7 +919,7 @@ test('POST /api/stories sends Slack alert when credits are insufficient', async 
   });
 
   const { InsufficientCreditsError } = await import('../services/billingStorage.js');
-  let slackAlert: Record<string, unknown> | null = null;
+  const slackAlerts: StoryBlockAlertParams[] = [];
   let deletedStoryId: string | undefined;
 
   t.mock.method(harness.storiesModule.storageOps, 'createStory', async () => {});
@@ -929,8 +931,8 @@ test('POST /api/stories sends Slack alert when credits are insufficient', async 
     throw new InsufficientCreditsError();
   });
   t.mock.method(harness.storiesModule.billingOps, 'getUserCreditBalance', async () => ({ availableCredits: 9.99 }));
-  t.mock.method(harness.storiesModule.storySlackOps, 'sendStoryBlockAlert', async (params) => {
-    slackAlert = params as Record<string, unknown>;
+  t.mock.method(harness.storiesModule.storySlackOps, 'sendStoryBlockAlert', async (params: StoryBlockAlertParams) => {
+    slackAlerts.push(params);
   });
 
   const response = await fetch(`${harness.baseUrl}/api/stories`, {
@@ -948,7 +950,7 @@ test('POST /api/stories sends Slack alert when credits are insufficient', async 
   assert.equal(body.requiredCredits, 10);
   assert.equal(body.availableCredits, 9.99);
   assert.equal(typeof deletedStoryId, 'string');
-  await waitFor(async () => slackAlert, value => value !== null);
+  const slackAlert = await waitFor(async () => slackAlerts[0], value => value !== undefined);
   assert.equal(slackAlert?.blockType, 'insufficient_credits');
   assert.equal(slackAlert?.action, 'story_create');
   assert.equal(slackAlert?.userEmail, 'create-no-credits@example.test');
@@ -975,7 +977,7 @@ test('POST /api/stories/:id/generate-audio enables narration after a saved audio
   t.mock.method(harness.storiesModule.storageOps, 'getStory', async () => makeStoryMeta({
     id: 'story-audio-enabled',
     prompt: 'A story ready for narration.',
-    voice: 'jora',
+    voice: 'grandpa',
     generationInputs: makeAudioInputs(false),
     status: 'completed',
     createdAt: '2026-03-29T00:00:00.000Z',
@@ -1018,12 +1020,12 @@ test('POST /api/stories/:id/generate-audio enables narration after a saved audio
     availableCredits: 25,
   });
 
-  await waitFor(async () => generatedVoice, value => value === 'serban');
+  await waitFor(async () => generatedVoice, value => value === 'dad');
   assert.equal(chargedReason, undefined);
-  assert.equal(storedVoice, 'serban');
+  assert.equal(storedVoice, 'dad');
   assert.equal(storedInputs?.audioEnabled, true);
-  assert.equal(storedInputs?.audioModel, 'eleven_multilingual_v2');
-  assert.equal(generatedVoice, 'serban');
+  assert.equal(storedInputs?.audioModel, 'eleven_v4');
+  assert.equal(generatedVoice, 'dad');
 });
 
 test('POST /api/stories/:id/generate-audio returns 402 when credits are insufficient', async (t) => {
@@ -1040,7 +1042,7 @@ test('POST /api/stories/:id/generate-audio returns 402 when credits are insuffic
   const { InsufficientCreditsError } = await import('../services/billingStorage.js');
   let storedVoice = false;
   let releasedSlot = false;
-  let slackAlert: Record<string, unknown> | null = null;
+  const slackAlerts: StoryBlockAlertParams[] = [];
 
   t.mock.method(harness.storiesModule.storageOps, 'getStory', async () => makeStoryMeta({
     id: 'story-audio-insufficient',
@@ -1063,8 +1065,8 @@ test('POST /api/stories/:id/generate-audio returns 402 when credits are insuffic
     return 1;
   });
   t.mock.method(harness.storiesModule.audioOps, 'isAudioConfigured', () => true);
-  t.mock.method(harness.storiesModule.storySlackOps, 'sendStoryBlockAlert', async (params) => {
-    slackAlert = params as Record<string, unknown>;
+  t.mock.method(harness.storiesModule.storySlackOps, 'sendStoryBlockAlert', async (params: StoryBlockAlertParams) => {
+    slackAlerts.push(params);
   });
 
   const response = await fetch(`${harness.baseUrl}/api/stories/story-audio-insufficient/generate-audio`, {
@@ -1080,7 +1082,7 @@ test('POST /api/stories/:id/generate-audio returns 402 when credits are insuffic
   assert.equal(body.availableCredits, 0);
   assert.equal(storedVoice, false);
   assert.equal(releasedSlot, false);
-  await waitFor(async () => slackAlert, value => value !== null);
+  const slackAlert = await waitFor(async () => slackAlerts[0], value => value !== undefined);
   assert.equal(slackAlert?.blockType, 'insufficient_credits');
   assert.equal(slackAlert?.action, 'story_add_audio');
   assert.equal(slackAlert?.userEmail, 'no-credits@example.test');
@@ -1102,7 +1104,7 @@ test('POST /api/stories/:id/generate-audio returns 429 before charging when gene
 
   const supabaseStorage = await import('../services/supabaseStorage.js');
   let charged = false;
-  let slackAlert: Record<string, unknown> | null = null;
+  const slackAlerts: StoryBlockAlertParams[] = [];
 
   t.mock.method(harness.storiesModule.storageOps, 'getStory', async () => makeStoryMeta({
     id: 'story-audio-slot-limit',
@@ -1120,8 +1122,8 @@ test('POST /api/stories/:id/generate-audio returns 429 before charging when gene
     return { ledger_id: 'unexpected', available_credits: 0 };
   });
   t.mock.method(harness.storiesModule.audioOps, 'isAudioConfigured', () => true);
-  t.mock.method(harness.storiesModule.storySlackOps, 'sendStoryBlockAlert', async (params) => {
-    slackAlert = params as Record<string, unknown>;
+  t.mock.method(harness.storiesModule.storySlackOps, 'sendStoryBlockAlert', async (params: StoryBlockAlertParams) => {
+    slackAlerts.push(params);
   });
 
   const response = await fetch(`${harness.baseUrl}/api/stories/story-audio-slot-limit/generate-audio`, {
@@ -1139,7 +1141,7 @@ test('POST /api/stories/:id/generate-audio returns 429 before charging when gene
     retryAfterSeconds: 60,
   });
   assert.equal(charged, false);
-  await waitFor(async () => slackAlert, value => value !== null);
+  const slackAlert = await waitFor(async () => slackAlerts[0], value => value !== undefined);
   assert.equal(slackAlert?.blockType, 'generation_slot_limit');
   assert.equal(slackAlert?.action, 'story_add_audio');
   assert.equal(slackAlert?.userEmail, 'slot-limit@example.test');
@@ -1241,7 +1243,7 @@ test('POST /api/stories/:id/pages/:pageNumber/regenerate-image reviews feedback 
   const response = await fetch(`${harness.baseUrl}/api/stories/${storyId}/pages/1/regenerate-image/`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ feedback: 'Make the moon brighter.', imageModel: 'black-forest-labs/flux.2-pro' }),
+    body: JSON.stringify({ feedback: 'Make the moon brighter.', imageModel: 'microsoft/mai-image-2.6' }),
   });
 
   assert.equal(response.status, 200);
@@ -1256,8 +1258,8 @@ test('POST /api/stories/:id/pages/:pageNumber/regenerate-image reviews feedback 
   );
   assert.equal(reviewedText, 'Make the moon brighter.');
   assert.match(generatedPrompt, /User feedback for this regeneration: Make the moon brighter\./);
-  assert.equal(generatedImageModel, 'black-forest-labs/flux.2-pro');
-  assert.equal(updated.generationInputs?.imageModel, 'black-forest-labs/flux.2-pro');
+  assert.equal(generatedImageModel, 'microsoft/mai-image-2.6');
+  assert.equal(updated.generationInputs?.imageModel, 'microsoft/mai-image-2.6');
   assert.equal(updated.generationInputs?.proModel, true);
   assert.equal(updated.scenario?.pages[0].status, 'completed');
 });
@@ -1276,7 +1278,7 @@ test('page image changes preserve the audio choice for reload and retry', async 
         await fs.rm(dataDir, { recursive: true, force: true });
       });
       await writeStoryMeta(dataDir, makeStoryMeta({
-        id: storyId, status: 'completed', voice: 'jora',
+        id: storyId, status: 'completed', voice: 'grandpa',
         ...(entry.audioEnabled ? {} : { storyMode: 'pro_audio', generationInputs: makeAudioInputs(false) }),
         scenario: makeScenario([
           makePage({ pageNumber: 1, audioUrl: '/audio/page-01.mp3' }),
@@ -1301,7 +1303,7 @@ test('page image changes preserve the audio choice for reload and retry', async 
 
       const imageResponse = await fetch(`${harness.baseUrl}/api/stories/${storyId}/pages/2/regenerate-image`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ feedback: 'Make the moon brighter.', imageModel: 'black-forest-labs/flux.2-pro' }),
+        body: JSON.stringify({ feedback: 'Make the moon brighter.', imageModel: 'microsoft/mai-image-2.6' }),
       });
       assert.equal(imageResponse.status, 200);
       await waitFor(async () => harness.generationRegistry.isGenerationActive(storyId), active => !active);
@@ -1310,9 +1312,9 @@ test('page image changes preserve the audio choice for reload and retry', async 
       assert.equal(reloadResponse.status, 200);
       const reloaded = await reloadResponse.json() as StoryMeta;
       assert.equal(reloaded.scenario?.pages[1].imageRevision, 1);
-      assert.equal(reloaded.generationInputs?.imageModel, 'black-forest-labs/flux.2-pro');
+      assert.equal(reloaded.generationInputs?.imageModel, 'microsoft/mai-image-2.6');
       assert.equal(reloaded.generationInputs?.audioEnabled, entry.audioEnabled);
-      assert.equal(reloaded.voice, 'jora');
+      assert.equal(reloaded.voice, 'grandpa');
 
       const retryResponse = await fetch(`${harness.baseUrl}/api/stories/${storyId}/retry`, { method: 'POST' });
       assert.equal(retryResponse.status, 200);
@@ -1372,7 +1374,7 @@ test('failed page image regeneration preserves the selected model for retry', as
   const response = await fetch(`${harness.baseUrl}/api/stories/${storyId}/pages/1/regenerate-image`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ feedback: 'Make the moon brighter.', imageModel: 'black-forest-labs/flux.2-pro' }),
+    body: JSON.stringify({ feedback: 'Make the moon brighter.', imageModel: 'microsoft/mai-image-2.6' }),
   });
 
   assert.equal(response.status, 200);
@@ -1381,7 +1383,7 @@ test('failed page image regeneration preserves the selected model for retry', as
       story: await readStoryMeta(dataDir, storyId),
       active: harness.generationRegistry.isGenerationActive(storyId),
     }),
-    ({ story, active }) => story.generationInputs?.imageModel === 'black-forest-labs/flux.2-pro'
+    ({ story, active }) => story.generationInputs?.imageModel === 'microsoft/mai-image-2.6'
       && story.status === 'completed'
       && !active,
   );
@@ -1394,8 +1396,8 @@ test('failed page image regeneration preserves the selected model for retry', as
   });
   assert.equal(retryResponse.status, 200);
   assert.equal(
-    await waitFor(async () => retryModel, model => model === 'black-forest-labs/flux.2-pro'),
-    'black-forest-labs/flux.2-pro',
+    await waitFor(async () => retryModel, model => model === 'microsoft/mai-image-2.6'),
+    'microsoft/mai-image-2.6',
   );
 });
 
@@ -1450,7 +1452,7 @@ test('PATCH /api/stories/:id/pages/:pageNumber/script-audio reviews text and upd
   );
   assert.equal(reviewedText, 'The dragon waves softly at the stars.');
   assert.equal(generatedText, 'The dragon waves softly at the stars.');
-  assert.equal(generatedVoice, 'jora');
+  assert.equal(generatedVoice, 'grandpa');
   assert.equal(updated.scenario?.pages[0].text, 'The dragon waves softly at the stars.');
   assert.equal(updated.scenario?.pages[0].audioUrl, '/new-audio.mp3');
 });
@@ -1482,7 +1484,7 @@ test('PATCH page audio retries the same saved model and voice after a failed gen
 
   const response = await fetch(`${harness.baseUrl}/api/stories/${storyId}/pages/1/script-audio`, {
     method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ text: page.text, audioModel: 'hexgrad/kokoro-82m', audioVoice: 'bf_emma' }),
+    body: JSON.stringify({ text: page.text, audioModel: 'minimax/speech-2.8-hd', audioVoice: 'English_Wiselady' }),
   });
   assert.equal(response.status, 200);
   const failed = await waitFor(
@@ -1492,24 +1494,24 @@ test('PATCH page audio retries the same saved model and voice after a failed gen
     }),
     ({ story, active }) => story.status === 'completed'
       && story.scenario?.pages[0]?.audioUrl === '/old-audio.mp3'
-      && story.generationInputs?.audioModel === 'hexgrad/kokoro-82m'
-      && story.generationInputs?.audioVoice === 'bf_emma'
+      && story.generationInputs?.audioModel === 'minimax/speech-2.8-hd'
+      && story.generationInputs?.audioVoice === 'English_Wiselady'
       && !active,
   );
-  assert.equal(failed.story.generationInputs?.audioModel, 'hexgrad/kokoro-82m');
+  assert.equal(failed.story.generationInputs?.audioModel, 'minimax/speech-2.8-hd');
 
   const retryResponse = await fetch(`${harness.baseUrl}/api/stories/${storyId}/pages/1/script-audio`, {
     method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ text: page.text, audioModel: 'hexgrad/kokoro-82m', audioVoice: 'bf_emma' }),
+    body: JSON.stringify({ text: page.text, audioModel: 'minimax/speech-2.8-hd', audioVoice: 'English_Wiselady' }),
   });
   assert.equal(retryResponse.status, 200);
   const saved = await waitFor(
     () => readStoryMeta(dataDir, storyId),
     story => story.scenario?.pages[0]?.audioUrl === '/new-audio.mp3',
   );
-  assert.deepEqual(generatedSettings, { audioModel: 'hexgrad/kokoro-82m', audioVoice: 'bf_emma' });
-  assert.equal(saved.generationInputs?.audioModel, 'hexgrad/kokoro-82m');
-  assert.equal(saved.generationInputs?.audioVoice, 'bf_emma');
+  assert.deepEqual(generatedSettings, { audioModel: 'minimax/speech-2.8-hd', audioVoice: 'English_Wiselady' });
+  assert.equal(saved.generationInputs?.audioModel, 'minimax/speech-2.8-hd');
+  assert.equal(saved.generationInputs?.audioVoice, 'English_Wiselady');
 });
 
 test('model settings read failure stops regeneration before a second story read', async (t) => {
@@ -1584,7 +1586,7 @@ test('POST /api/stories/:id/pages/:pageNumber/regenerate-image blocks unsafe fee
   });
 
   let generated = false;
-  let slackAlert: Record<string, unknown> | null = null;
+  const slackAlerts: StoryBlockAlertParams[] = [];
   t.mock.method(harness.storiesModule.pageTextReviewOps, 'reviewPageText', async () => ({
     allowed: false,
     reasonCode: 'profanity',
@@ -1594,8 +1596,8 @@ test('POST /api/stories/:id/pages/:pageNumber/regenerate-image blocks unsafe fee
     generated = true;
     return 1;
   });
-  t.mock.method(harness.storiesModule.storySlackOps, 'sendStoryBlockAlert', async (params) => {
-    slackAlert = params as Record<string, unknown>;
+  t.mock.method(harness.storiesModule.storySlackOps, 'sendStoryBlockAlert', async (params: StoryBlockAlertParams) => {
+    slackAlerts.push(params);
   });
 
   const response = await fetch(`${harness.baseUrl}/api/stories/story-page-image-safety/pages/1/regenerate-image`, {
@@ -1609,7 +1611,7 @@ test('POST /api/stories/:id/pages/:pageNumber/regenerate-image blocks unsafe fee
   assert.equal(body.reasonCode, 'profanity');
   assert.equal(body.error, 'Please keep feedback child-friendly.');
   assert.equal(generated, false);
-  await waitFor(async () => slackAlert, value => value !== null);
+  const slackAlert = await waitFor(async () => slackAlerts[0], value => value !== undefined);
   assert.equal(slackAlert?.blockType, 'safety_block');
   assert.equal(slackAlert?.action, 'story_regenerate_image');
   assert.equal(slackAlert?.reasonCode, 'profanity');
@@ -1631,13 +1633,13 @@ test('PATCH /api/stories/:id/pages/:pageNumber/script-audio returns 402 before a
 
   const { InsufficientCreditsError } = await import('../services/billingStorage.js');
   let generated = false;
-  let slackAlert: Record<string, unknown> | null = null;
+  const slackAlerts: StoryBlockAlertParams[] = [];
   t.mock.method(harness.storiesModule.storageOps, 'getStory', async () => makeStoryMeta({
     id: 'story-page-audio-insufficient',
     prompt: 'A story with narration.',
     status: 'completed',
     userId: 'user-page-audio',
-    voice: 'jora',
+    voice: 'grandpa',
     storyMode: 'pro_audio',
     scenario: makeScenario([makePage({ audioUrl: '/old-audio.mp3' })]),
   }));
@@ -1651,8 +1653,8 @@ test('PATCH /api/stories/:id/pages/:pageNumber/script-audio returns 402 before a
     generated = true;
     return Buffer.from('audio');
   });
-  t.mock.method(harness.storiesModule.storySlackOps, 'sendStoryBlockAlert', async (params) => {
-    slackAlert = params as Record<string, unknown>;
+  t.mock.method(harness.storiesModule.storySlackOps, 'sendStoryBlockAlert', async (params: StoryBlockAlertParams) => {
+    slackAlerts.push(params);
   });
 
   const response = await fetch(`${harness.baseUrl}/api/stories/story-page-audio-insufficient/pages/1/script-audio`, {
@@ -1666,7 +1668,7 @@ test('PATCH /api/stories/:id/pages/:pageNumber/script-audio returns 402 before a
   assert.equal(body.requiredCredits, 0.000001);
   assert.equal(body.availableCredits, 0);
   assert.equal(generated, false);
-  await waitFor(async () => slackAlert, value => value !== null);
+  const slackAlert = await waitFor(async () => slackAlerts[0], value => value !== undefined);
   assert.equal(slackAlert?.blockType, 'insufficient_credits');
   assert.equal(slackAlert?.action, 'story_regenerate_audio');
   assert.equal(slackAlert?.userEmail, 'page-audio@example.test');
@@ -1821,7 +1823,7 @@ test('POST /api/stories/:id/retry restarts a failed script with saved settings a
   });
   await writeStoryMeta(dataDir, makeStoryMeta({
     id: storyId, status: 'failed', scenario: undefined,
-    prompt: 'Old display prompt', language: 'en', storyMode: 'pro_audio', voice: 'jora',
+    prompt: 'Old display prompt', language: 'en', storyMode: 'pro_audio', voice: 'grandpa',
     generationInputs: {
       prompt: 'Creează povestea Sarea în bucate.', language: 'ro', age: 5, artStyle: 'storybook',
       storyMode: 'pro_audio', audioEnabled: false, proModel: false,
@@ -1833,7 +1835,7 @@ test('POST /api/stories/:id/retry restarts a failed script with saved settings a
   }));
   let draftCalls = 0;
   t.mock.method(harness.storiesModule.scenarioOps, 'generateScenarioWithMetadata', async (
-    prompt, language, age, style, _progress, usage,
+    ...[prompt, language, age, style, _progress, usage]: Parameters<typeof harness.storiesModule.scenarioOps.generateScenarioWithMetadata>
   ) => {
     draftCalls++;
     assert.equal(prompt, 'Creează povestea Sarea în bucate.');
@@ -1845,7 +1847,7 @@ test('POST /api/stories/:id/retry restarts a failed script with saved settings a
     await draftReady;
     await usage?.onDraftUsage?.({ model: 'openai/gpt-6-astra', status: 'succeeded',
       inputTokens: 100, outputTokens: 50, totalTokens: 150,
-      usageDetails: { providerCostUsd: 0.02, thinkingLevel: 'high' }, usageAvailable: true });
+      usageDetails: { providerCostUsd: 0.02, thinkingLevel: 'high' } });
     return makeGeneratedScenarioResult(makeScenario([makePage()]));
   });
   t.mock.method(harness.storiesModule.illustrationOps, 'generateAllCharacterSheets', async () => []);
@@ -1856,7 +1858,7 @@ test('POST /api/stories/:id/retry restarts a failed script with saved settings a
 
   const response = await fetch(`${harness.baseUrl}/api/stories/${storyId}/retry`, { method: 'POST' });
   assert.equal(response.status, 200);
-  assert.equal((await response.json()).status, 'generating_scenario');
+  assert.equal((await response.json() as { status: string }).status, 'generating_scenario');
   assert.equal((await readStoryMeta(dataDir, storyId)).status, 'generating_scenario');
   await waitFor(async () => draftCalls, count => count === 1);
   const duplicate = await fetch(`${harness.baseUrl}/api/stories/${storyId}/retry`, { method: 'POST' });
@@ -1949,7 +1951,7 @@ test('POST /api/stories/:id/retry resolves stored legacy voice keys for missing 
     value => value === 'jora',
   );
 
-  assert.equal(resolvedVoice, 'jora');
+  assert.equal(resolvedVoice, 'grandpa');
 });
 
 test('POST /api/stories/:id/view increments filesystem view counts', async (t) => {
@@ -2834,12 +2836,14 @@ test('duplicate continuation requests are rejected while the first run is active
     return 1;
   });
 
-  const first = await fetch(`${harness.baseUrl}/api/stories/${storyId}/retry`, { method: 'POST' });
-  assert.equal(first.status, 200);
-  const duplicate = await fetch(`${harness.baseUrl}/api/stories/${storyId}/retry`, { method: 'POST' });
-  assert.equal(duplicate.status, 409);
-
-  releaseGeneration();
+  try {
+    const first = await fetch(`${harness.baseUrl}/api/stories/${storyId}/retry`, { method: 'POST' });
+    assert.equal(first.status, 200);
+    const duplicate = await fetch(`${harness.baseUrl}/api/stories/${storyId}/retry`, { method: 'POST' });
+    assert.equal(duplicate.status, 409);
+  } finally {
+    releaseGeneration();
+  }
   await waitFor(async () => harness.generationRegistry.isGenerationActive(storyId), active => !active);
 });
 

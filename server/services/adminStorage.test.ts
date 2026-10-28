@@ -17,7 +17,7 @@ function makeStory(overrides: Partial<StoryMeta> = {}): StoryMeta {
       age: 5,
       artStyle: 'watercolor',
       storyMode: 'pro_audio',
-      voice: 'corina',
+      voice: 'mom',
       audioEnabled: true,
       proModel: true,
       scenarioModel: 'gpt-5.6-sol',
@@ -87,6 +87,8 @@ test('getAdminUserDetail includes story cost summaries and aggregate metrics', a
       purchases: [
         {
           id: 'purchase-1',
+          stripeCheckoutSessionId: 'cs_purchase_1',
+          updatedAt: '2026-04-02T00:00:00.000Z',
           offerSlug: 'pack_5',
           amountMinor: 3900,
           currency: 'ron' as const,
@@ -102,6 +104,8 @@ test('getAdminUserDetail includes story cost summaries and aggregate metrics', a
       return [
       {
         id: 'purchase-1',
+        stripeCheckoutSessionId: 'cs_purchase_1',
+        updatedAt: '2026-04-02T00:00:00.000Z',
         offerSlug: 'pack_5',
         amountMinor: 3900,
         currency: 'ron' as const,
@@ -111,6 +115,8 @@ test('getAdminUserDetail includes story cost summaries and aggregate metrics', a
       },
       {
         id: 'purchase-2',
+        stripeCheckoutSessionId: 'cs_purchase_2',
+        updatedAt: '2026-04-03T00:00:00.000Z',
         offerSlug: 'pack_12',
         amountMinor: 7900,
         currency: 'ron' as const,
