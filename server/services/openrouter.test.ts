@@ -50,18 +50,18 @@ function fixture(overrides = {}) {
 test('model settings stay separate across concurrent stories; cost comes from the provider', async () => {
   const api = fixture();
   const usage: TextUsageEvent[] = [];
-  await Promise.all(['openai/gpt-6-astra', 'anthropic/claude-fable-5.1'].map(textModel =>
-    withTextModelSettings(parseTextModelSettings(textModel, 'high'), () => generateJSON('Story', 'Write it.', schema,
+  await Promise.all(['openai/gpt-6-astra', 'anthropic/claude-opus-5.5'].map(textModel =>
+    withTextModelSettings(parseTextModelSettings(textModel, undefined), () => generateJSON('Story', 'Write it.', schema,
       { client: api.client, onUsage: event => { usage.push(event); } }))));
-  assert.deepEqual(api.requests.map(item => item.model), ['openai/gpt-6-astra', 'anthropic/claude-fable-5.1']);
-  assert.deepEqual(api.requests[0].reasoning, { effort: 'high' });
+  assert.deepEqual(api.requests.map(item => item.model), ['openai/gpt-6-astra', 'anthropic/claude-opus-5.5']);
+  assert.deepEqual(api.requests[0].reasoning, { effort: 'xhigh' });
   assert.equal(api.requests[0].response_format.json_schema.schema.type, 'object');
   assert.match(api.requests[0].messages[0].content, /exact field names and types/);
   assert.match(api.requests[0].messages[0].content, /"required":\["ok"\]/);
   assert.equal(usage[0].usageDetails.providerCostUsd, 0.012345);
   assert.equal(api.lookups, 0);
   assert.ok(TEXT_MODELS.length <= 10);
-  assert.deepEqual(TEXT_MODELS.map(textModelPriceLevel), ['$', '$$$', '$$$', '$$', '$', '$']);
+  assert.deepEqual(TEXT_MODELS.map(textModelPriceLevel), ['$$', '$$$', '$$']);
   assert.throws(() => parseTextModelSettings('unknown/model', 'low'));
   assert.throws(() => parseTextModelSettings(TEXT_MODELS[0].id, 'ultra'));
   assert.throws(() => parseTextModelSettings('openai/gpt-5.6-sol', 'medium'));

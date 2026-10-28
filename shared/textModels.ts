@@ -1,4 +1,4 @@
-export type ThinkingLevel = 'low' | 'medium' | 'high';
+export type ThinkingLevel = 'low' | 'medium' | 'high' | 'xhigh';
 
 export interface TextModelOption {
   id: string;
@@ -13,41 +13,32 @@ export interface TextModelOption {
   };
 }
 
-// Curated from OpenRouter's model catalog on 2026-09-06. All support images,
-// tool calls, and structured output.
+// Checked against OpenRouter's model catalog on 2026-10-28.
+// All selectable models support xhigh reasoning, tools, and structured output.
 export const TEXT_MODELS: readonly TextModelOption[] = [
-  { id: 'google/gemini-3.8-flash', name: 'Gemini 3.8 Flash', thinkingLevels: ['low', 'medium', 'high'],
-    maxCompletionTokens: 65_536,
-    pricing: { inputUsdPerMillion: 0.75, outputUsdPerMillion: 3.75 } },
-  { id: 'openai/gpt-6-astra', name: 'GPT-6 Astra', thinkingLevels: ['low', 'medium', 'high'],
+  { id: 'anthropic/claude-opus-5.5', name: 'Claude Opus 5.5', thinkingLevels: ['low', 'medium', 'high', 'xhigh'],
+    maxCompletionTokens: 128_000,
+    pricing: { inputUsdPerMillion: 4, outputUsdPerMillion: 20 } },
+  { id: 'openai/gpt-6-astra', name: 'GPT-6 Astra', thinkingLevels: ['low', 'medium', 'high', 'xhigh'],
     maxCompletionTokens: 128_000,
     pricing: { inputUsdPerMillion: 10, outputUsdPerMillion: 50,
       longContext: { aboveInputTokens: 272_000, inputUsdPerMillion: 20, outputUsdPerMillion: 75 } } },
-  { id: 'anthropic/claude-fable-5.1', name: 'Claude Fable 5.1', thinkingLevels: ['low', 'medium', 'high'], supportsToolChoice: false,
+  { id: 'openai/gpt-6.1-sol', name: 'GPT-6.1 Sol', thinkingLevels: ['low', 'medium', 'high', 'xhigh'],
     maxCompletionTokens: 128_000,
-    pricing: { inputUsdPerMillion: 10, outputUsdPerMillion: 50 } },
-  { id: 'anthropic/claude-opus-5', name: 'Claude Opus 5', thinkingLevels: ['low', 'medium', 'high'],
-    maxCompletionTokens: 128_000,
-    pricing: { inputUsdPerMillion: 5, outputUsdPerMillion: 25 } },
-  { id: 'qwen/qwen3.8-max-0902', name: 'Qwen 3.8 Max', thinkingLevels: ['low', 'medium', 'high'],
-    maxCompletionTokens: 131_072,
-    pricing: { inputUsdPerMillion: 2, outputUsdPerMillion: 6 } },
-  { id: 'x-ai/grok-4.6', name: 'Grok 4.6', thinkingLevels: ['low', 'medium', 'high'],
-    maxCompletionTokens: 450_000,
-    pricing: { inputUsdPerMillion: 2, outputUsdPerMillion: 6,
-      longContext: { aboveInputTokens: 200_000, inputUsdPerMillion: 4, outputUsdPerMillion: 12 } } },
+    pricing: { inputUsdPerMillion: 2, outputUsdPerMillion: 10,
+      longContext: { aboveInputTokens: 272_000, inputUsdPerMillion: 4, outputUsdPerMillion: 15 } } },
 ];
 
 // Display-only snapshot: https://openrouter.ai/api/v1/models. Billing uses response costs.
-export const TEXT_MODEL_PRICES_CHECKED_AT = '2026-09-06';
+export const TEXT_MODEL_PRICES_CHECKED_AT = '2026-10-28';
 export function textModelPriceLevel(model: TextModelOption): '$' | '$$' | '$$$' {
   // Compare the same workload: one million uncached input and one million output tokens.
   const combined = model.pricing.inputUsdPerMillion + model.pricing.outputUsdPerMillion;
   return combined <= 10 ? '$' : combined <= 40 ? '$$' : '$$$';
 }
 
-export const DEFAULT_TEXT_MODEL = 'google/gemini-3.8-flash';
-export const DEFAULT_THINKING_LEVEL: ThinkingLevel = 'medium';
+export const DEFAULT_TEXT_MODEL = 'anthropic/claude-opus-5.5';
+export const DEFAULT_THINKING_LEVEL: ThinkingLevel = 'xhigh';
 export const MINIMUM_STORY_BALANCE_USD = 10;
 
 export interface TextModelSettings {
@@ -55,13 +46,24 @@ export interface TextModelSettings {
   thinkingLevel?: ThinkingLevel;
 }
 
-const STORED_TEXT_MODELS: readonly Pick<TextModelOption, 'id' | 'thinkingLevels' | 'maxCompletionTokens'>[] = [
+const STORED_TEXT_MODELS: readonly Pick<TextModelOption, 'id' | 'thinkingLevels' | 'maxCompletionTokens' | 'supportsToolChoice'>[] = [
+  { id: 'google/gemini-3.8-flash', thinkingLevels: ['low', 'medium', 'high'], maxCompletionTokens: 65_536 },
+  { id: 'anthropic/claude-fable-5.1', thinkingLevels: ['low', 'medium', 'high'], maxCompletionTokens: 128_000, supportsToolChoice: false },
+  { id: 'anthropic/claude-opus-5', thinkingLevels: ['low', 'medium', 'high'], maxCompletionTokens: 128_000 },
+  { id: 'qwen/qwen3.8-max-0902', thinkingLevels: ['low', 'medium', 'high'], maxCompletionTokens: 131_072 },
+  { id: 'x-ai/grok-4.6', thinkingLevels: ['low', 'medium', 'high'], maxCompletionTokens: 450_000 },
   { id: 'openai/gpt-5.6-sol', thinkingLevels: ['low', 'medium', 'high'], maxCompletionTokens: 128_000 },
   { id: 'anthropic/claude-sonnet-5', thinkingLevels: ['low', 'medium', 'high'], maxCompletionTokens: 128_000 },
   { id: 'google/gemini-3.1-pro-preview', thinkingLevels: ['low', 'medium', 'high'], maxCompletionTokens: 65_536 },
 ];
 
-// Output limits were checked against OpenRouter's catalog on 2026-09-10.
+// Saved stories retain their model's tool support even when it is no longer selectable.
+export function supportsTextModelToolChoice(model: string): boolean {
+  const option = TEXT_MODELS.find(item => item.id === model) ?? STORED_TEXT_MODELS.find(item => item.id === model);
+  return option?.supportsToolChoice !== false;
+}
+
+// Output limits were checked against OpenRouter's catalog on 2026-10-28.
 // Reasoning and visible output share this per-response allowance.
 export function getTextCompletionTokenLimit(model: string): number {
   const option = TEXT_MODELS.find(item => item.id === model) ?? STORED_TEXT_MODELS.find(item => item.id === model);
@@ -73,7 +75,8 @@ export function parseTextModelSettings(model: unknown, level: unknown, allowStor
   const storedOption = allowStoredModel ? STORED_TEXT_MODELS.find(item => item.id === model) : undefined;
   const option = TEXT_MODELS.find(item => item.id === (model ?? DEFAULT_TEXT_MODEL)) ?? storedOption;
   if (!option) throw new Error('Select a model from the model list.');
-  const thinkingLevel = level ?? (option.thinkingLevels.length ? DEFAULT_THINKING_LEVEL : undefined);
+  const defaultLevel = option.thinkingLevels.includes(DEFAULT_THINKING_LEVEL) ? DEFAULT_THINKING_LEVEL : 'medium';
+  const thinkingLevel = level ?? (option.thinkingLevels.length ? defaultLevel : undefined);
   if (thinkingLevel !== undefined && !option.thinkingLevels.includes(thinkingLevel as ThinkingLevel)) {
     throw new Error('Select a thinking level for this model.');
   }

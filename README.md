@@ -21,9 +21,9 @@ The database stores wallet balances, ledger entries, funding amounts, purchase c
 
 Text generation uses [OpenRouter usage accounting](https://openrouter.ai/docs/use-cases/usage-accounting), [structured output](https://openrouter.ai/docs/guides/features/structured-outputs), and [thinking levels](https://openrouter.ai/docs/guides/best-practices/reasoning-tokens). Tool calls, web search, and image input remain supported.
 
-The six models are defined in `shared/textModels.ts`. The default is Gemini 3.8 Flash. The selected model and thinking level apply to all text steps for a story, including reviews and later edits. Models were checked against the live catalog on 2026-09-06.
+The three models are defined in `shared/textModels.ts`. The default is Claude Opus 5.5 with extra high (`xhigh`) thinking. All three models support low, medium, high, and extra high thinking. The selected model and thinking level apply to all text steps for a story, including reviews and later edits. Models were checked against the live catalog on 2026-10-28.
 
-The model list includes Gemini 3.8 Flash, GPT-6 Astra, Claude Fable 5.1, Claude Opus 5, Qwen 3.8 Max, and Grok 4.6. Price levels and input/output rates appear only inside the open model dropdown, including on touch screens. The display snapshot comes from the [OpenRouter model catalog](https://openrouter.ai/api/v1/models), checked on 2026-09-06. Refresh it when the model list or provider prices change. Price levels compare one million input plus one million output tokens: `$` is up to $10, `$$` is up to $40, and `$$$` is above $40. Long-context rates appear in the price details. These display rates do not set wallet charges; the provider response cost does.
+The model list contains Claude Opus 5.5, GPT-6 Astra, and GPT-6.1 Sol, in that order. Saved stories retain their previous model and supported thinking level. Price levels and input/output rates appear only inside the open model dropdown, including on touch screens. The display snapshot comes from the [OpenRouter model catalog](https://openrouter.ai/api/v1/models), checked on 2026-10-28. Refresh it when the model list or provider prices change. Price levels compare one million input plus one million output tokens: `$` is up to $10, `$$` is up to $40, and `$$$` is above $40. Long-context rates appear in the price details. These display rates do not set wallet charges; the provider response cost does.
 
 Story Tools shows the story's saved text model and thinking level. Older stories use their saved scenario model when available. Missing settings show as "Not recorded".
 
@@ -45,7 +45,7 @@ The writer receives the idea, language, age, and art style. It returns a title, 
 
 The model is limited to a maximum of 3 characters and 20 pages.
 
-To test only text with real provider calls, set `OPENROUTER_API_KEY` in the shell or `.env`, then run `npm run test:text:live`. The command tests four briefs with Gemini Flash, GPT-6 Astra, and Claude Fable. It saves scripts, per-request usage, costs, and a summary under `artifacts/text-smoke/`. It does not call image or audio generation, update user balances, or send alerts. Each case stops after 12 minutes or after recorded costs reach $2. A request already in progress can exceed that cost limit.
+To test only text with real provider calls, set `OPENROUTER_API_KEY` in the shell or `.env`, then run `npm run test:text:live`. The command tests four briefs with Claude Opus 5.5, GPT-6 Astra, and GPT-6.1 Sol at extra high thinking. It saves scripts, per-request usage, costs, and a summary under `artifacts/text-smoke/`. It does not call image or audio generation, update user balances, or send alerts. Each case stops after 12 minutes or after recorded costs reach $2. A request already in progress can exceed that cost limit.
 
 To repeat one case, use `npm run test:text:live -- --case=romanian-retelling --budget=6 --minutes=20`. These options change only the local test limits. The command also saves text request and response bodies for validation checks. It never saves authorization headers.
 
@@ -76,11 +76,11 @@ The text prompt that accompanies these reference images re-describes each charac
 
 Before any image request is sent to a provider, the app also sanitizes the outbound prompt: branded animation-style references are originalized and exact character names are replaced with neutral aliases. This keeps the stored story content unchanged while reducing provider policy blocks.
 
-Images use the [OpenRouter Image API](https://openrouter.ai/docs/guides/overview/multimodal/image-generation). Select an image model when you create a story or change a page image. The app saves the selected model for later requests. The default is Gemini 3.1 Flash Image.
+Images use the [OpenRouter Image API](https://openrouter.ai/docs/guides/overview/multimodal/image-generation). Select an image model when you create a story or change a page image. The app saves the selected model for later requests. The default is Nano Banana 2.1 for both story modes.
 
-The list contains Fast and Pro options from Google, OpenAI, ByteDance Seed, and Black Forest Labs. The model IDs and request limits were checked against the [OpenRouter image catalog](https://openrouter.ai/api/v1/images/models) on 2026-09-11. FLUX.2 Klein 4B provides an open-weight option.
+The list contains Nano Banana 2.1, GPT Image 2.5 Sunburst, GPT Image 2.5 Flare, and MAI-Image-2.6. The model IDs and request limits were checked against the [OpenRouter image catalog](https://openrouter.ai/api/v1/images/models) on 2026-10-28. Saved stories retain their previous image model. The image change menu selects Nano Banana 2.1 when a saved model is no longer in the list.
 
-Requests use the 4:3 format and save PNG files. Google and Seedream Pro use 1K resolution. Seedream Lite uses 2K. OpenAI and FLUX use their default resolution. Character references have priority over scene references when the model limits the number of input images. Cancellation stops active requests and further retries.
+Requests use the 4:3 format and save PNG files. Nano Banana 2.1 uses 1K resolution and accepts up to 14 reference images. OpenAI models accept up to 16 references. MAI-Image-2.6 accepts up to five. OpenAI and Microsoft models use their default resolution. Image requests use provider defaults for quality; the Image API has no general thinking control. Character references have priority over scene references when the model limits the number of input images. Cancellation stops active requests and further retries.
 
 This layered approach — character sheets for identity, previous scene for style and environment — is what keeps the story visually consistent from the first page to the last.
 

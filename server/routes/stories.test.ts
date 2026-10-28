@@ -585,7 +585,7 @@ test('POST /api/stories persists generation inputs and usage totals for filesyst
       age: 5,
       style: 'watercolor',
       language: 'ro',
-      imageModel: 'bytedance-seed/seedream-5-0-pro',
+      imageModel: 'openai/gpt-image-2.5-sunburst',
     }),
   });
 
@@ -604,9 +604,9 @@ test('POST /api/stories persists generation inputs and usage totals for filesyst
   assert.equal(savedStory.generationInputs?.voice, 'corina');
   assert.equal(savedStory.generationInputs?.audioEnabled, true);
   assert.equal(savedStory.generationInputs?.proModel, true);
-  assert.equal(savedStory.generationInputs?.imageModel, 'bytedance-seed/seedream-5-0-pro');
+  assert.equal(savedStory.generationInputs?.imageModel, 'openai/gpt-image-2.5-sunburst');
   assert.equal(savedStory.generationInputs?.imageModelPro, undefined);
-  assert.equal(generatedImageModel, 'bytedance-seed/seedream-5-0-pro');
+  assert.equal(generatedImageModel, 'openai/gpt-image-2.5-sunburst');
   assert.equal(savedStory.generationInputs?.retellingMode, 'faithful_retelling');
   assert.equal(savedStory.generationInputs?.sourceTitle, 'Greuceanu');
   assert.equal(savedStory.generationInputs?.sourceProvider, 'wikisource');
@@ -1241,7 +1241,7 @@ test('POST /api/stories/:id/pages/:pageNumber/regenerate-image reviews feedback 
   const response = await fetch(`${harness.baseUrl}/api/stories/${storyId}/pages/1/regenerate-image/`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ feedback: 'Make the moon brighter.', imageModel: 'black-forest-labs/flux.2-pro' }),
+    body: JSON.stringify({ feedback: 'Make the moon brighter.', imageModel: 'microsoft/mai-image-2.6' }),
   });
 
   assert.equal(response.status, 200);
@@ -1256,8 +1256,8 @@ test('POST /api/stories/:id/pages/:pageNumber/regenerate-image reviews feedback 
   );
   assert.equal(reviewedText, 'Make the moon brighter.');
   assert.match(generatedPrompt, /User feedback for this regeneration: Make the moon brighter\./);
-  assert.equal(generatedImageModel, 'black-forest-labs/flux.2-pro');
-  assert.equal(updated.generationInputs?.imageModel, 'black-forest-labs/flux.2-pro');
+  assert.equal(generatedImageModel, 'microsoft/mai-image-2.6');
+  assert.equal(updated.generationInputs?.imageModel, 'microsoft/mai-image-2.6');
   assert.equal(updated.generationInputs?.proModel, true);
   assert.equal(updated.scenario?.pages[0].status, 'completed');
 });
@@ -1301,7 +1301,7 @@ test('page image changes preserve the audio choice for reload and retry', async 
 
       const imageResponse = await fetch(`${harness.baseUrl}/api/stories/${storyId}/pages/2/regenerate-image`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ feedback: 'Make the moon brighter.', imageModel: 'black-forest-labs/flux.2-pro' }),
+        body: JSON.stringify({ feedback: 'Make the moon brighter.', imageModel: 'microsoft/mai-image-2.6' }),
       });
       assert.equal(imageResponse.status, 200);
       await waitFor(async () => harness.generationRegistry.isGenerationActive(storyId), active => !active);
@@ -1310,7 +1310,7 @@ test('page image changes preserve the audio choice for reload and retry', async 
       assert.equal(reloadResponse.status, 200);
       const reloaded = await reloadResponse.json() as StoryMeta;
       assert.equal(reloaded.scenario?.pages[1].imageRevision, 1);
-      assert.equal(reloaded.generationInputs?.imageModel, 'black-forest-labs/flux.2-pro');
+      assert.equal(reloaded.generationInputs?.imageModel, 'microsoft/mai-image-2.6');
       assert.equal(reloaded.generationInputs?.audioEnabled, entry.audioEnabled);
       assert.equal(reloaded.voice, 'jora');
 
@@ -1372,7 +1372,7 @@ test('failed page image regeneration preserves the selected model for retry', as
   const response = await fetch(`${harness.baseUrl}/api/stories/${storyId}/pages/1/regenerate-image`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ feedback: 'Make the moon brighter.', imageModel: 'black-forest-labs/flux.2-pro' }),
+    body: JSON.stringify({ feedback: 'Make the moon brighter.', imageModel: 'microsoft/mai-image-2.6' }),
   });
 
   assert.equal(response.status, 200);
@@ -1381,7 +1381,7 @@ test('failed page image regeneration preserves the selected model for retry', as
       story: await readStoryMeta(dataDir, storyId),
       active: harness.generationRegistry.isGenerationActive(storyId),
     }),
-    ({ story, active }) => story.generationInputs?.imageModel === 'black-forest-labs/flux.2-pro'
+    ({ story, active }) => story.generationInputs?.imageModel === 'microsoft/mai-image-2.6'
       && story.status === 'completed'
       && !active,
   );
@@ -1394,8 +1394,8 @@ test('failed page image regeneration preserves the selected model for retry', as
   });
   assert.equal(retryResponse.status, 200);
   assert.equal(
-    await waitFor(async () => retryModel, model => model === 'black-forest-labs/flux.2-pro'),
-    'black-forest-labs/flux.2-pro',
+    await waitFor(async () => retryModel, model => model === 'microsoft/mai-image-2.6'),
+    'microsoft/mai-image-2.6',
   );
 });
 

@@ -28,7 +28,7 @@ function fixture(payload: unknown = paidResponse, status = 200, lookupCost: numb
 test('image requests use the selected model fields; actual cost is an image debit', async () => {
   const api = fixture();
   let usage: ImageUsageEvent | undefined;
-  const result = await withImageModel(parseImageModel('bytedance-seed/seedream-5-0-lite'), () => generateImage('A fox in a forest', [{ data: png, mimeType: 'image/png' }], {
+  const result = await withImageModel(parseImageModel('bytedance-seed/seedream-5-0-lite', true), () => generateImage('A fox in a forest', [{ data: png, mimeType: 'image/png' }], {
     client: api.client, onUsage: event => { usage = event; },
   }));
   assert.equal((await sharp(Buffer.from(result, 'base64')).metadata()).format, 'png');
@@ -67,7 +67,7 @@ test('OpenAI image requests omit resolution; a missing inline cost uses the gene
 test('image requests reject references above the selected model limit', async () => {
   const api = fixture();
   await assert.rejects(
-    withImageModel(parseImageModel('black-forest-labs/flux.2-klein-4b'), () => generateImage(
+    withImageModel(parseImageModel('black-forest-labs/flux.2-klein-4b', true), () => generateImage(
       'Four heroes and their previous scene',
       Array.from({ length: 5 }, () => ({ data: png, mimeType: 'image/png' })),
       { client: api.client },

@@ -10,10 +10,10 @@ const {
 } = await import('../config.js');
 
 test('text roles have a default OpenRouter model', () => {
-  assert.equal(config.scenarioModel, 'google/gemini-3.8-flash');
-  assert.equal(config.reviewModel, 'google/gemini-3.8-flash');
-  assert.equal(config.sourceAnalysisModel, 'google/gemini-3.8-flash');
-  assert.equal(config.pageTextReviewModel, 'google/gemini-3.8-flash');
+  assert.equal(config.scenarioModel, 'anthropic/claude-opus-5.5');
+  assert.equal(config.reviewModel, 'anthropic/claude-opus-5.5');
+  assert.equal(config.sourceAnalysisModel, 'anthropic/claude-opus-5.5');
+  assert.equal(config.pageTextReviewModel, 'anthropic/claude-opus-5.5');
 });
 
 test('image generation has no direct Google credential', () => {
