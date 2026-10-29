@@ -103,6 +103,27 @@ test('review findings produce a corrected script and clear progress before illus
   assert.equal(outputs.length, 0);
 });
 
+test('Opus repairs invalid scripts without forced tool choice', async () => {
+  await withTextModelSettings(parseTextModelSettings('anthropic/claude-opus-5.5', 'xhigh'), async () => {
+    const invalid = makeScenario();
+    invalid.pages[2].text = 'One. Two. Three. Four. Five.';
+    const api = fixture([invalid, makeScenario()]);
+    const result = await generateStoryScriptWithAgents('A child finds a lantern.', 'en', 4, 'storybook', undefined, undefined, {
+      runner: { model: api.model }, resolveSource: async () => undefined, enforceQuality: async (_context, scenario) => scenario,
+    });
+    assert.equal(api.requests.length, 2);
+    for (const request of api.requests) {
+      assert.equal(request.model, 'anthropic/claude-opus-5.5');
+      assert.equal('tool_choice' in request, false);
+      assert.deepEqual(request.reasoning, { effort: 'xhigh' });
+      assert.equal(request.tools[0].function.name, 'submit_story_script');
+    }
+    const toolResult = api.requests[1].messages.find((message: any) => message.role === 'tool');
+    assert.match(toolResult.content, /too many sentences/);
+    assert.equal(result.scenario.pages[2].text, 'Mara lifts the lantern. She can see the path.');
+  });
+});
+
 test('Fable uses the selected model without unsupported tool options', async () => {
   await withTextModelSettings(parseTextModelSettings('anthropic/claude-fable-5.1', 'high', true), async () => {
     const api = fixture([makeScenario()]);

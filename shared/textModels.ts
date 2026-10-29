@@ -17,7 +17,7 @@ export interface TextModelOption {
 // All selectable models support xhigh reasoning, tools, and structured output.
 export const TEXT_MODELS: readonly TextModelOption[] = [
   { id: 'anthropic/claude-opus-5.5', name: 'Claude Opus 5.5', thinkingLevels: ['low', 'medium', 'high', 'xhigh'],
-    maxCompletionTokens: 128_000,
+    maxCompletionTokens: 128_000, supportsToolChoice: false,
     pricing: { inputUsdPerMillion: 4, outputUsdPerMillion: 20 } },
   { id: 'openai/gpt-6-astra', name: 'GPT-6 Astra', thinkingLevels: ['low', 'medium', 'high', 'xhigh'],
     maxCompletionTokens: 128_000,
