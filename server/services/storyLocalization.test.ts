@@ -90,7 +90,7 @@ async function providerResult(value: unknown, run: (requests: Array<Record<strin
   process.env.OPENROUTER_API_KEY = `translation-test-${Math.random()}`;
   globalThis.fetch = async (_input, init) => {
     requests.push(JSON.parse(String(init?.body)));
-    return new Response(JSON.stringify({ id: 'translation-1', object: 'chat.completion', created: 0, model: 'google/gemini-3.8-flash',
+    return new Response(JSON.stringify({ id: 'translation-1', object: 'chat.completion', created: 0, model: 'openai/gpt-6.1-terra',
       choices: [{ index: 0, message: { role: 'assistant', content: JSON.stringify(value) }, finish_reason: 'stop' }],
       usage: { prompt_tokens: 30, completion_tokens: 20, total_tokens: 50, cost: 0.00001 } }), { headers: { 'Content-Type': 'application/json' } });
   };
@@ -98,7 +98,7 @@ async function providerResult(value: unknown, run: (requests: Array<Record<strin
   finally { globalThis.fetch = previousFetch; if (previousKey === undefined) delete process.env.OPENROUTER_API_KEY; else process.env.OPENROUTER_API_KEY = previousKey; }
 }
 
-test('translation uses one cheap call with full scene context and reports usage', async () => {
+test('translation uses Terra with low reasoning, full scene context, and usage reporting', async () => {
   await providerResult(localization(), async requests => {
     const usage: unknown[] = [];
     const result = await withTextModelSettings({ textModel: 'anthropic/claude-opus-5.5', thinkingLevel: 'xhigh' },
@@ -107,7 +107,7 @@ test('translation uses one cheap call with full scene context and reports usage'
     assert.deepEqual(result.pages, [{ pageNumber: 1, text: 'Pip găsește un prieten.' }, { pageNumber: 2, text: 'Ei merg acasă.' }]);
     assert.equal(result.sourceHash, getStorySourceHash(story()));
     assert.equal(requests.length, 1);
-    assert.equal(requests[0].model, 'google/gemini-3.8-flash');
+    assert.equal(requests[0].model, 'openai/gpt-6.1-terra');
     assert.deepEqual(requests[0].reasoning, { effort: 'low' });
     assert.equal(requests[0].tools, undefined);
     assert.equal(requests[0].plugins, undefined);

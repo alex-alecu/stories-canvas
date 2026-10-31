@@ -54,7 +54,7 @@ export async function translateStory(
       ...(story.generationInputs?.audioVoice ? { audioVoice: story.generationInputs.audioVoice } : {}),
     };
   }
-  const result = await withTextModelSettings({ textModel: 'google/gemini-3.8-flash', thinkingLevel: 'low' },
+  const result = await withTextModelSettings({ textModel: 'openai/gpt-6.1-terra', thinkingLevel: 'low' },
     () => generateJSON<unknown>(JSON.stringify({ sourceLanguage, targetLanguage: language,
       title: story.scenario!.title, targetAge: story.scenario!.targetAge, characters: story.scenario!.characters,
       pages: story.scenario!.pages.map(({ pageNumber, text, imagePrompt, characters }) => ({ pageNumber, text, imagePrompt, characters })),

@@ -47,6 +47,8 @@ export interface TextModelSettings {
 }
 
 const STORED_TEXT_MODELS: readonly Pick<TextModelOption, 'id' | 'thinkingLevels' | 'maxCompletionTokens' | 'supportsToolChoice'>[] = [
+  // Translation model; keep it separate from the selectable story models.
+  { id: 'openai/gpt-6.1-terra', thinkingLevels: ['low', 'medium', 'high', 'xhigh'], maxCompletionTokens: 128_000, supportsToolChoice: false },
   { id: 'google/gemini-3.8-flash', thinkingLevels: ['low', 'medium', 'high'], maxCompletionTokens: 65_536 },
   { id: 'anthropic/claude-fable-5.1', thinkingLevels: ['low', 'medium', 'high'], maxCompletionTokens: 128_000, supportsToolChoice: false },
   { id: 'anthropic/claude-opus-5', thinkingLevels: ['low', 'medium', 'high'], maxCompletionTokens: 128_000 },

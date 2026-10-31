@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { DEFAULT_TEXT_MODEL, DEFAULT_THINKING_LEVEL, TEXT_MODELS, parseTextModelSettings } from '../../shared/textModels.js';
+import { DEFAULT_TEXT_MODEL, DEFAULT_THINKING_LEVEL, TEXT_MODELS, getTextCompletionTokenLimit, parseTextModelSettings } from '../../shared/textModels.js';
 import { getWalletCopy } from '../../src/i18n/walletCopy.js';
 
 test('new stories use Opus 5.5 with extra high thinking', () => {
@@ -26,6 +26,11 @@ test('saved story models retain supported thinking when the default changes', ()
     assert.equal(parseTextModelSettings(model, 'high', true).thinkingLevel, 'high');
     assert.throws(() => parseTextModelSettings(model, 'xhigh', true));
   }
+});
+
+test('the translation model has an output limit without entering the story model picker', () => {
+  assert.equal(getTextCompletionTokenLimit('openai/gpt-6.1-terra'), 128_000);
+  assert.throws(() => parseTextModelSettings('openai/gpt-6.1-terra', 'low'));
 });
 
 test('extra high thinking has a visible label in each supported wallet language', () => {
