@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { StorySummary } from '../types';
+import { useStoryLanguage } from './useStoryLanguage';
 import {
   clearOfflineStories,
   downloadStoryForOffline,
@@ -23,6 +24,7 @@ const EMPTY_SUMMARY: OfflineDownloadsSummary = {
 };
 
 export function useOfflineStoryDownload(story: StorySummary) {
+  const language = useStoryLanguage();
   const [record, setRecord] = useState<OfflineStoryRecord | null>(null);
   const [status, setStatus] = useState<OfflineDownloadStatus>('idle');
   const [error, setError] = useState<string | null>(null);
@@ -30,19 +32,19 @@ export function useOfflineStoryDownload(story: StorySummary) {
   const canDownload = story.status === 'completed' && !story.assetsStale;
 
   const refreshRecord = useCallback(async () => {
-    const nextRecord = await getOfflineStory(story.id).catch(() => null);
+    const nextRecord = await getOfflineStory(story.id, language).catch(() => null);
     setRecord(nextRecord);
     setStatus(current => {
       if (current === 'downloading') return current;
       return nextRecord ? 'downloaded' : 'idle';
     });
-  }, [story.id]);
+  }, [story.id, language]);
 
   useEffect(() => {
     let cancelled = false;
 
     const load = async () => {
-      const nextRecord = await getOfflineStory(story.id).catch(() => null);
+      const nextRecord = await getOfflineStory(story.id, language).catch(() => null);
       if (cancelled) return;
       setRecord(nextRecord);
       setStatus(current => {
@@ -60,7 +62,7 @@ export function useOfflineStoryDownload(story: StorySummary) {
       cancelled = true;
       unsubscribe();
     };
-  }, [story.id]);
+  }, [story.id, language]);
 
   const download = useCallback(async () => {
     if (!canDownload || status === 'downloading') return;
@@ -69,36 +71,36 @@ export function useOfflineStoryDownload(story: StorySummary) {
     setError(null);
 
     try {
-      const nextRecord = await downloadStoryForOffline(story.id, 'manual');
+      const nextRecord = await downloadStoryForOffline(story.id, 'manual', language);
       setRecord(nextRecord);
       setStatus('downloaded');
     } catch (downloadError) {
       setStatus('failed');
       setError(downloadError instanceof Error ? downloadError.message : 'Download failed');
     }
-  }, [canDownload, status, story.id]);
+  }, [canDownload, status, story.id, language]);
 
   const remove = useCallback(async () => {
     setError(null);
     try {
-      await removeOfflineStory(story.id);
+      await removeOfflineStory(story.id, language);
       setRecord(null);
       setStatus('idle');
     } catch (removeError) {
       setError(removeError instanceof Error ? removeError.message : 'Could not remove download');
     }
-  }, [story.id]);
+  }, [story.id, language]);
 
   const keepOffline = useCallback(async () => {
     setError(null);
     try {
-      const nextRecord = await promoteOfflineStory(story.id);
+      const nextRecord = await promoteOfflineStory(story.id, language);
       setRecord(nextRecord);
       await refreshRecord();
     } catch (promoteError) {
       setError(promoteError instanceof Error ? promoteError.message : 'Could not update download');
     }
-  }, [refreshRecord, story.id]);
+  }, [refreshRecord, story.id, language]);
 
   return useMemo(() => ({
     canDownload,
@@ -164,6 +166,7 @@ export function useOfflineDownloadsSummary() {
 }
 
 export function useOfflineStorySummaries(search?: string) {
+  const language = useStoryLanguage();
   const [data, setData] = useState<StorySummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -173,7 +176,7 @@ export function useOfflineStorySummaries(search?: string) {
 
     const load = async () => {
       try {
-        const nextData = await listOfflineStorySummaries(search);
+        const nextData = await listOfflineStorySummaries(search, language);
         if (cancelled) return;
         setData(nextData);
         setError(null);
@@ -196,7 +199,7 @@ export function useOfflineStorySummaries(search?: string) {
       cancelled = true;
       unsubscribe();
     };
-  }, [search]);
+  }, [search, language]);
 
   return useMemo(() => ({
     data,

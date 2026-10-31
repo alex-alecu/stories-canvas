@@ -77,10 +77,16 @@ import { buildStoryGenerationInputs, recordStoryUsage, type StoryUsageStorage } 
 import { getScenarioTextRules, OVERLAY_SAFE_MAX_CHARS } from '../services/scenarioValidation.js';
 import { sendStoryBlockAlert, type StoryBlockAlertParams } from '../services/slackAlerts.js';
 import { TextContentBlockedError, TextOutputLimitError } from '../services/openrouter.js';
+import { applyStoryLocalization, getSourceLanguage, type StoryLocalization } from '../../shared/storyLocalization.js';
+import { getStorySourceHash, translateStory } from '../services/storyLocalization.js';
+import { loadStoryLocalization, saveStoryLocalization } from '../services/localizationStorage.js';
+import { resolveReaderLanguage } from '../services/storyLanguagePolicy.js';
 
 const router = Router();
 const SSE_CLOSE_DELAY_MS = 2_000;
 const PUBLIC_STORY_PREVIEW_PAGE_LIMIT = 3;
+
+export const localizationOps = { translateStory, getStorySourceHash, loadStoryLocalization, saveStoryLocalization };
 
 export const scenarioOps = {
   generateScenario,
@@ -513,6 +519,15 @@ function toStorySummary(story: StoryMeta) {
   };
 }
 
+async function localizeSummaries(stories: StoryMeta[], requestedLanguage: unknown) {
+  return Promise.all(stories.map(async story => {
+    if (requestedLanguage === undefined && !story.generationInputs?.sourceLanguage) return toStorySummary(story);
+    const language = resolveReaderLanguage(requestedLanguage, story.language ?? config.defaultLanguage);
+    const localization = await currentLocalization(story, language);
+    return toStorySummary(applyStoryLocalization(story, localization, language));
+  }));
+}
+
 function canReadStory(story: StoryMeta, viewerUserId?: string): boolean {
   if (config.useSupabase && story.userId && !story.isPublic && viewerUserId !== story.userId) {
     return false;
@@ -938,7 +953,7 @@ function createUsageRecorder(storyId: string, userId: string | undefined, source
   }
 
   return {
-    recordText: async (operation: 'source_analysis' | 'scenario_draft' | 'scenario_validation_repair' | 'scenario_review' | 'scenario_review_rewrite' | 'page_text_review', usage: {
+    recordText: async (operation: 'story_translation' | 'source_analysis' | 'scenario_draft' | 'scenario_validation_repair' | 'scenario_review' | 'scenario_review_rewrite' | 'page_text_review', usage: {
       model: string;
       status: 'succeeded' | 'failed';
       inputTokens: number;
@@ -1041,6 +1056,110 @@ function createUsageRecorder(storyId: string, userId: string | undefined, source
   };
 }
 
+function usesLocalization(req: Request, story: StoryMeta): boolean {
+  return req.body?.language !== undefined || !!story.generationInputs?.sourceLanguage;
+}
+
+async function currentLocalization(story: StoryMeta, language: string): Promise<StoryLocalization | null> {
+  const value = await localizationOps.loadStoryLocalization(story.id, language);
+  return value?.sourceHash === localizationOps.getStorySourceHash(story) ? value : null;
+}
+
+function sourceLocalization(story: StoryMeta): StoryLocalization {
+  if (!story.scenario) throw new Error('Story has no scenario data');
+  return {
+    language: getSourceLanguage(story), sourceHash: localizationOps.getStorySourceHash(story),
+    title: story.scenario.title,
+    pages: story.scenario.pages.map(({ pageNumber, text, audioUrl, audioRevision }) => ({ pageNumber, text, audioUrl, audioRevision })),
+    voice: normalizeVoiceKey(story.voice), audioModel: story.generationInputs?.audioModel, audioVoice: story.generationInputs?.audioVoice,
+  };
+}
+
+async function ensureLocalization(
+  story: StoryMeta, language: string, signal: AbortSignal, source: StoryUsageSource,
+): Promise<StoryLocalization> {
+  signal.throwIfAborted();
+  const saved = await currentLocalization(story, language);
+  if (saved) return saved;
+  if (language === getSourceLanguage(story)) return sourceLocalization(story);
+  const recorder = createUsageRecorder(story.id, story.userId, source);
+  await sendProgressUpdate(story.id, { storyId: story.id, status: 'generating_audio',
+    currentPhase: 'Translating page text...', message: `Translating page text into ${language}...`,
+    completedPages: 0, totalPages: story.scenario?.pages.length ?? 0, failedPages: [] });
+  const translated = await localizationOps.translateStory(story, language, {
+    signal,
+    onUsage: usage => recorder.recordText('story_translation', { ...usage,
+      usageDetails: { ...usage.usageDetails, sourceLanguage: getSourceLanguage(story), language } }),
+  });
+  signal.throwIfAborted();
+  await localizationOps.saveStoryLocalization(story.id, translated);
+  return translated;
+}
+
+async function generateLocalizedAudioPages(
+  story: StoryMeta, localization: StoryLocalization, voice: VoiceKey, signal: AbortSignal, source: StoryUsageSource,
+): Promise<{ completedCount: number; failedCount: number; skippedCount: number; error?: string }> {
+  const recorder = createUsageRecorder(story.id, story.userId, source);
+  const settings = getAudioModelSettings();
+  localization.voice = voice;
+  localization.audioModel = settings.audioModel;
+  localization.audioVoice = settings.audioVoice;
+  await localizationOps.saveStoryLocalization(story.id, localization);
+  let completedCount = localization.pages.filter(page => !!page.audioUrl).length;
+  let failedCount = 0;
+  let errorMessage: string | undefined;
+  for (const page of localization.pages) {
+    if (page.audioUrl) continue;
+    signal.throwIfAborted();
+    await sendProgressUpdate(story.id, { storyId: story.id, status: 'generating_audio', currentPhase: 'Recording narration...',
+      message: `Recording ${localization.language} narration for page ${page.pageNumber}...`,
+      completedPages: completedCount, totalPages: localization.pages.length, failedPages: [],
+      pageNumber: page.pageNumber, pageStatus: 'generating' });
+    try {
+      const audio = await audioOps.generatePageAudio(page.text, voice, usage => recorder.recordPageAudio(page.pageNumber,
+        { ...usage, usageDetails: { ...usage.usageDetails, language: localization.language } }), signal);
+      signal.throwIfAborted();
+      const filename = `page-${String(page.pageNumber).padStart(2, '0')}-${localization.language}-${crypto.randomUUID()}.mp3`;
+      page.audioUrl = await audioOps.savePageAudio(story.id, filename, audio, story.userId);
+      page.audioRevision = incrementPageRevision(page.audioRevision);
+      await localizationOps.saveStoryLocalization(story.id, localization);
+      completedCount++;
+      await sendProgressUpdate(story.id, { storyId: story.id, status: 'generating_audio',
+        message: `Narration for page ${page.pageNumber} complete`, completedPages: completedCount,
+        totalPages: localization.pages.length, failedPages: [], pageNumber: page.pageNumber, pageStatus: 'completed' });
+    } catch (error) {
+      if (signal.aborted || error instanceof AbortError) throw error;
+      failedCount++;
+      errorMessage = error instanceof Error ? error.message : 'Narration generation failed';
+    }
+  }
+  return { completedCount, failedCount, skippedCount: 0, error: errorMessage };
+}
+
+async function runLanguageAudioPipeline(
+  story: StoryMeta, language: string, voice: VoiceKey, controller: AbortController,
+): Promise<void> {
+  const { signal } = controller;
+  try {
+    await updateStoryStatus(story.id, 'generating_audio');
+    const localization = await ensureLocalization(story, language, signal, 'add_audio');
+    const result = await generateLocalizedAudioPages(story, localization, voice, signal, 'add_audio');
+    await updateStoryStatus(story.id, 'completed');
+    await sendProgressUpdate(story.id, { storyId: story.id, status: 'completed', currentPhase: 'Done!',
+      completedPages: result.completedCount, totalPages: localization.pages.length, failedPages: [],
+      audioFailed: result.failedCount > 0, audioError: result.error,
+      message: result.failedCount ? 'Some narration pages could not be generated.' : 'Narration generated successfully!' }, { persistBeforeSend: true });
+  } catch (error) {
+    await updateStoryStatus(story.id, 'completed');
+    await sendProgressUpdate(story.id, { storyId: story.id, status: 'completed', currentPhase: 'Failed',
+      audioFailed: true, message: error instanceof Error ? error.message : 'Narration generation failed' }, { persistBeforeSend: true });
+  } finally {
+    finishTrackedGeneration(story.id);
+    await releaseUserGenerationSlot(story.id);
+    scheduleStoryConnectionCleanup(story.id);
+  }
+}
+
 // ---------- SSE connections ----------
 
 const sseConnections = new Map<string, Set<Response>>();
@@ -1119,7 +1238,7 @@ router.use(async (req, res, next) => {
   try {
     if (req.path === '/') {
       const settings = parseTextModelSettings(req.body?.textModel, req.body?.thinkingLevel);
-      const language = typeof req.body?.language === 'string' ? req.body.language : config.defaultLanguage;
+      const language = resolveReaderLanguage(req.body?.language, config.defaultLanguage);
       const audioSettings = parseAudioModelSettings(req.body?.audioModel, req.body?.audioVoice, language);
       const requestedPro = req.body?.audioEnabled !== undefined
         ? false
@@ -1140,15 +1259,20 @@ router.use(async (req, res, next) => {
       ? parseImageModel(req.body.imageModel)
       : getStoredImageModel(inputs, requestedPro);
     const allowAudioOverride = /\/(generate-audio|script-audio)\/?$/i.test(req.path);
-    const storedAudioModel = inputs?.audioModel ?? DEFAULT_AUDIO_MODEL;
+    const selectedLanguage = resolveReaderLanguage(req.body?.language, story?.language ?? config.defaultLanguage);
+    const savedLocalization = story && (req.body?.language !== undefined || inputs?.sourceLanguage)
+      ? await localizationOps.loadStoryLocalization(id, selectedLanguage) : null;
+    const currentLocalization = savedLocalization && savedLocalization.sourceHash === localizationOps.getStorySourceHash(story!)
+      ? savedLocalization : null;
+    const storedAudioModel = currentLocalization?.audioModel ?? inputs?.audioModel ?? DEFAULT_AUDIO_MODEL;
     const audioModel = allowAudioOverride && req.body?.audioModel !== undefined ? req.body.audioModel : storedAudioModel;
     const audioVoice = allowAudioOverride && req.body?.audioModel !== undefined
       ? req.body?.audioVoice
-      : allowAudioOverride && req.body?.audioVoice !== undefined ? req.body.audioVoice : inputs?.audioVoice;
+      : allowAudioOverride && req.body?.audioVoice !== undefined ? req.body.audioVoice : currentLocalization?.audioVoice ?? inputs?.audioVoice;
     const audioSettings = parseAudioModelSettings(
       audioModel,
       audioVoice,
-      story?.language ?? inputs?.language ?? config.defaultLanguage,
+      selectedLanguage,
       true,
     );
     return withTextModelSettings(settings, () => withImageModel(imageModel, () => withAudioModelSettings(audioSettings, next)));
@@ -1173,7 +1297,7 @@ router.get('/public', async (req: Request, res: Response) => {
       ? Math.min(rawLimit, 50)
       : undefined;
     const stories = await storageOps.listPublicStories(search, limit);
-    const summaries = stories.map(toStorySummary);
+    const summaries = await localizeSummaries(stories, req.query.language);
     setPublicReadCache(res, 30);
     res.json(summaries);
   } catch (error) {
@@ -1192,7 +1316,7 @@ router.get('/mine', optionalAuth, limitAuthenticatedStoryRead, async (req: Reque
 
     if (config.useSupabase) {
       const stories = await storageOps.listStoriesByUser(req.authUser.id);
-      const summaries = stories.map(toStorySummary);
+      const summaries = await localizeSummaries(stories, req.query.language);
       res.json(summaries);
     } else {
       res.json([]);
@@ -1219,7 +1343,7 @@ router.get('/', optionalAuth, limitAuthenticatedStoryRead, async (req: Request, 
       stories = await listAllStories();
     }
 
-    const summaries = stories.map(toStorySummary);
+    const summaries = await localizeSummaries(stories, req.query.language);
     res.json(summaries);
   } catch (error) {
     console.error('Failed to list stories:', error);
@@ -1255,7 +1379,7 @@ router.post('/', optionalAuth, async (req: Request, res: Response) => {
       return;
     }
 
-    const storyLanguage = typeof language === 'string' ? language : config.defaultLanguage;
+    const storyLanguage = resolveReaderLanguage(language, config.defaultLanguage);
     const storyAge = typeof age === 'number' && age > 0 && age <= 12 ? age : DEFAULT_AGE;
     const storyStyle = storyStyleOps.resolveArtStyle(typeof style === 'string' ? style : undefined);
     const storyMode = resolveRequestedStoryMode(request);
@@ -1270,7 +1394,7 @@ router.post('/', optionalAuth, async (req: Request, res: Response) => {
     const useProModel = getImageModel().tier === 'pro';
     const storyId = crypto.randomUUID();
     const userId = req.authUser?.id;
-    const generationInputs = buildGenerationInputsSnapshot(
+    const generationInputs = { ...buildGenerationInputsSnapshot(
       trimmedPrompt,
       storyLanguage,
       storyAge,
@@ -1279,7 +1403,7 @@ router.post('/', optionalAuth, async (req: Request, res: Response) => {
       storyVoice,
       useProModel,
       estimatedPageCount,
-    );
+    ), sourceLanguage: 'en' };
 
     if (storyMode === 'pro_audio' && !storyVoice) {
       res.status(400).json({ error: 'Select a narrator voice.' });
@@ -1413,7 +1537,7 @@ async function runGenerationPipeline(
     if (signal.aborted) throw new Error('Generation cancelled');
     const scenarioResult = await scenarioOps.generateScenarioWithMetadata(
       prompt,
-      language,
+      'en',
       age,
       style,
       (progress) => {
@@ -1459,7 +1583,7 @@ async function runGenerationPipeline(
       renderedScenarioRevision: 0,
       storyMode,
       creditCost,
-      generationInputs: groundedGenerationInputs,
+      generationInputs: { ...groundedGenerationInputs, sourceLanguage: 'en' },
     });
 
     if (signal.aborted) throw new Error('Generation cancelled');
@@ -1581,6 +1705,13 @@ async function runGenerationPipeline(
       }
     }
 
+    const sourceStory = await getStory(storyId);
+    if (!sourceStory) throw new Error('Story not found');
+    const selectedLanguage = resolveReaderLanguage(language, config.defaultLanguage);
+    const localized = selectedLanguage === 'en' ? undefined : await ensureLocalization(
+      { ...sourceStory, scenario }, selectedLanguage, signal, usageSource,
+    );
+
     // Phase 4: Generate audio narration (only if voice selected and ElevenLabs configured)
     let audioFailed = false;
     let audioError: string | undefined;
@@ -1607,7 +1738,9 @@ async function runGenerationPipeline(
 
       let audioCompletedPages = 0;
 
-      const audioResult = await audioOps.generateAllPageAudio(
+      const audioResult = localized
+        ? await generateLocalizedAudioPages({ ...sourceStory, scenario }, localized, voice, signal, usageSource)
+        : await audioOps.generateAllPageAudio(
         storyId,
         scenario.pages,
         voice,
@@ -1976,6 +2109,10 @@ async function runRegenerateAssetsPipeline(
       }
     }
 
+    const selectedLanguage = resolveReaderLanguage(undefined, story.language ?? config.defaultLanguage);
+    const localization = story.generationInputs?.sourceLanguage
+      ? await ensureLocalization(story, selectedLanguage, signal, 'regenerate_assets') : undefined;
+
     let audioFailed = false;
     let audioError: string | undefined;
 
@@ -1993,7 +2130,9 @@ async function runRegenerateAssetsPipeline(
       });
 
       let audioCompletedPages = 0;
-      const audioResult = await audioOps.generateAllPageAudio(
+      const audioResult = localization
+        ? await generateLocalizedAudioPages(story, localization, story.voice, signal, 'regenerate_assets')
+        : await audioOps.generateAllPageAudio(
         storyId,
         scenario.pages,
         story.voice,
@@ -2203,10 +2342,17 @@ router.post('/:id/retry', optionalAuth, async (req: Request, res: Response) => {
       const missingImagePages = story.scenario.pages
         .filter(page => page.status !== 'completed')
         .map(page => page.pageNumber);
-      const missingAudioPages = story.scenario.pages.filter(page => !pageHasAudio(page));
+      const selectedLanguage = resolveReaderLanguage(req.body?.language, story.language ?? config.defaultLanguage);
+      const localization = story.generationInputs?.sourceLanguage
+        ? await currentLocalization(story, selectedLanguage) : null;
+      const sourceSelected = selectedLanguage === getSourceLanguage(story);
+      const needsTranslation = !!story.generationInputs?.sourceLanguage && !sourceSelected && !localization;
+      const audioPages = localization?.pages ?? (needsTranslation
+        ? story.scenario.pages.map(page => ({ ...page, audioUrl: undefined })) : story.scenario.pages);
+      const missingAudioPages = audioPages.filter(page => !pageHasAudio(page));
       const needsAudioRetry = storyRequiresAudio(story) && missingAudioPages.length > 0;
 
-      if (missingImagePages.length === 0 && !needsAudioRetry) {
+      if (missingImagePages.length === 0 && !needsAudioRetry && !needsTranslation) {
         await updateRenderedScenarioRevision(storyId, story.scenarioRevision ?? 1);
         await updateStoryStatus(storyId, 'completed');
         finishTrackedGeneration(storyId);
@@ -2225,7 +2371,7 @@ router.post('/:id/retry', optionalAuth, async (req: Request, res: Response) => {
         retriedAudio: needsAudioRetry ? missingAudioPages.length : 0,
       } as RetryStoryResponse);
 
-      runRetryPipeline(storyId, story, missingImagePages, needsAudioRetry, controller).catch(error => {
+      runRetryPipeline(storyId, { ...story, language: selectedLanguage }, missingImagePages, needsAudioRetry, controller).catch(error => {
         console.error(`Retry pipeline failed for ${storyId}:`, error);
       });
     } catch (error) {
@@ -2325,7 +2471,22 @@ async function runRetryPipeline(
     let audioFailed = false;
     let audioError: string | undefined;
 
-    if (needsAudioRetry && imageProgress.failedPages.length === 0 && audioOps.isAudioConfigured()) {
+    const selectedLanguage = resolveReaderLanguage(undefined, story.language ?? config.defaultLanguage);
+    const sourceStory = { ...(storyAfterImages ?? story), language: story.language };
+    const localization = story.generationInputs?.sourceLanguage && imageProgress.failedPages.length === 0
+      ? await ensureLocalization(sourceStory, selectedLanguage, signal, 'retry') : undefined;
+
+    if (localization && needsAudioRetry && imageProgress.failedPages.length === 0 && audioOps.isAudioConfigured()) {
+      const voice = localization.voice ?? normalizeVoiceKey(storyAfterImages?.voice ?? story.voice);
+      if (voice) {
+        const result = await generateLocalizedAudioPages(sourceStory, localization, voice, signal, 'retry');
+        audioFailed = result.failedCount > 0;
+        audioError = result.error;
+      } else {
+        audioFailed = true;
+        audioError = 'Select a narrator voice.';
+      }
+    } else if (needsAudioRetry && imageProgress.failedPages.length === 0 && audioOps.isAudioConfigured()) {
       if (signal.aborted) throw new Error('Generation cancelled');
 
       // We need to re-fetch the story to get updated page data after image retry
@@ -2446,6 +2607,41 @@ async function runRetryPipeline(
 }
 
 // POST /api/stories/:id/generate-audio - Generate audio for a story that has none
+router.post('/:id/translate', optionalAuth, async (req: Request, res: Response) => {
+  let controller: AbortController | undefined;
+  const storyId = req.params.id as string;
+  try {
+    if (!req.authUser) { res.status(401).json({ error: 'Authentication required' }); return; }
+    const story = await getStory(storyId);
+    if (!story) { res.status(404).json({ error: 'Story not found' }); return; }
+    if ((config.useSupabase || story.userId) && story.userId !== req.authUser.id) { res.status(403).json({ error: 'Forbidden' }); return; }
+    if (story.status !== 'completed' || !story.scenario) {
+      res.status(400).json({ error: 'Story must be completed to translate subtitles.' }); return;
+    }
+    const language = resolveReaderLanguage(req.body?.language, story.language ?? config.defaultLanguage);
+    if (isGenerationActive(storyId)) { res.status(409).json({ error: 'A generation is already in progress' }); return; }
+    controller = startTrackedGeneration(storyId);
+    const saved = await currentLocalization(story, language);
+    if (saved || language === getSourceLanguage(story)) { res.json({ language, status: 'completed' }); return; }
+    const claimed = await claimUserGenerationSlot(req.authUser.id, storyId, 'story_add_audio', res, req.authUser.email);
+    if (!claimed) return;
+    await ensureLocalization(story, language, controller.signal, 'add_audio');
+    await sendProgressUpdate(storyId, { storyId, status: 'completed', currentPhase: 'Done!',
+      message: 'Subtitles translated.', completedPages: story.scenario.pages.length,
+      totalPages: story.scenario.pages.length, failedPages: [] }, { persistBeforeSend: true });
+    res.json({ language, status: 'completed' });
+  } catch (error) {
+    if (controller) await updateStoryStatus(storyId, 'completed').catch(() => {});
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Subtitle translation failed' });
+  } finally {
+    if (controller) {
+      finishTrackedGeneration(storyId);
+      await releaseUserGenerationSlot(storyId);
+      scheduleStoryConnectionCleanup(storyId);
+    }
+  }
+});
+
 router.post('/:id/generate-audio', optionalAuth, async (req: Request, res: Response) => {
   try {
     if (!req.authUser) {
@@ -2477,6 +2673,11 @@ router.post('/:id/generate-audio', optionalAuth, async (req: Request, res: Respo
 
     if (isGenerationActive(storyId)) {
       res.status(409).json({ error: 'A generation is already in progress' });
+      return;
+    }
+
+    if (usesLocalization(req, story)) {
+      await startLocalizedAudio(req, res, story);
       return;
     }
 
@@ -2732,6 +2933,39 @@ async function runAudioGenerationPipeline(
     finishTrackedGeneration(storyId);
     await releaseUserGenerationSlot(storyId);
     scheduleStoryConnectionCleanup(storyId);
+  }
+}
+
+async function startLocalizedAudio(req: Request, res: Response, story: StoryMeta): Promise<void> {
+  if (!req.authUser) { res.status(401).json({ error: 'Authentication required' }); return; }
+  if ((config.useSupabase || story.userId) && story.userId !== req.authUser.id) { res.status(403).json({ error: 'Forbidden' }); return; }
+  if (!audioOps.isAudioConfigured()) { res.status(503).json({ error: 'Audio generation service is not configured' }); return; }
+  const language = resolveReaderLanguage(req.body?.language, story.language ?? config.defaultLanguage);
+  const requestedVoice = req.body?.voice;
+  if (requestedVoice !== undefined && !normalizeVoiceKey(requestedVoice)) {
+    res.status(400).json({ error: 'A valid narrator voice is required' }); return;
+  }
+  // Reserve before loading translations or checking funds. Concurrent requests cannot both start.
+  const controller = startTrackedGeneration(story.id);
+  try {
+    const localization = await currentLocalization(story, language)
+      ?? (language === getSourceLanguage(story) ? sourceLocalization(story) : null);
+    const missingCount = localization
+      ? localization.pages.filter(page => !page.audioUrl).length : story.scenario!.pages.length;
+    if (!missingCount) {
+      finishTrackedGeneration(story.id);
+      res.status(400).json({ error: 'The selected language already has narration.' }); return;
+    }
+    const claimed = await claimUserGenerationSlot(req.authUser.id, story.id, 'story_add_audio', res, req.authUser.email);
+    if (!claimed) { finishTrackedGeneration(story.id); return; }
+    const voice = normalizeVoiceKey(requestedVoice) ?? localization?.voice ?? normalizeVoiceKey(story.voice) ?? DEFAULT_VOICE_KEY;
+    const balance = config.useSupabase ? (await billingOps.getUserCreditBalance(req.authUser.id)).availableCredits : 0;
+    res.json({ status: 'generating_audio', generatedAudio: missingCount, chargedCredits: 0, availableCredits: balance } satisfies GenerateAudioResponse);
+    runLanguageAudioPipeline(story, language, voice, controller).catch(error => console.error('Localized audio failed:', error));
+  } catch (error) {
+    finishTrackedGeneration(story.id);
+    await releaseUserGenerationSlot(story.id);
+    throw error;
   }
 }
 
@@ -3091,6 +3325,11 @@ router.patch('/:id/pages/:pageNumber/script-audio', optionalAuth, async (req: Re
       return;
     }
 
+    if (usesLocalization(req, story)) {
+      await startLocalizedPageAudio(req, res, story, pageNumber);
+      return;
+    }
+
     const page = findScenarioPage(story.scenario, pageNumber);
     if (!page) {
       res.status(404).json({ error: 'Page not found' });
@@ -3229,6 +3468,81 @@ router.patch('/:id/pages/:pageNumber/script-audio', optionalAuth, async (req: Re
     res.status(500).json({ error: 'Failed to start page audio regeneration' });
   }
 });
+
+async function startLocalizedPageAudio(req: Request, res: Response, story: StoryMeta, pageNumber: number): Promise<void> {
+  if (!req.authUser) { res.status(401).json({ error: 'Authentication required' }); return; }
+  if ((config.useSupabase || story.userId) && story.userId !== req.authUser.id) { res.status(403).json({ error: 'Forbidden' }); return; }
+  if (!story.scenario?.pages.some(page => page.pageNumber === pageNumber)) { res.status(404).json({ error: 'Page not found' }); return; }
+  const language = resolveReaderLanguage(req.body?.language, story.language ?? config.defaultLanguage);
+  const text = typeof req.body?.text === 'string' ? req.body.text.replace(/\s+/g, ' ').trim() : '';
+  const maxChars = language === getSourceLanguage(story) ? getScenarioTextRules(story.scenario!.targetAge).maxChars : 640;
+  if (!text || text.length > maxChars) { res.status(400).json({ error: `Page text must contain 1 to ${maxChars} characters.` }); return; }
+  const requestedVoice = req.body?.voice;
+  if (requestedVoice !== undefined && !normalizeVoiceKey(requestedVoice)) { res.status(400).json({ error: 'A valid narrator voice is required' }); return; }
+  if (!audioOps.isAudioConfigured()) { res.status(503).json({ error: 'Audio generation service is not configured' }); return; }
+  if (isGenerationActive(story.id)) { res.status(409).json({ error: 'A generation is already in progress' }); return; }
+  const controller = startTrackedGeneration(story.id);
+  let dispatched = false;
+  try {
+    const claimed = await claimUserGenerationSlot(req.authUser.id, story.id, 'story_regenerate_audio', res, req.authUser.email);
+    if (!claimed) return;
+    const recorder = createUsageRecorder(story.id, story.userId, 'regenerate_page_audio');
+    const review = await withTextModelSettings({ textModel: 'google/gemini-3.8-flash', thinkingLevel: 'low' },
+      () => pageTextReviewOps.reviewPageText({ text, targetAge: story.scenario!.targetAge, language, purpose: 'page_text' },
+        undefined, usage => recorder.recordText('page_text_review', usage)));
+    if (!review.allowed) { res.status(400).json({ error: review.explanation, reasonCode: review.reasonCode }); return; }
+    const localization = await ensureLocalization(story, language, controller.signal, 'regenerate_page_audio');
+    const voice = normalizeVoiceKey(requestedVoice) ?? localization.voice ?? normalizeVoiceKey(story.voice) ?? DEFAULT_VOICE_KEY;
+    const balance = config.useSupabase ? (await billingOps.getUserCreditBalance(req.authUser.id)).availableCredits : 0;
+    res.json({ status: 'generating_audio', pageNumber, chargedCredits: 0, availableCredits: balance } satisfies RegeneratePageAudioResponse);
+    dispatched = true;
+    runLocalizedPageAudio(story, localization, pageNumber, text, voice, controller)
+      .catch(error => console.error('Localized page narration failed:', error));
+  } finally {
+    if (!dispatched) { finishTrackedGeneration(story.id); await releaseUserGenerationSlot(story.id); }
+  }
+}
+
+async function runLocalizedPageAudio(
+  story: StoryMeta, localization: StoryLocalization, pageNumber: number, text: string, voice: VoiceKey, controller: AbortController,
+): Promise<void> {
+  const { signal } = controller;
+  try {
+    await updateStoryStatus(story.id, 'generating_audio');
+    const recorder = createUsageRecorder(story.id, story.userId, 'regenerate_page_audio');
+    const audio = await audioOps.generatePageAudio(text, voice, usage => recorder.recordPageAudio(pageNumber,
+      { ...usage, usageDetails: { ...usage.usageDetails, language: localization.language } }), signal);
+    signal.throwIfAborted();
+    const filename = `page-${String(pageNumber).padStart(2, '0')}-${localization.language}-${crypto.randomUUID()}.mp3`;
+    const audioUrl = await audioOps.savePageAudio(story.id, filename, audio, story.userId);
+    const page = localization.pages.find(value => value.pageNumber === pageNumber)!;
+    Object.assign(page, { text, audioUrl, audioRevision: incrementPageRevision(page.audioRevision) });
+    const settings = getAudioModelSettings();
+    Object.assign(localization, { voice, audioModel: settings.audioModel, audioVoice: settings.audioVoice });
+    // English source edits invalidate translations. Translated edits never change the source.
+    if (localization.language === getSourceLanguage(story)) {
+      const updatedScenario = cloneScenarioWithUpdatedPage(story.scenario!, pageNumber, sourcePage => ({
+        ...sourcePage, text, audioUrl, audioRevision: page.audioRevision,
+      }));
+      await persistScenarioAfterPageMutation(story.id, story, updatedScenario);
+      localization.sourceHash = localizationOps.getStorySourceHash({ ...story, scenario: updatedScenario });
+    }
+    await localizationOps.saveStoryLocalization(story.id, localization);
+    await updateStoryStatus(story.id, 'completed');
+    await sendProgressUpdate(story.id, { storyId: story.id, status: 'completed', currentPhase: 'Done!',
+      completedPages: 1, totalPages: 1, failedPages: [], pageNumber, pageStatus: 'completed',
+      message: 'Page subtitles and narration updated.' }, { persistBeforeSend: true });
+  } catch (error) {
+    await updateStoryStatus(story.id, 'completed');
+    await sendProgressUpdate(story.id, { storyId: story.id, status: 'completed', currentPhase: 'Failed',
+      completedPages: 0, totalPages: 1, failedPages: [], pageNumber, pageStatus: 'failed',
+      message: error instanceof Error ? error.message : 'Narration generation failed' }, { persistBeforeSend: true });
+  } finally {
+    finishTrackedGeneration(story.id);
+    await releaseUserGenerationSlot(story.id);
+    scheduleStoryConnectionCleanup(story.id);
+  }
+}
 
 async function runRegeneratePageAudioPipeline(
   storyId: string,
@@ -3512,7 +3826,7 @@ router.get('/:id', optionalAuth, limitAuthenticatedStoryRead, async (req: Reques
       return;
     }
 
-    const responseStory = applyPublicStoryPreviewGate(story, req.authUser?.id);
+    let responseStory = structuredClone(story);
 
     if (req.authUser && story.userId === req.authUser.id) {
       try {
@@ -3544,6 +3858,13 @@ router.get('/:id', optionalAuth, limitAuthenticatedStoryRead, async (req: Reques
         }
       }
     }
+
+    if (req.query.language !== undefined || story.generationInputs?.sourceLanguage) {
+      const requestedLanguage = resolveReaderLanguage(req.query.language, story.language ?? config.defaultLanguage);
+      const localized = await currentLocalization(story, requestedLanguage);
+      Object.assign(responseStory, applyStoryLocalization(responseStory, localized, requestedLanguage));
+    }
+    responseStory = applyPublicStoryPreviewGate(responseStory, req.authUser?.id);
 
     if (
       config.useSupabase

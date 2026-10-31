@@ -2,6 +2,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { StorySummary, StoryMeta, StoryAssets, StoryMode, StoryReaction, VoiceKey } from '../types';
 import { getOfflineStory, listOfflineStorySummaries } from '../lib/offlineStories';
 import { isBrowserOnline, useNetworkStatus } from './useNetworkStatus';
+import { useStoryLanguage } from './useStoryLanguage';
+import { getStoryLanguagePlaceholder } from '../lib/storyLanguage';
 import {
   cancelStory,
   createStory,
@@ -19,6 +21,7 @@ import {
   retryStory,
   setStoryReaction,
   toggleStoryVisibility,
+  translateStory,
 } from '../lib/storyApi';
 
 function applyReactionState<T extends { id: string; likeCount?: number; dislikeCount?: number; myReaction?: StoryReaction | null }>(
@@ -54,29 +57,29 @@ function applyReactionResponse<T extends { id: string; likeCount?: number; disli
   };
 }
 
-async function fetchStoriesWithOfflineFallback(): Promise<StorySummary[]> {
+async function fetchStoriesWithOfflineFallback(language: string): Promise<StorySummary[]> {
   if (!isBrowserOnline()) {
-    return listOfflineStorySummaries().catch(() => []);
+    return listOfflineStorySummaries(undefined, language).catch(() => []);
   }
 
   try {
-    return await fetchStories();
+    return await fetchStories(language);
   } catch (error) {
-    const offlineStories = await listOfflineStorySummaries().catch(() => []);
+    const offlineStories = await listOfflineStorySummaries(undefined, language).catch(() => []);
     if (offlineStories.length > 0) return offlineStories;
     throw error;
   }
 }
 
-async function fetchUserStoriesWithOfflineFallback(): Promise<StorySummary[]> {
+async function fetchUserStoriesWithOfflineFallback(language: string): Promise<StorySummary[]> {
   if (!isBrowserOnline()) {
-    return listOfflineStorySummaries().catch(() => []);
+    return listOfflineStorySummaries(undefined, language).catch(() => []);
   }
 
   try {
-    return await fetchUserStories();
+    return await fetchUserStories(language);
   } catch (error) {
-    const offlineStories = await listOfflineStorySummaries().catch(() => []);
+    const offlineStories = await listOfflineStorySummaries(undefined, language).catch(() => []);
     if (offlineStories.length > 0) return offlineStories;
     throw error;
   }
@@ -85,19 +88,21 @@ async function fetchUserStoriesWithOfflineFallback(): Promise<StorySummary[]> {
 async function fetchPublicStoriesWithOfflineFallback({
   search,
   limit,
+  language,
 }: {
   search?: string;
   limit?: number;
-} = {}): Promise<StorySummary[]> {
+  language: string;
+}): Promise<StorySummary[]> {
   if (!isBrowserOnline()) {
-    const offlineStories = await listOfflineStorySummaries(search).catch(() => []);
+    const offlineStories = await listOfflineStorySummaries(search, language).catch(() => []);
     return typeof limit === 'number' ? offlineStories.slice(0, limit) : offlineStories;
   }
 
   try {
-    return await fetchPublicStories({ search, limit });
+    return await fetchPublicStories({ search, limit, language });
   } catch (error) {
-    const offlineStories = await listOfflineStorySummaries(search).catch(() => []);
+    const offlineStories = await listOfflineStorySummaries(search, language).catch(() => []);
     if (offlineStories.length > 0) {
       return typeof limit === 'number' ? offlineStories.slice(0, limit) : offlineStories;
     }
@@ -105,28 +110,29 @@ async function fetchPublicStoriesWithOfflineFallback({
   }
 }
 
-async function fetchStoryWithOfflineFallback(id: string): Promise<StoryMeta> {
+async function fetchStoryWithOfflineFallback(id: string, language: string): Promise<StoryMeta> {
   if (!isBrowserOnline()) {
-    const offlineStory = await getOfflineStory(id).catch(() => null);
+    const offlineStory = await getOfflineStory(id, language).catch(() => null);
     if (offlineStory) return offlineStory.story;
     throw new Error('Story is not available offline');
   }
 
   try {
-    return await fetchStory(id);
+    return await fetchStory(id, language);
   } catch (error) {
-    const offlineStory = await getOfflineStory(id).catch(() => null);
+    const offlineStory = await getOfflineStory(id, language).catch(() => null);
     if (offlineStory) return offlineStory.story;
     throw error;
   }
 }
 
 export function useStories(enabled = true) {
+  const language = useStoryLanguage();
   const { isOnline } = useNetworkStatus();
 
   return useQuery({
-    queryKey: ['stories'],
-    queryFn: fetchStoriesWithOfflineFallback,
+    queryKey: ['stories', language],
+    queryFn: () => fetchStoriesWithOfflineFallback(language),
     networkMode: 'always',
     enabled,
     refetchInterval: isOnline ? 10_000 : false, // Poll for updates on generating stories
@@ -135,9 +141,10 @@ export function useStories(enabled = true) {
 }
 
 export function useUserStories(enabled = true) {
+  const language = useStoryLanguage();
   return useQuery({
-    queryKey: ['stories', 'mine'],
-    queryFn: fetchUserStoriesWithOfflineFallback,
+    queryKey: ['stories', 'mine', language],
+    queryFn: () => fetchUserStoriesWithOfflineFallback(language),
     networkMode: 'always',
     enabled,
     retry: (failureCount) => isBrowserOnline() && failureCount < 2,
@@ -145,9 +152,11 @@ export function useUserStories(enabled = true) {
 }
 
 export function useStory(id: string | undefined) {
+  const language = useStoryLanguage();
   return useQuery({
-    queryKey: ['story', id],
-    queryFn: () => fetchStoryWithOfflineFallback(id!),
+    queryKey: ['story', id, language],
+    queryFn: () => fetchStoryWithOfflineFallback(id!, language),
+    placeholderData: previousStory => getStoryLanguagePlaceholder(previousStory, id, language),
     networkMode: 'always',
     enabled: !!id,
     retry: (failureCount) => isBrowserOnline() && failureCount < 2,
@@ -191,9 +200,10 @@ export function useCancelStory() {
 }
 
 export function usePublicStories(search?: string, limit?: number, enabled = true) {
+  const language = useStoryLanguage();
   return useQuery({
-    queryKey: ['stories', 'public', search ?? '', limit ?? 'all'],
-    queryFn: () => fetchPublicStoriesWithOfflineFallback({ search, limit }),
+    queryKey: ['stories', 'public', search ?? '', limit ?? 'all', language],
+    queryFn: () => fetchPublicStoriesWithOfflineFallback({ search, limit, language }),
     networkMode: 'always',
     enabled,
     retry: (failureCount) => isBrowserOnline() && failureCount < 2,
@@ -205,7 +215,7 @@ export function useRecordStoryView() {
   return useMutation({
     mutationFn: recordStoryView,
     onSuccess: (data) => {
-      queryClient.setQueryData<StoryMeta>(['story', data.id], old => (
+      queryClient.setQueriesData<StoryMeta>({ queryKey: ['story', data.id] }, old => (
         old ? { ...old, viewCount: data.viewCount } : old
       ));
       queryClient.setQueriesData<StorySummary[]>({ queryKey: ['stories'] }, old => (
@@ -222,20 +232,20 @@ export function useStoryReaction(storyId: string | undefined) {
     onMutate: async ({ id, reaction }) => {
       await queryClient.cancelQueries({ queryKey: ['story', id] });
 
-      const previousStory = queryClient.getQueryData<StoryMeta>(['story', id]);
-      if (previousStory) {
-        queryClient.setQueryData<StoryMeta>(['story', id], applyReactionState(previousStory, reaction));
-      }
+      const previousStories = queryClient.getQueriesData<StoryMeta>({ queryKey: ['story', id] });
+      queryClient.setQueriesData<StoryMeta>({ queryKey: ['story', id] }, old => (
+        old ? applyReactionState(old, reaction) : old
+      ));
 
-      return { id, previousStory };
+      return { previousStories };
     },
     onError: (_error, _variables, context) => {
-      if (context?.previousStory) {
-        queryClient.setQueryData<StoryMeta>(['story', context.id], context.previousStory);
+      for (const [key, previousStory] of context?.previousStories ?? []) {
+        queryClient.setQueryData(key, previousStory);
       }
     },
     onSuccess: (data) => {
-      queryClient.setQueryData<StoryMeta>(['story', data.id], old => (
+      queryClient.setQueriesData<StoryMeta>({ queryKey: ['story', data.id] }, old => (
         old ? applyReactionResponse(old, data) : old
       ));
       queryClient.setQueriesData<StorySummary[]>({ queryKey: ['stories'] }, old => (
@@ -336,5 +346,16 @@ export function useStoryAssets(id: string | undefined, enabled = false) {
     queryKey: ['story-assets', id],
     queryFn: () => fetchStoryAssets(id!),
     enabled: !!id && enabled,
+  });
+}
+
+export function useTranslateStory() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: translateStory,
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['story', variables.id] });
+      queryClient.invalidateQueries({ queryKey: ['billing'] });
+    },
   });
 }

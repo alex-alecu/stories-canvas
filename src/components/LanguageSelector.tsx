@@ -1,8 +1,11 @@
 import { useLanguage } from '../i18n/LanguageContext';
 import type { Language } from '../i18n/types';
+import { clientSiteConfig } from '../lib/siteConfig';
 
 export default function LanguageSelector() {
   const { language, setLanguage, languages } = useLanguage();
+
+  if (clientSiteConfig.defaultLanguage === 'ro') return null;
 
   return (
     <select

@@ -18,6 +18,7 @@ export type StoryUsageOperation =
   | 'scenario_validation_repair'
   | 'scenario_review'
   | 'scenario_review_rewrite'
+  | 'story_translation'
   | 'page_text_review'
   | 'character_sheet'
   | 'page_image'
@@ -189,6 +190,7 @@ export interface PublicStoryPreviewGate {
 }
 
 export interface StoryGenerationInputs {
+  sourceLanguage?: string;
   textModel?: string;
   thinkingLevel?: ThinkingLevel;
   billingCurrency?: 'USD';
@@ -290,6 +292,10 @@ export interface StoryImageSources {
 }
 
 export interface StoryMeta {
+  sourceLanguage?: string;
+  requestedLanguage?: string;
+  localizationMissing?: boolean;
+  availableLanguages?: string[];
   id: string;
   prompt: string;
   status: StoryStatus;

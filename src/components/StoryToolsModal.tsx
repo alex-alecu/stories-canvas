@@ -21,18 +21,21 @@ import {
   useRetryStory,
   useStoryAssets,
   useStoryReaction,
+  useTranslateStory,
 } from '../hooks/useStories';
 import { useBillingOverview } from '../hooks/useBilling';
 import { useStoryGeneration } from '../hooks/useStoryGeneration';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../i18n/LanguageContext';
+import type { Language } from '../i18n/types';
+import { getStoryLanguageCopy } from '../i18n/storyLanguageCopy';
+import { getMissingAudioCount, getStoryPageTextMaxChars } from '../lib/storyLanguage';
 import { formatStoryStatusMessage, getVoiceOptionText } from '../i18n/storyStatusCopy';
 import FontSizeControl from './FontSizeControl';
 import { clientSiteConfig } from '../lib/siteConfig';
 import { storyRequiresAudio, withoutDisabledAudioFailure } from '../../shared/storyAudio';
 
 const PAGE_FEEDBACK_MAX_CHARS = 800;
-const PAGE_TEXT_OVERLAY_MAX_CHARS = 320;
 
 type ToolsView = 'settings' | 'image' | 'audio';
 type OperationResult = 'success' | 'failed' | null;
@@ -51,6 +54,10 @@ interface StoryToolsModalProps {
   storyMode?: StoryMode;
   generationInputs?: StoryGenerationInputs;
   storyLanguage?: string;
+  requestedLanguage: string;
+  isLanguageLoading?: boolean;
+  localizationMissing?: boolean;
+  sourceLanguage?: string;
   openRouterCosts?: StoryOpenRouterCosts | null;
   likeCount?: number;
   dislikeCount?: number;
@@ -77,12 +84,6 @@ function errorMessage(error: unknown, fallback: string): string {
   return error instanceof Error && error.message ? error.message : fallback;
 }
 
-function getPageTextMaxChars(targetAge: number): number {
-  if (targetAge <= 3) return 160;
-  if (targetAge <= 6) return 200;
-  if (targetAge <= 9) return 280;
-  return PAGE_TEXT_OVERLAY_MAX_CHARS;
-}
 
 function formatTemplate(template: string, values: Record<string, number | string>): string {
   return template.replace(/\{(\w+)\}/g, (_, key: string) => String(values[key] ?? `{${key}}`));
@@ -102,6 +103,10 @@ export default function StoryToolsModal({
   storyMode,
   generationInputs,
   storyLanguage,
+  requestedLanguage,
+  isLanguageLoading = false,
+  localizationMissing = false,
+  sourceLanguage,
   openRouterCosts,
   likeCount = 0,
   dislikeCount = 0,
@@ -109,7 +114,8 @@ export default function StoryToolsModal({
   canManageStory = false,
   canUseOnlineActions = true,
 }: StoryToolsModalProps) {
-  const { t, language } = useLanguage();
+  const { t, language, setLanguage, languages } = useLanguage();
+  const languageCopy = getStoryLanguageCopy(language);
   const walletCopy = getWalletCopy(language);
   const savedModel = generationInputs?.textModel || generationInputs?.scenarioModel;
   const modelName = TEXT_MODELS.find(model => model.id === savedModel)?.name || savedModel || walletCopy.notRecorded;
@@ -158,6 +164,7 @@ export default function StoryToolsModal({
 
   const retryStory = useRetryStory();
   const generateAudio = useGenerateStoryAudio();
+  const translateStory = useTranslateStory();
   const regenerateImage = useRegeneratePageImage();
   const regeneratePageAudio = useRegeneratePageAudio();
   const { mutate: mutateReaction, isPending: reactionPending } = useStoryReaction(storyId);
@@ -172,7 +179,7 @@ export default function StoryToolsModal({
     ? DEFAULT_AUDIO_MODEL
     : generationInputs?.audioModel || DEFAULT_AUDIO_MODEL;
   const storedAudioVoice = generationInputs?.audioVoice;
-  const speechLanguage = storyLanguage || generationInputs?.language || clientSiteConfig.defaultLanguage;
+  const speechLanguage = requestedLanguage;
   const audioModelAvailable = isAudioModelAvailable(audioModel, speechLanguage);
   const audioVoices = getAudioVoices(audioModel, speechLanguage);
   const hasNarrationConfig = storyRequiresAudio({ voice, storyMode, generationInputs, scenario });
@@ -184,7 +191,7 @@ export default function StoryToolsModal({
     : 0;
   const displayedAudioCostUsdMicros = (openRouterCosts?.audioCostUsdMicros ?? 0) + elevenLabsEstimateUsdMicros;
   const availableCredits = billingOverview?.balance.availableCredits ?? 0;
-  const pageTextMaxChars = getPageTextMaxChars(scenario.targetAge);
+  const pageTextMaxChars = getStoryPageTextMaxChars(scenario.targetAge, requestedLanguage, sourceLanguage || storyLanguage || requestedLanguage);
   const characterSheets = assets?.characterSheets ?? [];
   const currentImageUrl = currentPage?.imageUrl || `/api/stories/${storyId}/images/page-${String(currentPage?.pageNumber ?? 1).padStart(2, '0')}.png`;
   const currentVoiceLabel = audioModel !== DEFAULT_AUDIO_MODEL
@@ -339,22 +346,16 @@ export default function StoryToolsModal({
   );
 
   const missingAudioCount = useMemo(
-    () => hasNarrationConfig ? scenario.pages.filter(p => !p.audioUrl).length : 0,
-    [scenario.pages, hasNarrationConfig],
-  );
-
-  const storyHasAudio = useMemo(
-    () => scenario.pages.some(p => !!p.audioUrl),
+    () => getMissingAudioCount(scenario.pages),
     [scenario.pages],
   );
 
-  const hasErrors = failedImageCount > 0 || missingAudioCount > 0;
+  const hasErrors = failedImageCount > 0;
   const canStartAddNarration = storyStatus === 'completed'
     && canUseOnlineActions
     && canManageStory
     && !isGenerating
-    && !hasNarrationConfig
-    && !storyHasAudio
+    && missingAudioCount > 0
     && scenario.pages.length > 0;
   const showAddNarration = canStartAddNarration || audioTriggered || audioResult !== null;
   const isRetrying = retryTriggered && (
@@ -374,7 +375,7 @@ export default function StoryToolsModal({
     operationStarting ||
     activeProgress?.status === 'generating_audio'
   );
-  const isBusy = isRetrying || isAddingNarration || isRegeneratingImage || isRegeneratingPageAudio;
+  const isBusy = isLanguageLoading || isRetrying || isAddingNarration || isRegeneratingImage || isRegeneratingPageAudio || translateStory.isPending;
 
   useEffect(() => {
     if (!isOpen) return;
@@ -408,7 +409,7 @@ export default function StoryToolsModal({
   }, [speechLanguage]);
 
   const handleGenerateAudio = useCallback(async () => {
-    if (!canStartAddNarration) return;
+    if (!canStartAddNarration || !audioModelAvailable || isBusy) return;
     if (needsFunds) {
       goToBilling();
       return;
@@ -419,6 +420,7 @@ export default function StoryToolsModal({
     try {
       await generateAudio.mutateAsync({
         id: storyId,
+        language: requestedLanguage,
         voice: audioModel === DEFAULT_AUDIO_MODEL ? selectedVoice : undefined,
         audioModel,
         audioVoice: audioModel === DEFAULT_AUDIO_MODEL ? undefined : audioVoice,
@@ -430,6 +432,9 @@ export default function StoryToolsModal({
     }
   }, [
     canStartAddNarration,
+    audioModelAvailable,
+    isBusy,
+    requestedLanguage,
     clearOperationGracePeriod,
     generateAudio,
     goToBilling,
@@ -534,7 +539,7 @@ export default function StoryToolsModal({
   ]);
 
   const handlePageAudioSubmit = useCallback(async () => {
-    if (!currentPage || !canUsePageActions || !hasNarrationConfig || !audioModelAvailable) return;
+    if (!currentPage || !canUsePageActions || !hasNarrationConfig || localizationMissing || !audioModelAvailable) return;
     if (needsFunds) {
       goToBilling();
       return;
@@ -553,6 +558,7 @@ export default function StoryToolsModal({
         id: storyId,
         pageNumber: currentPage.pageNumber,
         text: pageTextTrimmed,
+        language: requestedLanguage,
         voice: audioModel === DEFAULT_AUDIO_MODEL ? selectedVoice : undefined,
         audioModel,
         audioVoice: audioModel === DEFAULT_AUDIO_MODEL ? undefined : audioVoice,
@@ -572,6 +578,8 @@ export default function StoryToolsModal({
     pageTextInvalid,
     pageTextMaxChars,
     pageTextTrimmed,
+    requestedLanguage,
+    localizationMissing,
     regeneratePageAudio,
     startOperationGracePeriod,
     storyId,
@@ -582,6 +590,15 @@ export default function StoryToolsModal({
     selectedVoice,
     t,
   ]);
+
+  const handleTranslate = useCallback(() => {
+    if (!canManageStory || !canUseOnlineActions || isGenerating || storyStatus !== 'completed' || isBusy) return;
+    if (needsFunds) {
+      goToBilling();
+      return;
+    }
+    translateStory.mutate({ id: storyId, language: requestedLanguage });
+  }, [canManageStory, canUseOnlineActions, isGenerating, storyStatus, isBusy, needsFunds, goToBilling, translateStory, storyId, requestedLanguage]);
 
   if (!isOpen) return null;
 
@@ -649,6 +666,38 @@ export default function StoryToolsModal({
 
   const renderSettingsView = () => (
     <div className="space-y-5">
+      <section className="rounded-lg border border-white/10 bg-white/[0.04] p-4">
+        <label htmlFor="story-language-select" className="block text-sm font-semibold text-white">{languageCopy.language}</label>
+        {clientSiteConfig.defaultLanguage === 'ro' ? (
+          <p className="mt-2 text-sm text-white/70">Română</p>
+        ) : (
+          <select
+            id="story-language-select"
+            value={requestedLanguage}
+            onChange={event => setLanguage(event.target.value as Language)}
+            disabled={isBusy || !!isGenerating}
+            className="mt-2 w-full rounded-lg border border-white/10 bg-white/10 px-3 py-2 text-sm text-white focus:border-primary-300 focus:outline-none disabled:opacity-50"
+          >
+            {languages.map(option => <option key={option.code} value={option.code} className="bg-[#1a1a2e] text-white">{option.name}</option>)}
+          </select>
+        )}
+        {isLanguageLoading && <p role="status" className="mt-3 text-sm text-white/70">{languageCopy.loading}</p>}
+        {!isLanguageLoading && localizationMissing && (
+          <div className="mt-3 space-y-3">
+            <p role="status" className="text-sm text-amber-200">{languageCopy.fallback}</p>
+            <p className="text-xs text-white/55">{languageCopy.sourceLanguage}: {languages.find(option => option.code === (sourceLanguage || storyLanguage))?.name ?? sourceLanguage ?? storyLanguage}</p>
+            {canManageStory && canUseOnlineActions && (
+              <>
+                <p className="text-xs text-white/55">{walletCopy.actualCost}</p>
+                <button type="button" onClick={handleTranslate} disabled={isBusy || !!isGenerating || storyStatus !== 'completed'} className="rounded-lg bg-primary-500 px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-primary-600 disabled:cursor-not-allowed disabled:opacity-50">
+                  {translateStory.isPending ? languageCopy.translating : needsFunds ? t.getCredits : languageCopy.translate}
+                </button>
+              </>
+            )}
+          </div>
+        )}
+        {translateStory.isError && <p role="alert" className="mt-3 text-sm text-red-300">{errorMessage(translateStory.error, languageCopy.translationFailed)}</p>}
+      </section>
       <section className="rounded-lg border border-white/10 bg-white/[0.04] p-4">
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/35">{t.storyToolsSectionStory}</p>
         <h3 className="mt-2 text-lg font-bold leading-snug text-white">{scenario.title}</h3>
@@ -846,10 +895,12 @@ export default function StoryToolsModal({
           {renderActionRow({
             title: t.audioAndScriptTitle,
             description: t.audioAndScriptDescription,
-            disabled: !hasNarrationConfig || !canUsePageActions,
+            disabled: localizationMissing || !hasNarrationConfig || !canUsePageActions,
             disabledMessage: !canManageStory
               ? t.signInAsOwnerToRecreatePage
-              : hasNarrationConfig
+              : localizationMissing
+                ? languageCopy.translateFirst
+                : hasNarrationConfig
                 ? t.pageActionsAvailableAfterGeneration
                 : t.addNarrationFirst,
             onOpen: () => setView('audio'),
@@ -861,7 +912,8 @@ export default function StoryToolsModal({
         <section className="rounded-lg border border-white/10 bg-white/[0.04] p-4">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <h3 className="text-sm font-semibold text-white">{t.addNarration}</h3>
+              <h3 className="text-sm font-semibold text-white">{languageCopy.narration}</h3>
+              <p className="mt-1 text-sm text-white/55">{languageCopy.narrationDescription}</p>
               <p className="mt-1 text-sm text-white/55">{getWalletCopy(language).actualCost}</p>
             </div>
             {needsFunds && (
@@ -894,7 +946,7 @@ export default function StoryToolsModal({
               disabled={isBusy || !canStartAddNarration || !audioModelAvailable}
               className="rounded-lg bg-primary-500 px-5 py-2 text-sm font-bold text-white transition-colors hover:bg-primary-600 disabled:cursor-not-allowed disabled:bg-primary-500/45"
             >
-              {needsFunds ? t.getCredits : isAddingNarration ? t.generatingNarration : t.generateNarration}
+              {needsFunds ? t.getCredits : isAddingNarration ? t.generatingNarration : languageCopy.narration}
             </button>
           </div>
         </section>
@@ -911,11 +963,6 @@ export default function StoryToolsModal({
             {failedImageCount > 0 && (
               <span className="rounded-full bg-red-500/15 px-3 py-1 text-xs font-medium text-red-300">
                 {failedImageCount} {t.failedImages}
-              </span>
-            )}
-            {missingAudioCount > 0 && (
-              <span className="rounded-full bg-orange-500/15 px-3 py-1 text-xs font-medium text-orange-300">
-                {missingAudioCount} {t.missingAudio}
               </span>
             )}
           </div>
@@ -1057,7 +1104,7 @@ export default function StoryToolsModal({
       <button
         type="button"
         onClick={handlePageAudioSubmit}
-        disabled={!hasNarrationConfig || !audioModelAvailable || !canUsePageActions || isBusy || regeneratePageAudio.isPending || pageTextInvalid}
+        disabled={localizationMissing || !hasNarrationConfig || !audioModelAvailable || !canUsePageActions || isBusy || regeneratePageAudio.isPending || pageTextInvalid}
         className="w-full rounded-lg bg-primary-500 px-5 py-3 text-sm font-bold text-white transition-colors hover:bg-primary-600 disabled:cursor-not-allowed disabled:bg-primary-500/45"
       >
         {needsFunds ? t.getCredits : isRegeneratingPageAudio ? t.updating : t.updateScriptAndAudio}

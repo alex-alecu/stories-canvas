@@ -2,6 +2,18 @@
 
 Generate illustrated and narrated stories for children with the help of AI.
 
+## Story languages
+
+New stories use English for the source scenario, character descriptions, and image instructions. `generationInputs.sourceLanguage` identifies this source language. `stories.language` remains the initial reader language. Older stories retain their actual source language.
+
+The English site uses the reader's selected language. The Romanian site uses Romanian. Set `APP_DEFAULT_LANGUAGE=en` for fablepocket.com and `APP_DEFAULT_LANGUAGE=ro` for basmul.ro at build time and server runtime.
+
+A separate Gemini 3.8 Flash request, with low reasoning, translates the title and page text after illustration. English output needs no translation request. Translations preserve page numbers and share the original images. Provider response costs are recorded as `story_translation` usage.
+
+Apply the `20261031072953_story_localizations.sql` migration before running this version against Supabase. The new table stores each language version and its page audio references. Only the server can access this table. Filesystem mode uses a separate localization JSON file per language.
+
+Story settings can translate missing subtitles and generate missing audio in the selected language. Saved translations and completed audio pages are reused. Audio filenames include the language and a unique revision. Source text changes invalidate older translations through a content hash. Offline downloads also keep separate language versions.
+
 ## Billing Model
 
 The public gallery is free. Accounts hold prepaid funds in US dollars. A new story requires a balance of at least $10.

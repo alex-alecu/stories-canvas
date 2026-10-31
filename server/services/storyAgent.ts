@@ -84,7 +84,7 @@ function activity(
 
 export async function generateStoryScriptWithAgents(
   userPrompt: string,
-  language?: string,
+  _language?: string,
   age?: number,
   style?: ArtStyleKey,
   onProgress?: (update: StoryAgentProgressUpdate) => void,
@@ -92,6 +92,7 @@ export async function generateStoryScriptWithAgents(
   dependencies: StoryAgentDependencies = {},
   signal?: AbortSignal,
 ): Promise<StoryAgentResult> {
+  const language = 'en';
   signal?.throwIfAborted();
   const baseContext = buildStoryPromptContext(userPrompt, language, age, style);
   onProgress?.({

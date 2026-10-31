@@ -449,7 +449,7 @@ export async function generateScenario(
 ): Promise<Scenario> {
   return generateScenarioWithModel(
     userPrompt,
-    language,
+    'en',
     age,
     style,
     openai.generateJSON,

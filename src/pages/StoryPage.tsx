@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
 import { useStory, useCancelStory, useStoryAssets, useRegenerateStoryAssets, useRecordStoryView, useRetryStory } from '../hooks/useStories';
 import { useStoryGeneration } from '../hooks/useStoryGeneration';
+import { useStoryLanguage } from '../hooks/useStoryLanguage';
 import StoryViewer from '../components/StoryViewer';
 import GenerationProgress from '../components/GenerationProgress';
 import { useLanguage } from '../i18n/LanguageContext';
@@ -17,6 +18,7 @@ export default function StoryPage() {
   const { id } = useParams<{ id: string }>();
   const location = useLocation();
   const { isOnline } = useNetworkStatus();
+  const requestedLanguage = useStoryLanguage();
 
   // Set black browser background while viewing stories (visible in overscroll areas)
   useEffect(() => {
@@ -25,8 +27,9 @@ export default function StoryPage() {
       document.documentElement.classList.remove('story-view');
     };
   }, []);
-  const { data: story, isLoading, error, refetch } = useStory(id);
+  const { data: story, isLoading, isPlaceholderData: isLanguageLoading, error, refetch } = useStory(id);
   const shouldWarmMediaCache = import.meta.env.PROD
+    && !isLanguageLoading
     && isOnline
     && story?.status === 'completed'
     && !story?.assetsStale
@@ -50,7 +53,7 @@ export default function StoryPage() {
   }, [id, user?.id, authLoading, isOnline, refetch]);
 
   const warmupUrls = useMemo(() => {
-    if (story?.status !== 'completed' || story.assetsStale || story.publicPreviewGate || !story.scenario) return [];
+    if (isLanguageLoading || story?.status !== 'completed' || story.assetsStale || story.publicPreviewGate || !story.scenario) return [];
 
     const urls = new Set<string>();
     for (const page of story.scenario.pages) {
@@ -67,7 +70,7 @@ export default function StoryPage() {
     }
 
     return [...urls];
-  }, [story, storyAssets]);
+  }, [story, storyAssets, isLanguageLoading]);
 
   useEffect(() => {
     if (warmupUrls.length === 0) return;
@@ -80,17 +83,17 @@ export default function StoryPage() {
   }, [warmupUrls]);
 
   useEffect(() => {
-    if (!isOnline) return;
+    if (!isOnline || isLanguageLoading) return;
     if (!story || story.status !== 'completed' || story.assetsStale || story.publicPreviewGate || !story.scenario) return;
 
-    const autoDownloadKey = `${story.id}:${story.scenarioRevision ?? 0}:${story.renderedScenarioRevision ?? 0}`;
+    const autoDownloadKey = `${story.id}:${requestedLanguage}:${story.scenarioRevision ?? 0}:${story.renderedScenarioRevision ?? 0}:${story.scenario.pages.map(page => `${page.text}:${page.audioUrl ?? ''}`).join('|')}`;
     if (lastAutoDownloadKeyRef.current === autoDownloadKey) return;
 
     lastAutoDownloadKeyRef.current = autoDownloadKey;
-    downloadStoryForOffline(story.id, 'recent', story).catch((error) => {
+    downloadStoryForOffline(story.id, 'recent', requestedLanguage, story).catch((error) => {
       console.error('Failed to save recently viewed story offline:', error);
     });
-  }, [isOnline, story]);
+  }, [isOnline, story, requestedLanguage, isLanguageLoading]);
 
   useEffect(() => {
     if (!isOnline || !story?.id) return;
@@ -231,9 +234,13 @@ export default function StoryPage() {
         storyMode={story.storyMode}
         generationInputs={story.generationInputs}
         storyLanguage={story.language}
+        requestedLanguage={requestedLanguage}
+        isLanguageLoading={isLanguageLoading}
+        localizationMissing={story.localizationMissing}
+        sourceLanguage={story.sourceLanguage}
         openRouterCosts={story.openRouterCosts}
-        canManageStory={isOnline && !!user && !!story.userId && story.userId === user.id}
-        canUseOnlineActions={isOnline}
+        canManageStory={isOnline && !isLanguageLoading && !!user && !!story.userId && story.userId === user.id}
+        canUseOnlineActions={isOnline && !isLanguageLoading}
         onContinueGeneration={handleRetryStory}
         isContinuingGeneration={retryStory.isPending}
         continueGenerationError={retryStory.isError ? (retryStory.error?.message || t.retryFailed) : undefined}

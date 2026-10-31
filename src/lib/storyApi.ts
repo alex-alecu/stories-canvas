@@ -22,27 +22,27 @@ async function readError(res: Response, fallback: string): Promise<Error> {
   return new Error(error.error || fallback);
 }
 
-export async function fetchStories(): Promise<StorySummary[]> {
+export async function fetchStories(language: string): Promise<StorySummary[]> {
   const authHeaders = await getAuthHeaders();
-  const res = await fetch('/api/stories', {
+  const res = await fetch(`/api/stories?${new URLSearchParams({ language })}`, {
     headers: authHeaders,
   });
   if (!res.ok) throw new Error('Failed to fetch stories');
   return res.json();
 }
 
-export async function fetchUserStories(): Promise<StorySummary[]> {
+export async function fetchUserStories(language: string): Promise<StorySummary[]> {
   const authHeaders = await getAuthHeaders();
-  const res = await fetch('/api/stories/mine', {
+  const res = await fetch(`/api/stories/mine?${new URLSearchParams({ language })}`, {
     headers: authHeaders,
   });
   if (!res.ok) throw new Error('Failed to fetch user stories');
   return res.json();
 }
 
-export async function fetchStory(id: string): Promise<StoryMeta> {
+export async function fetchStory(id: string, language: string): Promise<StoryMeta> {
   const authHeaders = await getAuthHeaders();
-  const res = await fetch(`/api/stories/${id}`, {
+  const res = await fetch(`/api/stories/${id}?${new URLSearchParams({ language })}`, {
     headers: authHeaders,
   });
   if (!res.ok) throw new Error('Failed to fetch story');
@@ -134,11 +134,13 @@ export async function cancelStory(id: string): Promise<void> {
 export async function fetchPublicStories({
   search,
   limit,
+  language,
 }: {
   search?: string;
   limit?: number;
-} = {}): Promise<StorySummary[]> {
-  const params = new URLSearchParams();
+  language: string;
+}): Promise<StorySummary[]> {
+  const params = new URLSearchParams({ language });
   if (search) params.set('search', search);
   if (typeof limit === 'number') params.set('limit', String(limit));
   const url = `/api/stories/public${params.toString() ? `?${params}` : ''}`;
@@ -182,12 +184,12 @@ export async function regenerateStoryAssets(id: string): Promise<RegenerateAsset
   return res.json();
 }
 
-export async function generateStoryAudio({ id, voice, audioModel, audioVoice }: { id: string; voice?: VoiceKey; audioModel: string; audioVoice?: string }): Promise<GenerateAudioResponse> {
+export async function generateStoryAudio({ id, language, voice, audioModel, audioVoice }: { id: string; language: string; voice?: VoiceKey; audioModel: string; audioVoice?: string }): Promise<GenerateAudioResponse> {
   const authHeaders = await getAuthHeaders();
   const res = await fetch(`/api/stories/${id}/generate-audio`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...authHeaders },
-    body: JSON.stringify({ voice, audioModel, audioVoice }),
+    body: JSON.stringify({ language, voice, audioModel, audioVoice }),
   });
   if (!res.ok) {
     throw await readError(res, 'Failed to generate narration');
@@ -220,6 +222,7 @@ export async function regeneratePageImage({
 
 export async function regeneratePageAudio({
   id,
+  language,
   pageNumber,
   text,
   voice,
@@ -229,6 +232,7 @@ export async function regeneratePageAudio({
   id: string;
   pageNumber: number;
   text: string;
+  language: string;
   voice?: VoiceKey;
   audioModel?: string;
   audioVoice?: string;
@@ -237,7 +241,7 @@ export async function regeneratePageAudio({
   const res = await fetch(`/api/stories/${id}/pages/${pageNumber}/script-audio`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', ...authHeaders },
-    body: JSON.stringify({ text, voice, audioModel, audioVoice }),
+    body: JSON.stringify({ language, text, voice, audioModel, audioVoice }),
   });
   if (!res.ok) {
     throw await readError(res, 'Failed to update page script and narration');
@@ -251,5 +255,16 @@ export async function fetchStoryAssets(id: string): Promise<StoryAssets> {
     headers: authHeaders,
   });
   if (!res.ok) throw new Error('Failed to fetch story assets');
+  return res.json();
+}
+
+export async function translateStory({ id, language }: { id: string; language: string }): Promise<{ language: string; status: 'completed' }> {
+  const authHeaders = await getAuthHeaders();
+  const res = await fetch(`/api/stories/${id}/translate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders },
+    body: JSON.stringify({ language }),
+  });
+  if (!res.ok) throw await readError(res, 'Failed to translate subtitles');
   return res.json();
 }

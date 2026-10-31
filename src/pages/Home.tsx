@@ -8,6 +8,7 @@ import PublicStoriesShowcase from '../components/PublicStoriesShowcase';
 import StoryDeleteDialog from '../components/StoryDeleteDialog';
 import { useStories, useCreateStory, useCancelStory, useDeleteStory, usePublicStories, useToggleVisibility } from '../hooks/useStories';
 import { useStoryGeneration } from '../hooks/useStoryGeneration';
+import { useStoryLanguage } from '../hooks/useStoryLanguage';
 import { useNotification } from '../hooks/useNotification';
 import { useNetworkStatus } from '../hooks/useNetworkStatus';
 import { useOfflineStorySummaries } from '../hooks/useOfflineStories';
@@ -75,6 +76,7 @@ export default function Home() {
   const { requestPermission, notify } = useNotification();
   const navigate = useNavigate();
   const { t, language } = useLanguage();
+  const storyLanguage = useStoryLanguage();
 
   const clearGeneratingStoryTracking = useCallback(() => {
     setGeneratingStoryId(null);
@@ -134,12 +136,12 @@ export default function Home() {
   const handleCreateStory = useCallback(async (request: CreateStoryRequest) => {
     try {
       requestPermission();
-      const result = await createStory.mutateAsync({ ...request, language });
+      const result = await createStory.mutateAsync({ ...request, language: storyLanguage });
       setGeneratingStoryId(result.id);
     } catch (error) {
       console.error('Failed to create story:', error);
     }
-  }, [createStory, language, requestPermission]);
+  }, [createStory, storyLanguage, requestPermission]);
 
   const handleTogglePublic = useCallback(async (id: string, isPublic: boolean) => {
     try {

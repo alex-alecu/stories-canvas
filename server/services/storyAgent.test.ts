@@ -276,3 +276,15 @@ test('the story agent records a provider content block and does not repeat it', 
   assert.equal(usage[0].usageDetails.finishReason, 'content_filter');
   assert.equal(usage[0].usageDetails.nativeFinishReason, 'PROHIBITED_CONTENT');
 });
+
+
+test('source scenario instructions stay English when the request selects Romanian', async () => {
+  const api = fixture([makeScenario()]);
+  const languages: string[] = [];
+  await generateStoryScriptWithAgents('O poveste despre un felinar.', 'ro', 4, 'storybook', undefined, undefined, {
+    runner: { model: api.model },
+    resolveSource: async context => { languages.push(context.language); return undefined; },
+    enforceQuality: async (context, scenario) => { languages.push(context.language); return scenario; },
+  });
+  assert.deepEqual(languages, ['en', 'en']);
+});

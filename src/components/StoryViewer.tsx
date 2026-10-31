@@ -11,6 +11,7 @@ import { readStorageItem, readStoredBoolean, readStoredNumber, writeStorageItem 
 import { formatStoryStatusMessage } from '../i18n/storyStatusCopy';
 import { storyRequiresAudio, withoutDisabledAudioFailure } from '../../shared/storyAudio';
 import { getStoryContinuationCopy } from '../../shared/storyCompletion';
+import { getStoryLanguageCopy } from '../i18n/storyLanguageCopy';
 import StoryToolsModal from './StoryToolsModal';
 import 'swiper/css';
 import 'swiper/css/navigation';
@@ -60,6 +61,10 @@ interface StoryViewerProps {
   storyMode?: StoryMode;
   generationInputs?: StoryGenerationInputs;
   storyLanguage?: string;
+  requestedLanguage: string;
+  isLanguageLoading?: boolean;
+  localizationMissing?: boolean;
+  sourceLanguage?: string;
   openRouterCosts?: StoryOpenRouterCosts | null;
   canManageStory?: boolean;
   canUseOnlineActions?: boolean;
@@ -124,6 +129,10 @@ export default function StoryViewer({
   storyMode,
   generationInputs,
   storyLanguage,
+  requestedLanguage,
+  isLanguageLoading = false,
+  localizationMissing = false,
+  sourceLanguage,
   openRouterCosts,
   canManageStory = false,
   canUseOnlineActions = true,
@@ -134,6 +143,7 @@ export default function StoryViewer({
 }: StoryViewerProps) {
   const { t, language } = useLanguage();
   const continuationCopy = getStoryContinuationCopy(language);
+  const languageCopy = getStoryLanguageCopy(language);
   const { fontSize } = useFontSize();
   const { user } = useAuth();
   const loginMarker = user?.last_sign_in_at ? `${user.id}:${user.last_sign_in_at}` : null;
@@ -157,7 +167,7 @@ export default function StoryViewer({
   const navigate = useNavigate();
 
   // Detect errors for the tools button indicator
-  const shouldHaveAudio = storyRequiresAudio({ voice, storyMode, generationInputs, scenario });
+  const shouldHaveAudio = !isLanguageLoading && !localizationMissing && storyRequiresAudio({ voice, storyMode, generationInputs, scenario });
   const savedIssueMessage = withoutDisabledAudioFailure(storyMessage, shouldHaveAudio);
   const hasErrors = useMemo(() => {
     const hasFailedImages = scenario.pages.some(p => p.status !== 'completed');
@@ -316,6 +326,7 @@ export default function StoryViewer({
 
   // Audio playback state
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const pendingAudioTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [playingPage, setPlayingPage] = useState<number | null>(null);
   const [audioLoading, setAudioLoading] = useState<number | null>(null);
   const [activeSlideIndex, setActiveSlideIndex] = useState(0);
@@ -327,6 +338,10 @@ export default function StoryViewer({
 
   // Stop audio playback
   const stopAudio = useCallback(() => {
+    if (pendingAudioTimeoutRef.current) {
+      clearTimeout(pendingAudioTimeoutRef.current);
+      pendingAudioTimeoutRef.current = null;
+    }
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current.currentTime = 0;
@@ -335,6 +350,10 @@ export default function StoryViewer({
     setPlayingPage(null);
     setAudioLoading(null);
   }, []);
+
+  useEffect(() => {
+    stopAudio();
+  }, [requestedLanguage, stopAudio]);
 
   // Animate exit: swipe/navigate past last page returns to story list
   const exitTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -485,7 +504,8 @@ export default function StoryViewer({
       const currentPage = scenario.pages[swiper.activeIndex];
       if (currentPage?.audioUrl) {
         // Small delay to let the slide transition settle
-        setTimeout(() => {
+        pendingAudioTimeoutRef.current = setTimeout(() => {
+          pendingAudioTimeoutRef.current = null;
           if (autoPlayRef.current && currentPage.audioUrl) {
             playPageAudio(currentPage.pageNumber, currentPage.audioUrl);
           }
@@ -643,6 +663,7 @@ export default function StoryViewer({
   // Cleanup audio on unmount
   useEffect(() => {
     return () => {
+      if (pendingAudioTimeoutRef.current) clearTimeout(pendingAudioTimeoutRef.current);
       if (audioRef.current) {
         audioRef.current.pause();
         audioRef.current.src = '';
@@ -750,6 +771,18 @@ export default function StoryViewer({
       {showAudioFailed && (
         <div className="absolute bottom-20 right-4 z-50 bg-red-500/80 backdrop-blur-sm text-white px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-2">
           <span>{t.narrationFailed}</span>
+        </div>
+      )}
+
+      {isLanguageLoading && !showTools && (
+        <div role="status" className="absolute top-24 left-1/2 z-50 rounded-xl bg-black/75 px-4 py-3 text-center text-xs text-white shadow-lg backdrop-blur-sm">
+          {languageCopy.loading}
+        </div>
+      )}
+
+      {!isLanguageLoading && localizationMissing && !showTools && (
+        <div role="status" className="absolute top-24 left-1/2 z-50 w-[min(90vw,32rem)] -translate-x-1/2 rounded-xl bg-black/75 px-4 py-3 text-center text-xs text-amber-200 shadow-lg backdrop-blur-sm">
+          {languageCopy.fallback}
         </div>
       )}
 
@@ -920,6 +953,10 @@ export default function StoryViewer({
           storyMode={storyMode}
           generationInputs={generationInputs}
           storyLanguage={storyLanguage}
+          requestedLanguage={requestedLanguage}
+          isLanguageLoading={isLanguageLoading}
+          localizationMissing={localizationMissing}
+          sourceLanguage={sourceLanguage}
           openRouterCosts={openRouterCosts}
           likeCount={likeCount}
           dislikeCount={dislikeCount}

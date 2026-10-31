@@ -81,6 +81,7 @@ async function createStoriesHarness(dataDir: string, configOverrides: Record<str
 
   Object.assign(config, {
     dataDir,
+    defaultLanguage: 'en',
     useSupabase: false,
     elevenLabsApiKey: undefined,
     maxActiveGenerationsPerUser: 2,
@@ -395,6 +396,13 @@ test('POST /api/stories persists generation inputs and usage totals for filesyst
     await fs.rm(dataDir, { recursive: true, force: true });
   });
 
+  t.mock.method(harness.storiesModule.localizationOps, 'translateStory', async (story: StoryMeta, language: string) => ({
+    language,
+    sourceHash: harness.storiesModule.localizationOps.getStorySourceHash(story),
+    title: 'Dragonul și luna',
+    pages: (story.scenario?.pages ?? []).map(page => ({ pageNumber: page.pageNumber, text: 'Un dragon adoarme sub lună.' })),
+  }));
+
   const { getImageModel } = await import('../services/imageGenerationContext.js');
   let generatedImageModel = '';
   const scenario = makeScenario([
@@ -547,34 +555,18 @@ test('POST /api/stories persists generation inputs and usage totals for filesyst
   });
 
   t.mock.method(harness.storiesModule.audioOps, 'isAudioConfigured', () => true);
-  t.mock.method(harness.storiesModule.audioOps, 'generateAllPageAudio', async (
-    _storyId: string,
-    pages: Page[],
-    _voice: string,
-    _userId: string | undefined,
-    _signal: AbortSignal,
-    _onProgress?: unknown,
-    onUsage?: (page: Page, usage: {
-      provider: 'elevenlabs';
-      model: string;
-      status: 'succeeded' | 'failed';
-      billedCharacters: number;
-      usageDetails: Record<string, unknown>;
-    }) => void | Promise<void>,
+  t.mock.method(harness.storiesModule.audioOps, 'generatePageAudio', async (
+    ...[text, _voice, onUsage]: Parameters<typeof harness.storiesModule.audioOps.generatePageAudio>
   ) => {
-    const [page] = pages;
-    await onUsage?.(page, {
+    await onUsage?.({
       provider: 'elevenlabs',
       model: 'eleven_multilingual_v2',
       status: 'succeeded',
-      billedCharacters: page.text.length,
+      billedCharacters: text.length,
+      usageAvailable: true,
       usageDetails: { voiceId: 'voice-123' },
     });
-    return {
-      completedCount: 1,
-      failedCount: 0,
-      skippedCount: 0,
-    };
+    return Buffer.from('romanian-narration');
   });
 
   const response = await fetch(`${harness.baseUrl}/api/stories`, {
@@ -1839,7 +1831,7 @@ test('POST /api/stories/:id/retry restarts a failed script with saved settings a
   ) => {
     draftCalls++;
     assert.equal(prompt, 'Creează povestea Sarea în bucate.');
-    assert.equal(language, 'ro');
+    assert.equal(language, 'en');
     assert.equal(age, 5);
     assert.equal(style, 'storybook');
     assert.deepEqual(getTextModelSettings(), { textModel: 'openai/gpt-6-astra', thinkingLevel: 'high' });
@@ -1850,6 +1842,12 @@ test('POST /api/stories/:id/retry restarts a failed script with saved settings a
       usageDetails: { providerCostUsd: 0.02, thinkingLevel: 'high' } });
     return makeGeneratedScenarioResult(makeScenario([makePage()]));
   });
+  t.mock.method(harness.storiesModule.localizationOps, 'translateStory', async (source: StoryMeta, language: string) => ({
+    language,
+    sourceHash: harness.storiesModule.localizationOps.getStorySourceHash(source),
+    title: source.scenario!.title,
+    pages: source.scenario!.pages.map(page => ({ pageNumber: page.pageNumber, text: page.text })),
+  }));
   t.mock.method(harness.storiesModule.illustrationOps, 'generateAllCharacterSheets', async () => []);
   t.mock.method(harness.storiesModule.illustrationOps, 'generateAllSceneImages', async () => {});
   t.mock.method(harness.storiesModule.audioOps, 'generateAllPageAudio', async () => {
@@ -1867,6 +1865,8 @@ test('POST /api/stories/:id/retry restarts a failed script with saved settings a
   const saved = await waitFor(() => readStoryMeta(dataDir, storyId), story => story.status === 'completed');
   assert.equal(saved.status, 'completed');
   assert.equal(saved.scenario?.title, 'Test Story');
+  assert.equal(saved.generationInputs?.language, 'ro');
+  assert.equal(saved.generationInputs?.sourceLanguage, 'en');
   assert.equal(saved.generationInputs?.age, 5);
   assert.equal(saved.generationInputs?.textModel, 'openai/gpt-6-astra');
   assert.equal(saved.generationInputs?.thinkingLevel, 'high');
@@ -2876,4 +2876,506 @@ test('a failed stale asset refresh continues and syncs its rendered revision', a
   const saved = await waitFor(() => readStoryMeta(dataDir, storyId), story => story.status === 'completed');
   assert.equal(saved.renderedScenarioRevision, 2);
   assert.deepEqual(saved.scenario?.pages.map(page => page.status), ['completed', 'completed']);
+});
+
+
+test('multilingual creation stores English source and translates Romanian text after images without audio', async (t) => {
+  const dataDir = mkdtempSync(path.join(os.tmpdir(), 'stories-multilingual-create-'));
+  const harness = await createStoriesHarness(dataDir, { defaultLanguage: 'en' });
+  t.after(async () => { await harness.close(); await fs.rm(dataDir, { recursive: true, force: true }); });
+  const source = makeScenario([makePage()]);
+  const stages: string[] = [];
+  let scenarioLanguage: string | undefined;
+  t.mock.method(harness.storiesModule.scenarioOps, 'generateScenarioWithMetadata', async (_prompt: string, language?: string) => {
+    scenarioLanguage = language;
+    stages.push('scenario');
+    return makeGeneratedScenarioResult(source);
+  });
+  t.mock.method(harness.storiesModule.illustrationOps, 'generateAllCharacterSheets', async () => []);
+  t.mock.method(harness.storiesModule.illustrationOps, 'generateAllSceneImages', async (_id: string, pages: Page[]) => {
+    assert.equal(pages[0].text, 'A calm dragon watches the moon.');
+    assert.equal(pages[0].imagePrompt, 'Moonlit dragon scene');
+    pages[0].status = 'completed';
+    stages.push('images');
+  });
+  t.mock.method(harness.storiesModule.localizationOps, 'translateStory', async (story: StoryMeta, language: string) => {
+    stages.push('translation');
+    assert.equal(language, 'ro');
+    return {
+      language, sourceHash: harness.storiesModule.localizationOps.getStorySourceHash(story),
+      title: 'Dragonul și luna', pages: [{ pageNumber: 1, text: 'Un dragon liniștit privește luna.' }],
+    };
+  });
+  const response = await fetch(`${harness.baseUrl}/api/stories`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ prompt: 'A calm bedtime story.', language: 'ro', audioEnabled: false }),
+  });
+  assert.equal(response.status, 201);
+  const { id } = await response.json() as { id: string };
+  const saved = await waitFor(() => readStoryMeta(dataDir, id), story => story.status === 'completed');
+  assert.equal(saved.status, 'completed');
+  assert.equal(scenarioLanguage, 'en');
+  assert.deepEqual(stages, ['scenario', 'images', 'translation']);
+  assert.equal(saved.language, 'ro');
+  assert.equal(saved.generationInputs?.sourceLanguage, 'en');
+  assert.equal(saved.scenario?.title, 'Test Story');
+  assert.equal(saved.scenario?.pages[0].text, 'A calm dragon watches the moon.');
+  const localized = await harness.storiesModule.localizationOps.loadStoryLocalization(id, 'ro');
+  assert.equal(localized?.title, 'Dragonul și luna');
+  assert.equal(localized?.pages[0].text, 'Un dragon liniștit privește luna.');
+  assert.equal(localized?.pages[0].audioUrl, undefined);
+});
+
+test('multilingual GET uses saved subtitles and returns source without audio when a translation is missing', async (t) => {
+  const dataDir = mkdtempSync(path.join(os.tmpdir(), 'stories-multilingual-read-'));
+  const harness = await createStoriesHarness(dataDir, { defaultLanguage: 'en' });
+  t.after(async () => { await harness.close(); await fs.rm(dataDir, { recursive: true, force: true }); });
+  const story = makeStoryMeta({
+    id: 'story-multilingual-read', status: 'completed', language: 'en',
+    generationInputs: { ...makeAudioInputs(true), sourceLanguage: 'en' },
+    scenario: makeScenario([makePage({ audioUrl: '/source-en.mp3' })]),
+  });
+  await writeStoryMeta(dataDir, story);
+  await harness.storiesModule.localizationOps.saveStoryLocalization(story.id, {
+    language: 'fr', sourceHash: harness.storiesModule.localizationOps.getStorySourceHash(story),
+    title: 'Le dragon et la lune', pages: [{ pageNumber: 1, text: 'Un dragon calme regarde la lune.' }],
+  });
+  const response = await fetch(`${harness.baseUrl}/api/stories/${story.id}?language=fr`);
+  assert.equal(response.status, 200);
+  const translated = await response.json() as StoryMeta;
+  assert.equal(translated.language, 'fr');
+  assert.equal(translated.sourceLanguage, 'en');
+  assert.equal(translated.scenario?.title, 'Le dragon et la lune');
+  assert.equal(translated.scenario?.pages[0].text, 'Un dragon calme regarde la lune.');
+  assert.match(translated.scenario?.pages[0].imageUrl ?? '', /page-01\.png/);
+  assert.equal(translated.scenario?.pages[0].audioUrl, undefined);
+  const missingResponse = await fetch(`${harness.baseUrl}/api/stories/${story.id}?language=de`);
+  assert.equal(missingResponse.status, 200);
+  const missing = await missingResponse.json() as StoryMeta;
+  assert.equal(missing.localizationMissing, true);
+  assert.equal(missing.sourceLanguage, 'en');
+  assert.equal(missing.scenario?.pages[0].text, 'A calm dragon watches the moon.');
+  assert.equal(missing.scenario?.pages[0].audioUrl, undefined);
+  assert.deepEqual((await readStoryMeta(dataDir, story.id)).scenario, story.scenario);
+});
+
+test('multilingual translate saves subtitles and usage once without the full story agent', async (t) => {
+  const dataDir = mkdtempSync(path.join(os.tmpdir(), 'stories-multilingual-translate-'));
+  const harness = await createStoriesHarness(dataDir, { defaultLanguage: 'en', __testAuthUser: { id: 'owner' } });
+  t.after(async () => { await harness.close(); await fs.rm(dataDir, { recursive: true, force: true }); });
+  const story = makeStoryMeta({ id: 'story-multilingual-translate', userId: 'owner', status: 'completed', language: 'en' });
+  await writeStoryMeta(dataDir, story);
+  t.mock.method(harness.storiesModule.scenarioOps, 'generateScenarioWithMetadata', async () => { throw new Error('The full story agent must not run.'); });
+  t.mock.method(harness.storiesModule.scenarioOps, 'generateScenario', async () => { throw new Error('The full story agent must not run.'); });
+  let translationCalls = 0;
+  t.mock.method(harness.storiesModule.localizationOps, 'translateStory', async (
+    ...[source, language, options]: Parameters<typeof harness.storiesModule.localizationOps.translateStory>
+  ) => {
+    translationCalls++;
+    await options?.onUsage?.({
+      model: 'google/gemini-3.1-flash-lite-preview', status: 'succeeded',
+      inputTokens: 90, outputTokens: 30, totalTokens: 120, usageAvailable: true,
+      usageDetails: { providerCostUsd: 0.000123, costSource: 'openrouter', responseId: 'translation-test-response', prompt_tokens: 90, completion_tokens: 30, total_tokens: 120 },
+    });
+    return {
+      language, sourceHash: harness.storiesModule.localizationOps.getStorySourceHash(source),
+      title: 'Le dragon et la lune', pages: [{ pageNumber: 1, text: 'Un dragon calme regarde la lune.' }],
+    };
+  });
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const response = await fetch(`${harness.baseUrl}/api/stories/${story.id}/translate`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ language: 'fr' }),
+    });
+    assert.equal(response.status, 200);
+  }
+  const localized = await harness.storiesModule.localizationOps.loadStoryLocalization(story.id, 'fr');
+  assert.equal(localized?.pages[0].text, 'Un dragon calme regarde la lune.');
+  assert.equal(translationCalls, 1);
+  const events = await readUsageEvents(dataDir, story.id);
+  assert.equal(events.length, 1);
+  assert.equal(events[0].provider, 'openrouter');
+  assert.equal(events[0].status, 'succeeded');
+  assert.equal(events[0].costUsdMicros, 123);
+  assert.deepEqual((await readStoryMeta(dataDir, story.id)).scenario, story.scenario);
+});
+
+test('multilingual translate rejects a different owner before provider use', async (t) => {
+  const dataDir = mkdtempSync(path.join(os.tmpdir(), 'stories-multilingual-owner-'));
+  const harness = await createStoriesHarness(dataDir, { defaultLanguage: 'en', __testAuthUser: { id: 'other-user' } });
+  t.after(async () => { await harness.close(); await fs.rm(dataDir, { recursive: true, force: true }); });
+  const story = makeStoryMeta({ id: 'story-multilingual-owner', userId: 'owner', status: 'completed', language: 'en' });
+  await writeStoryMeta(dataDir, story);
+  t.mock.method(harness.storiesModule.localizationOps, 'translateStory', async () => { throw new Error('The provider must not run for a different owner.'); });
+  const response = await fetch(`${harness.baseUrl}/api/stories/${story.id}/translate`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ language: 'fr' }),
+  });
+  assert.equal(response.status, 403);
+  assert.equal(await harness.storiesModule.localizationOps.loadStoryLocalization(story.id, 'fr'), null);
+});
+
+test('multilingual narration repairs only missing Romanian audio while English audio is present', async (t) => {
+  const dataDir = mkdtempSync(path.join(os.tmpdir(), 'stories-multilingual-audio-'));
+  const harness = await createStoriesHarness(dataDir, { defaultLanguage: 'en', __testAuthUser: { id: 'owner' } });
+  t.after(async () => { await harness.close(); await fs.rm(dataDir, { recursive: true, force: true }); });
+  const story = makeStoryMeta({
+    id: 'story-multilingual-audio', userId: 'owner', status: 'completed', language: 'en', voice: 'mom',
+    generationInputs: { ...makeAudioInputs(true), sourceLanguage: 'en' },
+    scenario: makeScenario([
+      makePage({ audioUrl: '/source-en-01.mp3' }),
+      makePage({ pageNumber: 2, text: 'The dragon closes its eyes.', audioUrl: '/source-en-02.mp3' }),
+    ]),
+  });
+  await writeStoryMeta(dataDir, story);
+  await harness.storiesModule.localizationOps.saveStoryLocalization(story.id, {
+    language: 'ro', sourceHash: harness.storiesModule.localizationOps.getStorySourceHash(story), title: 'Dragonul și luna',
+    pages: [
+      { pageNumber: 1, text: 'Un dragon liniștit privește luna.', audioUrl: '/saved-ro-01.mp3' },
+      { pageNumber: 2, text: 'Dragonul închide ochii.' },
+    ],
+  });
+  t.mock.method(harness.storiesModule.audioOps, 'isAudioConfigured', () => true);
+  const generatedTexts: string[] = [];
+  t.mock.method(harness.storiesModule.audioOps, 'generatePageAudio', async (text: string) => {
+    generatedTexts.push(text);
+    return Buffer.from('romanian-page-two-audio');
+  });
+  t.mock.method(harness.storiesModule.localizationOps, 'translateStory', async () => { throw new Error('Saved subtitles must be reused.'); });
+  const response = await fetch(`${harness.baseUrl}/api/stories/${story.id}/generate-audio`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ language: 'ro', voice: 'mom' }),
+  });
+  assert.equal(response.status, 200);
+  const body = await response.json() as { generatedAudio: number };
+  assert.equal(body.generatedAudio, 1);
+  const localized = await waitFor(
+    () => harness.storiesModule.localizationOps.loadStoryLocalization(story.id, 'ro'),
+    value => !!value?.pages[1].audioUrl,
+  );
+  assert.deepEqual(generatedTexts, ['Dragonul închide ochii.']);
+  assert.equal(localized?.pages[0].audioUrl, '/saved-ro-01.mp3');
+  assert.ok(localized?.pages[1].audioUrl);
+  assert.notEqual(localized?.pages[1].audioUrl, '/source-en-02.mp3');
+  const audioResponse = await fetch(new URL(localized!.pages[1].audioUrl!, harness.baseUrl));
+  assert.equal(audioResponse.status, 200);
+  assert.equal(await audioResponse.text(), 'romanian-page-two-audio');
+  const completed = await waitFor(() => readStoryMeta(dataDir, story.id), value => value.status === 'completed');
+  assert.equal(completed.status, 'completed');
+  assert.deepEqual(completed.scenario, story.scenario);
+});
+
+test('multilingual creation skips translation when the reader language is English', async (t) => {
+  const dataDir = mkdtempSync(path.join(os.tmpdir(), 'stories-multilingual-english-'));
+  const harness = await createStoriesHarness(dataDir, { defaultLanguage: 'en' });
+  t.after(async () => { await harness.close(); await fs.rm(dataDir, { recursive: true, force: true }); });
+  t.mock.method(harness.storiesModule.scenarioOps, 'generateScenarioWithMetadata', async () => makeGeneratedScenarioResult(makeScenario([makePage()])));
+  t.mock.method(harness.storiesModule.illustrationOps, 'generateAllCharacterSheets', async () => []);
+  t.mock.method(harness.storiesModule.illustrationOps, 'generateAllSceneImages', async () => {});
+  t.mock.method(harness.storiesModule.localizationOps, 'translateStory', async () => { throw new Error('English source needs no translation.'); });
+  const response = await fetch(`${harness.baseUrl}/api/stories`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ prompt: 'A calm bedtime story.', language: 'en', audioEnabled: false }),
+  });
+  assert.equal(response.status, 201);
+  const { id } = await response.json() as { id: string };
+  const saved = await waitFor(() => readStoryMeta(dataDir, id), story => story.status === 'completed');
+  assert.equal(saved.status, 'completed');
+  assert.equal(saved.generationInputs?.sourceLanguage, 'en');
+  assert.equal(await harness.storiesModule.localizationOps.loadStoryLocalization(id, 'en'), null);
+});
+
+test('multilingual creation uses Romanian subtitles on the Romanian site', async (t) => {
+  const dataDir = mkdtempSync(path.join(os.tmpdir(), 'stories-multilingual-regional-'));
+  const harness = await createStoriesHarness(dataDir, { defaultLanguage: 'ro' });
+  t.after(async () => { await harness.close(); await fs.rm(dataDir, { recursive: true, force: true }); });
+  t.mock.method(harness.storiesModule.scenarioOps, 'generateScenarioWithMetadata', async () => makeGeneratedScenarioResult(makeScenario([makePage()])));
+  t.mock.method(harness.storiesModule.illustrationOps, 'generateAllCharacterSheets', async () => []);
+  t.mock.method(harness.storiesModule.illustrationOps, 'generateAllSceneImages', async () => {});
+  let targetLanguage: string | undefined;
+  t.mock.method(harness.storiesModule.localizationOps, 'translateStory', async (story: StoryMeta, language: string) => {
+    targetLanguage = language;
+    return {
+      language, sourceHash: harness.storiesModule.localizationOps.getStorySourceHash(story),
+      title: 'Dragonul și luna', pages: [{ pageNumber: 1, text: 'Un dragon liniștit privește luna.' }],
+    };
+  });
+  const response = await fetch(`${harness.baseUrl}/api/stories`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ prompt: 'A calm bedtime story.', language: 'fr', audioEnabled: false }),
+  });
+  assert.equal(response.status, 201);
+  const { id } = await response.json() as { id: string };
+  const saved = await waitFor(() => readStoryMeta(dataDir, id), story => story.status === 'completed');
+  assert.equal(saved.status, 'completed');
+  assert.equal(saved.language, 'ro');
+  assert.equal(saved.generationInputs?.language, 'ro');
+  assert.equal(saved.generationInputs?.sourceLanguage, 'en');
+  assert.equal(targetLanguage, 'ro');
+});
+
+
+test('multilingual page edit saves Romanian text and audio without changing English source', async (t) => {
+  const dataDir = mkdtempSync(path.join(os.tmpdir(), 'stories-multilingual-edit-'));
+  const harness = await createStoriesHarness(dataDir, { defaultLanguage: 'en', __testAuthUser: { id: 'owner' } });
+  t.after(async () => { await harness.close(); await fs.rm(dataDir, { recursive: true, force: true }); });
+  const story = makeStoryMeta({
+    id: 'story-multilingual-edit', userId: 'owner', status: 'completed', language: 'en', voice: 'mom',
+    generationInputs: { ...makeAudioInputs(true), sourceLanguage: 'en' },
+    scenario: makeScenario([makePage({ audioUrl: '/original-en.mp3', audioRevision: 1 })]),
+  });
+  await writeStoryMeta(dataDir, story);
+  await harness.storiesModule.localizationOps.saveStoryLocalization(story.id, {
+    language: 'ro', sourceHash: harness.storiesModule.localizationOps.getStorySourceHash(story),
+    title: 'Dragonul și luna', voice: 'mom',
+    pages: [{ pageNumber: 1, text: 'Un dragon liniștit privește luna.', audioUrl: '/original-ro.mp3', audioRevision: 1 }],
+  });
+  t.mock.method(harness.storiesModule.pageTextReviewOps, 'reviewPageText', async () => ({ allowed: true }));
+  t.mock.method(harness.storiesModule.audioOps, 'isAudioConfigured', () => true);
+  let generatedText = '';
+  t.mock.method(harness.storiesModule.audioOps, 'generatePageAudio', async (text: string) => {
+    generatedText = text;
+    return Buffer.from('new-romanian-audio');
+  });
+  const response = await fetch(`${harness.baseUrl}/api/stories/${story.id}/pages/1/script-audio`, {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ language: 'ro', text: 'RO new', voice: 'mom' }),
+  });
+  assert.equal(response.status, 200);
+  const localized = await waitFor(
+    () => harness.storiesModule.localizationOps.loadStoryLocalization(story.id, 'ro'),
+    value => value?.pages[0].text === 'RO new' && !!value.pages[0].audioUrl && value.pages[0].audioUrl !== '/original-ro.mp3',
+  );
+  assert.deepEqual((await readStoryMeta(dataDir, story.id)).scenario, story.scenario);
+  assert.equal(generatedText, 'RO new');
+  assert.equal(localized?.pages[0].text, 'RO new');
+  assert.notEqual(localized?.pages[0].audioUrl, '/original-ro.mp3');
+  const audioResponse = await fetch(new URL(localized!.pages[0].audioUrl!, harness.baseUrl));
+  assert.equal(audioResponse.status, 200);
+  assert.equal(await audioResponse.text(), 'new-romanian-audio');
+  const completed = await waitFor(() => readStoryMeta(dataDir, story.id), value => value.status === 'completed');
+  assert.equal(completed.status, 'completed');
+});
+
+test('multilingual translation requests reject a concurrent request for the same language', async (t) => {
+  const dataDir = mkdtempSync(path.join(os.tmpdir(), 'stories-multilingual-concurrent-'));
+  const harness = await createStoriesHarness(dataDir, { defaultLanguage: 'en', __testAuthUser: { id: 'owner' } });
+  t.after(async () => { await harness.close(); await fs.rm(dataDir, { recursive: true, force: true }); });
+  const story = makeStoryMeta({ id: 'story-multilingual-concurrent', userId: 'owner', status: 'completed', language: 'en' });
+  await writeStoryMeta(dataDir, story);
+  let releaseTranslation!: () => void;
+  const translationBlocked = new Promise<void>(resolve => { releaseTranslation = resolve; });
+  let providerCalls = 0;
+  t.mock.method(harness.storiesModule.localizationOps, 'translateStory', async (source: StoryMeta, language: string) => {
+    providerCalls++;
+    await translationBlocked;
+    return {
+      language, sourceHash: harness.storiesModule.localizationOps.getStorySourceHash(source),
+      title: 'Dragonul și luna', pages: [{ pageNumber: 1, text: 'Un dragon liniștit privește luna.' }],
+    };
+  });
+  const request = (signal?: AbortSignal) => fetch(`${harness.baseUrl}/api/stories/${story.id}/translate`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ language: 'ro' }), signal,
+  });
+  const firstResponse = request();
+  try {
+    assert.equal(await waitFor(async () => providerCalls, count => count === 1), 1);
+    const secondResponse = await request(AbortSignal.timeout(2_000));
+    assert.equal(secondResponse.status, 409);
+    assert.equal(providerCalls, 1);
+  } finally {
+    releaseTranslation();
+    assert.equal((await firstResponse).status, 200);
+  }
+  const localized = await harness.storiesModule.localizationOps.loadStoryLocalization(story.id, 'ro');
+  assert.equal(localized?.pages[0].text, 'Un dragon liniștit privește luna.');
+});
+
+test('multilingual stale subtitles return source text without old narration or a provider call', async (t) => {
+  const dataDir = mkdtempSync(path.join(os.tmpdir(), 'stories-multilingual-stale-'));
+  const harness = await createStoriesHarness(dataDir, { defaultLanguage: 'en' });
+  t.after(async () => { await harness.close(); await fs.rm(dataDir, { recursive: true, force: true }); });
+  const story = makeStoryMeta({
+    id: 'story-multilingual-stale', status: 'completed', language: 'en',
+    generationInputs: { ...makeAudioInputs(true), sourceLanguage: 'en' },
+    scenario: makeScenario([makePage({ audioUrl: '/original-en.mp3' })]),
+  });
+  await writeStoryMeta(dataDir, story);
+  await harness.storiesModule.localizationOps.saveStoryLocalization(story.id, {
+    language: 'ro', sourceHash: harness.storiesModule.localizationOps.getStorySourceHash(story),
+    title: 'Dragonul și luna',
+    pages: [{ pageNumber: 1, text: 'Un dragon liniștit privește luna.', audioUrl: '/stale-ro.mp3' }],
+  });
+  const changed = {
+    ...story, scenario: makeScenario([makePage({ text: 'The dragon now watches the sunrise.', audioUrl: '/original-en.mp3' })]),
+  };
+  await writeStoryMeta(dataDir, changed);
+  let providerCalls = 0;
+  t.mock.method(harness.storiesModule.localizationOps, 'translateStory', async () => {
+    providerCalls++;
+    throw new Error('GET must not call a translation provider.');
+  });
+  const response = await fetch(`${harness.baseUrl}/api/stories/${story.id}?language=ro`);
+  assert.equal(response.status, 200);
+  const body = await response.json() as StoryMeta;
+  assert.equal(body.localizationMissing, true);
+  assert.equal(providerCalls, 0);
+  assert.equal(body.scenario?.pages[0].text, 'The dragon now watches the sunrise.');
+  assert.equal(body.scenario?.pages[0].audioUrl, undefined);
+  assert.deepEqual((await readStoryMeta(dataDir, story.id)).scenario, changed.scenario);
+});
+
+
+test('multilingual retry repairs Romanian narration and preserves existing English narration', async (t) => {
+  const dataDir = mkdtempSync(path.join(os.tmpdir(), 'stories-multilingual-retry-'));
+  const harness = await createStoriesHarness(dataDir, { defaultLanguage: 'en', __testAuthUser: { id: 'owner' } });
+  t.after(async () => { await harness.close(); await fs.rm(dataDir, { recursive: true, force: true }); });
+  const story = makeStoryMeta({
+    id: 'story-multilingual-retry', userId: 'owner', status: 'completed', language: 'ro', voice: 'mom', storyMode: 'pro_audio',
+    generationInputs: { ...makeAudioInputs(true), language: 'ro', sourceLanguage: 'en', voice: 'mom' },
+    scenarioRevision: 1, renderedScenarioRevision: 1,
+    scenario: makeScenario([makePage({ audioUrl: '/original-en.mp3', audioRevision: 1 })]),
+  });
+  await writeStoryMeta(dataDir, story);
+  await harness.storiesModule.localizationOps.saveStoryLocalization(story.id, {
+    language: 'ro', sourceHash: harness.storiesModule.localizationOps.getStorySourceHash(story),
+    title: 'Dragonul și luna', voice: 'mom',
+    pages: [{ pageNumber: 1, text: 'Un dragon liniștit privește luna.' }],
+  });
+  t.mock.method(harness.storiesModule.audioOps, 'isAudioConfigured', () => true);
+  const generatedTexts: string[] = [];
+  t.mock.method(harness.storiesModule.audioOps, 'generatePageAudio', async (text: string) => {
+    generatedTexts.push(text);
+    return Buffer.from('retried-romanian-audio');
+  });
+  let sourceAudioCalls = 0;
+  t.mock.method(harness.storiesModule.audioOps, 'retryMissingAudio', async () => {
+    sourceAudioCalls++;
+    return { completedCount: 1, failedCount: 0, skippedCount: 0 };
+  });
+  t.mock.method(harness.storiesModule.localizationOps, 'translateStory', async () => { throw new Error('Saved Romanian subtitles must be reused.'); });
+  const response = await fetch(`${harness.baseUrl}/api/stories/${story.id}/retry`, { method: 'POST' });
+  assert.equal(response.status, 200);
+  const body = await response.json() as { retriedAudio: number };
+  assert.equal(body.retriedAudio, 1);
+  await waitFor(async () => harness.generationRegistry.isGenerationActive(story.id), active => !active);
+  assert.deepEqual(generatedTexts, ['Un dragon liniștit privește luna.']);
+  assert.equal(sourceAudioCalls, 0);
+  const localized = await harness.storiesModule.localizationOps.loadStoryLocalization(story.id, 'ro');
+  assert.ok(localized?.pages[0].audioUrl);
+  const audioResponse = await fetch(new URL(localized!.pages[0].audioUrl!, harness.baseUrl));
+  assert.equal(audioResponse.status, 200);
+  assert.equal(await audioResponse.text(), 'retried-romanian-audio');
+  assert.deepEqual((await readStoryMeta(dataDir, story.id)).scenario, story.scenario);
+});
+
+test('multilingual asset refresh generates Romanian narration for the saved reader language', async (t) => {
+  const dataDir = mkdtempSync(path.join(os.tmpdir(), 'stories-multilingual-refresh-'));
+  const harness = await createStoriesHarness(dataDir, { defaultLanguage: 'en', __testAuthUser: { id: 'owner' } });
+  t.after(async () => { await harness.close(); await fs.rm(dataDir, { recursive: true, force: true }); });
+  const story = makeStoryMeta({
+    id: 'story-multilingual-refresh', userId: 'owner', status: 'completed', language: 'ro', voice: 'mom', storyMode: 'pro_audio',
+    generationInputs: { ...makeAudioInputs(true), language: 'ro', sourceLanguage: 'en', voice: 'mom' },
+    scenarioRevision: 2, renderedScenarioRevision: 1,
+    scenario: makeScenario([makePage()]),
+  });
+  await writeStoryMeta(dataDir, story);
+  await harness.storiesModule.localizationOps.saveStoryLocalization(story.id, {
+    language: 'ro', sourceHash: harness.storiesModule.localizationOps.getStorySourceHash(story),
+    title: 'Dragonul și luna', voice: 'mom',
+    pages: [{ pageNumber: 1, text: 'Un dragon liniștit privește luna.' }],
+  });
+  t.mock.method(harness.storiesModule.illustrationOps, 'generateAllCharacterSheets', async () => new Map());
+  t.mock.method(harness.storiesModule.illustrationOps, 'generateAllSceneImages', async (
+    ...[storyId, pages, , , , onProgress]: Parameters<typeof harness.storiesModule.illustrationOps.generateAllSceneImages>
+  ) => {
+    const { updatePageStatus } = await import('../utils/storage.js');
+    for (const page of pages) {
+      assert.equal(page.text, 'A calm dragon watches the moon.');
+      page.status = 'completed';
+      await updatePageStatus(storyId, page.pageNumber, 'completed');
+      onProgress?.({ pageNumber: page.pageNumber, pageStatus: 'completed', message: 'Page complete' });
+    }
+  });
+  t.mock.method(harness.storiesModule.audioOps, 'isAudioConfigured', () => true);
+  const generatedTexts: string[] = [];
+  t.mock.method(harness.storiesModule.audioOps, 'generatePageAudio', async (text: string) => {
+    generatedTexts.push(text);
+    return Buffer.from('refreshed-romanian-audio');
+  });
+  let sourceAudioCalls = 0;
+  t.mock.method(harness.storiesModule.audioOps, 'generateAllPageAudio', async () => {
+    sourceAudioCalls++;
+    return { completedCount: 1, failedCount: 0, skippedCount: 0 };
+  });
+  t.mock.method(harness.storiesModule.localizationOps, 'translateStory', async () => { throw new Error('Saved Romanian subtitles must be reused.'); });
+  const response = await fetch(`${harness.baseUrl}/api/stories/${story.id}/regenerate-assets`, { method: 'POST' });
+  assert.equal(response.status, 200);
+  await waitFor(async () => harness.generationRegistry.isGenerationActive(story.id), active => !active);
+  assert.deepEqual(generatedTexts, ['Un dragon liniștit privește luna.']);
+  assert.equal(sourceAudioCalls, 0);
+  const saved = await readStoryMeta(dataDir, story.id);
+  assert.equal(saved.status, 'completed');
+  assert.equal(saved.renderedScenarioRevision, 2);
+  assert.equal(saved.scenario?.pages[0].text, 'A calm dragon watches the moon.');
+  const localized = await harness.storiesModule.localizationOps.loadStoryLocalization(story.id, 'ro');
+  assert.ok(localized?.pages[0].audioUrl);
+  const audioResponse = await fetch(new URL(localized!.pages[0].audioUrl!, harness.baseUrl));
+  assert.equal(audioResponse.status, 200);
+  assert.equal(await audioResponse.text(), 'refreshed-romanian-audio');
+});
+
+
+test('multilingual list summaries use the selected title and narration status', async (t) => {
+  const dataDir = mkdtempSync(path.join(os.tmpdir(), 'stories-multilingual-list-'));
+  const harness = await createStoriesHarness(dataDir, { defaultLanguage: 'en' });
+  t.after(async () => { await harness.close(); await fs.rm(dataDir, { recursive: true, force: true }); });
+  const story = makeStoryMeta({
+    id: 'story-multilingual-list', status: 'completed', language: 'ro', voice: 'mom',
+    generationInputs: { ...makeAudioInputs(true), language: 'ro', sourceLanguage: 'en', voice: 'mom' },
+    scenario: makeScenario([makePage()]),
+  });
+  await writeStoryMeta(dataDir, story);
+  await harness.storiesModule.localizationOps.saveStoryLocalization(story.id, {
+    language: 'ro', sourceHash: harness.storiesModule.localizationOps.getStorySourceHash(story),
+    title: 'Dragonul și luna', voice: 'mom',
+    pages: [{ pageNumber: 1, text: 'Un dragon liniștit privește luna.', audioUrl: '/romanian-audio.mp3' }],
+  });
+  for (const expected of [
+    { language: 'ro', title: 'Dragonul și luna', hasAudio: true },
+    { language: 'en', title: 'Test Story', hasAudio: false },
+  ]) {
+    const response = await fetch(`${harness.baseUrl}/api/stories?language=${expected.language}`);
+    assert.equal(response.status, 200);
+    const summaries = await response.json() as Array<{ id: string; title: string; hasAudio: boolean }>;
+    const summary = summaries.find(value => value.id === story.id);
+    assert.ok(summary);
+    assert.equal(summary.title, expected.title);
+    assert.equal(summary.hasAudio, expected.hasAudio);
+  }
+});
+
+
+test('multilingual translate rejects an unowned legacy story in Supabase mode', async (t) => {
+  const dataDir = mkdtempSync(path.join(os.tmpdir(), 'stories-multilingual-unowned-'));
+  const harness = await createStoriesHarness(dataDir, {
+    defaultLanguage: 'en', useSupabase: true, __testAuthUser: { id: 'some-caller' },
+  });
+  t.after(async () => { await harness.close(); await fs.rm(dataDir, { recursive: true, force: true }); });
+  t.mock.method(harness.storiesModule.storageOps, 'getStory', async () => makeStoryMeta({
+    id: 'story-multilingual-unowned', status: 'completed', language: 'en', userId: undefined,
+  }));
+  const translate = t.mock.method(harness.storiesModule.localizationOps, 'translateStory', async () => {
+    assert.fail('An unowned story must not call the translation provider.');
+  });
+  const load = t.mock.method(harness.storiesModule.localizationOps, 'loadStoryLocalization', async () => {
+    assert.fail('An unowned story must not load a translation.');
+  });
+  const save = t.mock.method(harness.storiesModule.localizationOps, 'saveStoryLocalization', async () => {
+    assert.fail('An unowned story must not save a translation.');
+  });
+  const response = await fetch(`${harness.baseUrl}/api/stories/story-multilingual-unowned/translate`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ language: 'ro' }),
+  });
+  assert.equal(response.status, 403);
+  assert.equal(translate.mock.callCount(), 0);
+  assert.equal(load.mock.callCount(), 0);
+  assert.equal(save.mock.callCount(), 0);
 });

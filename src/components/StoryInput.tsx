@@ -11,6 +11,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useBillingOverview } from '../hooks/useBilling';
 import { useLanguage } from '../i18n/LanguageContext';
+import { useStoryLanguage } from '../hooks/useStoryLanguage';
 import {
   AGE_RANGES,
   DEFAULT_AGE,
@@ -58,6 +59,7 @@ export default function StoryInput({ onSubmit, isLoading, isOffline = false }: S
   const { user, loading } = useAuth();
   const { data: billingOverview } = useBillingOverview(!!user);
   const { t, language } = useLanguage();
+  const storyLanguage = useStoryLanguage();
   const navigate = useNavigate();
   const location = useLocation();
   const copy = getWalletCopy(language);
@@ -93,7 +95,7 @@ export default function StoryInput({ onSubmit, isLoading, isOffline = false }: S
     }
 
     const trimmed = prompt.trim();
-    if (trimmed && !isLoading && (!audioEnabled || isAudioModelAvailable(audioModel, language))) {
+    if (trimmed && !isLoading && (!audioEnabled || isAudioModelAvailable(audioModel, storyLanguage))) {
       onSubmit({
         prompt: trimmed,
         age,
@@ -113,18 +115,18 @@ export default function StoryInput({ onSubmit, isLoading, isOffline = false }: S
 
   const handleAudioModelChange = (nextModel: string) => {
     setAudioModel(nextModel);
-    const nextVoice = getAudioVoices(nextModel, language)[0]?.id;
+    const nextVoice = getAudioVoices(nextModel, storyLanguage)[0]?.id;
     setAudioVoice(nextVoice);
   };
 
   useEffect(() => {
-    if (audioModel === DEFAULT_AUDIO_MODEL || !isAudioModelAvailable(audioModel, language)) return;
-    const voices = getAudioVoices(audioModel, language);
+    if (audioModel === DEFAULT_AUDIO_MODEL || !isAudioModelAvailable(audioModel, storyLanguage)) return;
+    const voices = getAudioVoices(audioModel, storyLanguage);
     if (!voices.some(option => option.id === audioVoice)) setAudioVoice(voices[0]?.id);
-  }, [audioModel, audioVoice, language]);
+  }, [audioModel, audioVoice, storyLanguage]);
 
   const handleIdeaClick = () => {
-    setPrompt(getRandomStoryIdea(language));
+    setPrompt(getRandomStoryIdea(storyLanguage));
   };
 
   const isGuest = !loading && !user;
@@ -299,6 +301,7 @@ export default function StoryInput({ onSubmit, isLoading, isOffline = false }: S
                         model={audioModel}
                         voice={audioVoice}
                         language={language}
+                        speechLanguage={storyLanguage}
                         onModelChange={handleAudioModelChange}
                         onVoiceChange={setAudioVoice}
                         disabled={isLoading}
@@ -373,7 +376,7 @@ export default function StoryInput({ onSubmit, isLoading, isOffline = false }: S
             )}
             <button
               type="submit"
-              disabled={user ? (isLoading || !billingOverview || (hasEnoughCredits && (!prompt.trim() || (audioEnabled && !isAudioModelAvailable(audioModel, language))))) : false}
+              disabled={user ? (isLoading || !billingOverview || (hasEnoughCredits && (!prompt.trim() || (audioEnabled && !isAudioModelAvailable(audioModel, storyLanguage))))) : false}
               className="min-h-12 w-full bg-primary-600 hover:bg-primary-700 disabled:bg-gray-300 dark:disabled:bg-gray-700 text-white font-bold py-2.5 px-8 rounded-xl transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500 disabled:cursor-not-allowed shrink-0 sm:w-auto sm:min-w-[180px]"
             >
               {isLoading ? (

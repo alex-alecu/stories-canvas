@@ -2,6 +2,7 @@ import type { StoryAssets, StoryMeta, StorySummary } from '../types';
 import { cacheStoryMedia, deleteCachedStoryMedia } from './serviceWorker';
 import { fetchStory, fetchStoryAssets } from './storyApi';
 import { storyAssetsAreStale } from '../../shared/storyCompletion';
+import { getStoryLanguageKey, matchesStoryLanguage } from './storyLanguage';
 
 const DB_NAME = 'stories-canvas-offline';
 const DB_VERSION = 1;
@@ -13,6 +14,7 @@ export type OfflineDownloadSource = 'manual' | 'recent';
 
 export interface OfflineStoryRecord {
   id: string;
+  requestedLanguage?: string;
   story: StoryMeta;
   summary: StorySummary;
   source: OfflineDownloadSource;
@@ -43,11 +45,20 @@ export function subscribeOfflineStories(listener: () => void): () => void {
   return () => window.removeEventListener(CHANGE_EVENT, listener);
 }
 
-export async function getOfflineStory(id: string): Promise<OfflineStoryRecord | null> {
+export async function getOfflineStory(id: string, language: string): Promise<OfflineStoryRecord | null> {
   const db = await openOfflineDb();
-  return requestToPromise<OfflineStoryRecord | undefined>(
+  const record = await requestToPromise<OfflineStoryRecord | undefined>(
+    db.transaction(STORE_NAME, 'readonly').objectStore(STORE_NAME).get(getStoryLanguageKey(id, language)),
+  );
+  if (record && matchesStoryLanguage(record.story, language)) return normalizeOfflineRecord(record);
+
+  // Older downloads used only the story ID. Read them only in their stored language.
+  const legacyRecord = await requestToPromise<OfflineStoryRecord | undefined>(
     db.transaction(STORE_NAME, 'readonly').objectStore(STORE_NAME).get(id),
-  ).then(record => record ? normalizeOfflineRecord(record) : null);
+  );
+  return legacyRecord && matchesStoryLanguage(legacyRecord.story, language)
+    ? normalizeOfflineRecord(legacyRecord)
+    : null;
 }
 
 export async function listOfflineStories(): Promise<OfflineStoryRecord[]> {
@@ -61,9 +72,9 @@ export async function listOfflineStories(): Promise<OfflineStoryRecord[]> {
     .sort((a, b) => Date.parse(b.lastViewedAt) - Date.parse(a.lastViewedAt));
 }
 
-export async function listOfflineStorySummaries(search?: string): Promise<StorySummary[]> {
+export async function listOfflineStorySummaries(search?: string, language?: string): Promise<StorySummary[]> {
   const normalizedSearch = search?.trim().toLowerCase();
-  const records = await listOfflineStories();
+  const records = (await listOfflineStories()).filter(record => !language || matchesStoryLanguage(record.story, language));
   const filtered = normalizedSearch
     ? records.filter(record => {
       const haystack = `${record.summary.title ?? ''} ${record.summary.prompt}`.toLowerCase();
@@ -71,7 +82,11 @@ export async function listOfflineStorySummaries(search?: string): Promise<StoryS
     })
     : records;
 
-  return filtered.map(record => record.summary);
+  const summaries = new Map<string, StorySummary>();
+  for (const record of filtered) {
+    if (!summaries.has(record.story.id)) summaries.set(record.story.id, record.summary);
+  }
+  return [...summaries.values()];
 }
 
 export async function getOfflineDownloadsSummary(): Promise<OfflineDownloadsSummary> {
@@ -96,16 +111,19 @@ export async function getOfflineDownloadsSummary(): Promise<OfflineDownloadsSumm
 export async function downloadStoryForOffline(
   storyId: string,
   source: OfflineDownloadSource,
+  language: string,
   existingStory?: StoryMeta,
 ): Promise<OfflineStoryRecord> {
-  const story = existingStory?.scenario ? existingStory : await fetchStory(storyId);
+  const story = existingStory?.scenario && matchesStoryLanguage(existingStory, language)
+    ? existingStory
+    : await fetchStory(storyId, language);
   if (story.status !== 'completed' || storyAssetsAreStale(story) || !story.scenario) {
     throw new Error('Only completed stories can be downloaded');
   }
 
   const assets = await fetchStoryAssets(storyId).catch(() => undefined);
   const assetUrls = collectStoryAssetUrls(story, assets);
-  const existingRecord = await getOfflineStory(storyId);
+  const existingRecord = await getOfflineStory(storyId, language);
   const now = new Date().toISOString();
   const nextSource: OfflineDownloadSource = source === 'manual' || existingRecord?.source === 'manual'
     ? 'manual'
@@ -115,6 +133,8 @@ export async function downloadStoryForOffline(
   if (existingRecord && existingRecord.assetSignature === assetSignature) {
     const record: OfflineStoryRecord = {
       ...existingRecord,
+      id: getStoryLanguageKey(storyId, language),
+      requestedLanguage: language,
       story,
       summary: summarizeStory(story),
       source: nextSource,
@@ -137,7 +157,8 @@ export async function downloadStoryForOffline(
   }
 
   const record: OfflineStoryRecord = {
-    id: storyId,
+    id: getStoryLanguageKey(storyId, language),
+    requestedLanguage: language,
     story,
     summary: summarizeStory(story),
     source: nextSource,
@@ -154,8 +175,14 @@ export async function downloadStoryForOffline(
 
   await putOfflineStory(record);
   if (existingRecord) {
+    if (existingRecord.id !== record.id) {
+      const db = await openOfflineDb();
+      const tx = db.transaction(STORE_NAME, 'readwrite');
+      tx.objectStore(STORE_NAME).delete(existingRecord.id);
+      await transactionDone(tx);
+    }
     const oldUrls = existingRecord.assetUrls.filter(url => !assetUrls.includes(url));
-    await deleteCachedStoryMedia(oldUrls);
+    await deleteUnusedStoryMedia(oldUrls);
   }
 
   if (source === 'recent') {
@@ -166,8 +193,8 @@ export async function downloadStoryForOffline(
   return record;
 }
 
-export async function promoteOfflineStory(storyId: string): Promise<OfflineStoryRecord | null> {
-  const record = await getOfflineStory(storyId);
+export async function promoteOfflineStory(storyId: string, language: string): Promise<OfflineStoryRecord | null> {
+  const record = await getOfflineStory(storyId, language);
   if (!record) return null;
 
   const nextRecord: OfflineStoryRecord = {
@@ -180,16 +207,15 @@ export async function promoteOfflineStory(storyId: string): Promise<OfflineStory
   return nextRecord;
 }
 
-export async function removeOfflineStory(storyId: string): Promise<void> {
-  const record = await getOfflineStory(storyId);
+export async function removeOfflineStory(storyId: string, language: string): Promise<void> {
+  const record = await getOfflineStory(storyId, language);
   if (!record) return;
-
-  await deleteCachedStoryMedia(record.assetUrls);
 
   const db = await openOfflineDb();
   const tx = db.transaction(STORE_NAME, 'readwrite');
-  tx.objectStore(STORE_NAME).delete(storyId);
+  tx.objectStore(STORE_NAME).delete(record.id);
   await transactionDone(tx);
+  await deleteUnusedStoryMedia(record.assetUrls);
   notifyOfflineStoriesChanged();
 }
 
@@ -258,6 +284,7 @@ function summarizeStory(story: StoryMeta): StorySummary {
 
 function buildAssetSignature(story: StoryMeta, assetUrls: string[]): string {
   return [
+    story.requestedLanguage ?? story.language,
     story.scenarioRevision ?? 0,
     story.renderedScenarioRevision ?? 0,
     storyAssetsAreStale(story) ? 'stale' : 'fresh',
@@ -269,6 +296,7 @@ function normalizeOfflineRecord(record: OfflineStoryRecord): OfflineStoryRecord 
   const assetsStale = storyAssetsAreStale(record.story);
   return {
     ...record,
+    requestedLanguage: record.requestedLanguage ?? record.story.requestedLanguage ?? record.story.language ?? record.story.generationInputs?.language ?? 'ro',
     story: { ...record.story, assetsStale },
     summary: { ...record.summary, assetsStale },
   };
@@ -281,7 +309,16 @@ async function pruneRecentDownloads(limit = RECENT_DOWNLOAD_LIMIT): Promise<void
     .sort((a, b) => Date.parse(b.lastViewedAt) - Date.parse(a.lastViewedAt));
 
   const recordsToRemove = recentRecords.slice(limit);
-  await Promise.all(recordsToRemove.map(record => removeOfflineStory(record.id)));
+  for (const record of recordsToRemove) {
+    await removeOfflineStory(record.story.id, record.requestedLanguage!);
+  }
+}
+
+async function deleteUnusedStoryMedia(urls: string[]): Promise<void> {
+  if (urls.length === 0) return;
+  const records = await listOfflineStories();
+  const retainedUrls = new Set(records.flatMap(record => record.assetUrls));
+  await deleteCachedStoryMedia(urls.filter(url => !retainedUrls.has(url)));
 }
 
 async function putOfflineStory(record: OfflineStoryRecord): Promise<void> {
